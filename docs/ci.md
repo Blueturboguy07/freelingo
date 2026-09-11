@@ -46,30 +46,57 @@ each, a green tick, nothing tested. So the flows are counted first on a ten-seco
 runner — a flow is a `.yaml`/`.yml` file with an `appId:` header, so `README.md` is not
 miscounted as one — and both device jobs `needs:` it.
 
-> **This job is red until `e2e/flows/p0-db-path.yaml` lands from the persistence branch.**
-> Red means "there are no flows", which is true. Do not make it conditional.
-
 **Both platforms build Release.** Release embeds the JS bundle in the binary, which is
 what makes `--no-bundler` honest; a Debug build with no Metro launches to a red screen and
 every flow then fails on the first assertion for the wrong reason. Expo's Android template
 signs `release` with the debug keystore, so this needs no secret.
 
-**Screenshots.** A flow writes them with
+**The iOS toolchain is pinned, deliberately low.** `XCODE_APP` selects Xcode 16.4, the
+macos-15 image default, and the job fails loudly if it is missing rather than drifting onto
+whatever is newest. Measured 2026-09-11: under Xcode 26.2 (17C52, Apple Swift 6.2.3) the
+build dies at the ExpoModulesJSI xcframework phase with
 
-```yaml
-- takeScreenshot: ${ARTIFACT_DIR}/<test-id>
+```
+RuntimeScheduler.h:53:26: 'RuntimeScheduler' cannot be annotated with either
+SWIFT_RETURNS_RETAINED or SWIFT_RETURNS_UNRETAINED because it is not returning a
+SWIFT_SHARED_REFERENCE type
 ```
 
-`ARTIFACT_DIR` is passed in with `maestro test -e ARTIFACT_DIR=…` and is
-`e2e/artifacts/<sha>/<platform>`, so no flow hard-codes a sha or a platform. `PLATFORM` is
-passed alongside it for flows that need to branch. After the run, a step fails the job if
-the JUnit report is missing or if not a single `.png` reached the directory.
+and again at `:61` — two errors, `xcodebuild` exit 65. That is expo-modules-jsi@57.1.0's
+own header meeting a tightened C++ interop check in Swift 6.2, and the package compiles
+that framework from source at pod time, so there is no prebuilt slice to fall back to. The
+fix belongs upstream in expo/expo; raise the pin when it lands, not before. Xcode 16.4
+carries no iOS 26 runtime, so `SIMULATOR_OS` names an 18.x one.
+
+**Screenshots.** A flow names its frame and nothing else:
+
+```yaml
+- takeScreenshot: <test-id>
+```
+
+This is not the obvious contract, and the obvious one does not work. Two things measured on
+Maestro 2.10.0, 2026-09-11:
+
+- `takeScreenshot` is always resolved **inside Maestro's own run directory**, as
+  `<run-dir>/<flow>/takeScreenshot/<the given path>.png`. It is never relative to the
+  working directory, so no spelling of the path lets a flow write into `e2e/artifacts/`.
+- a flow-level `env:` default **wins over** `maestro test -e NAME=…`. A flow that defaults
+  `ARTIFACT_DIR` therefore ignores whatever CI passes and every run on every sha writes the
+  same literal path. (`-e` does apply to a name the flow does not default — `PLATFORM` is
+  passed that way for flows that need to branch.)
+
+So the jobs point the run directory at the artefact directory with
+`--test-output-dir "$ARTIFACT_DIR/maestro"`, and a following step copies every `.png` up
+into `$ARTIFACT_DIR/screenshots/<flow>-<name>.png` — flat, no timestamp — and fails the job
+if it collected none. **Never add `--flatten-debug-output`**: on 2.10.0 it makes the run
+write into `$HOME` and never creates `--test-output-dir` at all.
 
 **Artefacts** upload as `e2e-<sha>-ios` and `e2e-<sha>-android`. (`upload-artifact@v4`
 refuses two uploads with the same name, so the platform suffix is not decoration.) Each
-carries `report.xml`, the screenshots, Maestro's `--debug-output` and a `runner.txt`
-naming the simulator or AVD that was actually used — runner images rotate, and a snapshot
-diff caused by a different device must never read as a code change.
+carries `report.xml`, `screenshots/`, Maestro's full run directory under `maestro/`, and a
+`runner.txt` naming the Xcode and the simulator or AVD that was actually used — runner
+images rotate, and a snapshot diff caused by a different device or toolchain must never
+read as a code change.
 
 **Only CI writes `e2e/artifacts/`.** A screenshot without a CI URL is not evidence.
 

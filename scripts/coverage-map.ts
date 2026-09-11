@@ -23,6 +23,22 @@ const REGISTRY_PATH = 'docs/invariants.md';
 const OWNED_PATH = 'docs/invariants-owned.json';
 const TEST_ROOTS = ['packages', 'apps', 'e2e'];
 const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$/;
+/** Directory names the walk never enters, wherever they appear. */
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'artifacts']);
+/**
+ * The generated native trees (INV-PLAT-02), skipped by PATH rather than by name.
+ *
+ * The pattern above matches any `.yaml`, because Maestro flows are yaml and carry
+ * invariant ids — and `expo prebuild` fills `apps/mobile/ios` with vendored ones.
+ * Measured 2026-09-11: a prebuilt checkout made this scan report 27 test files instead of
+ * 12, fifteen of them CocoaPods dSYM relocation maps. Nothing in a generated, gitignored
+ * tree may decide whether an invariant has an owning test, and the count must not depend
+ * on whether somebody has run a build.
+ *
+ * By path, not by the names `ios`/`android`: those are ordinary words, and a future
+ * `packages/core/src/platform/ios/*.test.ts` must not disappear from the map in silence.
+ */
+const SKIP_PATHS = new Set(['apps/mobile/ios', 'apps/mobile/android']);
 const INVARIANT_ID = /INV-[A-Z0-9]+-\d+/g;
 
 function walk(dir: string): string[] {
@@ -34,8 +50,9 @@ function walk(dir: string): string[] {
     return out;
   }
   for (const entry of entries) {
-    if (entry === 'node_modules' || entry === 'dist' || entry === 'artifacts') continue;
+    if (SKIP_DIRS.has(entry)) continue;
     const full = join(dir, entry);
+    if (SKIP_PATHS.has(relative(ROOT, full))) continue;
     if (statSync(full).isDirectory()) out = out.concat(walk(full));
     else if (TEST_FILE_PATTERN.test(entry)) out.push(full);
   }

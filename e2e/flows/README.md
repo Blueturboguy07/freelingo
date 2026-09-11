@@ -15,7 +15,8 @@ The rest land at P3, in the order the plan gates them:
 
 Naming: one flow per gate row in the plan's phase table, named after the gate.
 
-Screenshots: `takeScreenshot: ${ARTIFACT_DIR}/<name>`. `ARTIFACT_DIR` is supplied by
-`native-e2e.yml` as `e2e/artifacts/<sha>/<platform>`; each flow carries a local default in
-its `env:` block. No flow hard-codes a sha, a platform, or a path outside
-`e2e/artifacts/`. See [`docs/ci.md`](../../docs/ci.md).
+Screenshots: `takeScreenshot: <name>` — a bare name, no directory and no `${ARTIFACT_DIR}`.
+Maestro resolves the path inside its own run directory whatever you write, and a flow-level
+`env:` default silently beats the `-e` CI passes, so a flow that spells out a destination is
+stating something untrue. `native-e2e.yml` aims the run directory and collects the frames.
+See [`docs/ci.md`](../../docs/ci.md).
