@@ -28,23 +28,30 @@ env:
   JAVA_VERSION: '21'
   # Named config: the toolchain and the simulator the iOS baselines are recorded against.
   #
-  # Xcode is PINNED, and to an older one than the image default suggests, because the
-  # newest is measured-broken for this dependency set. On Xcode 26.2 (17C52, Apple Swift
-  # 6.2.3) the ExpoModulesJSI xcframework phase fails with two errors, exit 65:
-  #   RuntimeScheduler.h:53:26: 'RuntimeScheduler' cannot be annotated with either
-  #   SWIFT_RETURNS_RETAINED or SWIFT_RETURNS_UNRETAINED because it is not returning a
-  #   SWIFT_SHARED_REFERENCE type
-  # (again at :61). That is expo-modules-jsi@57.1.0's own header against a tightened C++
-  # interop check in Swift 6.2; the package builds that framework from source at pod time,
-  # so there is no prebuilt slice to fall back to. Reproduced on this repo 2026-09-11 and
-  # isolated to a 15-line standalone repro with no Expo and no React Native.
+  # Xcode is PINNED, and narrowly, because expo-modules-jsi@57.1.0 fails at BOTH ends of
+  # the range this image offers. Everything below is measured, not inferred.
   #
-  # 16.4 is the macos-15 image default (Swift 6.1) and predates the check. Raise this pin
-  # the moment expo ships a fixed expo-modules-jsi — do not raise it hopefully.
-  XCODE_APP: '/Applications/Xcode_16.4.app'
-  # Xcode 16.4 carries no iOS 26 runtime, so the baselines are on the newest it does have.
-  SIMULATOR_NAME: 'iPhone 16'
-  SIMULATOR_OS: 'iOS-18-5'
+  #  * Xcode 26.2 (17C52, Apple Swift 6.2.3): the ExpoModulesJSI xcframework phase fails
+  #    loudly with two errors, xcodebuild exit 65 —
+  #      RuntimeScheduler.h:53:26: 'RuntimeScheduler' cannot be annotated with either
+  #      SWIFT_RETURNS_RETAINED or SWIFT_RETURNS_UNRETAINED because it is not returning a
+  #      SWIFT_SHARED_REFERENCE type
+  #    (again at :61) — the package's own header against a tightened C++ interop check.
+  #    Reproduced locally 2026-09-11 and isolated to a 15-line repro with no Expo and no
+  #    React Native.
+  #  * Xcode 16.4 (Swift 6.1, the image default): the SAME phase fails QUIETLY. Run
+  #    34634498819: `[CP-User] Build ExpoModulesJSI xcframework` at 18:45:31, next line
+  #    18:45:47, then `0 error(s), and 1 warning(s)` and exit 65. A script phase's output
+  #    does not reach Expo's pretty printer, so the build reports no errors and dies. 16.4
+  #    is simply too old to build a framework SDK 57 compiles from source at pod time.
+  #
+  # So the pin is inside the range: 26.1.1 is the newest Xcode that predates the 26.2
+  # check, and Expo SDK 57 shipped against the 26.x line. If this still fails, the
+  # `Why the build failed` step below prints the raw xcodebuild output — read it before
+  # moving the pin again, and try 26.0.1 next rather than guessing upward.
+  XCODE_APP: '/Applications/Xcode_26.1.1.app'
+  SIMULATOR_NAME: 'iPhone 17'
+  SIMULATOR_OS: 'iOS-26-1'
   # Named config: the emulator the Android baselines are committed against.
   ANDROID_API_LEVEL: '34'
   ANDROID_ARCH: 'x86_64'
@@ -266,6 +273,24 @@ jobs:
             --device "$SIMULATOR_UDID" \
             --no-bundler \
             --configuration Release
+
+      # A script phase's stdout never reaches Expo's pretty printer, so a failing one
+      # reports "0 error(s)" and exit 65 and says nothing else (run 34634498819). Re-run
+      # xcodebuild raw on failure: the build is incremental, so it fails again in seconds
+      # at the same phase — this time with the phase's own output. Without this a pin
+      # change is a guess and each guess costs a full CI round.
+      - name: Why the build failed
+        if: failure()
+        working-directory: apps/mobile
+        run: |
+          set -uo pipefail
+          xcodebuild \
+            -workspace ios/Freelingo.xcworkspace \
+            -scheme Freelingo \
+            -configuration Release \
+            -destination "id=$SIMULATOR_UDID" \
+            build 2>&1 | tail -200
+          echo "(raw xcodebuild above; the step itself does not decide the job)"
 
       - name: maestro test ${{ env.FLOW_DIR }}
         run: |
