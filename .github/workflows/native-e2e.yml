@@ -47,6 +47,7 @@ jobs:
         run: xcrun simctl list devices available
 
       - name: Boot the simulator
+        timeout-minutes: 15
         env:
           WANT_NAME: ${{ env.SIMULATOR_NAME }}
           WANT_OS: ${{ env.SIMULATOR_OS }}
@@ -87,8 +88,29 @@ jobs:
           echo "Booting ${CHOSEN} (${UDID}); baselines were recorded on ${WANT_NAME} (${WANT_OS})"
           echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
           echo "SIMULATOR_CHOSEN=$CHOSEN" >> "$GITHUB_ENV"
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
+
+          # `simctl boot` is idempotent-ish: it errors if the device is already booted,
+          # which is not a failure. Anything else is.
+          xcrun simctl boot "$UDID" 2>/tmp/boot.err || {
+            grep -q "Unable to boot device in current state: Booted" /tmp/boot.err || {
+              cat /tmp/boot.err >&2; exit 1; }
+            echo "already booted"
+          }
+
+          # NEVER use a bare `simctl bootstatus -b`: on a cold runner it can wait forever
+          # and burn the whole 90-minute job (observed: 20+ minutes with no output, run
+          # 34615268235). Poll the device state with our own ceiling instead, so a slow
+          # image bump fails fast and legibly rather than hanging.
+          DEADLINE=$(( SECONDS + 600 ))
+          until [ "$(xcrun simctl list devices | grep "$UDID" | grep -c '(Booted)')" -eq 1 ]; do
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              echo "simulator $CHOSEN ($UDID) did not reach Booted within 600s" >&2
+              xcrun simctl list devices | grep "$UDID" >&2 || true
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "booted after ${SECONDS}s"
 
       - name: Prepare the artefact directory for this sha
         run: mkdir -p "e2e/artifacts/${{ github.sha }}"
@@ -114,6 +136,7 @@ jobs:
       #       --output "e2e/artifacts/${{ github.sha }}/maestro-report.xml"
 
       - name: Placeholder — record that the runner booted
+        timeout-minutes: 5
         run: |
           {
             echo "sha=${{ github.sha }}"
