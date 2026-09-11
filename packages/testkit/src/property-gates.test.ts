@@ -77,4 +77,30 @@ describe('property gates', () => {
       [],
     );
   });
+
+  /**
+   * The other way the floor gets undone: leave the case count alone and let the clock
+   * fail the test instead.
+   *
+   * Vitest's default limit is 5,000 ms. 40,000 cases take ~3.5 s on a developer Mac and
+   * more than 5 s on ubuntu-latest, so with the default the two four-zone properties are
+   * red in CI and green locally — and the obvious repair is to cut the runs. The timeout
+   * is therefore named in vitest.config.ts, per project, and held here.
+   *
+   * Per PROJECT is the whole point: a `testTimeout` at the top level of that file is
+   * silently ignored by inline `projects` (probed 2026-09-11 with a 6-second test, which
+   * still failed at 5000ms). A fix in the ignored place is indistinguishable from a fix.
+   */
+  it('every vitest project raises the per-test timeout above the 5s default', () => {
+    const config = readFileSync(join(root, 'vitest.config.ts'), 'utf8');
+    const declared = /const TEST_TIMEOUT_MS = ([\d_]+);/.exec(config);
+    expect(declared, 'vitest.config.ts must name the timeout').not.toBeNull();
+    expect(Number(declared![1]!.replaceAll('_', ''))).toBeGreaterThanOrEqual(30_000);
+    // Inside a project's `test` block, not at the top level where it does nothing.
+    expect(config).toMatch(/test:\s*\{[\s\S]*?testTimeout: TEST_TIMEOUT_MS/);
+    expect(
+      /\btest:\s*\{\s*testTimeout:/.test(config),
+      'a top-level testTimeout is ignored by inline projects',
+    ).toBe(false);
+  });
 });

@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { readRepoFile, repoRoot } from './repo.js';
 
 /**
+ * The `native-e2e` traps — the ones a green flow hides.
+ *
+ * Everything asserted here was found by running the workflow, not by reading it, and each
+ * one fails in a way that points somewhere else: a passing flow whose frame is never
+ * collected, an emulator job that dies before adb, a build that breaks on a toolchain
+ * nobody chose. The comments in the workflow explain them; these tests are what keeps the
+ * explanations true.
+ *
+ * ---
+ *
  * The screenshot contract, held to what Maestro actually does.
  *
  * `native-e2e` fails a device job that collected no `.png`, so this contract is the only
@@ -101,6 +111,20 @@ describe('native-e2e places and collects them', () => {
     // count would be satisfied by two device jobs that check nothing.
     const guards = [...wf().matchAll(/::error::no screenshot came out of/g)];
     expect(guards.length, 'both device jobs must fail on zero frames').toBe(2);
+  });
+
+  it('runs the emulator script under the shell the action actually gives it', () => {
+    // reactivecircus/android-emulator-runner executes `script:` with /usr/bin/sh, which
+    // is dash on ubuntu-latest: `set -o pipefail` is not an option there and the step
+    // exits 2 on its first line, before adb runs. Measured, run 34634498819 —
+    // "sh: 1: set: Illegal option -o pipefail". The job then fails on a missing JUnit
+    // report, which reads as an emulator problem and is not one.
+    // wf(), not the raw file: the comment above this very line quotes the broken
+    // spelling in order to warn people off it.
+    const script = /script: \|\n([\s\S]*?)\n {6}- name:/.exec(wf());
+    expect(script, 'the emulator job must still have a script: block').not.toBeNull();
+    expect(script![1]).not.toContain('pipefail');
+    expect(script![1]).toContain('set -eu');
   });
 
   it('pins the iOS toolchain below the Swift release that cannot build expo-modules-jsi', () => {

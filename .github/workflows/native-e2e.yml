@@ -408,7 +408,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            # `set -eu`, NOT `set -euo pipefail`. This action runs `script:` with
+            # /usr/bin/sh — dash on ubuntu-latest — which has no `-o pipefail` and exits
+            # 2 on the very first line: "sh: 1: set: Illegal option -o pipefail"
+            # (measured, run 34634498819: the step died before adb, and the job then
+            # failed on a missing JUnit report, which looks like an emulator problem and
+            # is not one). Every other `run:` in this workflow is bash and keeps pipefail.
+            set -eu
             adb devices
             # Release for the same reason as iOS: the bundle is embedded, so --no-bundler
             # is honest. Expo's Android template signs release with the debug keystore,
