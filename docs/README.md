@@ -5,6 +5,7 @@
 | `invariants.md`         | the invariant registry, a **verbatim** copy of the research corpus (`~/duolingo-research/deep/00-INVARIANTS.md`). The single source of ids. |
 | `invariants.sha256`     | the digest of that copy. `pnpm invariants:check` fails if `invariants.md` was hand-edited or the corpus has moved on.                       |
 | `invariants-owned.json` | the ids that must have an owning test **right now**. `pnpm test:coverage-map` fails on a miss. Each phase adds its ids.                     |
+| `ci.md`                 | what each workflow proves: the property floor, the Maestro flow guard, and how INV-PLAT-02 compares two prebuilds.                          |
 
 ## Keeping the registry honest
 

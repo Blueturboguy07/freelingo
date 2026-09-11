@@ -1,10 +1,13 @@
 name: native-e2e
 
-# Behaviour flows, native snapshot baselines and a11y-tree walks on a real simulator.
-# macOS runners are free on a public repo, but wall-clock is the budget, not minutes.
+# Behaviour flows, native snapshot baselines and a11y-tree walks on a real simulator and
+# a real emulator, plus the two build gates that only a native toolchain can prove.
 #
-# P0 status: this workflow boots a simulator and proves the runner works. The Maestro run
-# itself is commented out until e2e/flows has flows (P3). Only CI writes e2e/artifacts/.
+# macOS runners are free on a public repo and have no build-minute cap, but wall-clock is
+# the budget: a cold Xcode build plus a Maestro pass is tens of minutes, so the flow
+# guard runs first on a cheap Linux runner and the device jobs `needs:` it.
+#
+# Only CI writes e2e/artifacts/. A screenshot without a CI URL is not evidence.
 
 on:
   push:
@@ -21,15 +24,74 @@ permissions:
 
 env:
   NODE_VERSION: '24'
+  # Maestro requires Java 17+ (deep/09); temurin 21 is the current LTS.
+  JAVA_VERSION: '21'
   # Named config: the simulator the snapshot baselines are committed against.
   SIMULATOR_NAME: 'iPhone 17'
   SIMULATOR_OS: 'iOS-26-0'
+  # Named config: the emulator the Android baselines are committed against.
+  ANDROID_API_LEVEL: '34'
+  ANDROID_ARCH: 'x86_64'
+  ANDROID_TARGET: 'google_apis'
+  # The one place the flow directory is named.
+  FLOW_DIR: 'e2e/flows'
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # A `maestro test` over an empty directory exits 0. That is the single most
+  # expensive way this workflow could lie: two device jobs, twenty minutes of build
+  # each, a green tick, and nothing tested. So the flows are counted first, on a
+  # 10-second Linux runner, and both device jobs `needs:` this one.
+  #
+  # It is EXPECTED to fail until the persistence branch lands e2e/flows/p0-db-path.yaml.
+  # Red here means "no flows", which is the truth. Do not add an `if:` to skip it.
+  # ---------------------------------------------------------------------------
+  flows-present:
+    name: flows exist
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      count: ${{ steps.count.outputs.count }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Count Maestro flows
+        id: count
+        run: |
+          set -euo pipefail
+          if [ ! -d "$FLOW_DIR" ]; then
+            echo "::error::$FLOW_DIR does not exist. native-e2e has nothing to run." >&2
+            exit 1
+          fi
+          # A flow is a YAML file with an `appId:` header. README.md and any other prose
+          # in the directory is not a flow and must not be counted as one.
+          COUNT=0
+          while IFS= read -r flow; do
+            if grep -qE '^appId:' "$flow"; then
+              echo "flow: $flow"
+              COUNT=$((COUNT + 1))
+            else
+              echo "::warning::$flow has no appId: header; not counted as a flow"
+            fi
+          done < <(find "$FLOW_DIR" -type f \( -name '*.yaml' -o -name '*.yml' \) | sort)
+
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::no Maestro flows in $FLOW_DIR. A green e2e run with no flows is a lie." >&2
+            exit 1
+          fi
+          echo "$COUNT flow(s) to run on each platform"
+
+  # ---------------------------------------------------------------------------
   ios-simulator:
     name: iOS simulator
+    needs: flows-present
     runs-on: macos-15
     timeout-minutes: 90
+    env:
+      # Job-level, not set in a step: every `if: always()` step below reads it, including
+      # the ones that run after an early failure.
+      ARTIFACT_DIR: e2e/artifacts/${{ github.sha }}/ios
     steps:
       - uses: actions/checkout@v5
 
@@ -39,6 +101,23 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install Maestro
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Maestro and Java versions (recorded with the artefacts)
+        run: |
+          set -euo pipefail
+          java -version
+          maestro --version
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -112,72 +191,331 @@ jobs:
           done
           echo "booted after ${SECONDS}s"
 
-      - name: Prepare the artefact directory for this sha
-        run: mkdir -p "e2e/artifacts/${{ github.sha }}"
-
-      # TODO(P3): install Maestro and run the flows once e2e/flows exists.
-      # Enable together, not separately — a green run with no flows is a lie.
-      #
-      # - name: Install Maestro
-      #   run: |
-      #     curl -Ls "https://get.maestro.mobile.dev" | bash
-      #     echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-      #
-      # - name: Build and install the dev client
-      #   working-directory: apps/mobile
-      #   run: |
-      #     pnpm expo prebuild --clean --platform ios
-      #     pnpm expo run:ios --device "$SIMULATOR_UDID" --no-bundler
-      #
-      # - name: maestro test e2e/flows
-      #   run: |
-      #     maestro test e2e/flows \
-      #       --format junit \
-      #       --output "e2e/artifacts/${{ github.sha }}/maestro-report.xml"
-
-      - name: Placeholder — record that the runner booted
-        timeout-minutes: 10
+      - name: Open Simulator.app so there is a window server
         run: |
           set -euo pipefail
-          ART="e2e/artifacts/${{ github.sha }}"
-
-          # `simctl io screenshot` needs a simulator DISPLAY, and a headless runner has
-          # none until Simulator.app owns the device: without this the screenshot fails
-          # with "Error creating the image" forever, not just right after boot
-          # (observed: run 34617438245 immediately, run 34617892776 still failing at
-          # 300 s). Maestro needs the same UI at P3, so open it here.
+          # `simctl io screenshot` and Maestro's view hierarchy both need the device to
+          # own a DISPLAY, and a headless runner has none until Simulator.app opens it:
+          # without this, screenshots fail with "Error creating the image" forever, not
+          # just right after boot (observed: run 34617438245 immediately, run
+          # 34617892776 still failing at 300 s).
           open -a Simulator --args -CurrentDeviceUDID "$SIMULATOR_UDID"
+          sleep 15
 
-          # SpringBoard still needs a moment to draw, so retry — bounded, and never
-          # fatal: the proof that the runner works is runner.txt, not the picture.
-          SHOT_STATUS="ok"
-          DEADLINE=$(( SECONDS + 180 ))
-          until xcrun simctl io "$SIMULATOR_UDID" screenshot "$ART/simulator-booted.png" 2>/tmp/shot.err; do
-            if [ "$SECONDS" -ge "$DEADLINE" ]; then
-              echo "screenshot never succeeded; last error:" >&2
-              cat /tmp/shot.err >&2
-              SHOT_STATUS="failed-after-180s"
-              rm -f "$ART/simulator-booted.png"
-              break
-            fi
-            sleep 5
-          done
+      - name: Prepare the artefact directory for this sha
+        run: mkdir -p "$ARTIFACT_DIR"
 
+      # SDK 57's prebuild help lists `--no-clean`, not `--clean`: recreating the native
+      # folders is now the default and `--clean` spells it out (verified accepted, twice,
+      # on 2026-09-11). Spelled out on purpose — an incremental prebuild is how a stale
+      # native tree survives a config change.
+      - name: Prebuild the native project (generated, never committed — INV-PLAT-02)
+        working-directory: apps/mobile
+        run: npx expo prebuild --clean --platform ios
+
+      - name: Build and install on the booted simulator
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          # Release, not Debug: Release embeds the JS bundle in the app, which is what
+          # makes `--no-bundler` correct. A Debug build with no Metro launches to a red
+          # screen and every flow fails on the first assertion for the wrong reason.
+          npx expo run:ios \
+            --device "$SIMULATOR_UDID" \
+            --no-bundler \
+            --configuration Release
+
+      - name: maestro test ${{ env.FLOW_DIR }}
+        run: |
+          set -euo pipefail
+          # Flows write their screenshots with `takeScreenshot: ${ARTIFACT_DIR}/<name>`;
+          # ARTIFACT_DIR is passed in so no flow hard-codes a sha. See docs/ci.md.
+          maestro test "$FLOW_DIR" \
+            --output "$ARTIFACT_DIR/report.xml" \
+            --format junit \
+            --debug-output "$ARTIFACT_DIR/maestro-debug" \
+            -e ARTIFACT_DIR="$ARTIFACT_DIR" \
+            -e PLATFORM=ios
+
+      - name: The run produced a report and at least one screenshot
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -s "$ARTIFACT_DIR/report.xml" ]; then
+            echo "::error::maestro wrote no JUnit report to $ARTIFACT_DIR/report.xml" >&2
+            exit 1
+          fi
+          SHOTS=$(find "$ARTIFACT_DIR" -name '*.png' | wc -l | tr -d ' ')
+          echo "screenshots: $SHOTS"
+          if [ "$SHOTS" -eq 0 ]; then
+            echo "::error::no screenshot reached $ARTIFACT_DIR; flows must takeScreenshot into \${ARTIFACT_DIR}" >&2
+            exit 1
+          fi
+
+      - name: Record what actually ran
+        if: always()
+        run: |
+          set -euo pipefail
           {
             echo "sha=${{ github.sha }}"
+            echo "platform=ios"
             echo "simulator_requested=${{ env.SIMULATOR_NAME }} (${{ env.SIMULATOR_OS }})"
-            echo "simulator_used=${SIMULATOR_CHOSEN}"
-            echo "udid=${SIMULATOR_UDID}"
-            echo "screenshot=${SHOT_STATUS}"
-            echo "maestro=not-run (no flows yet; enable at P3)"
-          } > "$ART/runner.txt"
-          cat "$ART/runner.txt"
+            echo "simulator_used=${SIMULATOR_CHOSEN:-unknown}"
+            echo "udid=${SIMULATOR_UDID:-unknown}"
+            echo "flows=${{ needs.flows-present.outputs.count }}"
+            echo "maestro=$(maestro --version 2>/dev/null || echo 'not installed')"
+          } > "$ARTIFACT_DIR/runner.txt"
+          cat "$ARTIFACT_DIR/runner.txt"
 
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-${{ github.sha }}
-          path: e2e/artifacts/${{ github.sha }}/
+          # upload-artifact@v4 refuses a duplicate name, so the two device jobs are
+          # suffixed rather than both called e2e-<sha>.
+          name: e2e-${{ github.sha }}-ios
+          path: e2e/artifacts/${{ github.sha }}/ios/
           if-no-files-found: error
           retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  android-emulator:
+    name: Android emulator
+    needs: flows-present
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ARTIFACT_DIR: e2e/artifacts/${{ github.sha }}/android
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Enable KVM for the x86_64 emulator
+        run: |
+          set -euo pipefail
+          # Without this udev rule the hardware-accelerated x86_64 image falls back to
+          # software rendering and the AVD takes longer to boot than the job allows.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install Maestro
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Maestro and Java versions (recorded with the artefacts)
+        run: |
+          set -euo pipefail
+          java -version
+          maestro --version
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare the artefact directory for this sha
+        run: mkdir -p "$ARTIFACT_DIR"
+
+      - name: Prebuild the native project (generated, never committed — INV-PLAT-02)
+        working-directory: apps/mobile
+        run: npx expo prebuild --clean --platform android
+
+      - name: Build, install and run the flows on the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          arch: ${{ env.ANDROID_ARCH }}
+          target: ${{ env.ANDROID_TARGET }}
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euo pipefail
+            adb devices
+            # Release for the same reason as iOS: the bundle is embedded, so --no-bundler
+            # is honest. Expo's Android template signs release with the debug keystore,
+            # so this needs no secret.
+            (cd apps/mobile && npx expo run:android --no-bundler --variant release)
+            maestro test "$FLOW_DIR" \
+              --output "$ARTIFACT_DIR/report.xml" \
+              --format junit \
+              --debug-output "$ARTIFACT_DIR/maestro-debug" \
+              -e ARTIFACT_DIR="$ARTIFACT_DIR" \
+              -e PLATFORM=android
+
+      - name: The run produced a report and at least one screenshot
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -s "$ARTIFACT_DIR/report.xml" ]; then
+            echo "::error::maestro wrote no JUnit report to $ARTIFACT_DIR/report.xml" >&2
+            exit 1
+          fi
+          SHOTS=$(find "$ARTIFACT_DIR" -name '*.png' | wc -l | tr -d ' ')
+          echo "screenshots: $SHOTS"
+          if [ "$SHOTS" -eq 0 ]; then
+            echo "::error::no screenshot reached $ARTIFACT_DIR; flows must takeScreenshot into \${ARTIFACT_DIR}" >&2
+            exit 1
+          fi
+
+      - name: Record what actually ran
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "sha=${{ github.sha }}"
+            echo "platform=android"
+            echo "api_level=${{ env.ANDROID_API_LEVEL }}"
+            echo "arch=${{ env.ANDROID_ARCH }}"
+            echo "target=${{ env.ANDROID_TARGET }}"
+            echo "flows=${{ needs.flows-present.outputs.count }}"
+            echo "maestro=$(maestro --version 2>/dev/null || echo 'not installed')"
+          } > "$ARTIFACT_DIR/runner.txt"
+          cat "$ARTIFACT_DIR/runner.txt"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ github.sha }}-android
+          path: e2e/artifacts/${{ github.sha }}/android/
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # INV-PLAT-02: the native trees are generated, and generated means reproducible.
+  #
+  # Two halves. (a) Nothing under apps/mobile/ios or apps/mobile/android is tracked —
+  # the moment one file is, someone will hand-edit it and `prebuild --clean` will
+  # silently delete their work. (b) `expo prebuild` run twice on the same commit
+  # produces the same tree — otherwise "generated" is not a property anyone can rely
+  # on, and a config-plugin change is indistinguishable from drift.
+  #
+  # "The same tree" is NOT byte-for-byte, and claiming it would have made this job red
+  # on every run. Measured here 2026-09-11: two consecutive prebuilds of this commit
+  # agree on 70 files and disagree on one Xcode object id, freshly minted by
+  # expo-dev-client's config plugin for its "Strip Local Network Keys" build phase. Ids
+  # are arbitrary internal names, so the comparison is up to a consistent renaming of
+  # them — see scripts/canonicalise-pbxproj.py, whose --self-test proves that a moved or
+  # changed phase is still drift.
+  #
+  # Runs on Linux: prebuild needs no Xcode, and skipping CocoaPods is what makes the
+  # iOS half comparable at all (Podfile.lock resolution is not hermetic).
+  # ---------------------------------------------------------------------------
+  prebuild-determinism:
+    name: INV-PLAT-02 — native trees are generated and reproducible
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: No tracked file lives under apps/mobile/ios or apps/mobile/android
+        run: |
+          set -euo pipefail
+          TRACKED=$(git ls-files -- apps/mobile/ios apps/mobile/android)
+          if [ -n "$TRACKED" ]; then
+            echo "::error::generated native files are committed:" >&2
+            echo "$TRACKED" >&2
+            exit 1
+          fi
+          echo "no tracked files under apps/mobile/{ios,android}"
+
+      - name: The pbxproj canonicaliser does what the comparison assumes
+        run: python3 scripts/canonicalise-pbxproj.py --self-test
+
+      - name: Prebuild twice and compare tree hashes
+        run: |
+          set -euo pipefail
+          WORK="${RUNNER_TEMP}/prebuild"
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+
+          prebuild_into () {
+            local out="$1"
+            rm -rf apps/mobile/ios apps/mobile/android
+            # --no-install: the dependency set is already frozen-lockfile installed, and
+            # prebuild must not be allowed to touch it (INV-PLAT-01).
+            (cd apps/mobile && npx expo prebuild --clean --no-install --platform all)
+            mkdir -p "$out"
+            for dir in ios android; do
+              if [ -d "apps/mobile/$dir" ]; then mv "apps/mobile/$dir" "$out/$dir"; fi
+            done
+            # Compare up to a consistent renaming of Xcode object ids (see the note above).
+            find "$out" -name '*.pbxproj' -exec python3 "$PWD/scripts/canonicalise-pbxproj.py" {} +
+          }
+
+          if command -v sha256sum >/dev/null 2>&1; then
+            HASHER=(sha256sum)
+          else
+            HASHER=(shasum -a 256)
+          fi
+
+          # The hash covers file CONTENT *and* the sorted list of entries with their
+          # types and symlink targets. A changed byte, a renamed file, a vanished
+          # symlink and a new empty directory are then all drift — and only the first of
+          # those changes any file's bytes.
+          #
+          # `-exec ... {} +` rather than `xargs`: xargs with an empty list runs the
+          # hasher once with no arguments, which reads stdin and hangs the job forever.
+          tree_hash () {
+            local dir="$1"
+            {
+              ( cd "$dir" && find . -mindepth 1 | LC_ALL=C sort | while IFS= read -r entry; do
+                  if [ -L "$entry" ]; then printf 'l %s -> %s\n' "$entry" "$(readlink "$entry")"
+                  elif [ -d "$entry" ]; then printf 'd %s\n' "$entry"
+                  else printf 'f %s\n' "$entry"; fi
+                done )
+              ( cd "$dir" && find . -type f -exec "${HASHER[@]}" {} + | LC_ALL=C sort )
+            } | "${HASHER[@]}" | cut -d' ' -f1
+          }
+
+          prebuild_into "$WORK/first"
+          prebuild_into "$WORK/second"
+
+          FIRST=$(tree_hash "$WORK/first")
+          SECOND=$(tree_hash "$WORK/second")
+          echo "first  $FIRST"
+          echo "second $SECOND"
+
+          if [ "$FIRST" != "$SECOND" ]; then
+            echo "::error::expo prebuild is not reproducible on this commit; the native tree drifted between two runs" >&2
+            diff -r "$WORK/first" "$WORK/second" | head -100 >&2 || true
+            exit 1
+          fi
+          echo "expo prebuild is reproducible: $FIRST"
+
+      - name: Prebuild left nothing tracked behind
+        if: always()
+        run: |
+          set -euo pipefail
+          # `prebuild --clean` regenerates; it must never make the working tree dirty in
+          # a way git can see (the generated dirs are .gitignored).
+          DIRTY=$(git status --porcelain)
+          if [ -n "$DIRTY" ]; then
+            echo "::error::prebuild left the working tree dirty:" >&2
+            echo "$DIRTY" >&2
+            exit 1
+          fi
