@@ -35,6 +35,14 @@ env:
   ANDROID_TARGET: 'google_apis'
   # The one place the flow directory is named.
   FLOW_DIR: 'e2e/flows'
+  # Both device jobs build RELEASE, so `__DEV__` is false and a `__DEV__`-only diagnostics
+  # surface is invisible to the job that gates it (measured 2026-09-11: the flow reached
+  # app-title, long-pressed it, and failed on `dev-diagnostics is visible`). Metro inlines
+  # EXPO_PUBLIC_* at bundle time, so this must be set on the BUILD step, not just the
+  # Maestro step, and a build without it does not contain the branch at all.
+  # apps/mobile/src/dev/diagnosticsEnabled.ts owns the rule; a testkit gate holds the two
+  # together.
+  EXPO_PUBLIC_FREELINGO_E2E: '1'
 
 jobs:
   # ---------------------------------------------------------------------------

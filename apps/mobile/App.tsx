@@ -8,6 +8,7 @@ import { PROGRESS_DB_LOCATION } from '@freelingo/schema';
 import { BUTTON, COLOR, FONT_FAMILY, TYPE } from '@freelingo/ui';
 
 import { DevDiagnostics } from './src/dev/DevDiagnostics';
+import { DIAGNOSTICS_ENABLED } from './src/dev/diagnosticsEnabled';
 import { startPersistence, type PersistenceStatus } from './src/db/startPersistence';
 
 const DEVICE_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -38,7 +39,7 @@ export default function App() {
     };
   }, []);
 
-  if (diagnosticsOpen) {
+  if (diagnosticsOpen && DIAGNOSTICS_ENABLED) {
     return (
       <DevDiagnostics status={status} error={error} onClose={() => setDiagnosticsOpen(false)} />
     );
@@ -49,8 +50,10 @@ export default function App() {
       <Text
         testID="app-title"
         style={styles.title}
-        // Dev builds only: there is no diagnostics surface in a release build.
-        onLongPress={__DEV__ ? () => setDiagnosticsOpen(true) : undefined}
+        // Dev builds, and the e2e builds native-e2e makes — which are Release, so
+        // `__DEV__` alone would hide this from the one job that gates it. See
+        // ./src/dev/diagnosticsEnabled.
+        onLongPress={DIAGNOSTICS_ENABLED ? () => setDiagnosticsOpen(true) : undefined}
       >
         Freelingo
       </Text>
