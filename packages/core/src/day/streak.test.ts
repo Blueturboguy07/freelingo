@@ -3,9 +3,11 @@ import fc from 'fast-check';
 import {
   ZONES,
   civilDayRange,
-  arbLocalDay,
+  arbDayOffsets,
   arbInstant,
+  arbLocalDay,
   arbZoneId,
+  daysFromOffsets,
   PROPERTY_RUNS,
   PROPERTY_RUNS_PER_ZONE,
 } from '@freelingo/testkit';
@@ -13,23 +15,20 @@ import { addCivilDays, civilDaysBetween, localDayOf, toLocalDay, type LocalDay }
 import { streakFromDays } from './streak.js';
 
 /**
- * P0 gate: INV-DAY-01 and INV-DAY-05 at `PROPERTY_RUNS` cases across the four-zone matrix.
+ * P0 gate: INV-DAY-01 and INV-DAY-05 at `PROPERTY_RUNS` cases in each of the four zones.
  * P1 extends this file with freezes, `unlived`, grace and the recovery challenge.
  */
 
 /**
- * An independent reference streak, written from the invariant text rather than from
+ * An independent reference streak, written from the invariant TEXT rather than from
  * `streakFromDays`: sort the distinct days, find the run containing the anchor, count it.
- * Two implementations that agree on 10,000 cases is the actual assertion; a property that
- * only re-derives the code under test proves nothing.
+ * Two implementations that disagree is the actual assertion; a property that re-derives
+ * the code under test proves nothing.
  */
 function referenceStreak(days: readonly LocalDay[], today: LocalDay): number {
   const distinct = [...new Set(days)].sort();
-  const anchor = distinct.includes(today)
-    ? today
-    : distinct.includes(addCivilDays(today, -1))
-      ? addCivilDays(today, -1)
-      : null;
+  const yesterday = addCivilDays(today, -1);
+  const anchor = distinct.includes(today) ? today : distinct.includes(yesterday) ? yesterday : null;
   if (anchor === null) return 0;
   const end = distinct.indexOf(anchor);
   let start = end;
@@ -55,39 +54,39 @@ describe('streak', () => {
 
   it('[INV-DAY-01] streak is a function of the SET: duplicates and order never change it', () => {
     fc.assert(
-      fc.property(fc.array(arbLocalDay(), { maxLength: 40 }), arbLocalDay(), (days, today) => {
-        const shuffled = [...days].reverse();
-        const duplicated = [...days, ...days];
+      fc.property(arbLocalDay(), arbDayOffsets(), (today, offsets) => {
+        const days = daysFromOffsets(today, offsets);
         const base = streakFromDays(days, today);
-        expect(streakFromDays(shuffled, today)).toBe(base);
-        expect(streakFromDays(duplicated, today)).toBe(base);
+        expect(streakFromDays([...days].reverse(), today)).toBe(base);
+        expect(streakFromDays([...days, ...days], today)).toBe(base);
+        expect(streakFromDays(new Set(days), today)).toBe(base);
       }),
       { numRuns: PROPERTY_RUNS },
     );
   });
 
-  it('[INV-DAY-01] streak agrees with an independent reference over days derived in every zone', () => {
+  it('[INV-DAY-01] streak agrees with an independent reference, in every zone', () => {
     for (const zone of ZONES) {
       fc.assert(
-        fc.property(
-          fc.array(arbInstant(), { maxLength: 40 }),
-          arbInstant(),
-          (instants, todayInstant) => {
-            // Days are derived from instants IN THIS ZONE, so DST days and the date line
-            // are part of the generated input rather than an afterthought.
-            const days = instants.map((t) => localDayOf(t, zone.id));
-            const today = localDayOf(todayInstant, zone.id);
-            const actual = streakFromDays(days, today);
-            expect(actual, `${zone.id} (${zone.why})`).toBe(referenceStreak(days, today));
-            // Bounds that hold whatever the input: never negative, never more days than exist.
-            expect(actual).toBeGreaterThanOrEqual(0);
-            expect(actual).toBeLessThanOrEqual(new Set(days).size);
-            // Non-zero iff the run is anchored at today or yesterday.
-            const anchored =
-              days.includes(today) || days.includes(addCivilDays(today, -1) as LocalDay);
-            expect(actual > 0).toBe(anchored);
-          },
-        ),
+        fc.property(arbInstant(), arbDayOffsets(), (instant, offsets) => {
+          // `today` is derived from an instant IN THIS ZONE, so DST days and the date
+          // line are part of the generated input rather than an afterthought; the
+          // history is then built by civil-date offsets from it.
+          const today = localDayOf(instant, zone.id);
+          const days = daysFromOffsets(today, offsets);
+
+          const actual = streakFromDays(days, today);
+          expect(actual, `${zone.id} (${zone.why})`).toBe(referenceStreak(days, today));
+          // Bounds that hold whatever the input: never negative, never more days than exist.
+          expect(actual).toBeGreaterThanOrEqual(0);
+          expect(actual).toBeLessThanOrEqual(new Set(days).size);
+          // Non-zero iff the run is anchored at today or yesterday.
+          const anchored = days.includes(today) || days.includes(addCivilDays(today, -1));
+          expect(actual > 0).toBe(anchored);
+          // Days after today are never counted, so dropping them changes nothing.
+          const notFuture = days.filter((d) => d <= today);
+          expect(streakFromDays(notFuture, today)).toBe(actual);
+        }),
         { numRuns: PROPERTY_RUNS_PER_ZONE },
       );
     }
@@ -111,7 +110,7 @@ describe('streak', () => {
 
   /**
    * Committed falsifier inputs (plan §Verification: "committed falsifier inputs per
-   * invariant"). These are the two instants where a 86,400 s implementation is provably
+   * invariant"). These are the two instants where an 86,400 s implementation is provably
    * wrong in both directions, measured 2026-09-11, not guessed.
    */
   it('[INV-DAY-05] falsifier: adding 86,400 s skips a civil date and also fails to advance one', () => {
@@ -131,7 +130,7 @@ describe('streak', () => {
     expect(addCivilDays(localDayOf(fallEve, zone), 1)).toBe(toLocalDay('2026-11-02'));
   });
 
-  it('[INV-DAY-05] civil arithmetic is exact and zone-independent for every generated instant', () => {
+  it('[INV-DAY-05] civil arithmetic is exact and reversible for every generated instant and zone', () => {
     fc.assert(
       fc.property(
         arbInstant(),
@@ -144,6 +143,13 @@ describe('streak', () => {
           expect(civilDaysBetween(day, moved)).toBe(delta);
           // And the walk is reversible: no day is ever lost or invented.
           expect(addCivilDays(moved, -delta)).toBe(day);
+          // One step at a time lands in the same place as one jump.
+          const step = delta >= 0 ? 1 : -1;
+          let walked = day;
+          for (let i = 0; i < Math.min(Math.abs(delta), 3); i += 1) {
+            walked = addCivilDays(walked, step);
+          }
+          expect(civilDaysBetween(day, walked)).toBe(step * Math.min(Math.abs(delta), 3));
         },
       ),
       { numRuns: PROPERTY_RUNS },
@@ -164,14 +170,16 @@ describe('streak', () => {
     }
   });
 
-  it('[INV-DAY-05] local_day is monotonic in the instant within a zone', () => {
-    fc.assert(
-      fc.property(arbInstant(), arbInstant(), arbZoneId(ZONES), (a, b, zoneId) => {
-        const [earlier, later] = a <= b ? [a, b] : [b, a];
-        // Civil dates sort lexicographically, so string comparison is date comparison.
-        expect(localDayOf(earlier, zoneId) <= localDayOf(later, zoneId)).toBe(true);
-      }),
-      { numRuns: PROPERTY_RUNS },
-    );
+  it('[INV-DAY-05] local_day is monotonic in the instant, in every zone', () => {
+    for (const zone of ZONES) {
+      fc.assert(
+        fc.property(arbInstant(), arbInstant(), (a, b) => {
+          const [earlier, later] = a <= b ? [a, b] : [b, a];
+          // Civil dates sort lexicographically, so string comparison is date comparison.
+          expect(localDayOf(earlier, zone.id) <= localDayOf(later, zone.id)).toBe(true);
+        }),
+        { numRuns: PROPERTY_RUNS_PER_ZONE },
+      );
+    }
   });
 });
