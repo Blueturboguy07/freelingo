@@ -1,3 +1,27 @@
+diff --git a/apple/Package.swift b/apple/Package.swift
+index 77b0525ad0b34e5bda544da8fe965043d638f333..f11103160fe39e78875c93556902c70e5915ad7f 100644
+--- a/apple/Package.swift
++++ b/apple/Package.swift
+@@ -91,6 +91,10 @@ let package = Package(
+         .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+         // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0470-isolated-conformances.md
+         .enableUpcomingFeature("InferIsolatedConformances"),
++        // Freelingo patch: Swift 5 language mode (data-race checks as warnings under Swift 6.2.3+) needs these Swift-6-default features re-enabled explicitly.
++        .enableUpcomingFeature("BareSlashRegexLiterals"),
++        .enableUpcomingFeature("IsolatedDefaultValues"),
++        .enableUpcomingFeature("GlobalActorIsolatedTypesUsability"),
+ 
+         .unsafeFlags([
+           "-enable-library-evolution",
+@@ -150,7 +154,7 @@ let package = Package(
+       path: "Benchmarks",
+     ),
+   ] + testFrameworks.binaryTargets,
+-  swiftLanguageModes: [.v6],
++  swiftLanguageModes: [.v5],
+   cxxLanguageStandard: .cxx20
+ )
+ 
 diff --git a/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h b/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
 index 6115e87a6e430f55570fbf759283dca0cca1ee80..957527c85379285d9ee5fc7974ad01e94ee12bc5 100644
 --- a/apple/Sources/ExpoModulesJSI-Cxx/include/RuntimeScheduler.h
