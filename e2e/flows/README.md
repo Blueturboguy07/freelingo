@@ -1,6 +1,10 @@
 # Maestro flows
 
-Empty until P3. The first flows, in the order the plan gates them:
+| Flow              | Gate                                                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `p0-db-path.yaml` | INV-PER-06 on device: document-region DB path, WAL, migrated `user_version`, packs directory excluded from backup |
+
+The rest land at P3, in the order the plan gates them:
 
 - `onboarding.yaml` — S001-S009, including reaching progress import
 - `three-lessons.yaml` — onboarding to three completed lessons

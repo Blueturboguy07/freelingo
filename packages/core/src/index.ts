@@ -8,3 +8,4 @@
 export * from './day/civil.js';
 export * from './day/streak.js';
 export * from './ceremony/commit.js';
+export * from './db/index.js';

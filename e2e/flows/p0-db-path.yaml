@@ -1,0 +1,99 @@
+# [INV-PER-06] The progress DB path is persistent on the actual target platform.
+#
+# The assertion names the platform, per the invariant: iOS resolves the document region
+# to `.../Documents/`, Android to `.../files/`. tvOS is excluded by construction — it is
+# not a target, and `dbPathIsPersistent` returns false for it (packages/core/src/db).
+#
+# One flow, both platforms: a single alternation keeps the two device gates from drifting
+# apart, and `db-path-persistent` is the app's own verdict on the same path.
+#
+# `clearState: true` is deliberate — it is what makes this a *fresh install* run, so
+# `user-version` proves the migration harness ran rather than that it once ran. On a
+# development build that also wipes the dev client's saved bundle URL, so the launcher
+# home comes up instead of the app; the two conditional blocks below step through it and
+# are no-ops on a build with the bundle embedded.
+appId: org.freelingo.app
+name: p0-db-path
+tags:
+  - p0
+  - persistence
+---
+- launchApp:
+    clearState: true
+
+# Dev builds only: the expo-dev-client launcher, then its first-run developer-menu sheet.
+- runFlow:
+    when:
+      visible:
+        text: 'Development Build'
+    commands:
+      - tapOn:
+          text: 'http://.*:8081'
+- runFlow:
+    when:
+      visible:
+        text: 'This is the developer menu.*'
+    commands:
+      - back
+
+- extendedWaitUntil:
+    visible:
+      id: 'app-title'
+    timeout: 60000
+
+# Persistence is opened at start; wait for it rather than racing it.
+- extendedWaitUntil:
+    visible:
+      id: 'persistence-state'
+      text: 'ready'
+    timeout: 60000
+
+# The diagnostics screen exists in dev builds only; a long press is the only way in.
+- longPressOn:
+    id: 'app-title'
+
+- assertVisible:
+    id: 'dev-diagnostics'
+
+# The document region, resolved on the device by expo-file-system's Paths API.
+- assertVisible:
+    id: 'db-path'
+    text: '.*(/Documents/|/files/).*'
+
+# INV-PER-06's own verdict on that path, computed by packages/core.
+- assertVisible:
+    id: 'db-path-persistent'
+    text: 'true'
+
+# WAL, set in onInit before any migration runs.
+- assertVisible:
+    id: 'journal-mode'
+    text: 'wal'
+
+# The migration harness ran: user_version is at a registered migration, never 0.
+- assertVisible:
+    id: 'user-version'
+    text: '[1-9][0-9]*'
+
+# Packs live in the CACHE region — the assertion names the region on each platform, not
+# just the directory name. `.*/packs` alone would still pass if the packs directory ever
+# moved next to the progress DB in the document region, which is the regression this row
+# exists to catch (INV-PACK-11: packs live outside the backed-up directory).
+- assertVisible:
+    id: 'packs-dir'
+    text: '.*(/Library/Caches|/cache)/packs/?'
+
+- assertVisible:
+    id: 'packs-excluded'
+    text: 'true'
+
+# `clearState: true` above made this a fresh install, so the DB was created at the latest
+# user_version and there was no earlier file to protect: a copy here would mean the
+# pre-migration path fired on a database that never had a previous schema.
+- assertVisible:
+    id: 'pre-migration-backup'
+    text: 'none'
+
+- assertVisible:
+    id: 'platform'
+    text: '(ios|android)'
