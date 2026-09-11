@@ -1,0 +1,5 @@
+{
+  "$comment": "Invariant ids that MUST have an owning test right now. `pnpm test:coverage-map` fails when an id listed here has no test whose name contains it. Every phase adds its ids here; the registry itself lives in docs/invariants.md. P0 owns the six below (plan §Phases, P0 gate).",
+  "phase": "P0",
+  "owned": ["INV-DAY-01", "INV-DAY-05", "INV-CER-01", "INV-PER-06", "INV-PLAT-01", "INV-PLAT-02"]
+}

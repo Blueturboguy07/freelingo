@@ -1,0 +1,50 @@
+{
+  "name": "freelingo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Open-source, local-only, pixel-parity language learning app (Duolingo-class).",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Blueturboguy07/freelingo.git"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage-map": "node --experimental-strip-types scripts/coverage-map.ts",
+    "invariants:sync": "node --experimental-strip-types scripts/sync-invariants.ts",
+    "invariants:check": "node --experimental-strip-types scripts/sync-invariants.ts --check",
+    "test:falsify": "vitest run --project core -t falsifier",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter @freelingo/mobile typecheck",
+    "gitleaks": "gitleaks dir . --config .gitleaks.toml --no-banner --redact",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "gitleaks git --staged --config .gitleaks.toml --no-banner --redact && pnpm lint"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/node": "^24.5.2",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.3.0",
+    "prettier": "^3.6.2",
+    "simple-git-hooks": "^2.13.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.44.0",
+    "vitest": "^3.2.4"
+  }
+}

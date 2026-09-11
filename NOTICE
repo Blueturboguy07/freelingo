@@ -1,0 +1,61 @@
+Freelingo
+Copyright (C) 2026 Freelingo contributors
+
+===============================================================================
+Two licences, on purpose
+===============================================================================
+
+This project ships two kinds of artefact under two different licences.
+
+  1. THE CODE — everything in this repository:
+     apps/, packages/, tools/, targets/, e2e/, scripts/, .github/
+     Licensed under the GNU Affero General Public License, version 3 only
+     (AGPL-3.0-only). Full text: ./LICENSE
+
+  2. THE CONTENT PACKS — the courses: content/ in this repository, and the
+     built packs published as release assets (SQLite + Opus audio + manifest)
+     Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+     International (CC BY-NC-SA 4.0). Full text: ./content/LICENSE
+
+Why the split
+-------------
+
+The packs embed grading derived from resources that are NonCommercial or
+ShareAlike — CEFRLex (ELELex/FLELex) for the Spanish and French CEFR labels,
+hermitdave frequency data (CC BY-SA 4.0) for the derived ordering, KanjiVG
+(CC BY-SA 3.0) stroke order and JmdictFurigana (CC BY-SA) furigana for the
+Japanese characters stage. An AGPL codebase cannot carry NonCommercial data
+without making the licence claim false. Putting the data in a separately
+licensed artefact keeps both claims true.
+
+What this means in practice
+---------------------------
+
+  * A commercial fork may take the code. It may not take the packs.
+  * The licence allow-list is enforced PER ARTEFACT, at ingest (INV-PACK-13):
+    NonCommercial data is allowed into packs and forbidden in code.
+    NoDerivatives data is forbidden everywhere.
+  * Every pack manifest declares the full source table: licence, attribution
+    owner and share-alike status for every input.
+  * Every sentence requiring attribution is reachable from a rendered surface
+    in the app (report sheet, About/credits), not only from a file (INV-PACK-17).
+
+Contributions
+-------------
+
+Contributions to the code are accepted under the individual Contributor
+Licence Agreement in ./CLA.md, checked by a bot on every pull request.
+
+Trade dress
+-----------
+
+Freelingo re-implements mechanics; it copies no code and ships no asset it did
+not make. The mascot, the cast, the node art, the sound bank and every icon are
+original work. See the honesty block in README.md.
+
+Third-party notices
+-------------------
+
+Nunito is used under the SIL Open Font License 1.1.
+Runtime dependencies carry their own licences; see pnpm-lock.yaml and
+tools/coursekit/uv.lock for the resolved set.

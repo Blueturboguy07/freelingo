@@ -1,0 +1,38 @@
+title = "Freelingo gitleaks config"
+
+# Start from the upstream default ruleset, then add what this repo specifically must
+# never leak: the ed25519 pack-signing private key and BYOK model keys.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "freelingo-pack-signing-private-key"
+description = "ed25519 pack-signing private key (must live only in CI secrets)"
+regex = '''-----BEGIN (OPENSSH|PRIVATE|ED25519) PRIVATE KEY-----'''
+tags = ["key", "private", "packs"]
+
+[[rules]]
+id = "freelingo-anthropic-key"
+description = "Anthropic API key (BYOK keys belong in the OS keychain, never the tree)"
+regex = '''sk-ant-[A-Za-z0-9_\-]{20,}'''
+tags = ["key", "byok"]
+
+[[rules]]
+id = "freelingo-azure-speech-key"
+description = "Azure Speech subscription key used for the voice bake"
+regex = '''(?i)(azure[_\-\s]?(speech|tts)[_\-\s]?(key|subscription)[^\n]{0,20})['"=:\s]+([A-Za-z0-9]{32})'''
+secretGroup = 4
+tags = ["key", "azure", "tts"]
+
+[allowlist]
+description = "Paths with no secrets by construction"
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''tools/coursekit/uv\.lock''',
+  '''(^|/)LICENSE$''',
+  '''^NOTICE$''',
+  '''^docs/invariants\.md$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''^e2e/artifacts/''',
+]

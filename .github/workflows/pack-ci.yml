@@ -1,0 +1,54 @@
+name: pack-ci
+
+# tools/coursekit: the content pipeline. Nothing ships to a learner that did not come
+# through `coursekit validate`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/coursekit/**'
+      - 'content/**'
+      - '.github/workflows/pack-ci.yml'
+  pull_request:
+    paths:
+      - 'tools/coursekit/**'
+      - 'content/**'
+      - '.github/workflows/pack-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pack-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  coursekit:
+    name: coursekit lint + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tools/coursekit
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/coursekit/uv.lock
+
+      - name: Sync (locked)
+        run: uv sync --locked
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Pytest
+        run: uv run pytest
+
+      - name: CLI smoke — every stage is reachable
+        run: uv run coursekit --help

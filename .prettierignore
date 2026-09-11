@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+apps/mobile/ios/
+apps/mobile/android/
+tools/coursekit/.venv/
+e2e/artifacts/
+docs/invariants.md
+LICENSE
+content/LICENSE

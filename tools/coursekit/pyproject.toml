@@ -1,0 +1,30 @@
+[project]
+name = "coursekit"
+version = "0.1.0"
+description = "Freelingo content pipeline: G0-G9 stages, V1-V12 validators, pack build/validate/bake/pack/sample/sign."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "AGPL-3.0-only" }
+authors = [{ name = "Freelingo contributors" }]
+dependencies = ["typer>=0.20.0"]
+
+[project.scripts]
+coursekit = "coursekit.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.4.0", "ruff>=0.14.0"]
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

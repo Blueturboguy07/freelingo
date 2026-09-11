@@ -1,0 +1,13 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Expo pins its own versions (`npx expo install`, INV-PLAT-01); a release-age gate would
+# fight the pin and churn the lockfile, so it is off.
+minimumReleaseAge: 0
+
+# Only these packages may run install scripts.
+allowBuilds:
+  '@shopify/react-native-skia': true
+  esbuild: true
+  simple-git-hooks: true

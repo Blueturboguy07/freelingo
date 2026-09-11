@@ -1,0 +1,20 @@
+{
+  "name": "@freelingo/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Pure TypeScript learning engine. Headless: no React, React Native or Expo.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --project core"
+  },
+  "devDependencies": {
+    "@freelingo/testkit": "workspace:*",
+    "fast-check": "^4.9.0"
+  }
+}

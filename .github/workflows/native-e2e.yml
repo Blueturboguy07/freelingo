@@ -1,0 +1,134 @@
+name: native-e2e
+
+# Behaviour flows, native snapshot baselines and a11y-tree walks on a real simulator.
+# macOS runners are free on a public repo, but wall-clock is the budget, not minutes.
+#
+# P0 status: this workflow boots a simulator and proves the runner works. The Maestro run
+# itself is commented out until e2e/flows has flows (P3). Only CI writes e2e/artifacts/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: native-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  # Named config: the simulator the snapshot baselines are committed against.
+  SIMULATOR_NAME: 'iPhone 17'
+  SIMULATOR_OS: 'iOS-26-0'
+
+jobs:
+  ios-simulator:
+    name: iOS simulator
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
+      - name: Boot the simulator
+        env:
+          WANT_NAME: ${{ env.SIMULATOR_NAME }}
+          WANT_OS: ${{ env.SIMULATOR_OS }}
+        run: |
+          set -euo pipefail
+          # Prefer the device the snapshot baselines were recorded against. Runner images
+          # rotate their bundled runtimes, so fall back to any available iPhone rather
+          # than failing the whole job on an image bump — and say which one was used, so a
+          # snapshot diff is never mistaken for a code change.
+          cat > /tmp/pick-simulator.py <<'PY'
+          import json, os, sys
+
+          want_name = os.environ["WANT_NAME"]
+          want_os = os.environ["WANT_OS"]
+          devices = json.load(sys.stdin)["devices"]
+
+          exact = same_name = any_iphone = None
+          for runtime, items in devices.items():
+              short = runtime.rsplit(".", 1)[-1]
+              for d in items:
+                  pick = (d["udid"], "{} @ {}".format(d["name"], short))
+                  if d["name"] == want_name and want_os in runtime:
+                      exact = exact or pick
+                  elif d["name"] == want_name:
+                      same_name = same_name or pick
+                  elif d["name"].startswith("iPhone"):
+                      any_iphone = any_iphone or pick
+
+          chosen = exact or same_name or any_iphone
+          if chosen is None:
+              sys.exit("no available iPhone simulator on this runner")
+          print(chosen[0])
+          print(chosen[1])
+          PY
+          xcrun simctl list devices available --json | python3 /tmp/pick-simulator.py > /tmp/simulator.txt
+          UDID=$(sed -n 1p /tmp/simulator.txt)
+          CHOSEN=$(sed -n 2p /tmp/simulator.txt)
+          echo "Booting ${CHOSEN} (${UDID}); baselines were recorded on ${WANT_NAME} (${WANT_OS})"
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+          echo "SIMULATOR_CHOSEN=$CHOSEN" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Prepare the artefact directory for this sha
+        run: mkdir -p "e2e/artifacts/${{ github.sha }}"
+
+      # TODO(P3): install Maestro and run the flows once e2e/flows exists.
+      # Enable together, not separately — a green run with no flows is a lie.
+      #
+      # - name: Install Maestro
+      #   run: |
+      #     curl -Ls "https://get.maestro.mobile.dev" | bash
+      #     echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      #
+      # - name: Build and install the dev client
+      #   working-directory: apps/mobile
+      #   run: |
+      #     pnpm expo prebuild --clean --platform ios
+      #     pnpm expo run:ios --device "$SIMULATOR_UDID" --no-bundler
+      #
+      # - name: maestro test e2e/flows
+      #   run: |
+      #     maestro test e2e/flows \
+      #       --format junit \
+      #       --output "e2e/artifacts/${{ github.sha }}/maestro-report.xml"
+
+      - name: Placeholder — record that the runner booted
+        run: |
+          {
+            echo "sha=${{ github.sha }}"
+            echo "simulator=${{ env.SIMULATOR_NAME }} (${{ env.SIMULATOR_OS }})"
+            echo "udid=${SIMULATOR_UDID}"
+            echo "maestro=not-run (no flows yet; enable at P3)"
+          } > "e2e/artifacts/${{ github.sha }}/runner.txt"
+          xcrun simctl io "${SIMULATOR_UDID}" screenshot \
+            "e2e/artifacts/${{ github.sha }}/simulator-booted.png"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ github.sha }}
+          path: e2e/artifacts/${{ github.sha }}/
+          if-no-files-found: error
+          retention-days: 30
