@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# A local Expo module's ios/ and android/ folders are SOURCE, not a prebuild output.
+# The repo-root .gitignore excludes every directory named ios/ or android/ at any depth
+# (INV-PLAT-02), which would silently swallow them — the module would build here and be
+# missing for everyone else. Re-include them: this file is deeper, so it wins. Git cannot
+# re-include a file whose parent directory is excluded, so the directories are named too.
+!modules/*/ios/
+!modules/*/android/

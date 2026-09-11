@@ -24,7 +24,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [],
+    "plugins": ["./modules/backup-exclusion/app.plugin.js"],
     "experiments": {
       "typedRoutes": false
     }
