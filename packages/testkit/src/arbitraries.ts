@@ -15,3 +15,19 @@ export function arbLocalDay(): fc.Arbitrary<LocalDay> {
 export function arbZoneId(zones: readonly { id: string }[]): fc.Arbitrary<string> {
   return fc.constantFrom(...zones.map((z) => z.id));
 }
+
+/** Named config: the instant window every generated `Date` falls in. */
+export const ARBITRARY_INSTANT_MIN = '2024-01-01T00:00:00Z';
+export const ARBITRARY_INSTANT_MAX = '2027-12-31T23:59:59Z';
+
+/**
+ * A UTC instant inside the window. Day properties derive a `local_day` from one of these
+ * in each zone of `ZONES`, so DST transitions and the date line are hit by construction.
+ */
+export function arbInstant(): fc.Arbitrary<Date> {
+  return fc.date({
+    min: new Date(ARBITRARY_INSTANT_MIN),
+    max: new Date(ARBITRARY_INSTANT_MAX),
+    noInvalidDate: true,
+  });
+}
