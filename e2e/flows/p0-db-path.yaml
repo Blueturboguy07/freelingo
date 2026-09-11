@@ -75,14 +75,24 @@ tags:
     id: 'user-version'
     text: '[1-9][0-9]*'
 
-# Packs live in the cache region and are kept out of device backup (INV-PACK-11).
+# Packs live in the CACHE region — the assertion names the region on each platform, not
+# just the directory name. `.*/packs` alone would still pass if the packs directory ever
+# moved next to the progress DB in the document region, which is the regression this row
+# exists to catch (INV-PACK-11: packs live outside the backed-up directory).
 - assertVisible:
     id: 'packs-dir'
-    text: '.*/packs/?'
+    text: '.*(/Library/Caches|/cache)/packs/?'
 
 - assertVisible:
     id: 'packs-excluded'
     text: 'true'
+
+# `clearState: true` above made this a fresh install, so the DB was created at the latest
+# user_version and there was no earlier file to protect: a copy here would mean the
+# pre-migration path fired on a database that never had a previous schema.
+- assertVisible:
+    id: 'pre-migration-backup'
+    text: 'none'
 
 - assertVisible:
     id: 'platform'
