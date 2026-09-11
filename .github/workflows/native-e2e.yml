@@ -447,11 +447,8 @@ jobs:
             (cd apps/mobile && npx expo run:android --no-bundler --variant release)
             # See the iOS job and docs/ci.md: the run directory goes under ARTIFACT_DIR
             # and a later step lifts the PNGs out. Never --flatten-debug-output.
-            maestro test "$FLOW_DIR" \
-              --output "$ARTIFACT_DIR/report.xml" \
-              --format junit \
-              --test-output-dir "$ARTIFACT_DIR/maestro" \
-              -e PLATFORM=android
+            # ONE line: this action runs each script line as a separate `sh -c`, so a backslash-continued command is split apart (CI round 3 failure: "Flow path does not exist: .../\").
+            maestro test "$FLOW_DIR" --output "$ARTIFACT_DIR/report.xml" --format junit --test-output-dir "$ARTIFACT_DIR/maestro" -e PLATFORM=android
 
       - name: Collect the screenshots and prove the run was not empty
         if: ${{ !cancelled() }}
