@@ -14,3 +14,8 @@ The rest land at P3, in the order the plan gates them:
 - `a11y-walk.yaml` — an accessibility-tree walk answering one instance of every exercise type (A11Y-04)
 
 Naming: one flow per gate row in the plan's phase table, named after the gate.
+
+Screenshots: `takeScreenshot: ${ARTIFACT_DIR}/<name>`. `ARTIFACT_DIR` is supplied by
+`native-e2e.yml` as `e2e/artifacts/<sha>/<platform>`; each flow carries a local default in
+its `env:` block. No flow hard-codes a sha, a platform, or a path outside
+`e2e/artifacts/`. See [`docs/ci.md`](../../docs/ci.md).

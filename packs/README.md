@@ -37,6 +37,28 @@ Every sentence that requires attribution carries its owner string in the pack an
 reachable from a rendered surface — the report sheet and the About/credits screen
 (`INV-PACK-17`). Attribution is not a footnote in a README; it is a product surface.
 
+## Signing key custody
+
+Generated at P0 (2026-09-11), ed25519, one key for all packs.
+
+| Half                   | Where it lives                                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **private** (signing)  | the `PACK_SIGNING_KEY` Actions secret on `Blueturboguy07/freelingo`. Nowhere else.                                           |
+| **public** (verifying) | [`../packages/schema/keys/pack-signing.pub`](../packages/schema/keys/pack-signing.pub), committed and shipped inside the app |
+
+The private half was written to disk once, uploaded, and removed with `rm -P`; it was never
+printed and has no backup. **Losing it means a new key and a new app release**, not a lost
+pack: re-signing is cheap, but an installed app only trusts the key it shipped with.
+
+`packages/schema/src/signing.ts` holds the filename, the secret name and a parser that
+refuses anything that is not an ed25519 SPKI — the substitution a plain "the file exists"
+check would miss. `packages/schema/src/signing.test.ts` holds it against `node:crypto`.
+
+Verification itself — verify **before** install, an invalid signature mapping to
+`unverified` and never to `corrupt` (`INV-PACK-18`) — lands at P2 with the pack installer.
+There is no verify function yet on purpose; a half-written one is what a later phase would
+end up trusting.
+
 ## Pack states
 
 A pack on a device is in exactly one of six states:

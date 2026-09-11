@@ -12,6 +12,14 @@ e2e/artifacts/   CI OUTPUT ONLY — `<sha>/<test-id>.png`. Never write here by h
 that something works. `e2e/artifacts/` is git-ignored except for `.gitkeep`, and the
 `native-e2e` workflow uploads `e2e/artifacts/<sha>/` as a build artefact.
 
-P0 status: no flows yet. `native-e2e.yml` boots a simulator and uploads proof that the
-runner works; the `maestro test e2e/flows` step is commented with a TODO and turns on at
-P3, together with the first flows.
+**Every flow writes its screenshots into `${ARTIFACT_DIR}`**, never into a hard-coded sha
+or platform directory. The `native-e2e` jobs pass it in with
+`maestro test -e ARTIFACT_DIR=e2e/artifacts/<sha>/<platform>` and fail the job if no `.png`
+lands there, so a flow that asserts nothing visible cannot pass as evidence. A flow also
+declares a local default in its `env:` block so it runs from a checkout without arguments.
+The full contract is in [`docs/ci.md`](../docs/ci.md).
+
+P0 status: one flow, `flows/p0-db-path.yaml`, gating INV-PER-06 on device. `native-e2e.yml`
+runs it on an iOS simulator and an Android emulator; a `flows exist` job counts the flows
+first and fails the run if the directory is empty, because `maestro test` over an empty
+directory exits 0.

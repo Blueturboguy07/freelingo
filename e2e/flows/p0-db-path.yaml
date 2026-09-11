@@ -17,6 +17,12 @@ name: p0-db-path
 tags:
   - p0
   - persistence
+# The screenshot contract (docs/ci.md): flows write into ${ARTIFACT_DIR}, never into a
+# hard-coded sha or platform directory. CI overrides this default with
+# `maestro test -e ARTIFACT_DIR=e2e/artifacts/<sha>/<platform>`; the default below is
+# what a local run gets, and it is git-ignored like the rest of e2e/artifacts/.
+env:
+  ARTIFACT_DIR: e2e/artifacts/local
 ---
 - launchApp:
     clearState: true
@@ -97,3 +103,8 @@ tags:
 - assertVisible:
     id: 'platform'
     text: '(ios|android)'
+
+# Last, not first: a screenshot taken before the assertions would be evidence of a screen
+# that had not been checked yet. The `native-e2e` jobs fail if no .png reaches
+# ${ARTIFACT_DIR}, so this line is also what keeps a green run from being an empty one.
+- takeScreenshot: ${ARTIFACT_DIR}/p0-db-path
