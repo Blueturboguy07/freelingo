@@ -224,3 +224,24 @@ Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
 lower than when P0 started, because an Xcode build tree and two prebuilt native trees were
 created and removed during this integration. The candidate list in plan §Risks 1 is still
 waiting on founder approval; nothing was deleted.
+
+## Addendum 2026-09-11 (evening): iOS is now proven locally; CI pinned to Xcode 26.2
+
+- `expo-modules-jsi@57.1.0` is patched via pnpm (`patches/expo-modules-jsi@57.1.0.patch`): the two
+  `SWIFT_RETURNS_RETAINED` constructor annotations are removed **and** the package is built in
+  Swift 5 language mode with `BareSlashRegexLiterals`, `IsolatedDefaultValues` and
+  `GlobalActorIsolatedTypesUsability` re-enabled, because Swift 6.2.3 (Xcode 26.2) rejects seven
+  `sending … risks causing data races` sites in the package's own Swift 6-mode code.
+- Local proof on the iPhone 17 Pro simulator (iOS 26.3, `D17B7885-…`): `xcodebuild … Release`
+  **BUILD SUCCEEDED**; `maestro test e2e/flows/p0-db-path.yaml` passed every assertion
+  (db-path under `/Documents/`, `journal-mode wal`, `user-version 1`, packs under
+  `/Library/Caches/packs/`, `packs-excluded true`, `platform ios`). Screenshot:
+  `e2e/artifacts/local-e2d7b3a/ios/p0-db-path.png` (git-ignored; Maestro's own capture of the
+  Diagnostics screen).
+- CI: the runner was pinned to Xcode 26.1.1, whose Swift 6.2.1 rejects `weak let` in Swift 5
+  mode (`'weak' must be a mutable variable`). The pin is moved to `/Applications/Xcode_26.2.app`
+  (build 17C52, present on the macos-15 image and identical to the local toolchain).
+- Android CI: the emulator action runs each `script:` line as its own `sh -c`; the
+  backslash-continued Maestro command reached Maestro as an empty path. Collapsed to one line.
+- The edge-case merge pass has landed since the report above was written: the registry is
+  **424** invariants / **552** cases with **0** open contradictions (see `DECISIONS-LOG.md`).

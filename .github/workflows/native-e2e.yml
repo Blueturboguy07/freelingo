@@ -49,7 +49,7 @@ env:
   # check, and Expo SDK 57 shipped against the 26.x line. If this still fails, the
   # `Why the build failed` step below prints the raw xcodebuild output — read it before
   # moving the pin again, and try 26.0.1 next rather than guessing upward.
-  XCODE_APP: '/Applications/Xcode_26.1.1.app'
+  XCODE_APP: '/Applications/Xcode_26.2.app'
   SIMULATOR_NAME: 'iPhone 17'
   SIMULATOR_OS: 'iOS-26-1'
   # Named config: the emulator the Android baselines are committed against.
