@@ -238,7 +238,7 @@ jobs:
             -e PLATFORM=ios
 
       - name: The run produced a report and at least one screenshot
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           if [ ! -s "$ARTIFACT_DIR/report.xml" ]; then
@@ -253,9 +253,10 @@ jobs:
           fi
 
       - name: Record what actually ran
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR"
           {
             echo "sha=${{ github.sha }}"
             echo "platform=ios"
@@ -339,7 +340,9 @@ jobs:
           api-level: ${{ env.ANDROID_API_LEVEL }}
           arch: ${{ env.ANDROID_ARCH }}
           target: ${{ env.ANDROID_TARGET }}
-          force-avd-creation: false
+          # No AVD cache yet, so the AVD is created fresh every run; `force-avd-creation`
+          # is only meaningful once one exists, and setting it here would imply a cache
+          # that does not.
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
@@ -357,7 +360,7 @@ jobs:
               -e PLATFORM=android
 
       - name: The run produced a report and at least one screenshot
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           if [ ! -s "$ARTIFACT_DIR/report.xml" ]; then
@@ -372,9 +375,10 @@ jobs:
           fi
 
       - name: Record what actually ran
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR"
           {
             echo "sha=${{ github.sha }}"
             echo "platform=android"
