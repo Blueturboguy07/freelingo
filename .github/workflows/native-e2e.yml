@@ -141,17 +141,22 @@ jobs:
           set -euo pipefail
           ART="e2e/artifacts/${{ github.sha }}"
 
-          # A device reports Booted before SpringBoard can draw, so an immediate
-          # screenshot fails with "Error creating the image" (observed: run 34617438245).
-          # Wait for the window server, then retry — bounded, and never fatal: the proof
-          # that the runner works is runner.txt, not the picture.
+          # `simctl io screenshot` needs a simulator DISPLAY, and a headless runner has
+          # none until Simulator.app owns the device: without this the screenshot fails
+          # with "Error creating the image" forever, not just right after boot
+          # (observed: run 34617438245 immediately, run 34617892776 still failing at
+          # 300 s). Maestro needs the same UI at P3, so open it here.
+          open -a Simulator --args -CurrentDeviceUDID "$SIMULATOR_UDID"
+
+          # SpringBoard still needs a moment to draw, so retry — bounded, and never
+          # fatal: the proof that the runner works is runner.txt, not the picture.
           SHOT_STATUS="ok"
-          DEADLINE=$(( SECONDS + 300 ))
+          DEADLINE=$(( SECONDS + 180 ))
           until xcrun simctl io "$SIMULATOR_UDID" screenshot "$ART/simulator-booted.png" 2>/tmp/shot.err; do
             if [ "$SECONDS" -ge "$DEADLINE" ]; then
               echo "screenshot never succeeded; last error:" >&2
               cat /tmp/shot.err >&2
-              SHOT_STATUS="failed-after-300s"
+              SHOT_STATUS="failed-after-180s"
               rm -f "$ART/simulator-booted.png"
               break
             fi
