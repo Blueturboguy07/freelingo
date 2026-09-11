@@ -53,6 +53,11 @@ pnpm expo run:ios                # or run:android
    `docs/invariants-owned.json` has no owning test — and when a test claims an id that does
    not exist. An invariant with no owning test is worse than a failing one.
 
+   `docs/invariants.md` is a **generated verbatim copy** of the research corpus registry —
+   never hand-edit it. `pnpm invariants:sync` recopies it; `pnpm invariants:check` runs in
+   CI and fails on drift. A short registry silently shrinks the coverage map, which is how
+   the copy in this tree once sat at 293 ids against the corpus's 424 with nothing noticing.
+
 6. **No secrets in the tree.** gitleaks runs in CI and in the pre-commit hook.
 7. **Artefacts come from CI.** Screenshots and native snapshots are produced by the
    workflow and uploaded as `e2e/artifacts/<sha>/<test-id>.png`. An agent or a contributor
