@@ -136,16 +136,37 @@ jobs:
       #       --output "e2e/artifacts/${{ github.sha }}/maestro-report.xml"
 
       - name: Placeholder — record that the runner booted
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
+          set -euo pipefail
+          ART="e2e/artifacts/${{ github.sha }}"
+
+          # A device reports Booted before SpringBoard can draw, so an immediate
+          # screenshot fails with "Error creating the image" (observed: run 34617438245).
+          # Wait for the window server, then retry — bounded, and never fatal: the proof
+          # that the runner works is runner.txt, not the picture.
+          SHOT_STATUS="ok"
+          DEADLINE=$(( SECONDS + 300 ))
+          until xcrun simctl io "$SIMULATOR_UDID" screenshot "$ART/simulator-booted.png" 2>/tmp/shot.err; do
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              echo "screenshot never succeeded; last error:" >&2
+              cat /tmp/shot.err >&2
+              SHOT_STATUS="failed-after-300s"
+              rm -f "$ART/simulator-booted.png"
+              break
+            fi
+            sleep 5
+          done
+
           {
             echo "sha=${{ github.sha }}"
-            echo "simulator=${{ env.SIMULATOR_NAME }} (${{ env.SIMULATOR_OS }})"
+            echo "simulator_requested=${{ env.SIMULATOR_NAME }} (${{ env.SIMULATOR_OS }})"
+            echo "simulator_used=${SIMULATOR_CHOSEN}"
             echo "udid=${SIMULATOR_UDID}"
+            echo "screenshot=${SHOT_STATUS}"
             echo "maestro=not-run (no flows yet; enable at P3)"
-          } > "e2e/artifacts/${{ github.sha }}/runner.txt"
-          xcrun simctl io "${SIMULATOR_UDID}" screenshot \
-            "e2e/artifacts/${{ github.sha }}/simulator-booted.png"
+          } > "$ART/runner.txt"
+          cat "$ART/runner.txt"
 
       - name: Upload artefacts
         if: always()
