@@ -510,8 +510,10 @@ shard and a runtime override, neither of which exists any more — and are in
 
 ## The gate, item by item
 
-The P2 gate row of the plan, plus every command the brief named. `ci.yml` numbers are
-CI's; anything marked _corroboration_ is this Mac's.
+The P2 gate row of the plan, plus every command the brief named. A row that says GREEN or
+RED without qualification is CI's; a row that names this Mac is corroboration and is
+labelled so. Nothing in this table is inferred from a lane's own report without saying
+whose measurement it is.
 
 | Gate item                                                                                | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Where                                |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
@@ -695,7 +697,17 @@ specifies their copy.
 
 ### The second CI pass, on `859f3fb`
 
-TBD-ROUND2
+`859f3fb` is the sha that carries the re-key, the regenerated brief and the blockers — the
+tree this integration actually hands over. The reviewer-sample merge (`034f14d`) and this
+report land after it, and neither changes a stage.
+
+| Workflow         | Run                                                                    | Result                                                                                    |
+| ---------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, first attempt — 114 files / 1,316 passed, 6 skipped, no `onTaskUpdate` error |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920930> | TBD-R2-PACK                                                                               |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937> | TBD-R2-NATIVE                                                                             |
+
+TBD-R2-PROSE
 
 ## Blockers
 
