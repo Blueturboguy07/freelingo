@@ -654,3 +654,18 @@ strictly larger. Units 19, 23 and 16 are the gap-heavy ones.
 What to do with it is a content question this round did not have the budget to answer, and
 it needs the reviewer sample (B3) to say whether the learner experiences it as a
 regression. It is written down because the run measured it, not because it is decided.
+
+---
+
+## Founder rulings — 2026-09-12 (recorded by the orchestrator; source: ~/duolingo-research/DECISIONS-LOG.md)
+
+- **B3** → P3 proceeds. The 300-item sample is scored by an Opus reviewer as `REVIEWER_KIND_AGENT`; the manifest and S001 card carry `PROVISIONAL (unreviewed by a paid native speaker)` verbatim; `gate_passed()` accepts an agent-scored rate ≤ 2 % for the automated run; the paid native review is a **release prerequisite** listed in `docs/RELEASE.md`.
+- **B5** → S152 now has a product-map row (Surface 16 in `deep/00-PRODUCT-MAP.md`): states `list · filtered · sentence-detail · empty · pack-missing`, entry points S137 → `Content credits` and S045 → `Credits for this sentence`. P4 builds it.
+- **B6** → Kokoro is the voice engine for es/fr/ja (Piper build-time only for de). Manifests replace `locale: es-ES` with `language: es` + `accent_claim: unverified`; the reviewer rubric checks accent consistency; the two blended cast roles stay, declared in `cast.yaml`.
+- **B9** → three changes together: (a) a G1 adapter lemma-normalisation table (`buen/buena/buenos/buenas → bueno`, and any prenominal/apocopated form the curriculum names) so the taught phrase is in vocabulary; (b) per-lesson `MIN_TOKENS = 1` for a lesson whose window holds no verb — lesson 1 is words and fixed phrases, as the live capture shows Duolingo's level-1 lessons are; (c) a G3 validator failing the build when a declared target lemma is unreachable by the pinned lemmatiser for every form the course teaches. Re-key only rows whose `ledger_digest` changes.
+- **B1b** → course-global lesson numbers are canonical.
+- **B16** → option 2: carry G1's analysis across G5→G7 by extending the frozen `CANDIDATE` contract (bump the digest; deps lane owns it).
+- **B14** → `StageResult(ok=False)`, message verbatim.
+- **B17** → V11 hard-fails only across section boundaries; within a section a fall is a warning in the report.
+- **B7** → stays non-gating; Stryker `coverageAnalysis: off` and tighter INV-DAT generators as a P3 chore.
+- `pnpm format` is the first commit of P3's deps task.
