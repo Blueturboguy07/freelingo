@@ -1173,6 +1173,16 @@ by name, in the census, which is the axis doing its job rather than being bypass
 glob G5 reads, because INV-PACK-10 forbids patching a candidate into a window it was not
 written for.
 
+### The brief was regenerated too
+
+`content/es/authoring/gap-brief.jsonl` is a derived snapshot and G5 never reads it, but it
+is the authoring input, and a 490-slot brief beside a 494-slot gap list is a trap for
+whoever takes this blocker. `coursekit gaps es` regenerated it: **494 slots, 9,880
+candidates required, 26 verbless slots, ledger digest `e041abe57f6f0836`**. Checked
+against the CI artefact `es-gap-brief-86f2430…` — same 494 slots, **0 rows differing**,
+only `generated_at` and `g4_run_id` differ in the header. Two machines, two ingests, one
+gap list.
+
 ### What is left, and it is authoring
 
 **22 slots with no candidate at all** (20 each = 440 rows). The windows are not the B9
