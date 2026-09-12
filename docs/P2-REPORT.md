@@ -118,16 +118,23 @@ modes**: both corpus defects are English-side mis-glosses of natural Spanish, wh
 authored bank is correctly glossed Spanish nobody would say (26.83% awkward against
 3.70%). A course built from this bank would read as grammatical and empty.
 
-**Its diagnostic re-key and this integration's differ, and the difference is instructive.**
-The lane's throwaway re-key reported 5,100 rows accepted and **407 of 494** slots filled,
-leaving "~87 to re-author"; the script committed here reports **465 of 494** filled, 22
-thin and 7 unfilled. The gap is 58 slots, and the likely reason is which fields the re-key
-touches: `_axis` has **two** `stale_ledger` returns, one on the digest and one on
-`set(new_lemmas) != set(gap["new_lemmas"])`, and 63 of the surviving slots had their
-reserved lemma set move as well as their digest. A digest-only re-key leaves those 63 to
-be rejected by the second check. 58 against 63 is close enough to be the explanation and
-not close enough to be proof, and the committed script updates both fields, which is why
-its number is the one in §The pipeline.
+**Its diagnostic re-key and this integration's differ by 58 slots, and the difference is
+not a mystery — it reconciles exactly.** The lane's throwaway re-key reported 5,100 rows
+accepted and **407 of 494** slots filled, leaving "~87 to re-author"; the script committed
+here reports **465 of 494**. `_axis` has **two** `stale_ledger` returns, one on the digest
+and one on `set(new_lemmas) != set(gap["new_lemmas"])`, so a digest-only re-key leaves
+every slot whose _reserved lemma set_ also moved to be rejected by the second check.
+Measured on the committed shards' own `rekeyed.from_new_lemmas` records:
+
+```
+slots whose reserved lemma set moved          63
+slots G5 filled after the two-field re-key   465
+of those 63, filled                           58
+465 - 58                                    = 407     <- the lane's number, exactly
+```
+
+So the two runs agree, and what separated them was one field. The committed script writes
+both, which is why 465 is the number in §The pipeline.
 
 **`scores.jsonl` still has no scored rows, on purpose, and the published rate is still
 `None`.** A row there needs an `exercise_id`; these verdicts are keyed by `candidate_id`
