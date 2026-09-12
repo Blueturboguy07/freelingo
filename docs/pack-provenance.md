@@ -24,6 +24,34 @@ than no number, because it makes the same claim as a number somebody paid to ver
 | measured wrong-item rate  | `coursekit sample` + `content/<lang>/review/scores.jsonl` | the rubric in `content/<lang>/review/RUBRIC.md`                    |
 | licences and attribution  | V10, over every shipped sentence                          | the credits surface S152 (INV-PACK-17)                             |
 | signature                 | `coursekit sign`                                          | `packages/schema/keys/pack-signing.pub`                            |
+| `locale: es-ES`           | G8's cast, `content/es/cast.yaml`                         | **nothing in the toolchain** — see below                           |
+
+## `locale: es-ES` is a course claim, not a vendor fact
+
+Every other row above is backed by something that can contradict it. This one is not, and
+the table says so rather than letting the reader assume it is the same kind of number.
+
+The approved plan names **Azure Neural** as the voice vendor and Azure publishes a locale
+sub-tag per voice, so `es-ES` used to be a vendor-backed, machine-checkable fact. No cloud
+credentials exist in this environment, so Spanish is baked on **Kokoro** (Apache-2.0),
+whose Spanish voices declare **no regional accent**. The manifest still says `es-ES`
+because that is what the course claims to teach — and after the vendor change, nothing in
+`coursekit` can falsify it.
+
+Two consequences ride on that, and both are recorded as founder decision **B6** in
+`docs/P2-BLOCKERS.md`:
+
+1. **The native-reviewer sample is the only remaining falsifier**, so its brief has to
+   check **accent consistency**, not only correctness. `content/es/review/RUBRIC.md` asks
+   the reviewer to judge text as "an educated speaker of peninsular Spanish"; it does not
+   yet ask anyone to listen to the bank and say whether the four voices sound like one
+   accent. It must, before the sheet is sent.
+2. **Two of the four cast roles are blends.** Kokoro ships three Spanish voices where the
+   cast wants four, so two roles are deterministic weighted blends of stock voices
+   (`D-CAST-ES-02` in `content/es/cast.yaml`). Deterministic and pinned by the re-bake key
+   — INV-AUD-08 puts the synthesis engine in that key — but a blended voice is what a
+   learner hears for half the cast, which makes it a product choice rather than an
+   implementation detail.
 
 ## The honesty string
 

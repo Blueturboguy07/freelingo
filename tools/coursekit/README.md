@@ -101,8 +101,30 @@ So every per-stage option rides on `--set`, for all seven verbs, and the sample 
 reads `n` and `seed` out of `ctx.options`. A bare `coursekit sample es` is already the
 300-item draw the plan's P2 row asks for — `REVIEWER_SAMPLE_ITEMS` is 300 — and
 `tests/test_sample.py::test_the_default_sheet_is_the_three_hundred_the_plan_asks_for`
-pins it. If the `--n 300` spelling is wanted, it is a one-line change to `cli.py` owned
-by whoever owns the dispatch table, not by this lane.
+pins it.
+
+`coursekit sample es --n 300` appeared in the P2 task briefs and in
+`docs/P2-REPORT.md` §B4. **It is not a spelling this CLI has, and it never was.** The
+sanctioned spellings are the two in the block above; nothing is missing and nothing needs
+adding. Measured on this tree, 2026-09-12:
+
+```
+$ uv run coursekit sample es --n 300
+Error: No such option: --n            (exit 2)
+$ uv run coursekit sample es
+sample failed: no exercise artefact at build/es/g7/exercises.jsonl … run `coursekit build es` first   (exit 4)
+```
+
+Note the **2**, and note that it is not this CLI's 2. `config/base.py` defines exit 2 as
+"the verb exists, the stage behind it is not registered"; Click writes 2 for any usage
+error, so a mistyped flag and an unwritten stage are the same number to a caller. Nothing
+in `coursekit` can change that — Click owns the code it exits with before any command
+body runs — so the guard is a test rather than a fix:
+`tests/test_sample.py::test_the_phantom_n_flag_is_rejected_and_collides_with_exit_2`
+pins **both** exit codes and the collision, so if `--n` is ever added to `cli.py` that
+test fails and tells whoever adds it that this paragraph is now wrong. The one thing that
+must never happen is the flag being accepted and ignored, which would draw some other
+number of items under a command line that says 300.
 
 Stratified over `(unit_index, exercise_type, provenance)` and deterministic under the
 recorded seed. A sheet that cannot be redrawn belongs to no measurable population, so the

@@ -637,3 +637,116 @@ def test_the_rubric_is_published_beside_the_candidates() -> None:
     assert str(BACKTRANSLATION_MIN_SCORE) in text
     for score in range(5):
         assert f"| {score} " in text, f"the rubric does not define score {score}"
+
+
+# ---------------------------------------------------------------------------
+# The real LanguageTool server, and the CI gap it measures (B8)
+# ---------------------------------------------------------------------------
+#
+# Everything above drives the grammar axis through `mock_lt`, which is right for a suite
+# that has to run on a runner with no Java. What none of it can tell you is whether the
+# `languagetool` engine talks to a real server — and that question stopped being academic
+# when `pack-ci.yml`'s `build-es` turned out to name no grammar engine and no KenLM model
+# at all, which makes V8 blocking for any content whatsoever (docs/P2-BLOCKERS.md B8).
+#
+# So this pair is env-gated on a URL, the same shape `test_g2_band.py` uses for ELELex.
+# Start one with:
+#
+#   java -cp LanguageTool-6.6/languagetool-server.jar \
+#        org.languagetool.server.HTTPServer --port 8081
+#   COURSEKIT_LANGUAGETOOL_URL=http://localhost:8081 uv run pytest -k live_languagetool
+#
+# The URL is the server BASE, not an endpoint: `LanguageToolEngine` appends `/v2/languages`
+# and `/v2/check` itself. Passing `.../v2/check` fails the stage with a 404 on
+# `/v2/check/v2/languages` — measured, and the reason this comment spells it out.
+#
+# Measured 2026-09-12 against LanguageTool 6.6 (build 2025-03-27, Java 22.0.1) on macOS:
+# both tests pass. `es` raises MORFOLOGIK_RULE_ES for a nonce token, so Spanish has a
+# spell checker as well as grammar rules, and with no KenLM model `degraded_to` is
+# `grammar_only` and V8 warns instead of blocking.
+
+LIVE_LANGUAGETOOL_ENV_VAR = "COURSEKIT_LANGUAGETOOL_URL"
+
+live_languagetool = pytest.mark.skipif(
+    not __import__("os").environ.get(LIVE_LANGUAGETOOL_ENV_VAR),
+    reason=f"set {LIVE_LANGUAGETOOL_ENV_VAR} to a running LanguageTool /v2/check endpoint",
+)
+
+
+@live_languagetool
+def test_live_languagetool_spanish_has_a_spell_checker_and_g6_says_so(
+    es_after_g5: list[dict[str, Any]],
+) -> None:
+    """[INV-PACK-14] The engine record names a server that really answered.
+
+    The mock proves the wiring; only a real server proves the claim `config/g6.py` makes
+    about Spanish — that it has BOTH grammar rules and a spell checker, so
+    `spellcheck_engine` must not be `none` for `es`. A run whose engine record is right
+    about a mock and wrong about LanguageTool is a record nobody can act on.
+    """
+    import os
+
+    url = os.environ[LIVE_LANGUAGETOOL_ENV_VAR]
+    result = run_g6({"languagetool_url": url})
+    assert result.ok, result.message
+
+    notes = read_entries("es", stage="g6")[-1]["notes"]
+    assert notes["grammar_engine"] != ENGINE_NONE, notes
+    assert notes["grammar_engine"].startswith("languagetool/"), notes["grammar_engine"]
+    assert notes["spellcheck_engine"] != ENGINE_NONE, (
+        f"{SPELLCHECK_PROBE!r} found no spelling rule on a live server; either the probe "
+        "or config/g6.py's Spanish row is wrong"
+    )
+    assert notes["grammar_engine"] not in MOCK_ENGINE_IDS
+
+
+@live_languagetool
+def test_live_languagetool_alone_is_enough_to_stop_v8_blocking(
+    es_after_g5: list[dict[str, Any]],
+) -> None:
+    """B8's remedy, proven rather than asserted.
+
+    `build-es` runs `coursekit build es --set max_pairs=...` and names no engine, so both
+    `grammar_engine` and `perplexity_engine` are `none` and V8 blocks — "zero errors from
+    nothing". The proposed one-step fix is a LanguageTool sidecar and nothing else, with
+    KenLM still absent. This test is that exact configuration: if it stops passing, the
+    remedy written into docs/P2-BLOCKERS.md B8 is no longer the remedy.
+    """
+    import os
+
+    result = run_g6({"languagetool_url": os.environ[LIVE_LANGUAGETOOL_ENV_VAR]})
+    assert result.ok, result.message
+
+    notes = read_entries("es", stage="g6")[-1]["notes"]
+    assert notes["perplexity_engine"] == ENGINE_NONE, "this test is the no-KenLM case"
+    assert notes["degraded_to"] == DEGRADED_TO_GRAMMAR_ONLY
+
+    findings = run_v8()
+    assert not blocking(findings), [finding.message for finding in findings]
+
+
+def test_the_invocation_build_es_uses_today_leaves_v8_with_nothing(
+    es_after_g5: list[dict[str, Any]],
+) -> None:
+    """[INV-PACK-14] B8, pinned: no engine named -> V8 blocking, for ANY content.
+
+    `.github/workflows/pack-ci.yml`'s `build-es` step is
+    `coursekit build es --set max_pairs=$COURSEKIT_MAX_PAIRS` — no `languagetool_url`, no
+    `kenlm_model`. `test_no_engine_at_all_is_a_blocking_v8_not_a_clean_one` already covers
+    the empty-options case as a property of G6; this one names the WORKFLOW, so that the
+    day somebody adds a sidecar step to `build-es` and this test starts failing, the
+    failure says which paragraph of docs/P2-BLOCKERS.md to delete.
+
+    It runs on every runner, with no Java and no model, because that is precisely the
+    runner it is about.
+    """
+    result = run_g6({})
+    assert result.ok, result.message
+
+    notes = read_entries("es", stage="g6")[-1]["notes"]
+    assert notes["grammar_engine"] == ENGINE_NONE
+    assert notes["perplexity_engine"] == ENGINE_NONE
+
+    findings = blocking(run_v8())
+    assert findings, "V8 passed a run in which nothing that can find an error ran"
+    assert "zero errors from nothing" in findings[0].message

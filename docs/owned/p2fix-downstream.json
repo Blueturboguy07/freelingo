@@ -1,0 +1,90 @@
+{
+  "$comment": "Invariant ids owned by the P2 fix task `p2fix-downstream-validate` (branch p2fix/g6-g9-validate-and-ci). The list is EMPTY and must stay empty: all seven ids the brief names are already claimed by the lanes that wrote their tests — INV-PACK-14 by docs/owned/p2-g5-g6.json, INV-PACK-07 and INV-PACK-50 by p2-g7.json, INV-AUD-08 and INV-PACK-15 by p2-g8.json, INV-PACK-17 and INV-PACK-41 by p2-g9.json — and scripts/coverage-map.ts fails when two ownership files claim the same id. This lane's job on those seven is not to claim them, it is to make them true ON REAL DATA rather than on fixtures and planted defects, which is a property of a build that has not happened yet (see notGreenOnRealData). Re-claiming them here would turn a real ownership map into a collision error and prove nothing.",
+  "phase": "P2",
+  "round": "fix round, 2026-09-12",
+  "task": "p2fix-downstream-validate",
+  "module": "tools/coursekit, .github/workflows, docs",
+  "screens": ["S152"],
+  "owned": [],
+  "briefIds": [
+    "INV-PACK-07",
+    "INV-PACK-14",
+    "INV-PACK-15",
+    "INV-PACK-17",
+    "INV-PACK-41",
+    "INV-PACK-50",
+    "INV-AUD-08"
+  ],
+  "notGreenOnRealData": {
+    "$comment": "Every one of the seven has an owning pytest test that passes today over the es-mini fixture, a synthetic run directory or a planted defect. Not one has been asserted against a pack this pipeline produced, because `coursekit build es` exits 4 at G5 (docs/P2-BLOCKERS.md B1). The distinction is the whole reason the P2 gate is RED: a validator proven on a planted defect is proven to catch that defect, not proven to have read a real pack.",
+    "INV-PACK-07": "tests/test_g7_expand.py + test_validators_exercise.py, over generated items. Unproven: that the real es curriculum's 918 slots produce >= 2 authored forms for every missable item.",
+    "INV-PACK-14": "tests/test_g6_validate_language.py, over committed runlog shapes. Unproven: which engines actually ran for es — V8's whole point is that the record names the real engines, and no real G6 run exists to name them.",
+    "INV-PACK-15": "tests/test_validators_audio.py, over the COMMITTED content/es/audio-manifest.json (23 clips, 144,694 B). Unproven: the 120 MB budget against a full bank's real bytes.",
+    "INV-PACK-17": "tests/test_g9_package.py + test_validators_freelingo.py (F3), over planted rows. Unproven: zero UNRESOLVED licences and an owner string on every attribution-required row of the real ledger. The SCREEN half (S152) has nowhere to be tested at all — see docs/P2-BLOCKERS.md B5.",
+    "INV-PACK-41": "tests/test_itemid.py, over hand-built rows. Unproven: id stability across two real rebuilds.",
+    "INV-PACK-50": "tests/test_validators_exercise.py, over EC-PACK-47's falsifier. Unproven: that no real grammar-concept item reaches a quoting shape.",
+    "INV-AUD-08": "tests/test_cast.py (re-bake key) + the synthetic encode/decode/measure chain in tests/test_g8_bake.py. Unproven: that every clip in a real Kokoro bank measures within tolerance."
+  },
+  "changed": [
+    {
+      "what": ".github/workflows/pack-bake.yml — DELETED (B2)",
+      "why": "workflow_dispatch on a fresh checkout running `coursekit bake es`; G8 reads G7's exercises; a fresh checkout has no build tree, so every possible dispatch exited 3/4. Never dispatched, no es-audio-<sha> artefact has ever existed, and docs/ci.md advertised it as bake coverage. The bake runs inside pack-ci.yml's build-es, which has G7's output, the tts group and the same pinned Kokoro weights, and es-build-<sha> (path: build/es) already carries g8/bank/, g8/clips.jsonl and runlog.jsonl. The alternative — downloading es-build-<sha> — depends on retention-days: 1 and a cross-workflow run-id looked up by hand.",
+      "reasonedAt": "docs/ci.md, section `pack-bake.yml` was deleted, and why that is the honest option"
+    },
+    {
+      "what": "docs/ci.md — four workflows, not five; the pack-bake row is gone and the decision is argued in place",
+      "why": "the table was the carrier of the false claim, so the table is where the correction has to land"
+    },
+    {
+      "what": "tools/coursekit/README.md + tests/test_sample.py — the `--n 300` correction and its two new tests (B4)",
+      "why": "the spelling was wrong in the briefs, not missing from the CLI. The README now carries the measured rejection; test_the_phantom_n_flag_is_rejected_and_collides_with_exit_2 pins BOTH exit codes so the flag can never be added and silently ignored, and test_the_sanctioned_spellings_are_the_ones_the_readme_documents pins the README against the constants."
+    },
+    {
+      "what": "docs/owned/p2-validate-ci.json — three knownHazards rewritten with their real status",
+      "why": "the brief: the `--n 300` hazard becomes RESOLVED rather than known. The build-es/validate-es hazard becomes PARTLY RESOLVED with what the first live run actually found, and the docs/ci.md staleness hazard becomes RESOLVED."
+    },
+    {
+      "what": "docs/P2-BLOCKERS.md — new; B1-B7 with B3, B5 and B6 written as founder decisions",
+      "why": "one live list beside the phase report. Each founder decision carries exactly one question and no answer."
+    },
+    {
+      "what": "docs/pack-provenance.md — a `locale: es-ES` row in the claims table, and the section under it",
+      "why": "B6's consequence must not go unsaid. Every other row in that table is backed by something that can contradict it; after the Azure->Kokoro change this one is backed by nothing in the toolchain, and the only remaining falsifier is the reviewer sample's accent-consistency clause."
+    },
+    {
+      "what": "tests/test_g6_validate_language.py — three new tests, and B8 (a NEW blocker this round found)",
+      "why": "`pack-ci.yml`'s build-es names no grammar engine and no KenLM model, so G6 records grammar_engine: none and perplexity_engine: none and V8 blocks for ANY content — 'zero errors from nothing'. The gate this round was asked to turn green (validate-es exit 0, V8 naming the engines it actually used) is therefore unreachable from the current workflow, independently of B1. test_the_invocation_build_es_uses_today_leaves_v8_with_nothing pins the broken state on every runner; two env-gated tests (COURSEKIT_LANGUAGETOOL_URL, same shape as test_g2_band.py's ELELex gate) prove the remedy against a REAL LanguageTool 6.6 server — measured 2026-09-12, both passed, spellcheck_engine is not none for es and a sidecar ALONE (no KenLM) moves V8 from blocking to a grammar_only warning. pack-ci.yml is not in this lane, so the workflow step is written up in docs/P2-BLOCKERS.md B8 rather than added."
+    },
+    {
+      "what": ".github/workflows/mutation.yml — a measured header explaining why no score has ever printed",
+      "why": "the workflow said the P1 gate clause was unmet; it did not say WHY, so each reader re-derives it and the obvious wrong fix (raise dryRunTimeoutMinutes) looks right. The header now carries the three facts that rule the wrong fixes out."
+    }
+  ],
+  "notDone": [
+    {
+      "what": "B7 — mutation.yml still produces no score, and dryRunTimeoutMinutes was NOT raised",
+      "why": "the 300,000 ms that fires is Vitest's per-test timeout (vitest.config.ts: TEST_TIMEOUT_MS 60_000 x STRYKER_TIMEOUT_FACTOR 5), not stryker.config.json's dryRunTimeoutMinutes: 30 — the local dry run died at 13 m 29 s, well inside 30 minutes, so raising the dry-run budget changes nothing. The timing-out property is a fast-check property in packages/core/src/data/import.test.ts (CI reported INV-DAT-04, the local reproduction INV-DAT-09; neighbours in the same file, same class of failure): 4,350 ms un-instrumented, >300 s under perTest, a >69x execution-mode cost. This lane's file list grants packages/core/src/day/ (DAY), not packages/core/src/data/ (DAT). Different modules. Measured and written into docs/P2-BLOCKERS.md B7 instead of guessed at, and PROPERTY_RUNS was not lowered.",
+      "forWhom": "whoever owns packages/core/src/data/"
+    },
+    {
+      "what": "content/es/review/RUBRIC.md does not ask the reviewer to check accent consistency",
+      "why": "B6 makes that clause load-bearing — it is the only remaining falsifier for `locale: es-ES` — and content/ is not in this lane. Recorded in docs/P2-BLOCKERS.md B6 and docs/pack-provenance.md.",
+      "forWhom": "the lane that owns content/es/review/"
+    },
+    {
+      "what": "two comment references to pack-bake.yml survive in .github/workflows/pack-ci.yml (~L50, ~L179) and two in tools/coursekit/docs/pipeline.md (~L22, ~L33)",
+      "why": "neither file is in this lane. Comments only, no behaviour.",
+      "forWhom": "the integrator"
+    },
+    {
+      "what": "B8's workflow step — a LanguageTool sidecar in .github/workflows/pack-ci.yml's build-es",
+      "why": "pack-ci.yml is not in this lane. The step is written out, with the exact commands and the base-URL trap (LanguageToolEngine appends /v2/languages and /v2/check itself; passing .../v2/check 404s), in docs/P2-BLOCKERS.md B8, and the remedy is proven by two live tests rather than asserted.",
+      "forWhom": "the integrator, or whoever owns pack-ci.yml"
+    },
+    {
+      "what": "B1a — G4 emits every gap slot with known_lemmas: [] and new_lemmas: [], so no authored candidate can ever pass G5",
+      "why": "raised by p2fix/author-u07-u14 at 8fe05ae (1,456 of 1,456 gap rows measured) and confirmed here by reading stages/g4_select.py's `if choice is None` branch. It means B1 is not an authoring backlog but a G4 defect that makes the authoring unacceptable however good it is. stages/g4_select.py is not in this lane.",
+      "forWhom": "whoever owns tools/coursekit/src/coursekit/stages/g4_select.py"
+    }
+  ]
+}

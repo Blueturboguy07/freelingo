@@ -61,22 +61,36 @@
       "fix": "Move the exception into a module the registry never evicts. That module does not exist and `coursekit/__init__.py` is owned by the scaffold lane, so this is filed rather than done. A comment at the import in sample.py points here."
     },
     {
-      "what": "`coursekit sample es --n 300`, the spelling in this lane's brief, does not exist. Per-stage options ride on `--set` for all seven verbs.",
-      "statusToday": "The capability is present under the sanctioned spelling: `--set n=300 --set seed=20260911`, and a bare `coursekit sample es` already draws REVIEWER_SAMPLE_ITEMS = 300, which is what the plan's P2 row asks for. tools/coursekit/README.md says this in as many words.",
-      "whenItBites": "Never functionally; only if somebody types the brief's spelling.",
-      "fix": "Two lines in `cli.py`, whose docstring deliberately forbids per-stage flags ('P2 runs as two waves over eight lanes; a hand-maintained dispatch table here would be eight conflicting edits to one function'). Not this lane's file and not this lane's call to overturn."
+      "what": "`coursekit sample es --n 300`, the spelling in this lane's brief and in the P2 gate text, does not exist. Per-stage options ride on `--set` for all seven verbs.",
+      "status": "RESOLVED 2026-09-12 by p2fix/g6-g9-validate-and-ci (B4). It was a wrong spelling in a brief, never a missing capability, and the resolution is that every doc now says the sanctioned spelling and a test pins the rejection.",
+      "resolution": [
+        "The sanctioned spellings are `coursekit sample es` (300 items at seed 20260911, REVIEWER_SAMPLE_ITEMS) and `coursekit sample es --set n=300 --set seed=12345`. Nothing was added to cli.py: `--n` stays absent, on purpose, for the reason cli.py's own docstring gives.",
+        "tools/coursekit/README.md carries the two spellings, the measured rejection, and the exit-code collision below.",
+        "docs/P2-REPORT.md B4 already stated the spelling was wrong; it is a historical report of the P2 state and was left as written.",
+        "tests/test_sample.py::test_the_phantom_n_flag_is_rejected_and_collides_with_exit_2 pins BOTH exit codes, so adding `--n` to cli.py later fails that test and forces the README paragraph to be corrected in the same change."
+      ],
+      "measuredOn": "2026-09-12, this tree, tools/coursekit",
+      "measured": {
+        "uv run coursekit sample es --n 300": "Click usage error `No such option: --n`, exit 2",
+        "uv run coursekit sample es": "exit 4 — `no exercise artefact at build/es/g7/exercises.jsonl; run `coursekit build es` first`. The stage refuses to draw from nothing rather than writing an empty sheet with a 0% defect rate."
+      },
+      "residualFinding": "Exit 2 is overloaded and coursekit cannot un-overload it. config/base.py defines exit 2 as 'the verb exists, the stage or validator behind it is not registered'; Click exits 2 for ANY usage error, before a command body runs, so a mistyped flag and an unwritten stage are the same number to a caller (a CI step, a script). Not fixable inside coursekit — Click owns that exit — so it is pinned by the test above and written down here and in the README rather than silently lived with. If it ever needs to be distinguished, the change is a `result_callback`/custom `Typer` class in cli.py, which is the scaffold lane's file."
     },
     {
-      "what": "`build-es` and `validate-es` in pack-ci.yml have never executed. `pipeline-ready` counts 0/10 stages and 3/17 validators today (only V10-V12 exist), so both long jobs are skipped by their `if:` guard.",
-      "statusToday": "The two jobs are actionlint-clean and nothing more. The capped ingest, the full G0-G9, the V1-V4 100% assertion, the 120 MB `du -sb` audio budget and the `es-pack-<sha>` artefact upload are all UNRUN.",
-      "whenItBites": "The first phase where the G-lanes are all registered — the jobs go live and any mistake in them surfaces then.",
-      "fix": "Nothing to fix here; it is a sequencing fact. The integrator should expect the first green `pipeline-ready` to be the first real run of both jobs."
+      "what": "`build-es` and `validate-es` in pack-ci.yml had never executed. `pipeline-ready` counted 0/10 stages and 3/17 validators, so both long jobs were skipped by their `if:` guard.",
+      "status": "PARTLY RESOLVED, and the unresolved half is the phase blocker, not this hazard. At P2 integration (sha 281b623) `pipeline-ready` went green for the first time — 10/10 stages, 17/17 validators — and both jobs went live exactly as this hazard predicted. `build-es` then FAILED at G5, so `validate-es` SKIPPED on `needs:`.",
+      "whatItFound": "Precisely what this hazard said it would: 'the jobs go live and any mistake in them surfaces then'. The mistake was not in the jobs. G0-G4 ran on the real corpus and G4 emitted 918 gap slots against 160 authored candidates covering 8 of them (0.9%), so G5 exited 4. See docs/P2-BLOCKERS.md B1.",
+      "stillUnproven": [
+        "`coursekit validate es` has still never run, so V1-V4 at 100%, V5-V12, the V8 engine record (INV-PACK-14) and the zero-UNRESOLVED-licence check (INV-PACK-17) are unproven on real data.",
+        "The 120 MB bank assertion has never been made against real bytes (INV-PACK-15); the only bank-shaped evidence is the committed content/es/audio-manifest.json.",
+        "`coursekit sign es` has never signed a manifest that exists, and `coursekit sample es` has never drawn a sheet."
+      ],
+      "fix": "Author the candidates (B1) and re-run pack-ci. Nothing in the workflow is at fault."
     },
     {
-      "what": "docs/ci.md's workflow table still describes pack-ci as '`coursekit validate` on content changes' and does not mention `coursekit`, `pipeline-ready`, `build-es` or `validate-es`.",
-      "statusToday": "Stale documentation. docs/ci.md is not in this lane's file list.",
-      "whenItBites": "A reader trusts the table over the workflow.",
-      "fix": "One table row, for whoever owns docs/ci.md."
+      "what": "docs/ci.md's workflow table described pack-ci as '`coursekit validate` on content changes' and did not mention `coursekit`, `pipeline-ready`, `build-es` or `validate-es`.",
+      "status": "RESOLVED 2026-09-12 by p2fix/g6-g9-validate-and-ci. docs/ci.md now describes all four jobs, and the table lost its fifth row: `pack-bake.yml` was DELETED (B2) because it was workflow_dispatch on a fresh checkout running `coursekit bake es`, which reads G7's output, so every possible dispatch exited 3/4 and no `es-audio-<sha>` artefact ever existed. The bake runs inside `build-es`, which has G7's output, and the bank travels in `es-build-<sha>`.",
+      "fix": "Done. Two comment references to `pack-bake.yml` survive inside .github/workflows/pack-ci.yml, and two more in tools/coursekit/docs/pipeline.md; neither file is in the p2fix-downstream lane, so they are listed for the integrator instead of edited."
     }
   ]
 }

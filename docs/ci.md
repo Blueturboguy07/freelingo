@@ -1,16 +1,51 @@
 # CI
 
-Five workflows. `ci.yml` is the fast one every change waits on; `native-e2e.yml` is the
+Four workflows. `ci.yml` is the fast one every change waits on; `native-e2e.yml` is the
 slow one that proves the app exists on real devices; `mutation.yml` is nightly and
-`pack-ci.yml` / `pack-bake.yml` are content-only.
+`pack-ci.yml` is content-only.
 
-| Workflow         | Runner                 | What it proves                                                        |
-| ---------------- | ---------------------- | --------------------------------------------------------------------- |
-| `ci.yml`         | ubuntu-latest          | lint, typecheck, `pnpm test`, registry digest, coverage map, gitleaks |
-| `native-e2e.yml` | ubuntu + macos-15      | flows exist, they pass on a simulator and an emulator, INV-PLAT-02    |
-| `mutation.yml`   | ubuntu-latest, nightly | Stryker score against the threshold                                   |
-| `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests; the whole es pack is built and validated        |
-| `pack-bake.yml`  | ubuntu-latest, manual  | rebuilds one language's audio bank and hands back the artefact        |
+| Workflow         | Runner                 | What it proves                                                                |
+| ---------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `ci.yml`         | ubuntu-latest          | lint, typecheck, `pnpm test`, registry digest, coverage map, gitleaks         |
+| `native-e2e.yml` | ubuntu + macos-15      | flows exist, they pass on a simulator and an emulator, INV-PLAT-02            |
+| `mutation.yml`   | ubuntu-latest, nightly | Stryker, reporting only — see "the mutation job has never produced a score"   |
+| `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests; the whole es pack is built, baked, validated and signed |
+
+(`cla.yml` is the CLA bot on pull requests and proves nothing about the code.)
+
+## `pack-bake.yml` was deleted, and why that is the honest option
+
+**Decision, 2026-09-12: `pack-bake.yml` is deleted.** The brief offered two ways out —
+give it an upstream download of `build-es`'s `es-build-<sha>` artefact, or delete it —
+and deletion is the one that leaves nothing that can lie.
+
+What it was: `workflow_dispatch` on a fresh checkout, running `coursekit bake es`. G8
+reads **G7's exercises**, a fresh checkout has no `build/` tree, so every possible
+dispatch exits 3/4 naming the missing upstream stage. It was never dispatched and **no
+`es-audio-<sha>` artefact has ever existed**. A workflow that cannot succeed is worse
+than no workflow: the row above used to read "rebuilds one language's audio bank and
+hands back the artefact", which is bake coverage nobody had.
+
+Why not the artefact download:
+
+- `es-build-<sha>` is uploaded by `build-es` with **`retention-days: 1`**. A dispatch
+  more than a day after the matching `pack-ci` run finds nothing, so the workflow's
+  success would depend on a 24-hour window.
+- Downloading an artefact produced by a **different workflow run** needs
+  `actions/download-artifact@v4` with `run-id:` plus a `github-token:`, and the run id
+  would have to be a dispatch input the operator looks up by hand. That is not "rebuild
+  the bank", it is "rebuild the bank if you can find yesterday's run".
+- The bake already happens where it has its inputs. `build-es` syncs the `tts` group,
+  caches the same pinned Kokoro weights at the same `COURSEKIT_KOKORO_WEIGHTS` path, and
+  runs G8 as part of `coursekit build es`, on every push to `main` that touches
+  `tools/coursekit/**` or `content/**`. `es-build-<sha>` (`path: build/es`) already
+  carries `g8/bank/`, `g8/clips.jsonl` and the run's `runlog.jsonl` — everything
+  `es-audio-<sha>` promised, produced by a job that has G7's output.
+
+So the bank travels in `es-build-<sha>`, and the manifest F2 validates travels in
+`es-pack-<sha>`. If a language ever needs a bake without a build, the workflow to write
+then is one that runs the upstream stages itself, not one that hopes an artefact is still
+around.
 
 ## `pack-ci.yml` and the job that was green because it never ran
 
@@ -157,6 +192,34 @@ none of which changes any file's bytes.
 
 The job runs on Linux: prebuild needs no Xcode, and skipping CocoaPods is what makes the
 iOS half comparable at all, since `Podfile.lock` resolution is not hermetic.
+
+## `mutation.yml`, and the score it has never produced
+
+The nightly is `continue-on-error: true` and it is green every night. **No mutation score
+exists for any sha in this repository**, and the job says so rather than implying one: the
+"Record the score" step finds no `reports/mutation/mutation.json` and writes "Stryker did
+not get far enough to score" into the run summary.
+
+What happens is always the same. Stryker instruments 118 of 844 files with 10,765 mutants,
+starts the initial run with `perTest` coverage analysis, and one fast-check property in
+`packages/core/src/data/import.test.ts` hits `Test timed out in 300000ms`. Stryker refuses
+to score a tree whose initial run is red, so there is nothing to record. Reproduced
+locally 2026-09-12 with `stryker run stryker.config.json --dryRunOnly`: 13 m 29 s of dry
+run, then the timeout.
+
+Three facts that rule out the obvious fixes, so nobody spends a night on one:
+
+- **300,000 ms is Vitest's clock, not Stryker's.** `vitest.config.ts` multiplies
+  `TEST_TIMEOUT_MS` (60,000) by `STRYKER_TIMEOUT_FACTOR` (5) when `STRYKER_MUTATOR_WORKER`
+  is set. `stryker.config.json`'s `dryRunTimeoutMinutes: 30` is a different clock and did
+  not fire — 13 m 29 s is well inside it — so **raising it changes nothing**.
+- **It is not a property that got slower.** The same test is 4,350 ms un-instrumented and
+  over 300 s under `perTest`: a >69× execution-mode cost.
+- **`PROPERTY_RUNS` is not the lever.** The floor above is a gate on purpose; buying a
+  mutation score by weakening every property buys the wrong number.
+
+The fix is a cheaper generator for that one property. Until a score prints, no report
+quotes one — `docs/P2-BLOCKERS.md` B7 carries the measurement.
 
 ## Editing a workflow
 
