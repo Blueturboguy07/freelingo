@@ -3,8 +3,11 @@ GATE: RED
 # P2 — Spanish pack v0: the integration report (round 2)
 
 Repository: <https://github.com/Blueturboguy07/freelingo> (public, AGPL code / CC BY-NC-SA packs)
-Integrated at **`47b91bd`** on `main`. Round 1's report is kept verbatim as
-`docs/P2-REPORT-round1.md`; this file replaces its verdict.
+Integrated at **`d20f47e`** on `main` — the last sha that changes a line of code is
+`19e4167`; `d20f47e` adds this report and the blockers file. **Two full CI rounds ran, on
+`47b91bd` and on `d20f47e`, and they agree exactly**, which is why both are quoted below.
+Round 1's report is kept verbatim as `docs/P2-REPORT-round1.md`; this file replaces its
+verdict.
 Written at the P2 founder checkpoint (plan §The build workflow, step 5 → 6).
 
 **The gate is RED, and the headline has changed.** Round 1 was red because ~18,200
@@ -360,6 +363,21 @@ docs-only commit — with `xcrun simctl openurl … exited with non-zero code: 6
 opening the dev-client URL, and passed here on a tree that differs from it by content and
 workflow files only. Flaky simulator launch, not a regression.
 
+### The second round, on `d20f47e`, and it is the same round
+
+`19e4167` (the `_anchor_lemma` half of B16) landed after `47b91bd`, so the whole suite ran
+again:
+
+| Workflow         | Run                                                                    | Result                                                                                                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34692774437> | **SUCCESS**, first attempt                                                                                                                                                                      |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34692774433> | **FAILURE at G5** — `9 slot(s) authored below the over-generation floor of 20: u1/l1/s0 (1) … u1/l1/s8 (11)`, byte-for-byte the message from the other round; `validate-es` skipped on `needs:` |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34692774443> | **SUCCESS** — all four jobs, iOS and Android both green on the first attempt                                                                                                                    |
+
+Its `es-gap-brief-d20f47e…` artefact is also identical to the committed brief (490 slots,
+same digest, 0 differences, 0 `ledger_digest` mismatches). **Two runners, two days' worth
+of a live Tatoeba export, one gap list.**
+
 An earlier pair of runs on `aa49862` was **cancelled**, not failed: `pack-ci` and
 `native-e2e` share a concurrency group with the branch, so the push carrying the G7 fix
 killed them. `ci.yml` on that sha finished green first
@@ -367,8 +385,10 @@ killed them. `ci.yml` on that sha finished green first
 
 ## Screenshots
 
-`gh run download 34691399754` → `e2e/artifacts/ci-47b91bd/`. Two screenshots, one per
-platform, both from the single P0 flow `p0-db-path`, both CI-produced:
+`gh run download` → `e2e/artifacts/ci-47b91bd/` and `e2e/artifacts/ci-d20f47e/`. Two
+screenshots per round, one per platform, both from the single P0 flow `p0-db-path`, all
+CI-produced. The pair below is `ci-47b91bd`; `ci-d20f47e` is the same two screens from the
+second round:
 
 | File                                                         | What it shows                                                                                                                                                                                                                                                                                                                                             |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
