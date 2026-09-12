@@ -1234,10 +1234,25 @@ which is the shape Q2 option C already allows.
 
 ### The question for the founder
 
-Not "may we re-key" — B9 already said yes, and it is done. It is: **who authors the 29
-slots, and does `usted` stay a target lexeme?** The costed options are the three above;
-none is taken here, because authoring 440 candidates inside an integration pass is what
-produced the starved-slot defect at the last one.
+Not "may we re-key" — B9 already said yes, and it is done. Two things are left, and only
+the second needs a decision:
+
+1. **Who authors the 29 slots.** 440 candidates for the 22 empty ones and fresh texts for
+   the 7 starved ones. Ordinary authoring-lane work: 21 of the 22 windows are wide (127 to
+   906 known lemmas), not the five-lemma trap B9 was about. Not done here because
+   authoring 440 candidates inside an integration pass, unreviewed, is what produced the
+   starved-slot defect at the last one.
+2. **Does `usted` stay a target lexeme?** The two ways out are above — scope V6's rule to
+   exempt the slot that introduces the pronoun, or drop `usted` from the target lexemes
+   and teach the form as a grammar concept inside `formal_informal_address` (u23), which
+   Q2 option C already allows. The second costs one line of `curriculum.yaml` and moves
+   every `ledger_digest` in unit 1 again; the first costs a V6 exemption that a reviewer
+   would have to be told about. Neither is taken here.
+
+A third thing is worth naming but is not a decision: **G5's orphan message names one of
+its two causes** ("G4 emits a GLOBAL lesson index …"), which is a real bug once and not
+this one. Whoever is next in `stages/g5_gapfill.py` should make it say "the slot is not in
+this build's gap list" and offer the keying explanation as one possibility.
 
 ---
 
@@ -1257,11 +1272,11 @@ failures on one sha and a clean pass on the next, over an identical suite.
 
 Every attempt, in order:
 
-| sha | attempt | run | result |
-| --- | --- | --- | --- |
-| `86f2430` | 1 | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | FAILURE, 1,316/1,316 pass, 2 errors |
-| `86f2430` | 2 | same run, `gh run rerun --failed` | FAILURE, 1,316/1,316 pass, 1 error |
-| `859f3fb` | 1 | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, 1,316/1,316 pass |
+| sha       | attempt | run                                                                    | result                              |
+| --------- | ------- | ---------------------------------------------------------------------- | ----------------------------------- |
+| `86f2430` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | FAILURE, 1,316/1,316 pass, 2 errors |
+| `86f2430` | 2       | same run, `gh run rerun --failed`                                      | FAILURE, 1,316/1,316 pass, 1 error  |
+| `859f3fb` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, 1,316/1,316 pass       |
 
 A re-run on the same sha is therefore not a reliable way to clear it, which is what the
 "re-run once before calling it a regression" rule assumes.

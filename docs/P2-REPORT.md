@@ -10,6 +10,24 @@ Rounds 1 and 2 are kept verbatim as `docs/P2-REPORT-round1.md` and
 numbers except where a number is unchanged and says so.
 Written at the P2 founder checkpoint (plan §The build workflow, step 5 → 6).
 
+**The gate is RED, and for the third round the headline is a different thing.** Round 1
+was red because ~18,200 authored sentences did not exist. Round 2 was red because the last
+two stages had never seen the ones that did. This round the stages work — G7 completes,
+G8 bakes, G9 builds a pack, `coursekit validate es` runs over it — and the pipeline stops
+at **G5**, because the content is keyed to a course that the phase's own founder ruling
+changed underneath it.
+
+B9(a) and B9(c) are right and they landed: the course now teaches what it declares
+(`unreachable_lexemes []`, 945 of 952 lexemes assigned against 928 of 990 before). The
+cost is that G4's gap list is a different SET — 494 slots, not the frozen 490, with 18
+gone and 22 new — and **9,269 of 9,812 authored rows** named a window that no longer
+exists. Founder ruling B9's own last clause authorised the remedy and it is done and
+measured: `stale_ledger` 9,269 → 0. What is left is **29 slots of authoring** and one
+question only the founder can answer, and that is B19.
+
+So the honest summary this time is: **the pipeline works, the content is keyed to the
+wrong course, and re-keying it got 465 of 494 slots back.**
+
 **EVIDENCE RULE** (plan §Verification): only CI produces artefacts. Everything labelled
 _corroboration_ below was produced on this Mac and is not evidence. The gate is GREEN
 only if `pack-ci`'s four jobs all **ran** and all **passed**; a skipped pack job reads
@@ -213,9 +231,10 @@ contains: `u1/l3/s3` is reserved to teach the lemma `usted`
 (`content/es/curriculum.yaml:420`) in a course whose register is `tu`, where V6 treats an
 `usted` marker in an accepted answer as **blocking** — the rule 218 rows were rewritten
 for at the fix round. No candidate can both teach that slot and pass V6. `docs/P2-BLOCKERS.md`
-§B19 carries every list, every window, and the three costed ways out. None is taken here:
-authoring 440 candidates inside an integration pass is what produced the starved-slot
-defect at the last one.
+§B19 carries every list, every window, the reject census for each starved slot, and the
+two ways out of the `usted` contradiction. Neither is taken here, and the authoring is
+not done here either: 440 candidates written unreviewed inside an integration pass is
+what produced the starved-slot defect at the last one.
 
 ### 4. Four documents reported a build state that the merge queue made false
 
@@ -381,7 +400,7 @@ CI's; anything marked _corroboration_ is this Mac's.
 | `pnpm typecheck`                                                                         | **GREEN**                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ci.yml                |
 | `pnpm format:check`                                                                      | **GREEN**                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ci.yml                |
 | `pnpm invariants:check`                                                                  | **GREEN** — 424 ids, digest matches the corpus                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                |
-| `pnpm test`                                                                              | **GREEN on the final sha** — 1,316 passed / 6 skipped on `859f3fb`, first attempt. It FAILED on both attempts of `86f2430` with the same 1,316 passing and `Timeout calling "onTaskUpdate"`: an intermittent reporter RPC timeout, recorded as B20 with all three attempts                                                                                                                                                                                                                                                                                                                                             | ci.yml                |
+| `pnpm test`                                                                              | **GREEN on the final sha** — 1,316 passed / 6 skipped on `859f3fb`, first attempt. It FAILED on both attempts of `86f2430` with the same 1,316 passing and `Timeout calling "onTaskUpdate"`: an intermittent reporter RPC timeout, recorded as B20 with all three attempts                                                                                                                                                                                       | ci.yml                |
 | `pnpm test:falsify`                                                                      | **GREEN** — 280 committed falsifier cases                                                                                                                                                                                                                                                                                                                                                                                                                        | ci.yml                |
 | `pnpm test:coverage-map`                                                                 | **GREEN** — no unowned id, no id claimed twice                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                |
 | `uv run ruff check .` + `uv run pytest`                                                  | **GREEN** — ruff clean; pytest all passed                                                                                                                                                                                                                                                                                                                                                                                                                        | pack-ci `coursekit`   |
@@ -410,18 +429,16 @@ first two integration fixes and the format sweep. The re-key (`2d16f5f`) and the
 "Round 2" in this file always means the second CI pass of this integration. The previous
 phase round's report is `docs/P2-REPORT-round2.md` and is called that by name.
 
-| Workflow         | Run                                                                    | Result                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20      |
-| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                                   |
+| Workflow         | Run                                                                    | Result                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20               |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                                            |
 | `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the second CI pass's push, not by a failure |
-| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                    |
+| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                             |
 
 ### The second CI pass, on `859f3fb`
 
 TBD-ROUND2
-
-
 
 ### `ci.yml` — red twice on one sha, green on the next, with every test passing throughout
 
@@ -441,11 +458,11 @@ failure a regression — that was done (`gh run rerun 34704497896 --failed`) and
 failed the same way**, which looked like a deterministic failure. Then the second CI pass
 on `859f3fb` **passed first time**, over an identical TypeScript tree.
 
-| sha | attempt | result |
-| --- | --- | --- |
-| `86f2430` | 1 | FAILURE — 1,316/1,316 pass, 2 errors |
-| `86f2430` | 2 (`--failed` re-run) | FAILURE — 1,316/1,316 pass, 1 error |
-| `859f3fb` | 1 | **SUCCESS** — 1,316/1,316 pass |
+| sha       | attempt               | result                               |
+| --------- | --------------------- | ------------------------------------ |
+| `86f2430` | 1                     | FAILURE — 1,316/1,316 pass, 2 errors |
+| `86f2430` | 2 (`--failed` re-run) | FAILURE — 1,316/1,316 pass, 1 error  |
+| `859f3fb` | 1                     | **SUCCESS** — 1,316/1,316 pass       |
 
 So it is a flake, and what is worth recording is the hit rate rather than the existence:
 **two consecutive failures on one sha do not mean a regression, and a re-run on the same
