@@ -1,0 +1,163 @@
+{
+  "$comment": "P2 fix lane: author every gap slot in Spanish units 7-14. The lane's product is content/es/candidates/u07-u14.jsonl. This file records what the lane measured, what it is blocked on, and the two things it can hand any later authoring lane: an EXACT, corpus-independent allowed_lemmas window per (unit, lesson), and a verifier that reproduces G5's own reject order over a shard.",
+  "phase": "P2",
+  "task": "p2fix-author-u07-u14",
+  "branch": "p2fix/author-u07-u14",
+  "module": "content/es",
+  "owned": [],
+  "claimedButNotYetGreen": [
+    "INV-PACK-06",
+    "INV-PACK-08",
+    "INV-PACK-10"
+  ],
+  "whyOwnedIsEmpty": "An authoring lane owns no test. INV-PACK-06 is V1-V4 at 100%, INV-PACK-08 is V6, INV-PACK-10 is the no-repair-path scan over the generator; all three are asserted by tools/coursekit tests that p2-g5-g6-gapfill-language already owns (docs/owned/p2-g5-g6.json), and all three are measured over a BUILT pack. This lane turns them green by supplying the content those validators run on, not by adding a test. Claiming the ids here with a test that asserts a JSONL file parses would be the 'owning test that proves nothing' the plan's rule 4 is written against.",
+  "blocked": {
+    "on": "content/es/authoring/gap-brief.jsonl (lane p2fix-ledger-freeze) does not exist, and until G4 is fixed it cannot exist with a usable ledger.",
+    "rootCause": "tools/coursekit/src/coursekit/stages/g4_select.py, the `if choice is None` branch, emitted EVERY gap row with `new_lemmas: []` and `known_lemmas: []` unconditionally. G5 computes `allowed = set(known_lemmas) | set(new_lemmas)`, so a gap slot's permitted vocabulary was the EMPTY SET. The only candidate that can pass the `stale_ledger` axis against such a row is one declaring `allowed_lemmas: []`, and every such candidate then fails `out_of_vocabulary`, because every lexical lemma in any text is outside the empty set. A text with no lexical lemma is not an escape: SpacyEsAdapter.analyse raises MissingInput on it. Every gap slot G4 emits was therefore UNFILLABLE BY CONSTRUCTION, in the code, independent of the corpus: the 918 slots of the 281b623 CI run and the 1,456 slots of the local 2,823-sentence run alike.",
+    "measured": "1,456 of 1,456 gap rows in build/es/g4/selected.jsonl carry an empty ledger. Probed with G5's own _axis: 'Hola.', '¿Qué?' and '¿Quién pregunta por mi hermana?' all return out_of_vocabulary against the real gap row u7/l37/s0.",
+    "beingFixedBy": "p2fix-ledger-freeze, observed editing that branch to `new_lemmas = pending[:MAX_NEW_LEMMAS_PER_EXERCISE]` and `known_lemmas = sorted(index.known - set(gap_new))`. This lane's window table below is computed against exactly that semantics.",
+    "rowContractIsAlsoInFlight": "The row contract this lane was briefed with is being replaced while the lane is open. p2fix-ledger-freeze's working tree drops `allowed_lemmas` from G5's _AUTHORED_REQUIRED and puts `ledger_digest` in its place - 16 hex characters over the sorted `known | new` set, emitted per slot by a new `coursekit gaps <lang>` verb and copied onto every candidate. It also makes G5 read `content/<lang>/candidates/*.jsonl` in SORTED filename order (this lane's shard path is right) and turns `orphan_authored_slots` from a runlog note into a FAILED stage. So a shard authored before that lands would carry the wrong required key on every one of its 4,440 rows, and re-stamping it is not a text edit: the digest is derived from the frozen ledger, which is the thing that does not exist yet."
+  },
+  "measuredFindingsForOtherLanes": [
+    {
+      "for": "p2-g5-g6-gapfill-language",
+      "severity": "blocker",
+      "finding": "g5_gapfill._lemmas calls `analyser.analyse(text)` positionally, but SpacyEsAdapter.analyse is keyword-only: `analyse(self, *, sentence_id, text)`. G5 raises `TypeError: SpacyEsAdapter.analyse() takes 1 positional argument but 2 were given` on the FIRST candidate it evaluates, before any axis verdict exists. G5 has never lemmatised an authored candidate.",
+      "reproduced": "uv run python scratchpad/probe_g5.py build/es/g4/selected.jsonl"
+    },
+    {
+      "for": "p2-g5-g6-gapfill-language and p2-g1-g2-analyze-band",
+      "severity": "blocker",
+      "finding": "Fixing the call convention is not enough. SpacyEsAdapter.analyse ends in `validate_record('analysed_sentence', ...)`, whose schema requires `sentence_id` to match ^[0-9a-f]{16}$. An authored candidate has no sentence id, so 'the same analyser that produced analysed_sentence for every corpus row' has no entry point for authored text at all. G5 needs either a lemmas-only method on the adapter contract or a synthetic content-addressed id; this lane's verifier uses sha256(text)[:16] as a stand-in and says so.",
+      "reproduced": "same probe, step 3"
+    },
+    {
+      "for": "p2-g3-g4-curriculum",
+      "severity": "content defect",
+      "finding": "G3 resolves unit 21 (reflexive_verbs) to ONE target lemma. All 33 authored target_lexemes are reflexive infinitives (levantarse, ducharse, ...) and the pinned es_core_news_md lemmatises them without the clitic, so target_lexemes ∩ lexicon is empty and the unit falls back to ['que']. Unit 28 loses all six clitic pronouns (lo, me, te, nos, os, se) the same way. A unit that teaches one word is a V4 coverage failure waiting at the other end of the pipeline.",
+      "reproduced": "compare content/es/curriculum.yaml target_lexemes with build/es/g3/units.jsonl target_lemmas"
+    },
+    {
+      "for": "integrate",
+      "severity": "fact",
+      "finding": "The committed content/es/candidates.jsonl keys its 160 rows per-unit, e.g. (unit 2, lesson 1). G4's lesson_index is GLOBAL (unit 2 is lessons 7-12, unit 8 is 43-48), so none of its eight slots matches a gap row and the file fills nothing even after G4 is fixed. Slot keys: (1,1,0) (1,2,2) (2,1,1) (2,3,0) (3,1,4) (3,2,1) (4,1,0) (4,2,3)."
+    },
+    {
+      "for": "p2fix-ledger-freeze",
+      "severity": "fact",
+      "finding": "G4 fails its own MAX_GAP_FRACTION=0.60 ceiling on the corpus this repo can actually assemble locally: 1,456/1,584 slots (92%) are gaps over 2,823 shippable Tatoeba sentences. The 281b623 CI run measured 918/1,584 (58%), just under the ceiling. The gap-slot LIST, and therefore this lane's 222-slot budget, moves with whatever corpus cap that lane freezes."
+    },
+    {
+      "for": "p2fix-ledger-freeze",
+      "severity": "sequencing",
+      "finding": "The four authoring lanes were started in parallel with the lane that defines what they author against. None of the three shard lanes can write a valid row until `coursekit gaps es` has been run against a G4 that carries the ledger, because BOTH halves of the stale_ledger axis (the digest and new_lemmas) are per-slot outputs of that build. Authoring is a dependent phase of the freeze, not a parallel one."
+    }
+  ],
+  "whatThisLaneCanHandOver": {
+    "allowedLemmasAreCorpusIndependent": "With p2fix-ledger-freeze's fix, a gap row's allowed set is `known_lemmas | new_lemmas` = `(index.known - gap_new) | gap_new` = **index.known**, and index.known is only ever grown by `index.introduce(chunk)` once per lesson and `index.introduce(target)` once per unit — both from G3's curriculum target_lemmas, never from a corpus sentence. So allowed_lemmas for EVERY slot of a lesson is one deterministic set, computable from build/es/g3/units.jsonl plus _split_new_lemmas, with no corpus at all. Only `new_lemmas` — one lemma per slot, off `pending` — depends on which slots the corpus filled, and that is the one thing the gap brief has to carry.",
+    "windowSizes": {
+      "u7": {
+        "lessons": "37-42",
+        "allowedLemmas": [
+          198,
+          204,
+          210,
+          216,
+          222,
+          225
+        ]
+      },
+      "u8": {
+        "lessons": "43-48",
+        "allowedLemmas": [
+          231,
+          237,
+          243,
+          249,
+          255,
+          258
+        ]
+      },
+      "u9": {
+        "lessons": "49-54",
+        "allowedLemmas": [
+          264,
+          270,
+          276,
+          282,
+          288,
+          291
+        ]
+      },
+      "u10": {
+        "lessons": "55-60",
+        "allowedLemmas": [
+          297,
+          303,
+          309,
+          315,
+          321,
+          324
+        ]
+      },
+      "u11": {
+        "lessons": "61-66",
+        "allowedLemmas": [
+          330,
+          336,
+          342,
+          348,
+          354,
+          357
+        ]
+      },
+      "u12": {
+        "lessons": "67-72",
+        "allowedLemmas": [
+          363,
+          369,
+          375,
+          381,
+          387,
+          390
+        ]
+      },
+      "u13": {
+        "lessons": "73-78",
+        "allowedLemmas": [
+          396,
+          402,
+          408,
+          414,
+          420,
+          422
+        ]
+      },
+      "u14": {
+        "lessons": "79-84",
+        "allowedLemmas": [
+          428,
+          434,
+          440,
+          446,
+          452,
+          455
+        ]
+      }
+    },
+    "authoringConstraintsMeasuredAgainstThePinnedLemmatiser": [
+      "Token count is len(tokens) from the adapter and tokens INCLUDE punctuation. '¿Cuál es tu apellido, por favor?' is 9 tokens, not 6. A question costs two tokens (¿ and ?) before a word is written, so the 3-12 window is tighter than it reads.",
+      "Lemmas are the LEXICAL tokens only (PUNCT/SYM/SPACE/X are dropped), so punctuation never has to be in allowed_lemmas.",
+      "'un' and 'una' lemmatise to 'uno', which is in the window from unit 2's numbers. Indefinite articles are usable from unit 7 even though 'un' is not a target lexeme until unit 30.",
+      "Not in the unit-7 window and commonly reached for: 'estar', 'que' (unit 21), 'a' (never a target lexeme), 'se', 'hacer', 'ir', 'muy', 'este'. No relative clauses and no personal 'a' before unit 21."
+    ],
+    "verifier": "scratchpad/verify_shard.py reproduces G5's REJECT_AXES order over a shard against a gap brief, reading G5's own constants (MIN_TOKENS, MAX_TOKENS, MAX_NEW_LEMMAS_PER_ITEM, MIN_CANDIDATES_PER_SLOT, AUTHORED_PROVENANCE, _AUTHORED_REQUIRED, Slot) so it cannot drift from the stage. It reports filled/unfilled/thin/orphan slots, the per-axis reject counts, and the backtranslation score distribution, and it FAILS on a uniform-4 score file's shape by printing the distribution rather than a pass.",
+    "pilotVerified": "24 unit-7 lesson-37 question-word candidates were authored and run through the pinned es_core_news_md against the computed 198-lemma window: 23 pass the vocabulary and 3-12 token axes, 1 rejects (`primos` is left unlemmatised by the pinned model, so a plural that is in the window as `primo` is out of vocabulary as `primos`). That is the method working end to end on real output, and the one reject is a lemmatiser quirk every authoring lane will hit and should check for rather than assume."
+  },
+  "shardState": {
+    "file": "content/es/candidates/u07-u14.jsonl",
+    "rowsAuthored": 0,
+    "rowsRequired": "222 slots x 20 = 4,440 at the 281b623 measurement (u7 54, u8 24, u9 23, u10 21, u11 21, u12 8, u13 40, u14 31)",
+    "why": "Not one valid row can be written before the gap brief exists. G5 evaluates `stale_ledger` FIRST and by SET EQUALITY on both allowed_lemmas and new_lemmas, so a row authored against a guessed ledger fails whole, and a file of 4,440 guessed rows would fail 4,440 times while looking exactly like a finished lane. The file is left empty rather than filled with rows that cannot pass — which is the same rule INV-PACK-10 states for a single candidate, applied to a shard."
+  }
+}
