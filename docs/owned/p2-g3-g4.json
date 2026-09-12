@@ -1,0 +1,73 @@
+{
+  "$comment": "Invariant ids owned by the P2 task `p2-g3-g4-curriculum`: the authored Spanish curriculum, G3 (the constraint solver), G4 (selection + the gap list) and the ledger validators V1-V4 and V9. INV-PACK-06 is the claim that V1-V4 pass at 100% on the built pack; its owning tests are tools/coursekit/tests/test_validators_ledger.py, which run the five checks over a pack the pipeline actually built from the es-mini fixture AND over the committed falsifier tools/coursekit/tests/falsifiers/INV-PACK-06.json. THE ID IS CLAIMED HERE DELIBERATELY EVEN THOUGH IT TURNS CI RED: the whole ownership apparatus — scripts/coverage-map.ts and packages/core/src/journey/{ownership.ts,phase-roster.test.ts,falsifier-corpus.test.ts} — is TypeScript-only and hard-wired to the P1 roster, so a P2 content invariant cannot be expressed in it yet. Leaving `owned` empty would keep the tree green and leave the invariant unenforced, which the plan's rule 4 calls worse than a failing one. See `blocks` for the five assertions that go red and where each is fixed.",
+  "task": "p2-g3-g4-curriculum",
+  "phase": "P2",
+  "module": "tools/coursekit + content/es",
+  "owned": ["INV-PACK-06"],
+  "blocks": [
+    {
+      "id": "ESC-01",
+      "kind": "integration",
+      "title": "scripts/coverage-map.ts cannot see a Python test, so INV-PACK-06 reads as unowned",
+      "detail": "TEST_ROOTS is ['packages', 'apps', 'e2e'] and TEST_FILE_PATTERN is /\\.(test|spec)\\.(ts|tsx)$|\\.ya?ml$/, and claimedIdsIn() looks for `it('...')` / `test('...')`. None of that reaches tools/coursekit/tests/*.py. With INV-PACK-06 in `owned` the job prints MISS and exits 1; with it absent the invariant is silently unenforced, which the plan's rule 4 calls worse than a failing one. The fix is in one file: add 'tools' to TEST_ROOTS, add /\\.py$/ to TEST_FILE_PATTERN, and add a Python claim form to claimedIdsIn (the ids are in the test DOCSTRINGS here, e.g. `\"\"\"[INV-PACK-06] ...\"\"\"`, because a pytest function name cannot contain brackets). Every C-kind INV-PACK id P2 still owes — 13, 15, 16, 17 — hits this same wall, so it is a phase-wide fix rather than this lane's workaround.",
+      "owner": "integrate",
+      "blocks": "the P2 gate; `pnpm test:coverage-map` on this branch"
+    },
+    {
+      "id": "ESC-01b",
+      "kind": "integration",
+      "title": "The P1 phase-roster gate has no P2 concept, so four more assertions go red",
+      "detail": "Measured on this branch: `pnpm test` is 4 failed | 1254 passed. (1) journey/phase-roster.test.ts 'no ownership file claims an id outside the phase roster' — p1Roster() is derived from P1_FAMILIES plus P1_EXTRA_IDS in journey/ownership.ts, and a C-kind PACK id is in neither, so INV-PACK-06 reads as UNDECLARED. (2) the same file's 'every owned id has an owning test whose name carries the id in brackets' — owningTests() walks TypeScript only. (3) its counted assertion 'the phase owns what the plan says it owns' — expected 218 to be 217, i.e. the count is a literal that every new id must move. (4) journey/falsifier-corpus.test.ts 'every owned invariant id has a committed falsifier input' — it requires packages/<pkg>/src/<module>/__falsifiers__/<id>.json, and this invariant's falsifier is a Python one at tools/coursekit/tests/falsifiers/INV-PACK-06.json because the thing it falsifies is a Python validator. All four live in packages/core/src/journey/, the p1-journey lane's files, and all four need the same thing: a P2 roster beside the P1 one, and a falsifier/ownership search path that includes tools/. Every P2 lane that owns an invariant will hit this, so it is phase machinery, not a workaround any single lane should write.",
+      "owner": "integrate / the phase-gate task",
+      "blocks": "the P2 gate; `pnpm test` on this branch"
+    },
+    {
+      "id": "ESC-02",
+      "kind": "cross-lane",
+      "title": "tests/test_cli.py::test_discovery_finds_nothing_yet_and_that_is_the_correct_state now fails",
+      "detail": "It asserts STAGES.missing(BUILD_STAGE_IDS) == BUILD_STAGE_IDS and VALIDATORS.missing(VALIDATOR_IDS) == VALIDATOR_IDS — true only while no wave-2 lane has landed. This branch registers g3, g4, V1, V2, V3, V4 and V9, so it goes red, exactly as its own docstring predicted ('the day a lane lands coursekit/stages/g0.py this test is the thing that tells them the wiring worked'). It is a tripwire, not an invariant. tests/test_cli.py is outside this lane and EVERY wave-2 lane hits it, so eight branches editing the same assertion would be eight conflicts; integration should replace it once with the complement — every registered id is one config/base.py names, and STAGES.missing(BUILD_STAGE_IDS) shrinks as lanes land.",
+      "owner": "integrate",
+      "blocks": "pack-ci.yml on any wave-2 branch"
+    },
+    {
+      "id": "ESC-03",
+      "kind": "defect",
+      "title": "Registry.reset_for_tests() cannot restore registrations, so one fixture disarms the whole session",
+      "detail": "coursekit/__init__.py: reset_for_tests() clears _entries and _discovered; discover() then calls importlib.import_module on modules that are already in sys.modules, which returns them WITHOUT re-running @register_stage / @register_validator. Every registration is therefore gone for the rest of the pytest session after tests/test_cli.py's `empty_registry` fixture runs. Harmless while nothing was registered; now it silently un-registers every wave-2 stage for every later test module. This lane works around it by snapshotting the registry at module import time (see REGISTERED_AT_IMPORT in test_g3_solve.py), which proves the decorators run but not that discovery recovers. The fix belongs in reset_for_tests: drop the sub-package's modules from sys.modules before clearing the flag, or have the fixture save and restore _entries instead of clearing them.",
+      "owner": "integrate or the deps lane (coursekit/__init__.py)",
+      "blocks": "nothing today; a future lane's registration test"
+    },
+    {
+      "id": "ESC-04",
+      "kind": "file-lane",
+      "title": "config/curriculum.py and config/select.py are the scaffold's names for config/g3.py and config/g4.py",
+      "detail": "p2-deps-scaffold created empty config/curriculum.py ('Owner: p2-g3-curriculum') and config/select.py ('Owner: p2-g4-select'); this task's declared file lane names config/g3.py and config/g4.py, so those are what it wrote. Two empty modules now sit beside two full ones with the same owner. Delete curriculum.py and select.py at integration rather than leaving two homes for one stage's thresholds.",
+      "owner": "integrate",
+      "blocks": "nothing"
+    },
+    {
+      "id": "ESC-05",
+      "kind": "tooling",
+      "title": "content/es/curriculum.yaml belongs in .prettierignore",
+      "detail": "`pnpm format:check` already fails on ~100 files on main and is not a ci.yml step, so this is not a regression — but prettier turns the curriculum from 600 lines into 1,582 by exploding every `target_lexemes` flow sequence to one word per line, which makes a human-authored file unreadable for no gain. `.prettierignore` already carries `content/LICENSE`; add `content/es/curriculum.yaml` (or `content/**/curriculum.yaml`) beside it. That file is outside this lane. content/es/README.md and this file ARE prettier-formatted.",
+      "owner": "integrate",
+      "blocks": "nothing"
+    }
+  ],
+  "measured": {
+    "ledger yield (deep/10 Open Question 1)": "16.06%. The framework predicted 5-15% and deep/10 called it 'the most load-bearing untested assumption in the content plan'. Measured 2026-09-12 against the real Tatoeba Spanish export (spa_sentences.tsv.bz2, 6,348,828 B, 441,881 sentences; 387,599 of them 3-12 tokens = 87.7%): a 40,000-sentence sample lemmatised with the pinned es_core_news_md 3.8.0, of which 6,423 have their whole content-lemma set inside this curriculum's 990-lexeme A1 ledger, and 6,387 of those (15.97%) also exhibit at least one of the 30 authored grammar concepts. Extrapolated over the short pool that is ~62,000 admissible A1 sentences against the ~1,200 a course needs — the Tatoeba-only posture holds for Spanish with two orders of magnitude to spare, and the grammar-concept filter costs almost nothing (0.09pp) because the 30 concepts between them cover ordinary A1 sentences. Script: scratchpad measure_yield.py; it is a measurement, not shipped code, because G0 belongs to another lane.",
+    "es-mini pack": "The fixture is 200 original sentences written on the same themes as this curriculum, so its own admission rate (134/200 = 67%) is an upper bound and not an estimate of anything. Over the full 30-unit curriculum G4 fills 98 of 756 slots and gaps the other 658 (87%) — the truthful verdict for a 200-sentence corpus, and what INV-PACK-06's test runs the validators over. V1-V4 and V9 return 0 blocking findings on it (3 V2 inflection warnings, 132 V3 recycling warnings and 29 V4 coverage warnings, every one of them naming the outstanding gap count, plus 42 V3 end-of-course infos).",
+    "curriculum": "30 grammar concepts, 30 units across 3 A1 sections, 990 target lexemes, no lexeme introduced twice, every concept used exactly once. Against the es-mini lexicon (343 lemmas) G3 assigns 281, back-fills 3 and defers 712 with the deferred list recorded; 84 lessons at 3.3 new lemmas each, under the 7 ceiling.",
+    "suite": "tools/coursekit: 162 passed, ruff clean (`uv run pytest -q`, `uv run ruff check .`, 2026-09-12). Repo: `pnpm lint` 0, `pnpm typecheck` 0, `pnpm invariants:check` 0; `pnpm test` 4 failed | 1254 passed and `pnpm test:coverage-map` 1, both entirely from ESC-01/ESC-01b above."
+  },
+  "heldWithoutAnInvariantId": [
+    "section_cefr is emitted as a G3 OUTPUT derived from which grammar concepts a section contains (R23), and is CHECKED against G2 only where the bands came from CEFRLex. A frequency decile is not a statement about CEFR: checking an A1 label against decile bands would either pass meaninglessly or fail a correct curriculum, so the stage records cefr_checked:false instead — which is what makes a de/ja card read 'Beginner · frequency-ordered' rather than 'A1 · CEFR-checked' (Q8). Both directions are tested.",
+    "The A2 prose hole is enforced, not assumed. Only seven cefr_level_prose strings ship (str:2325-2331) and none is A2; the loader refuses an unshippable prose value and CEFR_CHIPS_WITHOUT_PROSE records the chip that has no blurb. This course stops at 'high A1' and never reaches it, but sections 4-8 and the fr/de/ja kits will.",
+    "level_count is derived from the published 5-7 new-words-per-lesson budget rather than authored, so the new-item rate holds by construction; _check_new_item_rate asserts the postcondition anyway, because 'by construction' is a claim about code that changes.",
+    "Two measured bugs are encoded as named constants with the measurement in the comment. LEDGER_EXCLUDED_POS: with punctuation in the ledger every sentence waits forever on a lemma no curriculum introduces — 0 of 200 candidates admissible, 738 of 738 slots gapped, and the stage reported success. And the loader refuses a non-string lexeme because YAML 1.1 resolves a bare `no` to False, which str() turns into the lemma 'False' — this repository's own curriculum had it.",
+    "G4's admissibility index is a watched-literal structure: a candidate waits parked under ONE lemma it still lacks, so introducing a lemma wakes only the sentences parked under it. The obvious rescan is 250k x ~180 lessons of subset tests. Selection is also deterministic by construction (shortest-first then sentence id), because packages/core keys FSRS rows by a content hash and a reshuffled ledger re-keys a learner's whole review history on pack update.",
+    "G4 introduces before it practises, and RESERVES a gap slot when a lesson has more pending target lexemes than remaining slots. Without it a unit fills every slot with practice and covers none of its own target lexemes — measured as a V4 coverage failure in unit 29 of the es-mini pack, with no gap slot against it to explain the shortfall.",
+    "V2's 'new' means first appearance in course order AND introduction unit == this unit. Without the second clause the rule is unsatisfiable from a corpus: at the start of a course nothing has been carried yet, every sentence looks like five new items at once, and the only ledger that passes is the empty one. Measured: the first working selector gapped all 756 slots for exactly this reason.",
+    "V3 and V4's coverage half soften to warnings while a unit still owes G5 gap slots, and the finding names the outstanding count. The falsifier models a FINISHED pack (no gaps) so the same shortfalls block there — which is what makes the softening a scope rule rather than an excuse."
+  ]
+}
