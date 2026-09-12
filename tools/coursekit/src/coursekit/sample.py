@@ -294,9 +294,11 @@ def _clips(lang: str) -> dict[str, _Clip]:
         # (`docs/ci.md`), so "the manifest remembers it" and "it is here to play" come
         # apart routinely, and only the second one licenses a verdict.
         on_disk = (root / relative).exists()
+        if not on_disk:
+            continue
         clips[record["clip_id"]] = _Clip(
             clip_id=record["clip_id"],
-            path=f"g8/{relative}" if on_disk else None,
+            path=f"g8/{relative}",
             role=role,
             name=name,
             engine=record["engine"],

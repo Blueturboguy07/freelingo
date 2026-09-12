@@ -105,3 +105,41 @@ def test_INV_AUD_08_an_accent_verdict_without_playable_bytes_is_refused() -> Non
             sheet_audio_ids=[],
             engines=[],
         )
+
+
+def test_INV_AUD_08_a_g8_record_without_packed_bytes_is_not_a_playable_clip(
+    make_es_build,
+) -> None:
+    make_es_build(units=1, per_unit=1)
+    exercises = list(read_records("exercise", lang="es"))
+    clip_id = "fedcba9876543210"
+    exercises[0]["audio_ref"] = clip_id
+    write_records("exercise", exercises, lang="es")
+
+    role = load_cast("es").role("narrator")
+    write_records(
+        "baked_clip",
+        [
+            {
+                "schema_version": 1,
+                "lang": "es",
+                "clip_id": clip_id,
+                "text": "Bytes ausentes.",
+                "voice_id": role.voice_id,
+                "engine": "kokoro",
+                "codec": "opus",
+                "bitrate_kbps": 20,
+                "duration_ms": 900,
+                "bytes": 99,
+                "path": f"bank/{clip_id}.opus",
+                "licence": "Apache-2.0",
+                "pipeline": "lesson",
+            }
+        ],
+        lang="es",
+    )
+
+    item = draw_sample("es", n=1).items[0]
+    assert item.has_audio is False
+    assert item.clip_id is None
+    assert item.clip_engine is None
