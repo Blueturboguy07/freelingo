@@ -1,0 +1,22 @@
+{
+  "id": "INV-DAY-02",
+  "falsifier": "a pure clock manipulation, with no zone change, that mints a day-keyed reward \u2014 and its mirror, a genuine westward date-line crossing refused one",
+  "source": "EC-STK-02, EC-STK-09; deep/04 case 1 vs case 12. Plan ruling: honoured iff completed_at_utc is monotonic AND the zone changed.",
+  "input": {
+    "maxLocalDaySeen": "2026-09-12",
+    "lastCompletedAtUtc": "2026-09-11T15:30:00Z",
+    "lastTzId": "Asia/Tokyo",
+    "travel": {
+      "completedAtUtc": "2026-09-11T20:00:00Z",
+      "tzId": "America/Los_Angeles",
+      "day": "2026-09-11"
+    },
+    "tamper": {
+      "completedAtUtc": "2026-09-11T15:00:00Z",
+      "tzId": "Asia/Tokyo",
+      "day": "2026-09-11"
+    }
+  },
+  "mustNotBe": "'tamper' for the travel row, or anything but 'tamper' for the same-zone rewind",
+  "usedBy": ["day/boundary.test.ts"]
+}

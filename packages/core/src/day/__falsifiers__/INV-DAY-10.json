@@ -1,0 +1,14 @@
+{
+  "id": "INV-DAY-10",
+  "falsifier": "a Nocturnal evaluation recomputed against the device's current zone instead of the zone on the row",
+  "source": "EC-STK-16, deep/04 case 6",
+  "input": {
+    "startUtc": "2026-09-11T13:30:00Z",
+    "rowTz": "Asia/Tokyo",
+    "otherTz": "America/Los_Angeles",
+    "rowLocalHour": 22,
+    "otherLocalHour": 6
+  },
+  "mustNotBe": "isNocturnal changing for a stored row because the device moved",
+  "usedBy": ["day/boundary.test.ts"]
+}

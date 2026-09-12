@@ -1,0 +1,12 @@
+{
+  "id": "INV-DAY-09",
+  "falsifier": "a session killed mid-lesson whose `session_in_progress` flag defers rollover forever",
+  "source": "EC-STK-14, deep/04 case 43; plan ruling maxRolloverDeferralSeconds = 300",
+  "input": {
+    "localMidnightUtc": "2026-09-12T07:00:00Z",
+    "lastCheckpointUtc": "2026-09-12T06:58:00Z",
+    "killedHoursAgo": 8
+  },
+  "mustNotBe": "defer === true at more than 300 s past local midnight",
+  "usedBy": ["day/rollover.test.ts"]
+}

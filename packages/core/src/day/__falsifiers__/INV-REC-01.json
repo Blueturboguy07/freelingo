@@ -1,0 +1,15 @@
+{
+  "id": "INV-REC-01",
+  "falsifier": "a break that both mechanics pay for, or a second repair inside one calendar month",
+  "source": "EC-FRZ-08 / EC-FRZ-11 / EC-FRZ-13 and the founder ruling of 2026-09-11: BOTH mechanics ship",
+  "input": {
+    "lastDay": "2026-09-22",
+    "streak": 22,
+    "freezes": 2,
+    "missedDays": 3,
+    "returnedOn": "2026-09-26",
+    "brokenOn": "2026-09-25"
+  },
+  "mustNotBe": "two repairs in one month, a repair that also leaves the challenge armed, or a repaired day that was freeze-covered",
+  "usedBy": ["day/recovery.test.ts"]
+}

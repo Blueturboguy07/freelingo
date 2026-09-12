@@ -1,0 +1,13 @@
+{
+  "id": "INV-FRZ-05",
+  "falsifier": "injecting a kill after every write in a three-day walk yields a double-decrement",
+  "source": "EC-FRZ-14: the first foreground after a three-day gap, killed just after a freeze decrement",
+  "input": {
+    "lastDay": "2026-09-22",
+    "streak": 20,
+    "freezes": 2,
+    "gapDays": 3
+  },
+  "mustNotBe": "a ledger with more consumptions than the uninterrupted walk, or a different balance",
+  "usedBy": ["day/rollover.test.ts"]
+}

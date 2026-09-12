@@ -1,0 +1,14 @@
+{
+  "id": "INV-FRZ-04",
+  "falsifier": "a clock-tamper replay of one Society tier entry that mints a second freeze",
+  "source": "EC-FRZ-07: tier entry GRANTS the extra freeze (2/2 -> 3/3), idempotent on society_tier_entered_at",
+  "input": {
+    "tier": "ember",
+    "enteredAt": "2026-11-10T09:00:00Z",
+    "startingCap": 2,
+    "expectedCap": 3,
+    "replayEnteredAt": "2026-11-10T09:00:00Z"
+  },
+  "mustNotBe": "a balance above the new cap, or a second grant under the same entered-at",
+  "usedBy": ["day/freeze.test.ts"]
+}

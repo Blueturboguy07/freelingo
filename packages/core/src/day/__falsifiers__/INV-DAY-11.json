@@ -1,0 +1,17 @@
+{
+  "id": "INV-DAY-11",
+  "falsifier": "a cumulative counter that moves when the device changes zone or the clock is tampered with",
+  "source": "EC-STK-17, deep/04 cases 7 and 15",
+  "input": {
+    "instantUtc": "2026-09-11T13:00:00Z",
+    "awards": [
+      [13, 5],
+      [10, 0],
+      [40, 25]
+    ],
+    "zoneIds": ["Asia/Tokyo", "America/Los_Angeles", "Pacific/Kiritimati"],
+    "skewDays": 400
+  },
+  "mustNotBe": "lifetime XP, gems or Score differing after a restamp",
+  "usedBy": ["day/boundary.test.ts"]
+}

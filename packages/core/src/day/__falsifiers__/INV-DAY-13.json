@@ -1,0 +1,13 @@
+{
+  "id": "INV-DAY-13",
+  "falsifier": "a date-line fixture that resets or double-awards Weekend Warrior",
+  "source": "EC-STK-22: LA to Sydney on a Saturday, so the civil Sunday is never lived",
+  "input": {
+    "saturday": "2026-09-12",
+    "sunday": "2026-09-13",
+    "weekKey": "2026-09-07",
+    "tz": "Australia/Sydney"
+  },
+  "mustNotBe": "two awards for a doubled Saturday, or a reset for a week whose Sunday was unlived",
+  "usedBy": ["day/boundary.test.ts"]
+}

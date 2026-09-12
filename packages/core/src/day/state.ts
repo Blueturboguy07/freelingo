@@ -1,0 +1,123 @@
+/**
+ * The day engine's whole persisted state, and the records it is made of.
+ *
+ * Everything here is a recorded FACT. Nothing in this file is ever recomputed from the
+ * current clock — that is INV-DAY-06, and it is the reason a learner cannot un-break a
+ * streak by winding the date back.
+ */
+import type { LocalDay } from './civil.js';
+import { DAY_CONFIG } from './config.js';
+import type { DayDisposition } from './dispositions.js';
+import { newFreezeLedger, type FreezeLedger } from './freeze.js';
+
+/**
+ * A break, recorded once and never recomputed (INV-DAY-06, EC-STK-10).
+ * `uncoveredDays` is what a restore repaints and what recovery eligibility counts —
+ * freeze-covered days never appear here, because the streak never broke on them
+ * (EC-FRZ-18).
+ */
+export interface BreakRecord {
+  readonly brokenOn: LocalDay;
+  readonly previousStreak: number;
+  readonly uncoveredDays: readonly LocalDay[];
+}
+
+/**
+ * A gap longer than `maxOfflineDays`, collapsed rather than enumerated: a "Welcome back"
+ * state, not 45 animated grey cells (EC-FRZ-04). The days inside it are processed — they
+ * are counted, their months are settled — but only the freeze-covered head and the single
+ * breaking day get their own calendar cells.
+ */
+export interface LongAbsence {
+  readonly from: LocalDay;
+  readonly to: LocalDay;
+  readonly days: number;
+  readonly freezesConsumed: number;
+}
+
+/**
+ * A month-keyed settlement: the monthly badge and the monthly Streak Repair allowance are
+ * the only month-keyed events (EC-STK-25). Fired on the first PROCESSED local day whose
+ * `YYYY-MM` differs from `lastProcessedMonth`, and guarded by the settled-month set so a
+ * date-line hop over the 1st can neither skip nor double one (INV-DAY-16).
+ */
+export interface MonthSettlement {
+  /** The month that opened. */
+  readonly month: string;
+  /** The month it settled, or null for the very first. */
+  readonly settledMonth: string | null;
+  readonly atDay: LocalDay;
+}
+
+/** A monthly Streak Repair, idempotent on `(year, month)` (INV-REC-01, EC-FRZ-13). */
+export interface RepairRecord {
+  /** `YYYY-MM` of `max_local_day_seen` — the month key EC-STK-25 settled. */
+  readonly monthKey: string;
+  readonly onDay: LocalDay;
+  readonly restoredStreak: number;
+  readonly repaintedDays: readonly LocalDay[];
+}
+
+/**
+ * The 3-lesson recovery challenge. Its window is measured in LOCAL DAYS from `broken_on`,
+ * never from acceptance, so it cannot drift across DST (EC-FRZ-15).
+ */
+export interface RecoveryChallenge {
+  readonly brokenOn: LocalDay;
+  readonly previousStreak: number;
+  /** Inclusive last local day on which a lesson may be STARTED (INV-REC-04/05). */
+  readonly expiresAfterDay: LocalDay;
+  readonly lessonsRequired: number;
+  /** Partial progress, persisted like any other session (EC-FRZ-10, INV-REC-03). */
+  readonly lessonsDone: number;
+  readonly uncoveredDays: readonly LocalDay[];
+}
+
+export interface DayEngineState {
+  /** The last civil date whose disposition is decided. The rollover walk's marker. */
+  readonly lastProcessedDay: LocalDay | null;
+  /** The clock-tamper sentinel: the furthest civil date ever observed (EC-STK-12). */
+  readonly maxLocalDaySeen: LocalDay | null;
+  readonly dispositions: ReadonlyMap<LocalDay, DayDisposition>;
+  readonly ledger: FreezeLedger;
+  readonly brk: BreakRecord | null;
+  readonly challenge: RecoveryChallenge | null;
+  readonly repairs: readonly RepairRecord[];
+  readonly settlements: readonly MonthSettlement[];
+  readonly lastProcessedMonth: string | null;
+  readonly longAbsences: readonly LongAbsence[];
+  /**
+   * Set when the first-ever session's local day precedes the build date: award XP and
+   * gems, defer streak/goal/quest day keying, adopt the first sane day as day one with no
+   * backfill (EC-STK-23, INV-DAY-14).
+   */
+  readonly clockUnreliable: boolean;
+}
+
+export function newDayEngineState(options?: {
+  readonly freezesOwnedFrom?: LocalDay;
+  readonly cap?: number;
+}): DayEngineState {
+  const ownedFrom = options?.freezesOwnedFrom;
+  return {
+    lastProcessedDay: null,
+    maxLocalDaySeen: null,
+    dispositions: new Map(),
+    ledger:
+      ownedFrom === undefined
+        ? {
+            cap: options?.cap ?? DAY_CONFIG.freezeCapBase,
+            grants: [],
+            consumptions: [],
+            societyTierKeys: [],
+          }
+        : newFreezeLedger(ownedFrom, options?.cap ?? DAY_CONFIG.freezeCapBase),
+    brk: null,
+    challenge: null,
+    repairs: [],
+    settlements: [],
+    lastProcessedMonth: null,
+    longAbsences: [],
+    clockUnreliable: false,
+  };
+}

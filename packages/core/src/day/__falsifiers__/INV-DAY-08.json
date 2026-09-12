@@ -1,0 +1,15 @@
+{
+  "id": "INV-DAY-08",
+  "falsifier": "a grace-credited session that also moves its XP, goal chest or Daily Most XP to the start day",
+  "source": "EC-STK-12 / EC-STK-13, deep/04 cases 41-45: streak to the start day, everything else to completion time",
+  "input": {
+    "tz": "America/Los_Angeles",
+    "startUtc": "2026-09-12T06:58:00Z",
+    "durationMs": 360000,
+    "startDay": "2026-09-11",
+    "completionDay": "2026-09-12",
+    "goalXp": 20
+  },
+  "mustNotBe": "a goal chest on the start day, or a second chest for the same completion day",
+  "usedBy": ["day/boundary.test.ts"]
+}

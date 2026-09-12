@@ -1,0 +1,13 @@
+{
+  "id": "INV-DAY-07",
+  "falsifier": "a clock jumped to 2027 that consumes 365 freezes or writes 365 missed calendar cells",
+  "source": "EC-STK-11, EC-FRZ-04, deep/04 cases 14 and 19",
+  "input": {
+    "lastDay": "2026-09-10",
+    "streak": 40,
+    "freezes": 2,
+    "jumpedTo": "2027-09-11"
+  },
+  "mustNotBe": "freezesConsumed > min(gap, owned, 30), or more than one `missed` cell",
+  "usedBy": ["day/rollover.test.ts"]
+}

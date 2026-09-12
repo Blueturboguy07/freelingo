@@ -1,0 +1,14 @@
+{
+  "id": "INV-DAY-15",
+  "falsifier": "a credited day recomputed from two wall-clock reads across an NTP sync, or a monotonic counter reset trusted as negative elapsed",
+  "source": "EC-STK-24: a 23:58 start inside the grace window with the wall clock corrected back four minutes",
+  "input": {
+    "instantUtc": "2026-09-11T13:00:00Z",
+    "tz": "Asia/Tokyo",
+    "startedAtMonotonicMs": 500000,
+    "completedAtMonotonicMs": 1000,
+    "wallClockDeltaMs": 60000
+  },
+  "mustNotBe": "a negative elapsed trusted, or a credited day that moves with the wall clock",
+  "usedBy": ["day/boundary.test.ts"]
+}

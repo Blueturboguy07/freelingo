@@ -1,0 +1,13 @@
+{
+  "id": "INV-DAY-16",
+  "falsifier": "a date-line hop over the 1st that skips or doubles a monthly settlement",
+  "source": "EC-STK-25: LA 2026-09-30, landing in Sydney 2026-10-02, so 2026-10-01 is never lived",
+  "input": {
+    "lastDay": "2026-09-30",
+    "streak": 6,
+    "landedOn": "2026-10-02",
+    "unlived": ["2026-10-01"]
+  },
+  "mustNotBe": "two settlements for one month, a missing October settlement, or a freeze spent on the unlived date",
+  "usedBy": ["day/rollover.test.ts"]
+}

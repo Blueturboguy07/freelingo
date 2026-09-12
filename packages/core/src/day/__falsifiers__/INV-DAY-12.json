@@ -1,0 +1,13 @@
+{
+  "id": "INV-DAY-12",
+  "falsifier": "a quest countdown that shortens below the true remaining time after travel, resetting quests early",
+  "source": "EC-STK-20, deep/04 case 4",
+  "input": {
+    "instantUtc": "2026-09-11T13:00:00Z",
+    "fromTz": "Asia/Tokyo",
+    "toTz": "America/Los_Angeles",
+    "xp": [10, 15]
+  },
+  "mustNotBe": "an expiry instant that moves earlier for an unchanged quest day",
+  "usedBy": ["day/boundary.test.ts"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "INV-DAY-17",
+  "falsifier": "a stored day that shifts when the identifier changes while the offset does not",
+  "source": "EC-STK-26: `Set Automatically` off, or ICU resolving the zone to `Etc/GMT-5`",
+  "input": {
+    "instant": "2026-09-11T13:00:00Z",
+    "sameOffsetIds": ["Etc/GMT-5", "Asia/Karachi", "Asia/Tashkent"],
+    "utcIds": ["UTC", "Etc/UTC", "Etc/GMT"]
+  },
+  "mustNotBe": "two local_day values for one offset, or a tz_source that is not recorded",
+  "usedBy": ["day/boundary.test.ts"]
+}

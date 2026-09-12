@@ -1,0 +1,16 @@
+{
+  "id": "INV-REC-03",
+  "falsifier": "an app kill mid-challenge that discards the persisted partial progress",
+  "source": "EC-FRZ-10: a deliberate divergence from 'We won't save your progress.'",
+  "input": {
+    "lastDay": "2026-09-22",
+    "streak": 22,
+    "freezes": 2,
+    "missedDays": 3,
+    "returnedOn": "2026-09-26",
+    "brokenOn": "2026-09-25",
+    "lessonsBeforeKill": 1
+  },
+  "mustNotBe": "lessonsDone resetting to 0 across the kill",
+  "usedBy": ["day/recovery.test.ts"]
+}

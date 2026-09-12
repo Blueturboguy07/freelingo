@@ -1,0 +1,17 @@
+{
+  "id": "INV-REC-05",
+  "falsifier": "a lesson started inside the window refused credit at completion",
+  "source": "EC-FRZ-16: evaluate the window at challenge START, so a session begun inside it always counts",
+  "input": {
+    "lastDay": "2026-09-22",
+    "streak": 22,
+    "freezes": 2,
+    "missedDays": 3,
+    "returnedOn": "2026-09-26",
+    "brokenOn": "2026-09-25",
+    "startedOn": "2026-09-27",
+    "finishedOn": "2026-09-28"
+  },
+  "mustNotBe": "challengeEligibleAtStart false for a start day inside the window",
+  "usedBy": ["day/recovery.test.ts"]
+}
