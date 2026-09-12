@@ -197,8 +197,66 @@ def test_the_audio_budget_covers_all_three_pipelines(tmp_path: Path) -> None:
     over = {**manifest, "audioBytes": (AUDIO_BUDGET_MB + 1) * 1024 * 1024}
     assert any("INV-PACK-15" in line for line in manifest_violations(over))
 
+    # The MISSING-PIPELINE guard, and only that one. `{"lesson": 1}` also breaks the
+    # measured-vs-summed equality below, so an `any(...)` over the whole list would pass
+    # on either guard and neither would be independently falsifiable. `story, radio`
+    # appears in one message.
     partial = {**manifest, "audio": {**manifest["audio"], "bytesByPipeline": {"lesson": 1}}}
     assert any("story, radio" in line for line in manifest_violations(partial))
+
+
+def test_inv_pack_15_a_pack_that_declares_more_audio_than_it_carries_is_a_violation(
+    tmp_path: Path,
+) -> None:
+    """[INV-PACK-15] measured bytes on disk == the sum over the clip records.
+
+    Two numbers reach the manifest by two different routes and the manifest asserts they
+    agree. `audio.bytes` is `audio_bytes_on_disk(audio_dir)` — stat'ed off the staged
+    bank, which is what a learner downloads and therefore what the 120 MB budget is
+    about. `audio.bytesByPipeline` is summed from `inputs.clips`, which is what G8 says
+    it baked. A difference in either direction is a pack describing something it does not
+    contain, and INV-PACK-15's budget clause cannot see it: a pack with an empty bank is
+    inside every budget.
+
+    This is the second line of defence behind G9's `clips_missing` gate and it is not
+    redundant with it, because it catches the cases that gate cannot: a clip that copied
+    but truncated, a bake that wrote the right count at the wrong sizes, a stray file in
+    the bank. Measured in the field over units 1-3 of the real course — 125 declared
+    clips, an empty `audio/` directory, `audioBytes: 0` — which is the state both guards
+    now refuse.
+
+    One byte in each direction, because the check is equality and not a tolerance.
+    """
+    manifest = _built(tmp_path)
+    assert manifest_violations(manifest) == []
+
+    carries_more = {
+        **manifest,
+        "audio": {**manifest["audio"], "bytes": int(manifest["audio"]["bytes"]) + 1},
+    }
+    assert any(
+        "across its pipelines" in line for line in manifest_violations(carries_more)
+    ), manifest_violations(carries_more)
+
+    lesson = int(manifest["audio"]["bytesByPipeline"]["lesson"])
+    declares_more = {
+        **manifest,
+        "audio": {
+            **manifest["audio"],
+            "bytesByPipeline": {**manifest["audio"]["bytesByPipeline"], "lesson": lesson + 1},
+        },
+    }
+    violations = manifest_violations(declares_more)
+    assert any("across its pipelines" in line for line in violations), violations
+    # And the message carries BOTH numbers, so the reader knows which way round it is.
+    measured = int(manifest["audio"]["bytes"])
+    summed = sum(int(value) for value in declares_more["audio"]["bytesByPipeline"].values())
+    assert summed == measured + 1
+    assert any(f"{measured} bytes" in line and str(summed) in line for line in violations), (
+        violations
+    )
+    # The missing-pipeline guard is silent here: all three pipelines are still declared.
+    assert not any("story, radio" in line for line in violations), violations
 
 
 def test_the_audio_block_declares_an_accent_claim_and_no_locale(tmp_path: Path) -> None:

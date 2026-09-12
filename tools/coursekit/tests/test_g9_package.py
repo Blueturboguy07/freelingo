@@ -25,7 +25,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from coursekit.artifacts import artifact_path, read_records, write_records
+from coursekit.artifacts import artifact_path, read_records, stage_dir, write_records
 from coursekit.cli import app
 from coursekit.config import (
     EXIT_FAILED,
@@ -131,8 +131,6 @@ def _replay_bank(lang: str) -> None:
     has to be as honest as the gate: the bytes are the committed stubs', copied, never
     invented.
     """
-    from coursekit.artifacts import stage_dir
-
     bank = stage_dir(lang, "g8")
     for clip in SEED["clips"]:
         target = bank / str(clip["path"])
@@ -468,6 +466,48 @@ def test_the_manifest_gate_fails_the_stage_and_also_writes_nothing(
     assert result.exit_code == EXIT_FAILED, result.output
     assert "UNRESOLVED" in result.output
     assert _pack_artefacts(isolated_build_root) == []
+
+
+def test_inv_pack_15_a_pack_that_declares_a_clip_it_does_not_carry_fails_the_stage(
+    isolated_build_root: Path,
+) -> None:
+    """[INV-PACK-15] the audio gate: a declared clip with no file refuses the pack.
+
+    This is a MEASURED field defect, not a hypothetical. Over units 1-3 of the real
+    Spanish course G9 built a pack that declared 125 clips at `audio/<id>.opus`, whose
+    `audio/` directory was empty, and whose manifest said `audioBytes: 0` — because G7
+    named clips with one function and G8 baked them under another (D-AUDIO-ID-FUNCTION),
+    so `_stage_audio_bank` found nothing to copy and copied nothing, quietly. Every
+    listening exercise in that pack resolves to no file on a device, and INV-PACK-15's
+    budget assertion passes trivially at zero bytes: the budget is about what a learner
+    downloads, and a pack that downloads nothing is inside every budget.
+
+    So the gate is the one that has to be pinned, and the falsifier is the state a real
+    bake reaches: the bank is there, the records are there, and ONE clip is gone. One
+    rather than all, so the assertion can be that the message names the missing id — a
+    gate that reported only a count would leave the operator re-running the bake to find
+    out which. Exit 4, and `_pack_artefacts` empty: gate 1 refuses before `_publish`, so
+    no `pack.sqlite`, no manifest, no `audio/`, no `pack_row` and no staging directory
+    outlives the refusal.
+    """
+    _replay_seed()
+    orphaned = SEED["clips"][0]
+    missing = stage_dir("es", "g8") / str(orphaned["path"])
+    assert missing.exists(), "the replay has to put a real bank there first"
+    missing.unlink()
+
+    result = runner.invoke(app, ["pack", "es"])
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "INV-PACK-15" in result.output
+    assert orphaned["clip_id"] in result.output, result.output
+    assert _pack_artefacts(isolated_build_root) == []
+
+    # And the runlog says which clips, so the next command does not have to guess.
+    from coursekit.runlog import read_entries
+
+    entry = [row for row in read_entries("es", stage="g9")][-1]
+    assert entry["status"] != "ok"
+    assert orphaned["clip_id"] in str(entry["notes"]["audio_clips_missing"])
 
 
 def test_the_schema_gate_fails_the_stage_and_also_writes_nothing(

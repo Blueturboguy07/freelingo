@@ -30,6 +30,7 @@ from coursekit.artifacts import read_records, sentence_id, write_records
 from coursekit.cli import app
 from coursekit.config import EXERCISE_TYPES, EXIT_FAILED, EXIT_MISSING_INPUT, EXIT_OK
 from coursekit.config.g7 import (
+    CURRENT_PHASE,
     FORBIDDEN_SHAPE_IDS,
     GAP_MARKER,
     GRAMMAR_FORM_PLAN,
@@ -475,7 +476,14 @@ def test_the_literal_walk_would_catch_a_planted_prompt(tmp_path: Path) -> None:
 
 
 def _draft_for(item: Any, rng: random.Random, lang: str) -> ExerciseDraft:
-    hint = f"w{rng.randrange(1000)}" if item.quotes_lexeme else None
+    # Keyed off the TEMPLATE, not off `quotes_lexeme`, because `instruction_for` is:
+    # it raises on a missing hint when `{hint}` is in the string. The two columns agree
+    # for every shape but `select_the_character`, which asks for a character by naming a
+    # reading (`Select the correct character(s) for "ka"`) — a hint that is not a lexeme.
+    # Reading the column instead of the template made this helper unable to build a
+    # renderable draft for that shape, which is half of why the property below could only
+    # ever see the P2 subset.
+    hint = f"w{rng.randrange(1000)}" if "{hint}" in item.instruction else None
     body = f"body {rng.randrange(10_000)}"
     if rng.random() < 0.3:
         body += "\nsecond line"
@@ -498,20 +506,70 @@ def _draft_for(item: Any, rng: random.Random, lang: str) -> ExerciseDraft:
     )
 
 
+def _record_for(item: Any, rng: random.Random, lang: str) -> dict[str, Any]:
+    """The two fields `shape_of_record` reads, for ANY shape in the table.
+
+    A draft is the real thing and is used wherever one can exist. It cannot exist for a
+    parked shape and that is correct: `ExerciseDraft.__post_init__` routes through
+    `route()` at `CURRENT_PHASE`, so constructing one for `picture_select` at P2 raises
+    `ShapeNotAvailable` — the gate D-S032-NO-ILLUSTRATION relies on. Weakening it to let
+    this property build a draft would trade the gate for the coverage.
+
+    So the parked half goes through `prompt_for`, which has no phase gate because it
+    renders a string rather than authorising an item. That is exactly the surface the
+    property is about: `shape_of_record` matches on `(type, instruction template)` and
+    reads nothing else off a draft.
+    """
+    if PHASE_ORDER.index(item.available_from) <= PHASE_ORDER.index(CURRENT_PHASE):
+        return _draft_for(item, rng, lang).to_record()
+
+    hint = f"w{rng.randrange(1000)}" if "{hint}" in item.instruction else None
+    body = f"body {rng.randrange(10_000)}"
+    if rng.random() < 0.3:
+        body += "\nsecond line"
+    return {
+        "type": item.type,
+        "prompt": prompt_for(item.id, lang=lang, body=body, hint=hint),
+    }
+
+
 def test_every_draft_round_trips_through_the_frozen_record() -> None:
     """[INV-PACK-50 support] the shape is recoverable from `(type, instruction)`.
 
-    `PROPERTY_RUNS` drafts, every shape, both languages that differ in the `{lang}`
-    slot. Without this the projection is "recoverable in principle" — and the player,
-    the mistake queue and both record-level gates all read the shape back.
+    `PROPERTY_RUNS` drafts, **every shape in the table**, four languages so the `{lang}`
+    slot differs. Without this the projection is "recoverable in principle" — and the
+    player, the mistake queue and both record-level gates all read the shape back.
+
+    It used to filter `available_from == "P2"`, which tied the only property that checks
+    recoverability to the PHASE GATE — two different things. The cost was measured on
+    this lane: moving `picture_select` to P3 (D-S032-NO-ILLUSTRATION) silently dropped it
+    from this property, so the shape the deviation promises is "reachable the moment the
+    art track's phase arrives, unchanged in every other respect" would have arrived with
+    a prompt template nothing checked. `select_the_character` had been outside it since
+    P7 was written. Recoverability does not depend on when a shape may be emitted, so the
+    property does not either, and a parked shape stays covered while it is parked.
     """
     rng = random.Random(20260912)
-    available = [item for item in SHAPES if item.available_from == "P2"]
+    # The filter that used to be here, as an assertion: widening is only a widening while
+    # the table really does hold shapes this phase cannot emit. Same predicate
+    # `_record_for` and `route()` use — `!= CURRENT_PHASE` would misread a hypothetical
+    # P1 shape as parked.
+    parked = [
+        item
+        for item in SHAPES
+        if PHASE_ORDER.index(item.available_from) > PHASE_ORDER.index(CURRENT_PHASE)
+    ]
+    assert {item.id for item in parked} == {"picture_select", "select_the_character"}, (
+        "A shape LEAVING this set is fine (picture_select is expected to, when the art "
+        "track lands at P3 — it then round-trips through a real draft instead) and a NEW "
+        "parked shape is fine: update the set. What must not happen is the set emptying "
+        "while the docstring still claims a parked shape is covered."
+    )
+
     for _run in range(PROPERTY_RUNS):
-        item = rng.choice(available)
+        item = rng.choice(SHAPES)
         lang = rng.choice(["es", "fr", "de", "ja"])
-        draft = _draft_for(item, rng, lang)
-        record = draft.to_record()
+        record = _record_for(item, rng, lang)
         assert shape_of_record(record).id == item.id, (item.id, record["prompt"])
 
 
