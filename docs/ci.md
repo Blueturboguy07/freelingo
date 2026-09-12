@@ -1,15 +1,43 @@
 # CI
 
-Four workflows. `ci.yml` is the fast one every change waits on; `native-e2e.yml` is the
-slow one that proves the app exists on real devices; `mutation.yml` and `pack-ci.yml` are
-nightly and content-only.
+Five workflows. `ci.yml` is the fast one every change waits on; `native-e2e.yml` is the
+slow one that proves the app exists on real devices; `mutation.yml` is nightly and
+`pack-ci.yml` / `pack-bake.yml` are content-only.
 
 | Workflow         | Runner                 | What it proves                                                        |
 | ---------------- | ---------------------- | --------------------------------------------------------------------- |
 | `ci.yml`         | ubuntu-latest          | lint, typecheck, `pnpm test`, registry digest, coverage map, gitleaks |
 | `native-e2e.yml` | ubuntu + macos-15      | flows exist, they pass on a simulator and an emulator, INV-PLAT-02    |
 | `mutation.yml`   | ubuntu-latest, nightly | Stryker score against the threshold                                   |
-| `pack-ci.yml`    | ubuntu-latest          | `coursekit validate` on content changes                               |
+| `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests; the whole es pack is built and validated        |
+| `pack-bake.yml`  | ubuntu-latest, manual  | rebuilds one language's audio bank and hands back the artefact        |
+
+## `pack-ci.yml` and the job that was green because it never ran
+
+```
+coursekit lint + tests
+pipeline-ready ──> build-es (G0-G9) ──> validate-es (V1-V12 + F1-F5)
+```
+
+**`pipeline-ready` decides whether the two pack jobs run at all**, by asking whether every
+id in `config.VALIDATOR_IDS` and `config.BUILD_STAGE_IDS` is registered. That gate is right
+— a pack built over an empty registry is not a pack — and it has the failure mode every
+conditional job has: while `ready=false`, `build-es` and `validate-es` **skip**, and a
+skipped job is green.
+
+Measured at P2 integration: F1, F3, F4 and F5 were declared in the ledger and registered
+nowhere, so for the whole phase both jobs skipped, the run was green, and the pack the
+phase exists to produce had never been built. The lesson is the same one `flows-present`
+teaches one workflow over: when a job can be skipped, something must fail if it is skipped
+for the wrong reason. Here that something is `pnpm test` — `test_validators_freelingo.py`
+asserts `VALIDATORS.missing(VALIDATOR_IDS) == ()`, on every push, with no conditional in
+front of it.
+
+`build-es` carries the `tts` dependency group and the cached Kokoro weights, unlike the
+`coursekit` job. A stage whose group is absent exits 3 rather than degrading, G8 needs
+`tts`, and G9 needs G8 — so without it the build stops before the pack exists. The
+`coursekit` job keeps the light default groups and its 20-minute budget; `build-es` has 60
+minutes and its product is a pack.
 
 ## The property floor
 

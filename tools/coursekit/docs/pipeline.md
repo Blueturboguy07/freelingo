@@ -12,18 +12,27 @@ Read `../README.md` for the commands and `~/duolingo-research/scope2/00-FRAMEWOR
 
 ## 1. Dependency groups, and the two CI does not carry
 
-| Group     | Carries                                                     | Synced by CI |
-| --------- | ----------------------------------------------------------- | ------------ |
-| (default) | typer, httpx, pyyaml, jsonschema, pynacl, regex             | yes          |
-| `dev`     | pytest, ruff                                                | yes          |
-| `nlp`     | spaCy 3.8 + `es_core_news_md` 3.8.0 **pinned by wheel URL** | yes          |
-| `lm`      | kenlm, pinned to commit `4cb443e6`                          | yes          |
-| `align`   | simalign + torch (CPU) + transformers                       | **no**       |
-| `tts`     | kokoro-onnx + soundfile + numpy                             | **no**       |
+| Group     | Carries                                                     | Synced by CI                    |
+| --------- | ----------------------------------------------------------- | ------------------------------- |
+| (default) | typer, httpx, pyyaml, jsonschema, pynacl, regex             | yes                             |
+| `dev`     | pytest, ruff                                                | yes                             |
+| `nlp`     | spaCy 3.8 + `es_core_news_md` 3.8.0 **pinned by wheel URL** | yes                             |
+| `lm`      | kenlm, pinned to commit `4cb443e6`                          | yes                             |
+| `align`   | simalign + torch (CPU) + transformers                       | **no**                          |
+| `tts`     | kokoro-onnx + soundfile + numpy                             | `build-es` and `pack-bake` only |
 
-`pack-ci.yml` runs `uv sync --locked`, which installs `[tool.uv] default-groups` —
-`dev`, `nlp`, `lm`. The job has a 20-minute budget; `align` and `tts` are gigabytes of
-wheels plus model downloads on first use and do not fit in it. Install them locally:
+`pack-ci.yml`'s `coursekit` job runs `uv sync --locked`, which installs
+`[tool.uv] default-groups` — `dev`, `nlp`, `lm`. That job has a 20-minute budget; `align`
+and `tts` are gigabytes of wheels plus model downloads on first use and do not fit in it.
+
+**`build-es` is the exception, added at P2 integration**, and the reason is arithmetic
+rather than preference: a stage whose group is absent exits 3 rather than degrading, G8
+needs `tts`, and G9 needs G8 — so without the group the build stops at G8 and the artefact
+the job uploads is not a pack. `build-es` has a 60-minute budget and syncs
+`--group nlp --group lm --group tts`, with the Kokoro weights cached exactly as
+`pack-bake.yml` caches them. `align` is still carried nowhere.
+
+Install them locally:
 
 ```sh
 uv sync --group align      # G7 word alignment

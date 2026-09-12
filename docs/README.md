@@ -36,17 +36,32 @@ a typo in an id cannot hide as coverage.
 
 ### Python (`tools/coursekit`)
 
-A Python function name cannot hold `[`, `-` or the registry's capitals, so the claim goes
-in the `def` as the lowercase snake form of the id — which is what pytest prints and what
-`pytest -k inv_aud_08` selects:
+A Python function name cannot hold `[`, so there are **two** accepted claim forms and both
+gates read both. Use either; several files use both on the same test.
+
+**In the `def` name**, as the snake form of the id — what pytest prints and what
+`pytest -k inv_aud_08` selects. Read case-insensitively, so `test_inv_aud_08_…` and
+`test_INV_PACK_40_…` both count, and the digits are read verbatim (`inv_aud_08` →
+`INV-AUD-08`, never `INV-AUD-8`):
 
 ```python
-def test_inv_aud_08_the_rebake_key_includes_the_engine() -> None:
-    """[INV-AUD-08] a voice-identical clip on a different engine is a different clip."""
+def test_inv_aud_08_the_rebake_key_includes_the_engine() -> None: ...
+def test_INV_PACK_40_no_consumer_carries_its_own_inlined_notion_of_a_token() -> None: ...
 ```
 
-The digits are read verbatim (`inv_aud_08` → `INV-AUD-08`), and the docstring is prose: it
-is the `def` name that both gates read. A docstring-only id is invisible to
-`pnpm test:coverage-map` and to the phase-roster gate, so a lane can look covered in review
-and be covered by nobody — which is what happened the first time a coursekit lane claimed
-an id.
+**Or leading the test's own docstring**, in brackets — the direct analogue of
+`it('[INV-DAY-01] …')`:
+
+```python
+def test_the_stage_refuses_a_forbidden_corpus(...) -> None:
+    """[INV-PACK-13] refused at resolve(), before any request is made."""
+```
+
+**Leading only, and only a test's own docstring.** An id anywhere else in a docstring is
+prose: `test_ledger_unit.py` cites INV-MOD-13 to explain why a test exists and does not
+test it, and a whole-docstring scan would report that id as owned — silently, in a green
+run. Module docstrings and assertion messages are never read.
+
+Two conventions exist because two P2 lanes invented one each and both shipped real tests.
+Reading one and not the other un-owned half of P2 while looking exactly right, which is
+what the P2 integration found; see `docs/P2-REPORT.md` §3.
