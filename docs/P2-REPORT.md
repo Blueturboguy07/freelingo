@@ -561,12 +561,12 @@ first two integration fixes and the format sweep. The re-key (`2d16f5f`) and the
 "Round 2" in this file always means the second CI pass of this integration. The previous
 phase round's report is `docs/P2-REPORT-round2.md` and is called that by name.
 
-| Workflow         | Run                                                                    | Result                                                                                                          |
-| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20               |
-| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                                            |
-| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the second CI pass's push, not by a failure |
-| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                             |
+| Workflow         | Run                                                                    | Result                                                                                                                                           |
+| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20                                                |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                                                                             |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the second CI pass's push, not by a failure. The second pass re-ran it green |
+| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                                                              |
 
 ### `ci.yml` — red twice on one sha, green on the next, with every test passing throughout
 
@@ -680,8 +680,8 @@ X iOS simulator                                              CANCELLED
 **The iOS job was cancelled, not failed**, and this is the hazard `docs/P2-REPORT-round2.md`
 already named: `pack-ci` and `native-e2e` share a concurrency group with the branch, so
 the push that carried the re-key (`2d16f5f` … `859f3fb`) killed a job that had been
-running for 27 minutes. Recorded as a cancellation. The second CI pass, below, re-runs it on the
-final code sha, which is the only honest way to get the iOS half back.
+running for 27 minutes. Recorded as a cancellation. The second CI pass, below, re-ran it on the final code sha and
+it is **green**, which is the only honest way the iOS half could come back.
 
 `flows exist` and `prebuild-determinism` are the two jobs that can lie cheaply and both
 are green: `maestro test` over an empty directory exits 0, and two `expo prebuild` runs
@@ -701,8 +701,24 @@ title is in Freelingo green over an off-white ground, and the rows read
 CLOSE at the foot. `report.xml` reads `tests="1" failures="0" time="15.921"`; `runner.txt`
 carries `api_level=34 arch=x86_64 target=google_apis flows=1 maestro=2.10.0`.
 
-There is **no iOS screenshot for this sha** because the job was cancelled mid-run. The
-round-2 artefacts below carry both platforms.
+There is **no iOS screenshot for `86f2430`** because that job was cancelled mid-run. The
+second CI pass carries both platforms, and both were opened:
+
+**`e2e-859f3fb…-ios/screenshots/p0-db-path-p0-db-path.png`** (200,795 B) — the same
+**Diagnostics** sheet on **iPhone 17 @ iOS-26-1** (udid `3D025AD9-C9BB-46A3-BCB4-B84F592C53A0`,
+`Xcode 26.2 Build version 17C52`, Maestro 2.10.0). `db-path` is
+`file:///Users/runner/Library/Developer/CoreSimulator/Devices/3D025AD9…/data/Containers/Data/Application/B813D6D0…/Documents/freelingo-progress.db`,
+`journal-mode wal`, `user-version 2`, `packs-dir` the same container's
+`Library/Caches/packs/`, `packs-excluded true`, `platform ios`,
+`db-path-persistent true`, `pre-migration-backup none`, green CLOSE.
+`report.xml`: `tests="1" failures="0" time="96.528"`.
+
+**`e2e-859f3fb…-android/screenshots/p0-db-path-p0-db-path.png`** (77 KB artefact) — the
+same sheet on API 34, identical field values to `86f2430`'s.
+
+So **INV-PER-06's DB-path gate is green on both platforms on the integrated tree**, which
+is the P0 gate item this round could most easily have broken with a schema-adjacent merge
+and did not.
 
 **And there are no pack screenshots, as in round 2, because P2's product is a content pack
 and not a screen.** The first surfaces that render any of it — S001's course card with
@@ -716,11 +732,11 @@ specifies their copy.
 tree this integration actually hands over. The reviewer-sample merge (`034f14d`) and this
 report land after it, and neither changes a stage.
 
-| Workflow         | Run                                                                    | Result                                                                                                          |
-| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, first attempt — 114 files / 1,316 passed, 6 skipped, no `onTaskUpdate` error                       |
-| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920930> | **FAILURE at G5, one check later than round 1** — `validate-es` skipped on `needs:`                             |
-| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937> | **PARTIAL** — `flows exist`, INV-PLAT-02 and Android green; the iOS job was still running when this was written |
+| Workflow         | Run                                                                    | Result                                                                                    |
+| ---------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, first attempt — 114 files / 1,316 passed, 6 skipped, no `onTaskUpdate` error |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920930> | **FAILURE at G5, one check later than round 1** — `validate-es` skipped on `needs:`       |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937> | **SUCCESS** — all four jobs, both platforms, first attempt                                |
 
 #### `build-es`: the re-key is CI-verified, and so is what is left
 
@@ -757,16 +773,24 @@ same `(0)`. So both halves of B19 are now CI-measured rather than corroborated:
 
 `es-gap-brief-859f3fb…` (35,723 B) was uploaded again, the same size as round 1's.
 
-#### `native-e2e`: Android green, iOS still running when this report was written
+#### `native-e2e`: green on all four jobs, both platforms
 
-`flows exist`, `prebuild-determinism` (INV-PLAT-02) and **Android emulator** are all
-green on `859f3fb`, with `e2e-859f3fb…-android` (77,267 B) uploaded. The **iOS simulator
-job was still in progress** at the time of writing — it takes about 29 minutes and this
-round's push re-started it — so this report does **not** claim an iOS result for
-`859f3fb`. Round 1's iOS job on `86f2430` was cancelled by this round's own push. **The
-last green iOS simulator job in this repository is therefore `b9a68eb`'s**, before the
-merge queue ran, and that is the honest state of the iOS half: not failing, not proven on
-the integrated tree.
+```
+✓ flows exist                                                8s
+✓ INV-PLAT-02 — native trees are generated and reproducible  21s
+✓ Android emulator                                           ~18m
+✓ iOS simulator                                              47m
+```
+
+The iOS job took **47 minutes** against round 2's recorded 29m34s, and 22 of those were
+the `Build and install on the booted simulator` step. Nothing failed; it is the wall-clock
+number to plan with, and it is why the push that carries this report was held until the
+job finished rather than cancelling it a second time — `native-e2e`'s concurrency group is
+`native-e2e-${{ github.ref }}` with `cancel-in-progress: true` and it has **no paths
+filter**, so any push to `main`, documentation included, kills a running device job.
+
+Artefacts: `e2e-859f3fb…-ios` (7,012,551 B) and `e2e-859f3fb…-android` (77,267 B) on
+<https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937>.
 
 ## Blockers
 
