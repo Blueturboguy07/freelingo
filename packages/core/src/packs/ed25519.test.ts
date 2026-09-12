@@ -171,35 +171,108 @@ describe('ed25519 verification (INV-PACK-18 primitive)', () => {
     return verify(null, Buffer.from(message), key, Buffer.from(signature));
   }
 
-  it('agrees with node:crypto on every small-order (torsion) public key, including the forgeries a cofactorless check accepts', () => {
+  /**
+   * The one cell where OpenSSL versions disagree with each other, named rather than
+   * papered over.
+   *
+   * Measured at P1 integration, same commit, same code, two platforms:
+   *
+   * | cell                            | ours | node:crypto, OpenSSL 3.6.4 (macOS, node v24.18.0) | node:crypto on ubuntu-latest (node v24.20.0), CI run 34672723507 |
+   * | ------------------------------- | ---- | -------------------------------------------------- | ---------------------------------------------------------------- |
+   * | identity key, `R = id, S = 0`   | true | **true**                                           | **false**                                                        |
+   * | every other torsion cell (23)   | false| false                                              | false                                                            |
+   *
+   * The original assertion here was `expect(ours).toBe(theirs)` for all 24 cells. It
+   * passed on this Mac and failed on the runner with
+   * `disagreed with node:crypto on torsion key 01000000: expected true to be false`, and
+   * it would have kept failing on any OpenSSL that rejects small-order public keys before
+   * it ever evaluates the equation. That assertion was therefore not a statement about
+   * this verifier at all — it pinned the runner's OpenSSL version.
+   *
+   * So the claim is split into the two things actually being claimed:
+   *
+   * 1. **What this verifier does** is asserted against a committed table, below. It is
+   *    deterministic, it is the cofactorless rule RFC 8032 §5.1.7 describes, and it does
+   *    not move when a runner image does.
+   * 2. **Agreement with node:crypto** is still asserted on all 24 cells, with exactly one
+   *    documented exemption: an OpenSSL that rejects the identity key outright disagrees
+   *    on that one forgery. The test records which behaviour it saw, and a divergence in
+   *    any OTHER cell is still a failure — so this is an exemption of one named cell, not
+   *    a relaxation of the check.
+   *
+   * None of it can reach the install path: `verifyPackSignature` compares against a
+   * PINNED public key, and no torsion encoding is that key. That is what the original
+   * comment above already said, and it is why the right resolution is to state the
+   * platform difference rather than to make the verifier match whichever OpenSSL ran last.
+   */
+  const TORSION_DIVERGENT_CELL = { key: SMALL_ORDER_ENCODINGS[0]!, signature: 'R=identity,S=0' };
+
+  it('agrees with node:crypto on every small-order (torsion) public key, except the one cell OpenSSL versions disagree on', () => {
     const message = utf8('freelingo-pack-manifest');
     const identity = hex(SMALL_ORDER_ENCODINGS[0]!);
-    const signatures: Uint8Array[] = [
-      // R = identity, S = 0: the classic cofactorless forgery. node:crypto ACCEPTS this
-      // under a small-order key; if this implementation rejected it, the two would
-      // disagree about what a valid pack signature is.
-      Uint8Array.from([...identity, ...new Uint8Array(32)]),
+    const signatures: readonly (readonly [string, Uint8Array])[] = [
+      // R = identity, S = 0: the classic cofactorless forgery.
+      ['R=identity,S=0', Uint8Array.from([...identity, ...new Uint8Array(32)])],
       // A real signature under a real key, offered under the torsion key instead.
-      nodeSign(pairs[0]!, message),
+      ['real signature, wrong key', nodeSign(pairs[0]!, message)],
       // S = 1, R = identity: no longer a forgery for any of them.
-      Uint8Array.from([...identity, 1, ...new Uint8Array(31)]),
+      ['R=identity,S=1', Uint8Array.from([...identity, 1, ...new Uint8Array(31)])],
     ];
 
+    /** Our verdict for every cell: exactly one acceptance, and it is the known forgery. */
+    const ourVerdicts: Record<string, boolean> = {};
+    const divergences: string[] = [];
     let accepted = 0;
+
     for (const encoding of SMALL_ORDER_ENCODINGS) {
       const rawPublic = hex(encoding);
-      for (const signature of signatures) {
+      for (const [label, signature] of signatures) {
+        const cell = `${encoding.slice(0, 8)} ${label}`;
         const ours = verifyEd25519(signature, message, rawPublic);
-        const theirs = nodeVerdict(rawPublic, signature, message);
-        expect(ours, `disagreed with node:crypto on torsion key ${encoding.slice(0, 8)}`).toBe(
-          theirs,
-        );
+        ourVerdicts[cell] = ours;
         if (ours) accepted += 1;
+
+        // node:crypto may reject a small-order key before it evaluates anything, and on
+        // some builds that is a throw rather than a false. Both are "it said no".
+        let theirs: boolean;
+        try {
+          theirs = nodeVerdict(rawPublic, signature, message);
+        } catch {
+          theirs = false;
+        }
+        if (ours !== theirs) divergences.push(`${cell}: ours=${ours} node=${theirs}`);
       }
     }
-    // The trap is real: at least one of these forgeries verifies under a cofactorless
-    // check. This assertion is what makes the agreement above worth having.
-    expect(accepted, 'no torsion forgery verified — re-derive these encodings').toBeGreaterThan(0);
+
+    // 1. What THIS verifier does. Cofactorless: the identity key accepts the zero
+    //    forgery and nothing else in the set accepts anything.
+    expect(
+      verifyEd25519(signatures[0]![1], message, hex(SMALL_ORDER_ENCODINGS[0]!)),
+      'the cofactorless identity forgery no longer verifies — the verifier changed rule',
+    ).toBe(true);
+    expect(accepted, 'exactly one of the 24 torsion cells is a cofactorless acceptance').toBe(1);
+
+    // 2. Agreement with node:crypto, everywhere but the one documented cell.
+    const unexpected = divergences.filter(
+      (d) =>
+        !d.startsWith(
+          `${TORSION_DIVERGENT_CELL.key.slice(0, 8)} ${TORSION_DIVERGENT_CELL.signature}`,
+        ),
+    );
+    expect(
+      unexpected,
+      'this verifier and node:crypto disagree somewhere other than the identity/zero-forgery ' +
+        'cell, which is the only divergence OpenSSL versions are known to produce. Any other ' +
+        'disagreement means the two no longer share a definition of a valid pack signature.',
+    ).toEqual([]);
+
+    // Recorded, not asserted: which side of the OpenSSL change this runner is on.
+    if (divergences.length > 0) {
+      console.log(
+        `ed25519: this OpenSSL (${process.versions.openssl}) rejects the small-order ` +
+          `identity key outright — ${divergences.join('; ')}`,
+      );
+    }
   });
 
   it('rejects a non-canonical point encoding (y >= p) outright', () => {

@@ -97,10 +97,27 @@ describe('property gates', () => {
     expect(declared, 'vitest.config.ts must name the timeout').not.toBeNull();
     expect(Number(declared![1]!.replaceAll('_', ''))).toBeGreaterThanOrEqual(30_000);
     // Inside a project's `test` block, not at the top level where it does nothing.
-    expect(config).toMatch(/test:\s*\{[\s\S]*?testTimeout: TEST_TIMEOUT_MS/);
+    expect(config).toMatch(/test:\s*\{[\s\S]*?testTimeout: EFFECTIVE_TEST_TIMEOUT_MS/);
     expect(
       /\btest:\s*\{\s*testTimeout:/.test(config),
       'a top-level testTimeout is ignored by inline projects',
     ).toBe(false);
+
+    /*
+     * `EFFECTIVE_TEST_TIMEOUT_MS` exists because Stryker's `perTest` coverage analysis
+     * needs a bigger clock than `pnpm test` does (vitest.config.ts says why, with the run
+     * that measured it). What must stay true is that it is a MULTIPLIER and never a
+     * discount: the number above is the floor for every ordinary run, and a factor below
+     * 1 would quietly lower it for everybody under a name that reads like a raise.
+     */
+    const factor = /const STRYKER_TIMEOUT_FACTOR = (\d+);/.exec(config);
+    expect(
+      factor,
+      'the Stryker budget must be a named factor, not an inline number',
+    ).not.toBeNull();
+    expect(Number(factor![1]!)).toBeGreaterThanOrEqual(1);
+    expect(config).toMatch(/UNDER_STRYKER\s*\?\s*TEST_TIMEOUT_MS \* STRYKER_TIMEOUT_FACTOR/);
+    // And the ordinary branch is still exactly the named number, not a scaled one.
+    expect(config).toMatch(/:\s*TEST_TIMEOUT_MS;/);
   });
 });

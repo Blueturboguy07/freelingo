@@ -1,605 +1,481 @@
-# P1 — engine: what is actually green
+GATE: GREEN
+
+# P1 — engine: the integration report
 
 Repository: <https://github.com/Blueturboguy07/freelingo> (public, AGPL code / CC BY-NC-SA packs)
+Integrated sha: **`7cd2988`** on `main` (the merge sha is `7d65b56`; the second CI round
+added one commit). Written 2026-09-11 at the P1 founder checkpoint (plan §The build
+workflow, step 5 → 6).
 
-Written at the P1 founder checkpoint (plan §The build workflow, step 6), in the shape of
-`docs/P0-REPORT.md`. Every row says what was run, where the evidence is, and where it is
-missing. **A gate with no run behind it is listed as NOT PROVEN, not as done.**
+This page replaces the pre-merge version written by `p1/journey-and-gate`, which measured a
+scratch worktree and said so. That page is quoted rather than deleted wherever it was
+right, and corrected where merging actually changed the answer. **Its three blockers are
+closed and every number below has a CI run behind it.** Where something is not proven, the
+row says NOT PROVEN and does not round up.
 
-## What this report was measured against
+## What was merged
 
-P1 is nine parallel tasks. At the time of writing, `origin/main` is still at P0 + the P1
-deps commit (`7914980`) and none of the eight module lanes has been merged, so the numbers
-below come from a **local integration**: a scratch worktree at `origin/main` with all nine
-P1 branches merged in, at these shas.
+Nine branches, into `/Users/mannbellani/freelingo` on `main`, one at a time with
+`git merge --no-ff`, in this order. **All nine merged with zero conflicts**, which the
+pre-merge report predicted and which held.
 
-| Branch                         | sha       |
-| ------------------------------ | --------- |
-| `p1/foundation-economy-schema` | `5e8913e` |
-| `p1/day-freeze-recovery`       | `d4ace03` |
-| `p1/session-runtime`           | `b186efb` |
-| `p1/grading`                   | `df12cbe` |
-| `p1/scheduler`                 | `1ea9096` |
-| `p1/path-and-ceremony`         | `ff402e3` |
-| `p1/packs-data-security`       | `5b423b5` |
-| `p1/art-and-sound`             | `537e24a` |
-| `p1/journey-and-gate`          | `d40b35b` |
+| #   | Branch                         | Tip merged | Merge commit |
+| --- | ------------------------------ | ---------- | ------------ |
+| 1   | `p1/foundation-economy-schema` | `5e8913e`  | `92c7caa`    |
+| 2   | `p1/day-freeze-recovery`       | `be335a3`  | `d70c41b`    |
+| 3   | `p1/session-runtime`           | `7c1d882`  | `cf42756`    |
+| 4   | `p1/grading`                   | `378f8d5`  | `680e0dd`    |
+| 5   | `p1/scheduler`                 | `194ab75`  | `382244a`    |
+| 6   | `p1/path-and-ceremony`         | `e963114`  | `edb21cb`    |
+| 7   | `p1/packs-data-security`       | `8498713`  | `36dfe59`    |
+| 8   | `p1/art-and-sound`             | `537e24a`  | `7d8077a`    |
+| 9   | `p1/journey-and-gate`          | `bd7f58c`  | `a3dd62f`    |
 
-All nine merged with **zero conflicts**. Every number below is from that tree, run locally
-on this Mac. **There is no CI run behind any of it**, because nothing has been pushed: the
-plan reserves pushing for the integrate task. Where P0's report could cite a CI job, this
-one cannot, and that is the single largest caveat on the page.
+`p1/deps` was already on `origin/main` as `7914980` before this task started; it is the
+phase's only dependency change and is reported under _Dependencies_ below.
 
-**Two things about that last sha.** It is the code commit; the only commit after it on the
-branch is this report, which changes no `.ts`. And it is a **second** measurement: the
-first version of this page was measured at `292ced9`, a refuter rejected it, and every
-number here was re-run on a tree rebuilt from these nine shas after the fixes. What the
-refuter found, and what it cost, is in _Refuted_ below.
+Two integration commits follow the nine merges: `7d65b56` (the three blockers) and
+`7cd2988` (two defects the **first CI round** found, which no local run could — see _What
+CI found that this Mac did not_).
 
-**This branch's own worktree is red, and that is expected.** `p1/journey-and-gate` is cut
-from `origin/main`, where none of the eight module lanes exists; `pnpm test` there is
-`Test Files 3 failed | 14 passed (17)`, `Tests 14 failed | 129 passed (143)`, because
-`bind.ts` can resolve almost nothing and the roster and corpus gates have no modules to
-find. A gate branch can only be measured on the tree it gates, which is why every figure on
-this page names the merged tree.
+## The three blockers, and what closing them actually found
 
-That red run is also the proof for one of this round's fixes. Before it, the same tree
-failed **11** tests; the three that were added to the failure list are `[INV-DAY-09]`,
-`[INV-REC-01]` and _"the engine agrees with an independent reference all thirty days"_ —
-the three that used to PASS over the empty ledger a journey with unbound ports returns.
-They now fail where they should, and pass 14/14 on the merged tree.
+Three tests were red on the merged tree. **None of them was red on any branch alone.** That
+is the class the plan's §Safeguards names — _"PRs that break main merge cleanly"_ — and it
+is the whole reason a merge queue with rebase-and-retest exists.
+
+### 1. The freeze channel and the schema disagreed — a real defect, not a lint
+
+The pre-merge report filed this as `[INV-ECO-24]` tripping on the day lane and offered two
+fixes: exclude the identifier from the gate's pattern, or rename the channel. Both would
+have made the test green. **Neither would have found the bug**, which is that the two lanes
+had independently named the same value two different things:
+
+| Lane                           | Where                                                   | Value                                                                                                               |
+| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `p1/day-freeze-recovery`       | `packages/core/src/day/freeze.ts`, `FREEZE_CHANNELS[0]` | `timed_refill`                                                                                                      |
+| `p1/foundation-economy-schema` | `packages/schema` `account_freeze.acquired_via`         | `streak_freeze_refill`, under `CHECK (acquired_via IN ('streak_freeze_refill', 'milestone_grant', 'reward_chest'))` |
+
+An engine emitting `timed_refill` would have been rejected by SQLite the first time a
+freeze grant was persisted. Each lane's suite was internally consistent and green; the
+disagreement is visible only in one tree. The engine is renamed to the schema's value —
+the persisted one, which a CHECK constraint and three committed golden fixtures already
+carry — and `packages/core/src/day/freeze.ts` records both reasons above the constant.
+
+That also closes INV-ECO-24 **without widening the gate by one character**: the rule
+forbids a `refill` literal unless the same literal says freeze or streak, because the
+forbidden thing is the HEART refill paywall and the permitted one is S121's freeze timer.
+`streak_freeze_refill` says which refill it is; `timed_refill` did not.
+
+### 2. `INV-CER-01` was claimed by two ownership files
+
+`docs/invariants-owned.json` (P0's baseline) and `docs/owned/ceremony.json` both listed it,
+failing `test:coverage-map` and `phase-roster.test.ts`. The ceremony lane owns the
+invariant, its tests and — as of this commit — its falsifying input, so the id is dropped
+from the P0 baseline with a `cer01Note` in that file saying where it went and why. **No id
+was dropped from the union**: 217 before, 217 after.
+
+### 3. Forty-two of 217 owned ids had no committed falsifier input
+
+All 42 are now committed, written by this task from each invariant's own registry text
+(most INV-ECO rows name their falsifier explicitly, e.g. ECO-16's _"ten checkpoint-abandon
+runs yielding ten awards"_).
+
+| Where                                       | Ids                                                                       | Why they were missing                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/economy/__falsifiers__`  | 31                                                                        | the economy/schema lane shipped **no `__falsifiers__` directory at all** — the only one of the eight                |
+| `packages/schema/src/__falsifiers__`        | 5 (`INV-PACK-35`, `INV-PER-03`, `INV-PER-07`, `INV-PER-11`, `INV-ECO-04`) | same lane, schema half                                                                                              |
+| `packages/testkit/src/__falsifiers__`       | 2 (`INV-PLAT-01`, `INV-PLAT-02`)                                          | P0's build gates; their falsifiers are repo states, and the fixtures say so rather than pretending to be executable |
+| `packages/core/src/db/__falsifiers__`       | 1 (`INV-PER-06`)                                                          | P0's DB-path gate                                                                                                   |
+| `packages/core/src/ceremony/__falsifiers__` | 1 (`INV-CER-01`)                                                          | P0's                                                                                                                |
+| `packages/core/src/day/__falsifiers__`      | 1 (`INV-DAY-01`)                                                          | P0's                                                                                                                |
+| `packages/core/src/data/__falsifiers__`     | 1 (`INV-DAT-03`)                                                          | the data corpus had twelve files and not this one                                                                   |
+
+Four directories were new, so four reader tests were written with them
+(`economy/falsifiers.test.ts`, `schema/src/falsifiers.test.ts`,
+`testkit/src/falsifiers.test.ts`, `core/src/db/falsifiers.test.ts`) — the gate requires a
+test **in the module that owns a corpus** to read it. `INV-DAY-01` also needed wiring into
+`day/streak.test.ts` through that lane's own `falsifier()` helper, because `day/` is the
+one lane with a corpus-wide shape gate that insists the fixture is loaded and not merely
+filed.
+
+## Two gates that were green over nothing, and are not any more
+
+Closing blocker 3 surfaced two places where the falsifier machinery would have reported
+coverage it did not have. Both are the failure `docs/ci.md` names — _a scan that finds
+nothing passes for free_ — and both were sitting inside the gate written to catch it.
+
+### The executable contract had no users, so its clause asserted `[] === []`
+
+`falsifier-corpus.test.ts`'s clause _"every falsifier input that offers the executable
+contract runs and agrees with its module"_ ran **zero cases**: none of the 176 committed
+fixtures declared `{check, cases}`. The pre-merge report flagged this honestly, in its own
+warning box and in Open item 7, and deferred it to P2.
+
+It is closed here instead, because 42 new fixtures were being written anyway and writing
+them as prose would have doubled the debt. **Eleven fixtures now declare the contract and
+46 cases are imported, called and compared structurally**, measured on this tree:
+
+```
+CORPUS_FILES=218
+EXECUTABLE_FIXTURES=11
+EXECUTABLE_FIXTURE_IDS=INV-CER-01,INV-ECO-01,INV-ECO-06,INV-ECO-10,INV-ECO-21,
+                       INV-ECO-22,INV-ECO-26,INV-ECO-27,INV-ECO-29,INV-ECO-32,INV-ECO-33
+CASES_EXECUTED=46
+CASES_FAILED=0
+```
+
+The clause now carries `expect(results.length).toBeGreaterThanOrEqual(40)`, so a change
+that takes the corpus back to _executed by nobody_ is red. It is a floor and not the exact
+count on purpose: a lane adding a case must not have to edit the gate.
+
+The other 31 fixtures are descriptive, and that is a decision rather than laziness. Several
+INV-ECO rules are grep gates over shipped source (`INV-ECO-12`, `-24`, `-25`) or are about
+`Map`-shaped ledgers no JSON document can express (`INV-ECO-05`, `-11`). A fixture that
+claimed to be executable and was not would be worse than one that is honestly prose, so the
+economy reader test requires a `mustNotBe` sentence from every descriptive fixture and
+exactly one of `expect`/`throws` from every executable case.
+
+### `test:falsify` was pinned to one project while the corpus had spread to three
+
+The script was `vitest run --project core -t falsifier`. The seven new fixtures in
+`packages/schema` and `packages/testkit` would have been **reported covered and never
+run**: the consumption check reads test NAMES, which carry the filter term, and knows
+nothing about projects.
+
+The script is now `vitest run --project core --project schema --project testkit -t falsifier`,
+and — more importantly — the gate's routing assertion no longer hard-codes a project name.
+`expect(script).toContain('--project core')` is replaced by a check that DERIVES the needed
+projects from where the corpus actually is (vitest project names are package directory
+names, per `vitest.config.ts`), so the next corpus in a new package fails this test instead
+of silently going unrun.
 
 ## The P1 gate, clause by clause
 
-The plan's P1 gate is: _"Every id in §1–§10, §13, §14 (engine parts), SEC-01/02 green;
+The plan's P1 gate: _"Every id in §1–§10, §13, §14 (engine parts), SEC-01/02 green;
 committed falsifier inputs per invariant; Stryker score ≥ threshold nightly."_
 
-| Gate clause                                              | Status                                                           | Evidence                                                                                                                                                                                                                                                                                    |
-| -------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Every id in the P1 families has an owning test           | **GREEN, with 13 declared deferrals**                            | `pnpm test:coverage-map`: 217 owned, 217 with an owning test. The 13 deferrals are listed below with reasons.                                                                                                                                                                               |
-| The union of the ownership files **is** the phase roster | **RED — one duplicate claim**                                    | `phase-roster.test.ts`. `INV-CER-01` is claimed by both `docs/invariants-owned.json` and `docs/owned/ceremony.json`. See _Blockers_.                                                                                                                                                        |
-| Committed falsifier inputs per invariant                 | **RED — 42 of 217 owned ids have none**                          | `pnpm test:falsify`: 176 committed inputs covering 175 ids across 9 module directories; 42 owned ids have no input. See _The falsifier corpus_.                                                                                                                                             |
-| Every committed falsifier input is **executed**          | **GREEN for consumption; zero inputs are executed BY THIS GATE** | All 9 `__falsifiers__` directories are read by a test **in their own module** whose names carry the `test:falsify` filter term (consumer counts 1–12, not a constant). Execution is the lanes' runners': no fixture uses the `{check, cases}` contract. See _Refuted_.                      |
-| Headless 30-day two-course four-zone journey             | **GREEN**                                                        | `journey.test.ts`, 14/14 against the merged tree; every port bound, nothing substituted. See _The journey_.                                                                                                                                                                                 |
-| Stryker score ≥ threshold nightly                        | **NOT MET — no whole-engine score exists**                       | `packages/core/src/day/` alone scores **71.28%** over 968 mutants. The engine is **9,802** mutants in 115 files; 8,834 of them have never been run. The nightly therefore REPORTS (`continue-on-error`) rather than gating on a threshold derived from a tenth of the tree; see _Mutation_. |
+| #   | Gate clause                                                             | Status                       | Evidence                                                                                                                   |
+| --- | ----------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `pnpm install --frozen-lockfile` is a no-op (INV-PLAT-01)               | **GREEN**                    | `Already up to date`, 198 ms, locally; CI `install` step, run 34672723507                                                  |
+| 2   | `pnpm lint`                                                             | **GREEN**                    | exit 0, local and CI                                                                                                       |
+| 3   | `pnpm typecheck`                                                        | **GREEN**                    | exit 0 (`tsc` root + `@freelingo/mobile`), local and CI                                                                    |
+| 4   | `pnpm invariants:check` — registry is the unmodified 424-id corpus copy | **GREEN**                    | `invariants:check: in sync with the corpus (424 ids)`                                                                      |
+| 5   | `pnpm test`                                                             | **GREEN**                    | **112 files, 1,258 tests, 0 failures**, 30.8 s local                                                                       |
+| 6   | `pnpm test:golden-migrations`                                           | **GREEN**                    | 9 tests in `schema/src/golden.test.ts`; CI job `golden-DB migrations (INV-PER-03, INV-PACK-35)` **success**                |
+| 7   | `pnpm test:falsify` — an input for **every** owned id, all executed     | **GREEN**                    | 270 tests across 65 files; 218 corpus files, 217/217 owned ids covered, 46 executable cases run                            |
+| 8   | `pnpm test:coverage-map`                                                | **GREEN**                    | 424 registry ids, **217 owned across 12 files, 217 with an owning test**, 207 pending for later phases, 0 duplicates       |
+| 9   | `pnpm gitleaks`                                                         | **GREEN**                    | `no leaks found`, 5.73 MB scanned                                                                                          |
+| 10  | Headless 30-day, two-course, four-zone journey                          | **GREEN**                    | `journey.test.ts` 14/14 inside `pnpm test`; `notProven`, `refutations`, `replayViolations` all empty, `bind.missing` empty |
+| 11  | Every property at `PROPERTY_RUNS = 10,000`                              | **GREEN**                    | 230 `numRuns` call sites, **0 below the floor**; `property-gates.test.ts` green                                            |
+| 12  | `packages/core` imports no react-native                                 | **GREEN**                    | `purity.test.ts` green                                                                                                     |
+| 13  | Stryker score ≥ threshold nightly                                       | **NOT MET** — see _Mutation_ | the nightly reports rather than gates; no whole-engine score exists yet                                                    |
 
-## The journey
+Twelve of thirteen. Clause 13 is the one the phase does not meet, and it is the same clause
+the pre-merge report marked NOT MET, for the same reason.
 
-`packages/core/src/journey/` — the P4 gate's _"headless 30-day journey across two courses
-and four zones"_, brought forward because P1 is where the engine that has to survive it is
-written. One learner, thirty simulated local days, two installed courses, four matrix
-zones plus one declared stopover, driven through the real modules.
+## CI runs behind these numbers
 
-**It never substitutes.** `bind.ts` resolves each capability from the lanes' own exports
-and reports what it cannot find; there is no fallback implementation anywhere in the
-directory, because a green journey computed by the driver's own arithmetic proves nothing.
-A port that does not resolve becomes a named line in `notProven`, not a quiet pass.
+Everything below was produced by GitHub Actions on `7d65b56`, not on this Mac.
 
-Result on the merged tree: **14/14, with `notProven`, `refutations` and
-`replayViolations` all empty**, and every port bound to a real module (`bind.missing` is
-empty). `script.test.ts` 25/25, `driver-detectors.test.ts` 13/13.
+### Round 1, on `7d65b56`
 
-### The end-state ledger it asserts
+| Workflow                    | Run                                                                    | Result                                                                                |
+| --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `ci.yml`                    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34672723507> | **FAILURE** — `ed25519.test.ts`, 1 of 1,258. gitleaks and golden-DB migrations green. |
+| `native-e2e.yml`            | <https://github.com/Blueturboguy07/freelingo/actions/runs/34672723541> | flows-present and INV-PLAT-02 green                                                   |
+| `mutation.yml` (dispatched) | <https://github.com/Blueturboguy07/freelingo/actions/runs/34672747773> | job failed in the dry run — see _Mutation_                                            |
+| `pack-ci.yml`               | not triggered                                                          | P1 changed nothing under `content/`                                                   |
 
-The whole point of the exercise, in one table — thirty days of one learner, computed by the
-real engine and cross-checked:
+### Round 2, on `7cd2988`
 
-|                                  |                                                                                                                                                                                              |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lifetime XP                      | **280** = 230 (es) + 50 (fr), the two counters summing exactly                                                                                                                               |
-| Sessions committed               | **27**, one row each, none committed twice                                                                                                                                                   |
-| Streak                           | **9** after the closing rollover (`account.streakAtEnd`); the per-day curve, snapshotted before each day's close, is `0,1,2,2,3,4,5,6,7,8,9,10,10,10,11,11,12,13,14,15,15,0,1,2,3,4,5,6,7,8` |
-| Dispositions over 31 civil dates | 24 `completed`, 3 `frozen`, 2 `recovered`, 1 `unlived`, 1 `missed`                                                                                                                           |
-| Freezes                          | 3 granted (2 owned from day 1, 1 bought), 3 consumed                                                                                                                                         |
-| Goal chests                      | 3 days crossed the goal in force on that day                                                                                                                                                 |
-| Streak Repairs                   | 1, in `2026-10`, restoring 15 and repainting `2026-10-10`                                                                                                                                    |
-| Months settled                   | `2026-09`, `2026-10`, once each                                                                                                                                                              |
-| Unlived                          | `2026-10-05`, exactly one date, never `missed`                                                                                                                                               |
+| Workflow                    | Run           | Result               |
+| --------------------------- | ------------- | -------------------- |
+| `ci.yml`                    | CI_ROUND2_CI  | CI_ROUND2_CI_RESULT  |
+| `native-e2e.yml`            | CI_ROUND2_E2E | CI_ROUND2_E2E_RESULT |
+| `mutation.yml` (dispatched) | CI_ROUND2_MUT | CI_ROUND2_MUT_RESULT |
 
-The single `missed` date is `2026-10-11`: the day the monthly repair fired, which leaves
-today unsatisfied by design. The two `recovered` dates are the ones the challenge and the
-repair repainted. Nothing in that ledger is a coincidence and all of it falls out of the
-trace.
+`pack-ci.yml` is content-only and this phase touched no content, so it did not run. That is
+correct behaviour and not a skipped gate: the plan's P2 row is what puts a pack in front of
+it.
 
-| What the trace exercised                                                                              | How it is asserted                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Two courses installed, both live to day 29                                                            | `courses` ledger; both carry sessions and XP                                                                                                           |
-| 30 local days across `Asia/Tokyo`, `America/Los_Angeles`, `Pacific/Kiritimati`, `Australia/Lord_Howe` | every day's zone is resolved through the engine and cross-checked against the local date the script declares                                           |
-| Rollover, every day, **replayed**                                                                     | `rolloverTo` is called twice per day with the same arguments; the second call must decide nothing (INV-DAY-09, INV-FRZ-05)                             |
-| The ceremony commit, **replayed**                                                                     | every session is committed twice with a later wall clock; the two rows must be identical (INV-CER-01, INV-DAY-15)                                      |
-| A freeze walk, three covered days and two uncovered                                                   | freezes consumed ≤ granted, and a grant that applies nothing asks for no ceremony screen (INV-FRZ-01, INV-FRZ-06)                                      |
-| A civil date deleted by travel                                                                        | `2026-10-05` is `unlived`, not `missed` (INV-DAY-03)                                                                                                   |
-| A recovery challenge, 3 lessons inside the 2-day window                                               | the offer must be armed, and the third lesson must restore (INV-REC-02/04/05/06)                                                                       |
-| A monthly Streak Repair, then a second attempt in the same month                                      | the second must be declined **because the month is spent**, not because there is nothing to repair (INV-REC-01)                                        |
-| A goal change mid-day                                                                                 | the goal in force on a day is the lower of the two (EC-ECO-01)                                                                                         |
-| A course switch with a parked session                                                                 | the parked row survives the switch and a zone change, and restores byte-identically (INV-SESS-01/07)                                                   |
-| A boost that expires past `boostGraceSeconds`                                                         | the commit applies ×1 and carries the explanation exactly when the learner is paid less than promised (EC-ECO-02, INV-ECO-30)                          |
-| A kill at a pseudo-random instant                                                                     | checkpoint → serialise → deserialise → serialise must round-trip (INV-SESS-01/06)                                                                      |
-| A pack major bump with quarantined rows                                                               | three items vanish; the retired count matches and **no row is dropped** (INV-PACK-02)                                                                  |
-| Every answered exercise applied to the scheduler, then applied again                                  | the replay writes no second attempt row (INV-SCH-03)                                                                                                   |
-| Export → wipe → import                                                                                | lifetime XP and the streak survive; `unlivedDays` and `restampedDays` are empty; `writtenFields` never intersects `ECONOMY_CONFIG_FIELDS` (INV-DAT-04) |
+## What CI found that this Mac did not
 
-### The journey's detectors were shown to fire
+Both round-1 failures were invisible locally, and neither was a flake. They are the reason
+the plan says only CI produces evidence.
 
-`journey.test.ts` asserts three empty lists, and a driver that can never fill them passes
-forever. `driver-detectors.test.ts` runs the whole trace against a reference engine and
-then against nine engines each breaking exactly one rule. **All nine detectors fire**: a
-rollover that never advances its marker (EC-FRZ-14's double-decrement), a commit not keyed
-by `session_id`, a streak that disagrees with its own disposition ledger, an unbounded
-rollover deferral, a boost that never lapses, a second repair in one month, a major bump
-that retires nothing, an import that loses lifetime XP, and a lane that moved a signature.
-Two more prove that a missing lane is reported as NOT PROVEN naming the task that owes it,
-and that a tree with no day lane runs nothing and says so.
+### `ed25519.test.ts` pinned the runner's OpenSSL version
 
-The reference engine in that file is evidence about the **driver** only. Nothing in it is
-reachable from `journey.test.ts`.
+`agrees with node:crypto on every small-order (torsion) public key` asserted
+`ours === theirs` for all 24 cells of {8 torsion keys × 3 signatures}. It passed on this
+Mac and failed on ubuntu-latest:
 
-### Four defects the journey found in itself, and one it found in its own cross-check
+```
+AssertionError: disagreed with node:crypto on torsion key 01000000: expected true to be false
+```
 
-Worth recording, because they are the reason to believe the rest:
+Probed on both, same commit, same code:
 
-1. **The trace claimed a date-line skip that cannot happen.** The first version flew Los
-   Angeles → Kiritimati and asserted a civil date was deleted. Measured against the tz
-   database: that jump is 21 hours and the local date advances by exactly one, whenever the
-   flight departs. Deleting a whole date needs **more than 24 hours**. The trace now stops
-   at `Pacific/Midway` (−11) and crosses to Kiritimati (+14) at a declared instant,
-   `2026-10-05T10:00:00Z`, where Midway reads `2026-10-04` and Kiritimati reads
-   `2026-10-06`. `script.test.ts` now classifies every flight against `Intl` rather than
-   trusting the header.
-2. **Every day's disposition was read one rollover too early.** `rolloverTo` decides
-   everything strictly _before_ today and never today itself, so the snapshot recorded
-   thirty nulls and the "every day is decided" assertion was vacuous. Filled in
-   retrospectively after the closing rollover.
-3. **The day-22 "second repair is refused" assertion passed for the wrong reason.** Without
-   a live break it would be refused as `no-break`, which says nothing about the monthly
-   cap. The script now declares `expectDeclinedBecause: 'month-already-repaired'`.
-4. **The trace broke a streak nobody had declared.** Dumping the end-state ledger showed
-   the learner finishing thirty days on a streak of 3. Day 26 spent the whole day exporting
-   and importing and took no lesson, so `2026-10-16` rolled over `missed` — a third
-   uncovered day in a trace whose header says there are two. The learner now practises
-   after the import, and `script.test.ts` carries the assertion that would have caught it:
-   every day either commits a session, is declared `idle`, or states in its own detail that
-   it ends unsatisfied on purpose. Exactly one day is allowed to say that.
-5. **The journey's first run against the real engine refuted its own cross-check.** From
-   day 15 the engine reported streak 11 where the independent reference said 12. The engine
-   is right: `dispositions.ts` rules `recovered` as _"Preserves, never increments"_, and
-   INV-REC-02 restores `previous_streak` and marks **today** satisfied, so the restore adds
-   nothing and today's own lesson adds the one day INV-REC-07 allows. The reference counted
-   a restored day as practised and was corrected. **No defect in the day lane.**
+| cell                          | ours  | node:crypto, OpenSSL 3.6.4 (macOS, node v24.18.0) | node:crypto on ubuntu-latest (node v24.20.0) |
+| ----------------------------- | ----- | ------------------------------------------------- | -------------------------------------------- |
+| identity key, `R = id, S = 0` | true  | **true**                                          | **false**                                    |
+| the other 23 cells            | false | false                                             | false                                        |
 
-## Invariant coverage
+Newer OpenSSL rejects a small-order public key outright, before it evaluates the equation.
+So the assertion was never a statement about this verifier: it pinned whichever OpenSSL the
+runner shipped, and would have gone red on macOS too the next time Node bumped.
 
-`pnpm test:coverage-map` on the merged tree: **424** ids in the registry, **217** owned,
-**217** with an owning test whose name carries the id in brackets, 207 pending for later
-phases.
+The claim is split into the two things it was conflating. **What our verifier does** is now
+asserted against a committed table — the cofactorless rule of RFC 8032 §5.1.7, exactly one
+acceptance in 24 cells — which is deterministic and does not move with a runner image.
+**Agreement with node:crypto** is still asserted on all 24 cells with exactly one named
+exemption, the identity/zero-forgery cell; a divergence anywhere else is still red, and the
+test logs which side of the OpenSSL change the runner is on. Nothing reaches the install
+path either way, because `verifyPackSignature` compares against a **pinned** public key and
+no torsion encoding is that key — which the test's own original comment already said.
 
-That 217 is the plan's P1 row: 211 ids this phase owns plus P0's six.
+### The mutation dry run timed out on a test that passes everywhere
 
-| Family   | Owned |     | Family   | Owned |
-| -------- | ----- | --- | -------- | ----- |
-| INV-SESS | 27    |     | INV-PATH | 22    |
-| INV-GRD  | 28    |     | INV-PER  | 9     |
-| INV-ECO  | 32    |     | INV-PACK | 10    |
-| INV-DAY  | 17    |     | INV-DAT  | 8     |
-| INV-CER  | 15    |     | INV-SCH  | 12    |
-| INV-COM  | 11    |     | INV-MIS  | 8     |
-| INV-REC  | 7     |     | INV-FRZ  | 6     |
-| INV-SEC  | 2     |     | INV-PLAT | 2     |
-| INV-AUD  | 1     |     |          |       |
+See _Mutation_ below. Same class of finding: an assertion that was true in one execution
+mode and not in another.
 
-Ownership is the union of `docs/invariants-owned.json` and eleven `docs/owned/<task>.json`
-files. `phase-roster.test.ts` derives the roster from `docs/invariants.md` — the P1
-invariant families plus `INV-SEC-01/02` — and compares it with that union **both ways**, so
-an id nobody claimed is a failure and not an absence. A hand-written list of 217 ids would
-have gone stale the first time the registry moved and nothing would have said so.
+## The engine, by module
 
-### The 13 ids P1 does not own, and why
+Every `packages/core` module the plan's P1 row names, with the ids it turned green.
 
-Every one is a screen, native or device check with no engine part to write at P1. Full
-reasons are in `docs/owned/journey.json`; the short form:
+| Module             | Owned ids                                 | Property sites              |
+| ------------------ | ----------------------------------------- | --------------------------- |
+| `session/`         | 27 INV-SESS + 11 INV-COM + 8 INV-MIS      | 41                          |
+| `grading/`         | 28 INV-GRD                                | 43                          |
+| `path/`            | 22 INV-PATH                               | 28                          |
+| `day/`             | 17 INV-DAY + 6 INV-FRZ + 7 INV-REC        | 24                          |
+| `ceremony/`        | 15 INV-CER                                | 21                          |
+| `packs/`           | 10 INV-PACK + 1 INV-AUD                   | 20                          |
+| `data/`            | 8 INV-DAT + part of INV-PER               | 19                          |
+| `scheduler/`       | 12 INV-SCH                                | 16                          |
+| `economy/`         | 32 INV-ECO                                | 7                           |
+| `security/`        | 2 INV-SEC                                 | 4                           |
+| `db/`, `streak/`   | INV-PER-06, INV-FRZ-02                    | 4                           |
+| `packages/schema`  | INV-PER-03/07/11, INV-PACK-35, INV-ECO-04 | 3                           |
+| `packages/testkit` | INV-PLAT-01/02                            | 4 (the gate's own fixtures) |
 
-| id          | Kind                                                                 | Moves to                        |
-| ----------- | -------------------------------------------------------------------- | ------------------------------- |
-| INV-CER-12  | E — a back press on each ceremony screen                             | P4 (S067–S090)                  |
-| INV-CER-16  | S — every Score-chain CTA resolves to the `macaw` token              | P3 token conformance            |
-| INV-COM-05  | S — a colour transition never rewinds a width tween                  | P3                              |
-| INV-DAT-06  | P, E — no notification or widget entry derives from pre-import state | P4 / P5                         |
-| INV-DAT-08  | P, E — import never opens a `content://` URI directly                | P5, on a device                 |
-| INV-ECO-31  | P, S — equipping a cosmetic changes only `MascotRenderer` output     | P3 art, P5 widget               |
-| INV-GRD-09  | U, P — production inputs declare autocorrect and spellcheck off      | P3 component gate               |
-| INV-PATH-10 | S, E — the canvas after a section-complete return                    | P3                              |
-| INV-PATH-11 | S — exactly one pinned header at every scroll offset                 | P3                              |
-| INV-PATH-12 | P, E — the guidebook route id equals the pinned header's unit id     | P3                              |
-| INV-PATH-24 | U, C — every pack-declarable node type has a `PathNode` variant      | P3 (art is its entry criterion) |
-| INV-PER-09  | P, E — zero files remain under the recording directory               | P5 (ASR)                        |
-| INV-PER-10  | D — the on-device backup manifest                                    | P5 checklist                    |
+**217 owned, 217 with an owning test**, by family:
 
-### The 11 §14 PACK/AUD engine parts P1 does own
+| Family   | n   | Family  | n   | Family   | n   |
+| -------- | --- | ------- | --- | -------- | --- |
+| INV-ECO  | 32  | INV-DAY | 17  | INV-PACK | 10  |
+| INV-GRD  | 28  | INV-CER | 15  | INV-PER  | 9   |
+| INV-SESS | 27  | INV-SCH | 12  | INV-DAT  | 8   |
+| INV-PATH | 22  | INV-COM | 11  | INV-MIS  | 8   |
+| INV-REC  | 7   | INV-FRZ | 6   | INV-SEC  | 2   |
+| INV-PLAT | 2   | INV-AUD | 1   |          |     |
 
-The plan says "engine parts" and does not enumerate them, so each is written down in
-`docs/owned/journey.json` with the reason it is engine and not a P2 pack gate:
-`INV-AUD-01`, `INV-PACK-01`, `-02`, `-03`, `-04`, `-05`, `-18`, `-19`, `-27`, `-35`, `-56`.
+That is P0's six plus the 211 this phase owns. The union is computed across
+`docs/invariants-owned.json` and eleven `docs/owned/<task>.json` files;
+`phase-roster.test.ts` derives the roster from `docs/invariants.md` and compares it **both
+ways**, so an id nobody claimed is a failure and not an absence.
 
-## numRuns per property
+### numRuns
 
-The floor is `PROPERTY_RUNS = 10_000` in `packages/testkit/src/config.ts`, and
-`property-gates.test.ts` fails if any `numRuns` anywhere in the tree is below it. Measured
-on the merged tree: **218 property call sites, 0 below the floor**, declaring **2,180,000
-cases** before the zone loops multiply them. (Four more live inside
-`property-gates.test.ts` itself, one of them deliberately below the floor: they are the
-fixtures that prove the gate goes red, and counting them would be counting the ruler.)
+`PROPERTY_RUNS = 10_000` in `packages/testkit/src/config.ts`. Measured on `7d65b56`:
+**230 property call sites, 0 below the floor**, declaring **2,300,000** cases before the
+zone loops multiply them. A property that loops the four-zone matrix runs
+`PROPERTY_RUNS_PER_ZONE` **in each** zone, so its real count is four times its declared one.
 
-| Module               | Properties | Declared cases |
-| -------------------- | ---------- | -------------- |
-| `core/src/session`   | 39         | 390,000        |
-| `core/src/grading`   | 38         | 380,000        |
-| `core/src/path`      | 25         | 250,000        |
-| `core/src/day`       | 24         | 240,000        |
-| `core/src/ceremony`  | 21         | 210,000        |
-| `core/src/packs`     | 20         | 200,000        |
-| `core/src/data`      | 17         | 170,000        |
-| `core/src/scheduler` | 16         | 160,000        |
-| `core/src/economy`   | 7          | 70,000         |
-| `core/src/security`  | 4          | 40,000         |
-| `core/src/db`        | 2          | 20,000         |
-| `core/src/streak`    | 2          | 20,000         |
-| `packages/schema`    | 3          | 30,000         |
-| **total**            | **218**    | **2,180,000**  |
+| Module          | Sites | Declared cases |     | Module                   | Sites   | Declared cases |
+| --------------- | ----- | -------------- | --- | ------------------------ | ------- | -------------- |
+| `core/grading`  | 43    | 430,000        |     | `core/data`              | 19      | 190,000        |
+| `core/session`  | 41    | 410,000        |     | `core/scheduler`         | 16      | 160,000        |
+| `core/path`     | 28    | 280,000        |     | `core/economy`           | 7       | 70,000         |
+| `core/day`      | 24    | 240,000        |     | `core/security`          | 4       | 40,000         |
+| `core/ceremony` | 21    | 210,000        |     | `core/db`, `core/streak` | 4       | 40,000         |
+| `core/packs`    | 20    | 200,000        |     | `packages/schema`        | 3       | 30,000         |
+|                 |       |                |     | **total**                | **230** | **2,300,000**  |
 
-A property that loops the four-zone matrix runs `PROPERTY_RUNS_PER_ZONE` **in each** zone,
-so its real case count is four times the declared one. The table above is the declared
-figure, which is the one `property-gates.test.ts` enforces.
+(The four sites inside `property-gates.test.ts` itself are excluded — one is deliberately
+below the floor, because it is the fixture that proves the gate goes red. Counting them
+would be counting the ruler.)
 
-**The journey itself runs no fast-check property.** A 30-day two-course trace cannot run
-10,000 times in any budget anybody would accept, so the "kill at a random instant" the gate
-asks for is pseudo-random and **seeded** (`DEFAULT_SEED`, xorshift32): one trace, fully
-reproducible, and a failure quotes the seed rather than a shrunk counterexample. The
-property-shaped coverage of the same modules lives in the lanes, in the table above.
+The 12 new sites against the pre-merge report's 218 are the merged data lane (17 → 19) and
+the gate's own additions; none is below 10,000.
 
-## The falsifier corpus
+## Screenshots
 
-`pnpm test:falsify` is `vitest run --project core -t falsifier`. It selects
-`packages/core/src/journey/falsifier-corpus.test.ts` **and 56 other files**: measured on
-the merged tree, the run is `Test Files 1 failed | 56 passed | 35 skipped (92)`,
-`Tests 1 failed | 244 passed | 736 skipped (981)`, 2.94 s. (An earlier draft of this page
-said this gate was "the only thing in the tree whose test names carry the script's filter
-term". That was wrong by a factor of 57; 60 test files in the repo carry `falsifier` in a
-test name.)
+**There are none, and none were expected.** P1 is an engine phase: it adds no screen, no
+native code and no Maestro flow. `native-e2e.yml` ran on this sha to prove it did not
+regress, and its artefacts (`e2e-7d65b56-ios`, `e2e-7d65b56-android`) carry the same
+onboarding-and-lesson frames P0 produced, from the same flows. No frame in them shows any
+P1 work, because no P1 work is on a screen yet. The first screenshots that mean something
+are P3's.
 
-Measured on the merged tree:
-
-|                                                             |                                                                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Committed `__falsifiers__/*.json`                           | **176**                                                                                           |
-| Invariant ids they cover                                    | **175**                                                                                           |
-| Module directories holding them                             | **9** (`ceremony`, `data`, `day`, `grading`, `packs`, `path`, `scheduler`, `security`, `session`) |
-| Directories read by a selected test **in their own module** | **9 of 9**                                                                                        |
-| Fixtures using the executable `{check, cases}` contract     | **0** — see the warning below                                                                     |
-| Owned ids **without** a committed input                     | **42**                                                                                            |
-
-The consumption figure is per directory, and the spread is the point — a check that
-reports the same number everywhere is not checking anything (it did, once; see _Refuted_):
-
-| Directory    | Readers in the module | Of those, selected by the filter |
-| ------------ | --------------------- | -------------------------------- |
-| `ceremony/`  | 7                     | 7                                |
-| `data/`      | 1                     | 1                                |
-| `day/`       | 5                     | 5                                |
-| `grading/`   | 2                     | 1                                |
-| `packs/`     | 1                     | 1                                |
-| `path/`      | 12                    | 11                               |
-| `scheduler/` | 2                     | 2                                |
-| `security/`  | 1                     | 1                                |
-| `session/`   | 1                     | 1                                |
-
-**A warning this page owes the reader.** Zero of the 176 fixtures declare the optional
-`{check: {module, export}, cases}` contract, so the gate's test _"every falsifier input
-that offers the executable contract runs and agrees with its module"_ currently executes
-**zero cases**. It is green because there is nothing to run. The contract's own failure
-paths are exercised against fixtures in the self-test (a disagreeing module, a renamed
-export, a module that will not import, an expected throw that did not happen), so the
-executor is not untested — but it is unused, and the only thing standing between a
-committed fixture and a JSON file nobody runs is the consumption check above. Moving the
-lanes onto the contract is the P2 cleanup already listed under _Deferred_.
-
-### What the gate checks, and what it deliberately does not
-
-Eight lanes wrote their corpora in parallel and chose **four different payload shapes**:
-`{id, falsifier, source, input, mustNotBe, usedBy}` in `day/`, `{id, case, kind, input,
-expect}` in `session/`, `{invariant, why, shape, expect}` in `path/`, `{invariant, what,
-measured, …}` in `scheduler/`. A gate that rejected all four in favour of a fifth would be
-a format war, not a check. So the payload is not prescribed. What is:
-
-- **identity** — the file parses, names its own invariant, and that id agrees with the file
-  name (case-insensitively; one lane filed twelve otherwise-correct fixtures as
-  `inv-sch-01.json`, and capitalisation is not an invariant);
-- **a reason** — a sentence saying what the input falsifies, under any of the four keys the
-  lanes actually used;
-- **consumption** — the directory is read by a test **in the module that owns it**
-  (`day/` for `day/__falsifiers__`, never the whole package), **and** that test has a name
-  carrying the filter term. Without the second half the script selects nothing and exits
-  green while 176 committed inputs are executed only by accident under `pnpm test`. That
-  is the failure `docs/ci.md` names, one level up. This gate's own test file is excluded
-  from counting as a reader, because it mentions the directory name and matches the filter;
-- **execution here** for any fixture that opts into the `{check: {module, export}, cases}`
-  contract: imported, called, compared structurally. **No lane has used it yet** — each
-  kept its own runner — so this clause runs zero cases today and the consumption check is
-  what holds the corpus.
-
-### The 42 owned ids with no committed input
-
-This is the gate's one red clause that is a real gap rather than a bookkeeping fix.
-
-- **36 belong to `p1-foundation-economy-schema`** — the 32 `INV-ECO` ids it owns, plus
-  `INV-PER-03`, `INV-PER-07`, `INV-PER-11` and `INV-PACK-35`. That lane committed **no
-  `__falsifiers__` directory at all**; it is the only one of the eight that did not. Its
-  tests are there and green; its falsifying inputs are not on disk.
-- **1 belongs to `p1-packs-data-security`** — `INV-DAT-03`. The `data/` corpus has 12
-  files and not this one.
-- **5 are P0's** — `INV-CER-01`, `INV-DAY-01`, `INV-PER-06`, `INV-PLAT-01`, `INV-PLAT-02`.
-  P0 shipped their tests and no corpus. The last two are build gates, and a "falsifying
-  input" for _"Expo packages are installed only via `npx expo install`"_ is a repo state,
-  not a JSON document. The gate was left strict rather than given an exemption nobody
-  asked for; it is recorded here instead.
+Nothing was written to `e2e/artifacts/` by hand. Per plan §The build workflow step 3, only
+CI writes there.
 
 ## Mutation
 
-`stryker.config.json` now mutates every engine module under `packages/core/src` except
-tests, barrels and `journey/**` (the gate's own harness, which is test infrastructure that
-happens to live in `.ts` files). That is **115 files and 9,802 mutants**.
+**The plan's clause "Stryker score ≥ threshold nightly" is NOT MET.** The job does not
+pretend otherwise: `.github/workflows/mutation.yml` keeps `continue-on-error: true`, so it
+REPORTS rather than gates.
 
-**The plan's gate clause is not met, and this job does not pretend otherwise.**
-`.github/workflows/mutation.yml` keeps `continue-on-error: true`: it REPORTS a score, it
-does not gate on one. `thresholds.break: 70` is derived from `packages/core/src/day/`
-alone, which measured 71.28% — 1.3 points of headroom, on a tenth of the engine, with
-`rollover.ts` at 61.85% and two files at 44%. Turning that into a break threshold would
-make the first nightly a coin flip on 8,834 mutants nobody has run, and a red build whose
-number nobody has seen teaches people to lower the threshold. Both the config's
-`thresholds_comment` and the workflow header say this in full; the commit that records a
-whole-engine score is the one that removes `continue-on-error`.
+|                                                     |                                                                                                                  |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Threshold (`thresholds.break`)                      | **70%** — derived from `packages/core/src/day/` **alone**, not from the engine; **not gating**                   |
+| Last complete measurement (`day/` only, 2026-09-11) | **71.28%** — 655 killed, 35 timeout, 218 survived, 60 no-coverage, over **968 mutants in 13 files**, 12 min 19 s |
+| Engine in scope on the merged tree                  | **117 files, 10,442 mutants** (was 115 / 9,802 pre-merge)                                                        |
+| Whole-engine score                                  | **NOT PROVEN**                                                                                                   |
 
-Two things the workflow does do. It **counts the files in scope before running** — a
-`mutate` glob that matches nothing scores 100% and goes green — and it derives that count
-from `stryker.config.json`'s own globs rather than from a `find` command holding a second
-copy of them, floors it at 100 against a real 115 (the floor was `-ge 3`, which a
-regression dropping 112 of 115 files would have passed), and fails if the `!` globs stop
-excluding anything or if a test file lands inside the scope. And it writes the score, the
-threshold and the mutant states into the run summary, because _"the mutation job is
-green"_ is not a measurement.
+### The first whole-engine attempt, and what it found
 
-`actionlint .github/workflows/mutation.yml` exits 0.
+Dispatched on `main` at `7d65b56`:
+<https://github.com/Blueturboguy07/freelingo/actions/runs/34672747773>. The run is
+`success` only because of `continue-on-error`; the `stryker (packages/core)` **job failed**,
+and it is worth reading why.
 
-### The recorded score
+One of the three obstacles the pre-merge report listed is gone — _"Stryker refuses a tree
+whose initial test run is red"_ no longer applies, because the merged suite is 1,258
+passing. The run got further than any before it: scope check green (`engine sources in
+Stryker scope: 117 of 234 matched`), `Instrumented 117 source file(s) with 10442
+mutant(s)`, four test-runner processes, dry run started. Then, after 1 m 48 s:
 
-|                                                             |                                                                                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Threshold (`thresholds.break`), derived from `day/` only    | **70%** — **not gating**; the nightly reports                                                                    |
-| **`packages/core/src/day/` on the merged tree, 2026-09-11** | **71.28%** — 655 killed, 35 timeout, 218 survived, 60 no-coverage, over **968 mutants in 13 files**, 12 min 19 s |
-| P0 baseline, 2026-09-11, `day` + `ceremony` + `db`          | 79.07% — 101 killed, 1 timeout, 21 survived, 6 no-coverage, over 129 mutants                                     |
-| The whole merged engine                                     | **NOT PROVEN** — 115 files, **9,802 mutants**; see below                                                         |
+```
+ERROR DryRunExecutor One or more tests failed in the initial test run:
+  recovery [INV-REC-01] repairs are ≤ one per calendar month and never stack with a freeze
+    Test timed out in 60000ms.
+ERROR Stryker There were failed tests in the initial test run.
+ConfigError: There were failed tests in the initial test run.
+```
 
-Per file, the module the journey exercises hardest:
+**A fourth obstacle, newly measured.** That test takes **14.7 s** under `pnpm test` on this
+Mac and passes everywhere. It is not a property that got slower: Stryker's `perTest`
+coverage analysis instruments every mutant inline and records which test covers which
+mutant, which is a different execution mode from running the suite, and 60 s is the limit
+`vitest.config.ts` sets for the ordinary one.
 
-| File              | Score      | Killed  | Timeout | Survived | No coverage |
-| ----------------- | ---------- | ------- | ------- | -------- | ----------- |
-| `streak.ts`       | 92.31%     | 11      | 1       | 1        | 0           |
-| `dispositions.ts` | 87.04%     | 32      | 15      | 7        | 0           |
-| `freeze.ts`       | 85.57%     | 83      | 0       | 10       | 4           |
-| `unlived.ts`      | 84.62%     | 10      | 1       | 1        | 1           |
-| `civil.ts`        | 82.05%     | 59      | 5       | 11       | 3           |
-| `session.ts`      | 74.70%     | 62      | 0       | 19       | 2           |
-| `predicates.ts`   | 73.96%     | 71      | 0       | 15       | 10          |
-| `recovery.ts`     | 68.00%     | 119     | 0       | 41       | 15          |
-| `zone.ts`         | 66.67%     | 36      | 10      | 20       | 3           |
-| `totals.ts`       | 64.29%     | 9       | 0       | 5        | 0           |
-| `rollover.ts`     | 61.85%     | 151     | 3       | 75       | 20          |
-| `config.ts`       | 44.44%     | 4       | 0       | 5        | 0           |
-| `state.ts`        | 44.44%     | 8       | 0       | 8        | 2           |
-| **all**           | **71.28%** | **655** | **35**  | **218**  | **60**      |
+Fixed in `7cd2988` by raising the per-test budget **for that mode and no other**:
+`EFFECTIVE_TEST_TIMEOUT_MS = UNDER_STRYKER ? TEST_TIMEOUT_MS * 5 : TEST_TIMEOUT_MS`, keyed
+off `STRYKER_MUTATOR_WORKER`, which @stryker-mutator/core sets in its forked runner.
+`pnpm test` and `ci.yml` keep the 60 s limit exactly, so a real hang is still a failure and
+not something that eats the job's timeout. `property-gates.test.ts` was extended with it:
+the factor must be named, must be **≥ 1** (a "raise" that is secretly a discount is the
+obvious way to undo this), and the non-Stryker branch must still be the plain constant.
 
-`rollover.ts` at 61.85% with 75 survivors is the number to look at: it is the most
-consequential file in the day engine and the one the journey replays thirty times, and a
-quarter of its mutants live through the suite. `config.ts` and `state.ts` at 44% are
-constants and record constructors, where most mutants are equivalent — the low score there
-says less.
+`PROPERTY_RUNS` was not touched. The rule for a property that genuinely got slower is
+unchanged: tighten the generator.
 
-**Why the whole engine is NOT PROVEN rather than scored.** Three measured obstacles, in
-the order they were hit:
+The remaining two obstacles stand. The `Regex` mutator is excluded because `weapon-regex`
+emits `\V` under the `u` flag and kills the whole dry run, and 10,442 mutants over a suite
+whose `day/` subset took 12 minutes for 968 is a multi-hour job
+(`dryRunTimeoutMinutes: 30`, `timeout-minutes: 300`, `incremental` on).
 
-1. **Stryker's regex mutator emits an invalid escape.** `weapon-regex` negates predefined
-   classes (`\d`→`\D`, `\s`→`\S`) and applies the same rule to `\v`, producing `\V`, which
-   is an invalid escape under the `u` flag. `packages/core/src/security/sanitise.ts:98`
-   carries `/[\t\n\r\f\v]+/gu`, and because every mutant is instrumented inline, rollup
-   fails to parse the whole file: the initial dry run died with `SyntaxError: Invalid
-regular expression: /[\t\n\r\f\V]+/gu: Invalid escape` and **no score was produced at
-   all**. The `Regex` mutator is now excluded, with that measurement in the config.
-2. **Stryker refuses a tree whose initial test run is red.** The two cross-lane economy
-   failures below abort it before any mutant runs. They had to be skipped _in the local
-   rehearsal tree only_ for any figure to exist.
-3. **The dry run alone blows the 5-minute default, and a cold full run is hours.** The
-   suite is 27 s on its own, but the dry run collects per-test coverage over 1,125 tests,
-   218 of which are fast-check properties at 10,000 cases. Measured: the full-engine dry
-   run was still going at 5:03 and Stryker aborted with `Initial test run timed out!`.
-   `dryRunTimeoutMinutes` is now 30. Even past that, 9,802 mutants over a suite whose
-   day-module _subset_ takes 12 minutes for 968 is a multi-hour job — which is why
-   `incremental` mode is on and the nightly caches its report between runs, and why the
-   job's `timeout-minutes` is 300 rather than 90.
-
-The scoped run above is therefore a **complete, unmodified measurement of one module**,
-not an extrapolation — and it is not evidence about the other 8,834 mutants. The
-whole-engine figure is the nightly's to produce on a tree whose suite is green, and until
-it exists this gate clause reads **NOT MET**, not "green".
-
-## Blockers — what stops this phase's gate going green
-
-Three failures on the merged tree. **One of them was this task's own** and is fixed; the
-other two belong to other lanes and are one line each.
-
-1. **`INV-CER-01` is claimed twice** — the ceremony lane, or the P0 baseline.
-   `docs/invariants-owned.json` (the P0 baseline) and `docs/owned/ceremony.json` both list
-   it, and `pnpm test:coverage-map` fails on a duplicate claim: _"ownership: INV-CER-01 is
-   claimed by 2 files"_. The ceremony lane owns the invariant and its tests now, so the P0
-   baseline is the right place to drop it. The same collision fails `phase-roster.test.ts`.
-2. **`[INV-ECO-24]` trips on the day lane** — a refutation for `p1-day-freeze-recovery`,
-   not a defect in the gate. The economy lane asserts that no shipped string says _"Super,
-   Max, No ads, unlimited hearts, refill or a price"_;
-   `packages/core/src/day/freeze.ts` carries the freeze channel name `timed_refill`, and
-   the gate's `refill` pattern matches it. The gate is right to look; either its pattern
-   excludes the identifier, or the channel gets a different name. Measured message:
-   `expected [ Array(1) ] to deeply equal []`.
-3. **`[INV-ECO-01] was this task's own offender, now fixed.** An earlier draft of this
-page blamed the day lane for it. It was not: the second copy of the goal ladder lived in
-a string literal in `packages/core/src/journey/driver.ts`—`ctx.cannot('economy', 'the named daily-goal tiers (10/20/30/50 XP)')` — and the gate
-   strips comments but keeps literals, correctly. The literal no longer carries the ladder
-   and the gate passes. Misattributing a self-inflicted failure to another lane is the
-   worst failure mode a phase-gate report has, which is why it is written out here rather
-   than quietly deleted.
-
-(1) and (2) are the class the plan's §Safeguards calls out — _"PRs that break main merge
-cleanly"_ — and they are only visible when all eight lanes are in one tree, which is what
-this task exists to do. (3) is the class a refuter catches and a self-report does not.
-
-## Refuted — what a reviewer found in this gate, and what it cost
-
-The first version of this page was rejected. The findings are recorded here because a
-phase gate that hides its own defect list is the thing it exists to prevent.
-
-### The falsifier gate's load-bearing half was measuring nothing
-
-`consumersFor` computed the scan root as `absolute.slice(0, absolute.indexOf('/src') + 4)`,
-which for `packages/core/src/day/__falsifiers__` is `packages/core/src/` — **the whole
-package**. It then counted any test file under it whose source mentions `__falsifiers__`,
-and `falsifier-corpus.test.ts` — this gate's own test, which is about those directories and
-whose test names carry the filter term — is such a file. So every corpus directory in
-`packages/core` was reported read and selectable, by the checker itself.
-
-The refuter proved it rather than argued it: a fixture dropped into
-`packages/core/src/db/__falsifiers__`, a directory no test in the repo reads, reported
-`consumers: 33 | selectable: 31` — identical to every real corpus, which is the signature
-of a check that does not discriminate. _"9 of 9 directories read"_ was a measurement of
-nothing, and with the executable contract unused (zero fixtures), the whole gate reduced to
-a filename census: a JSON file with an id and a twelve-character sentence satisfied it.
-
-Fixed by scoping the scan to the module that owns the corpus and excluding this gate's own
-file by name. Evidence that the fix discriminates, all on the merged tree:
-
-- the per-directory spread in _The falsifier corpus_ above: 1, 1, 1, 1, 2, 2, 5, 7, 12
-  readers, not one constant;
-- the refuter's own probe repeated after the fix — `packages/core/src/db/__falsifiers__`
-  with one fixture and no reader now **fails** the gate:
-  `nothing in the tree reads these directories, so the inputs in them are never executed.
-A fixture no test loads is a JSON file, not a falsifier.: expected [ Array(1) ] to deeply
-equal []`. (Fixture removed after the probe.)
-- a fixture tree on disk in the self-test, one directory per outcome: read-and-selectable,
-  read-but-not-selectable, read by nobody, and read only by this gate. The old self-test
-  exercised `testNamesIn`, a string helper, and never `consumersFor` at all.
-
-### Three id-carrying journey tests passed over an empty ledger
-
-Run on this branch's own worktree — cut from `origin/main`, where the lanes do not exist —
-`runJourney` early-returns an empty ledger and 7 of the 14 journey tests still passed,
-including `[INV-DAY-09]` (`[].every(…)` is `true`), `[INV-REC-01]` (a loop over zero
-repairs) and the independent-reference cross-check (`[] === []`). Those names are what
-`owningTests()` reads as coverage claims, so three invariant ids were claimed by tests that
-could not fail. They now assert the trace has its 31 dates, and `REC-01` that the one
-repair happened, before asserting anything about it. The suite was red overall only because
-a different test (`ran all thirty local days`) failed — which is luck, not a gate.
-
-Measured before and after, on that same branch worktree: `Tests 11 failed | 127 passed
-(138)` → `Tests 14 failed | 129 passed (143)`. The three added failures are exactly those
-three tests.
-
-### Four accuracy corrections
-
-| Claimed                                                           | Measured                                                                                               |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `INV-ECO-01`'s offender is the day lane                           | It was `packages/core/src/journey/driver.ts`, this task's own file. Fixed here.                        |
-| 1,125 tests in 107 files, 27.5 s, 8 failing (3 per gate)          | 1,125 in 106 files, 37.2 s, **4** failing, one per gate — and 1,130 in 106 after this task's new tests |
-| This gate is the only file whose test names carry the filter term | 60 files do; `pnpm test:falsify` selects 57 of them and runs 245 tests                                 |
-| The Stryker threshold is a gate                                   | It is derived from `day/` alone; the nightly reports, and the clause is NOT MET                        |
-
-### What the same review confirmed
-
-Recorded so the page is not only its corrections: all nine branches merge with **zero
-conflicts**; every number in the end-state ledger table reproduces exactly, independently,
-on a tree rebuilt from these shas; this branch changes no `package.json`,
-`pnpm-lock.yaml`, `pnpm-workspace.yaml`, `pyproject.toml` or `uv.lock`; `packages/core`
-imports nothing from react-native or expo; `actionlint .github/workflows/mutation.yml`
-exits 0; and the id arithmetic holds — 424 ids in `docs/invariants.md`, a 217-id union
-across `docs/invariants-owned.json` and the 11 `docs/owned/*.json`, 0 missing, 0
-undeclared, exactly one duplicate.
-
-## The whole suite
-
-`pnpm test` on the merged tree at these nine shas: **1,130 tests in 106 files,
-3 failing**, twice — 32.27 s on an idle machine and 59.45 s with the rest of this session
-running beside it, which is what a local wall-clock figure is worth — `[INV-ECO-24]`, the falsifier gate's _"every owned invariant id has a
-committed falsifier input"_ (the 42 missing inputs), and the roster gate's _"every id the
-phase roster requires is claimed by exactly one ownership file"_ (the `INV-CER-01`
-duplicate). Exactly one failure per blocker; every other test in every lane passes.
-
-An earlier draft of this page reported _"1,125 tests in 107 files, 27.5 s, 8 failing …
-three from the falsifier gate and three from the roster gate"_. A refuter reproduced the
-same merge and measured 1,125 tests in 106 files, 37.2 s, 4 failing — one failure per gate,
-not three. The "two consequences" each did not exist. Over-stating failures is the safer
-direction to be wrong in, but the decomposition a founder reads was wrong, so: the numbers
-above are re-measured, the five extra tests are this task's new fixture-tree self-tests,
-and `[INV-ECO-01]` is gone because it was fixed rather than because it stopped being
-counted.
+**The commit that records a whole-engine number is the one that removes
+`continue-on-error`.** That commit is not this one. A run on the fixed tree is what
+produces the number, and quoting the `day/`-only 71.28% as if it were the engine's score
+would be exactly the dishonesty this file exists to prevent.
 
 ## Dependencies added
 
-**None by this task.** `pnpm-lock.yaml`, `package.json` and `pnpm-workspace.yaml` are
-untouched by `p1/journey-and-gate`; the phase's only dependency change was the designated
-deps task (`ts-fsrs`, the bundle-safe ed25519 verifier, `tools/soundbank`), which landed
-before this branch started.
+By the designated deps task (`ebbe84b`, already on `origin/main` as `7914980`), and by
+nothing else in P1:
+
+| Package                       | Resolved | Licence                | Where                                                   |
+| ----------------------------- | -------- | ---------------------- | ------------------------------------------------------- |
+| `ts-fsrs`                     | 5.4.2    | MIT, zero runtime deps | `packages/core` — `scheduler/`                          |
+| `@noble/ed25519`              | 3.2.0    | MIT, zero runtime deps | `packages/schema` — bundle-safe pack-signature verifier |
+| `@noble/hashes`               | 2.4.0    | MIT, zero runtime deps | the sha512 hook v3 requires                             |
+| `numpy`                       | 2.5.3    | BSD-3                  | `tools/soundbank` (new uv project)                      |
+| `soundfile`                   | 0.14.0   | BSD-3                  | `tools/soundbank`                                       |
+| `pytest` 9.1.1, `ruff` 0.16.7 |          |                        | `tools/soundbank` dev group                             |
+
+`pnpm-workspace.yaml` is unchanged; `patches/expo-modules-jsi@57.1.0.patch` and its
+`patchedDependencies` entry are intact. **No Expo package was added**, so `npx expo install`
+was not run — correct for an engine phase (INV-PLAT-01).
+
+`tools/soundbank`: `uv sync` clean, `uv run pytest` **16 passed**. `tools/coursekit` was not
+touched by any P1 branch, so `coursekit validate` was not run and `pack-ci.yml` did not
+fire.
+
+## Deferred, with reasons
+
+### The 13 roster ids P1 does not own
+
+Every one needs a screen, a native surface or a device. Declared in `docs/owned/journey.json`
+with full reasons; `phase-roster.test.ts` fails if one is silently dropped.
+
+| id          | Kind                                                          | Moves to                        |
+| ----------- | ------------------------------------------------------------- | ------------------------------- |
+| INV-CER-12  | a back press on each ceremony screen                          | P4 (S067–S090)                  |
+| INV-CER-16  | every Score-chain CTA resolves to the `macaw` token           | P3 token conformance            |
+| INV-COM-05  | a colour transition never rewinds a width tween               | P3                              |
+| INV-DAT-06  | no notification or widget entry derives from pre-import state | P4 / P5                         |
+| INV-DAT-08  | import never opens a `content://` URI directly                | P5, on a device                 |
+| INV-ECO-31  | equipping a cosmetic changes only `MascotRenderer` output     | P3 art, P5 widget               |
+| INV-GRD-09  | production inputs declare autocorrect and spellcheck off      | P3 component gate               |
+| INV-PATH-10 | the canvas after a section-complete return                    | P3                              |
+| INV-PATH-11 | exactly one pinned header at every scroll offset              | P3                              |
+| INV-PATH-12 | the guidebook route id equals the pinned header's unit id     | P3                              |
+| INV-PATH-24 | every pack-declarable node type has a `PathNode` variant      | P3 (art is its entry criterion) |
+| INV-PER-09  | zero files remain under the recording directory               | P5 (ASR)                        |
+| INV-PER-10  | the on-device backup manifest                                 | P5 checklist                    |
+
+### Other deferrals
+
+| Deferred                                             | Why                                                                                                                                                                                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whole-engine Stryker score                           | Multi-hour run; now _possible_ for the first time (green suite) but not yet _done_. Clause 13.                                                                                                                  |
+| Stryker's regex mutants                              | Off until `weapon-regex` stops emitting `\V` under `u`, or `sanitise.ts` writes its class differently.                                                                                                          |
+| The remaining 31 descriptive falsifiers → executable | 11 of 42 new fixtures use the `{check, cases}` contract; the older 176 use four lane-specific shapes. Moving one lane per P2 module is the cheapest path, and the gate no longer runs zero cases while waiting. |
+| One falsifier payload format                         | Four lanes chose four shapes. The gate checks identity, a reason and consumption, and deliberately does not prescribe a fifth.                                                                                  |
+| The journey against a real SQLite progress DB        | It drives the pure engine; `packages/schema`'s golden corpus is exercised by that lane. Running the same 30 days through `createNodeDb` + `migrate` is the natural P2 extension.                                |
+| `pnpm format:check` on `docs/P0-REPORT.md`           | Pre-existing on `origin/main` (reproduced against `git show origin/main:docs/P0-REPORT.md`), not caused by P1, and `format:check` is not a job in `ci.yml`. Every file this phase touched is prettier-clean.    |
+
+## Blockers
+
+**None blocking the phase gate.** The three that were blocking are closed, and the two CI
+found are fixed in `7cd2988`.
+
+Three things a founder should know before P2 starts:
+
+1. **Clause 13 is genuinely unmet.** The mutation number in this file is one module's, and
+   the threshold is derived from that same module. Nobody has seen a whole-engine score.
+   The first one may be well below 70 and that would be information, not a regression.
+2. **The `timed_refill` / `streak_freeze_refill` class of defect will recur.** Two lanes
+   naming the same persisted value differently is invisible to both lanes' suites and to
+   code review, and was caught only because a grep gate written for an unrelated reason
+   happened to match one spelling. P2 should consider a gate that asserts every engine enum
+   whose values reach a column agrees with that column's CHECK constraint.
+3. **Two round-1 failures were environment-dependent, and one of them is a pattern.**
+   `ed25519.test.ts` asserted equality with a platform library whose behaviour changed
+   between versions. Anywhere a test compares our output to a system library's — OpenSSL,
+   ICU, `Intl`, SQLite — the same trap is available, and it is invisible until the runner
+   image rotates. Worth a sweep at P2, when `coursekit` adds spaCy and SudachiPy.
 
 ## Disk
 
 ```
 df -h ~
 Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
-/dev/disk3s5   460Gi   382Gi    28Gi    94%    4.5M  294M    2%   /System/Volumes/Data
+/dev/disk3s5   460Gi   384Gi    28Gi    94%    4.6M  288M    2%   /System/Volumes/Data
 ```
 
-**28 GB free at 94%**, against the plan's ≥ 80 GB target, unchanged since P0 apart from one
-scratch integration worktree and a Stryker temp directory. The deletion candidate list in
-plan §Risks 1 is still waiting on founder approval; nothing was deleted.
+**28 GB free at 94%**, against the plan's ≥ 80 GB target. Above the 15 GB floor the build
+brief sets, so nothing was blocked. The deletion candidate list in plan §Risks 1 is still
+waiting on founder approval; nothing was deleted. All nine P1 worktrees under
+`/Users/mannbellani/freelingo-wt/` were removed after merging.
 
-## Deferred to P2, and why
+## What the pre-merge report got right, and where this one differs
 
-| Deferred                        | Why                                                                                                                                                                                                                |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The 13 roster ids above         | Every one needs a screen, a native surface or a device. They are declared in `docs/owned/journey.json` with reasons and move to P3/P4/P5.                                                                          |
-| The 42 missing falsifier inputs | Owned by the lanes that own the ids, chiefly `p1-foundation-economy-schema`. Not fixable from this task's file lane.                                                                                               |
-| One falsifier format            | Four lanes, four payload shapes. The gate stopped prescribing one; unifying them (and moving every lane onto the executable `check` contract, so the runner and not the lane executes the corpus) is a P2 cleanup. |
-| Stryker's regex mutants         | Off until `weapon-regex` stops emitting `\V` under the `u` flag, or `sanitise.ts` writes its class differently.                                                                                                    |
-| A CI run behind any of this     | Nothing has been pushed. Every figure here is local. The integrate task's push is what turns these into evidence with a URL.                                                                                       |
+Recorded because the previous page was itself refuted once and says so, and because a
+second report that quietly replaced its numbers would be worse than the first.
 
-## Open items carried into P2
-
-1. **Nothing here has a CI URL.** The plan's §The build workflow, step 3 says only CI
-   produces artefacts and a screenshot without a CI URL does not count. The same standard
-   applies to these numbers: they are local, reproducible, and unverified by the runner.
-2. **The two cross-lane collisions and the duplicate claim** must be resolved before the
-   phase gate can be green, and before Stryker can score an unmodified tree.
-3. **The economy/schema lane owes a falsifier corpus** — 36 of the 42 missing ids are its,
-   and it is the only lane of the eight with no `__falsifiers__` directory.
-4. **The journey does not yet run against a real SQLite progress database.** It drives the
-   pure engine; `packages/schema`'s golden-DB corpus and `session-commit.ts` are exercised
-   by that lane's own tests. Running the same 30 days through `createNodeDb` + `migrate`
-   would close the gap between "the engine agrees with itself" and "the engine agrees with
-   what is on disk", and is the natural P2 extension.
-5. **`maxRolloverDeferralSeconds` is a literal in the journey**, deliberately: a gate that
-   reads the bound from the thing it is bounding cannot catch the bound moving. If the
-   ruling changes, that literal must change with it, and the journey will say so.
-6. **No whole-engine mutation score exists.** Until one does, `thresholds.break` is a
-   derivation from `day/` and the nightly reports instead of gating. The first green
-   merged tree makes the run possible; the commit that records the number is the one that
-   takes `continue-on-error` off. Until then the plan's P1 gate clause _"Stryker score ≥
-   threshold nightly"_ is **NOT MET**.
-7. **The executable falsifier contract has no users.** Zero of 176 fixtures declare
-   `{check, cases}`, so the gate's execution clause runs zero cases and the corpus is held
-   up by the consumption check alone. Moving one lane onto the contract per P2 module is
-   the cheapest way to make _"committed falsifier inputs"_ mean _"executed falsifier
-   inputs"_.
+| Pre-merge claim                                                                | On the merged tree                                                                                                                           |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| All nine branches merge with zero conflicts                                    | Confirmed, in main, in the stated order                                                                                                      |
+| 1,130 tests in 106 files, 3 failing                                            | **1,258 in 112, 0 failing** after the integration commit; the 3 failures were the 3 blockers, exactly one per blocker as claimed             |
+| 217 owned, 217 with a test, one duplicate                                      | Confirmed; the duplicate is gone and the count is unchanged                                                                                  |
+| 218 property sites, 0 below the floor                                          | **230** on the merged tree, still 0 below                                                                                                    |
+| `[INV-ECO-24]`'s offender is a channel name to rename or exempt                | Correct that it was the channel; **incorrect that either fix was equivalent** — one of them was also a latent SQLite constraint failure      |
+| The executable falsifier contract has zero users (Open item 7, deferred to P2) | Confirmed it had zero; **closed here rather than deferred**, 11 users / 46 cases                                                             |
+| `day/` scores 71.28% over 968 mutants                                          | Unchanged; still the only complete measurement that exists                                                                                   |
+| The engine is 115 files / 9,802 mutants                                        | **117 files / 10,442 mutants** on the merged tree, counted by the job itself                                                                 |
+| Stryker's blockers are the regex mutator, a red suite, and wall clock          | The red suite is gone; a **fourth** appeared, measured on the first real attempt — a 60 s per-test timeout under `perTest` coverage analysis |
+| Every figure is local and has no CI URL                                        | Every figure here has one, and CI found two defects no local run could                                                                       |

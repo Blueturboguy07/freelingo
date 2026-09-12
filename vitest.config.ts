@@ -35,6 +35,38 @@ const PROJECTS = ['core', 'schema', 'ui', 'testkit'] as const;
  */
 const TEST_TIMEOUT_MS = 60_000;
 
+/**
+ * The same tests, under Stryker, get a bigger clock — and only under Stryker.
+ *
+ * Measured at P1 integration (mutation run 34672747773, ubuntu-latest, the first
+ * whole-engine attempt on a green tree): the dry run died after 1 m 48 s with
+ *
+ *   ERROR DryRunExecutor One or more tests failed in the initial test run:
+ *     recovery [INV-REC-01] repairs are ≤ one per calendar month and never stack with a freeze
+ *       Test timed out in 60000ms.
+ *
+ * and Stryker refuses to score a tree whose initial run is red, so **no number was
+ * produced at all**. That test takes 14.7 s under `pnpm test` on this Mac. It is not a
+ * property that got slower: Stryker's `perTest` coverage analysis instruments every
+ * mutant inline and records which test covers which mutant, which is a different
+ * execution mode from running the suite.
+ *
+ * So the budget is raised for that mode and left alone everywhere else. `pnpm test` and
+ * CI keep the 60 s limit, where a real hang is still a failure rather than something that
+ * eats the job's timeout — which is the thing the paragraph above this one exists to
+ * protect. `STRYKER_MUTATOR_WORKER` is set by @stryker-mutator/core in the forked
+ * test-runner process, so this applies there and only there.
+ *
+ * This is NOT the escape hatch for a property that got slower for a reason nobody looked
+ * into. The rule in that case is unchanged: tighten the generator, never lower
+ * PROPERTY_RUNS, and never raise the number above.
+ */
+const STRYKER_TIMEOUT_FACTOR = 5;
+const UNDER_STRYKER = process.env['STRYKER_MUTATOR_WORKER'] !== undefined;
+const EFFECTIVE_TEST_TIMEOUT_MS = UNDER_STRYKER
+  ? TEST_TIMEOUT_MS * STRYKER_TIMEOUT_FACTOR
+  : TEST_TIMEOUT_MS;
+
 export default defineConfig({
   test: {
     projects: PROJECTS.map((name) => ({
@@ -43,7 +75,7 @@ export default defineConfig({
         root: `./packages/${name}`,
         environment: 'node' as const,
         include: ['src/**/*.test.ts'],
-        testTimeout: TEST_TIMEOUT_MS,
+        testTimeout: EFFECTIVE_TEST_TIMEOUT_MS,
       },
     })),
   },
