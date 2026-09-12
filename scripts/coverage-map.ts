@@ -282,10 +282,28 @@ export function unionOwnership(
 
 /** Every ownership file on disk: the phase baseline plus one file per task. */
 function ownershipFiles(): OwnershipFile[] {
-  const read = (relativePath: string): OwnershipFile => ({
-    path: relativePath,
-    ids: (JSON.parse(readFileSync(join(ROOT, relativePath), 'utf8')) as { owned: string[] }).owned,
-  });
+  /**
+   * One ownership file. The contract is a top-level `owned` array of ids and nothing
+   * else is read; every other key in these files is prose for a human.
+   *
+   * The shape is CHECKED rather than cast, because it already broke the gate once: a P2
+   * fix lane wrote its ids under `invariants` instead of `owned`, and the cast turned
+   * that into `TypeError: file.ids is not iterable` several frames away, naming no file.
+   * A gate that cannot say which file is wrong sends the reader to the wrong file.
+   */
+  const read = (relativePath: string): OwnershipFile => {
+    const parsed: unknown = JSON.parse(readFileSync(join(ROOT, relativePath), 'utf8'));
+    const owned = (parsed as { owned?: unknown }).owned;
+    if (!Array.isArray(owned) || owned.some((id) => typeof id !== 'string')) {
+      console.error(
+        `coverage-map: ${relativePath} has no top-level "owned" array of invariant ids. ` +
+          `Every ownership file declares one, empty if the task owns nothing ` +
+          `(see docs/README.md "Adding coverage").`,
+      );
+      process.exit(1);
+    }
+    return { path: relativePath, ids: owned as string[] };
+  };
   const files = [read(OWNED_PATH)];
   let entries: string[] = [];
   try {

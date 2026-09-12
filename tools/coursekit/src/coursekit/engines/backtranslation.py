@@ -26,13 +26,26 @@ is for: the artefact says which engine ran, and swapping one for another is visi
 
 `coursekit.artifacts.CANDIDATE` is frozen and `additionalProperties: false`, so a rubric
 score is not smuggleable across the G5 boundary — which is the contract working. The
-score lives where it was authored, in `content/<lang>/candidates.jsonl`, and this engine
-reads it from there, keyed by the candidate text.
+score lives where it was authored, in `content/<lang>/candidates.jsonl` and in every
+`content/<lang>/candidates/*.jsonl` shard, and this engine reads it from there, keyed by
+the candidate text.
+
+## Why it reads a LIST of files
+
+It read exactly one — `content/<lang>/candidates.jsonl` — until the P2 fix integration.
+The sharding that let four authoring lanes write one course moved every authored row into
+`content/<lang>/candidates/*.jsonl` and left that single file absent, so the engine probed
+a path that no longer existed, reported `backtranslation_engine: none`, and G6 failed the
+build with "an engine was requested and could not run". The score file and the file G5
+reads are the same file, so the engine now takes the same list G5 takes
+(`authored_candidates_paths`) rather than one path that happened to be the only one when
+it was written.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -49,20 +62,27 @@ __all__ = ["AgentRubricEngine", "build"]
 
 @dataclass(slots=True)
 class AgentRubricEngine:
-    """Rubric scores read from the authored candidates file, keyed by candidate text."""
+    """Rubric scores read from the authored candidate files, keyed by candidate text."""
 
-    path: Path
+    paths: tuple[Path, ...]
     id: str = "agent_rubric"
     _scores: dict[str, dict[str, Any]] = field(default_factory=dict)
     _rubric_version: str = ""
 
+    @property
+    def path(self) -> Path | None:
+        """The first file, for a message that has to name somewhere. `None` if empty."""
+        return self.paths[0] if self.paths else None
+
     def probe(self, lang: str) -> dict[str, Any]:
-        if not self.path.exists():
+        present = [path for path in self.paths if path.exists()]
+        if not present:
+            named = ", ".join(str(path) for path in self.paths) or "nowhere"
             return {
                 "available": False,
                 "backtranslation_engine": ENGINE_NONE,
                 "reason": (
-                    f"no authored candidates at {self.path}, so there are no rubric "
+                    f"no authored candidates at {named}, so there are no rubric "
                     f"scores to read and no round trip to run instead"
                 ),
                 "detail": {},
@@ -70,7 +90,7 @@ class AgentRubricEngine:
 
         low, high = BACKTRANSLATION_SCORE_RANGE
         unscored: list[str] = []
-        for row in _rows(self.path):
+        for row in _rows_of(present):
             block = row.get("backtranslation")
             if not isinstance(block, dict) or not isinstance(block.get("score"), int):
                 unscored.append(row.get("text", "<no text>"))
@@ -100,7 +120,8 @@ class AgentRubricEngine:
             ),
             "reason": "",
             "detail": {
-                "rubric": str(self.path.parent / "gapfill-rubric.md"),
+                "files": [str(path) for path in present],
+                "rubric": str(present[0].parent / "gapfill-rubric.md"),
                 "rubric_version": self._rubric_version,
                 "scored": len(self._scores),
                 "authorship": BACKTRANSLATION_AUTHORSHIP,
@@ -122,17 +143,22 @@ class AgentRubricEngine:
         return dict(self._scores.get(text, {}))
 
 
-def _rows(path: Path) -> list[dict[str, Any]]:
+def _rows_of(paths: Iterable[Path]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    with path.open(encoding="utf-8") as handle:
-        for line in handle:
-            if line.strip():
-                out.append(json.loads(line))
+    for path in paths:
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    out.append(json.loads(line))
     return out
 
 
 @register_engine("agent_rubric")
-def build(path: str | None = None) -> AgentRubricEngine | None:
+def build(path: str | Sequence[str] | None = None) -> AgentRubricEngine | None:
+    """One path or every path G5 read. A bare string stays accepted, and is one file."""
     if not path:
         return None
-    return AgentRubricEngine(path=Path(path))
+    paths = (path,) if isinstance(path, str) else tuple(path)
+    if not paths:
+        return None
+    return AgentRubricEngine(paths=tuple(Path(one) for one in paths))

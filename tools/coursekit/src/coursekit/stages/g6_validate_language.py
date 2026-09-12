@@ -76,7 +76,7 @@ from ..config.g6 import (
 )
 from ..engines import ENGINES
 from ..runlog import require_successful
-from ..stages.g5_gapfill import authored_candidates_path
+from ..stages.g5_gapfill import authored_candidates_path, authored_candidates_paths
 from . import StageContext, StageResult, register_stage
 
 __all__ = ["validate_language"]
@@ -126,7 +126,14 @@ def validate_language(ctx: StageContext) -> StageResult:
     perplexity = perplexity_factory(
         ctx.options.get(KENLM_MODEL_OPTION), ctx.options.get(KENLM_BAND_OPTION)
     )
-    backtranslation = backtranslation_factory(str(authored_candidates_path(ctx.lang)))
+    # EVERY authored file, not just the legacy single one: the rubric score lives beside
+    # the sentence that was scored, and after sharding those sentences are in
+    # `content/<lang>/candidates/*.jsonl`. Passing one path here probed a file the P2 fix
+    # round had emptied out, so the engine reported `none` and this stage failed the build
+    # with "an engine was requested and could not run" while every score existed on disk.
+    backtranslation = backtranslation_factory(
+        [str(path) for path in authored_candidates_paths(ctx.lang)]
+    )
 
     grammar_probe = _probe(grammar, ctx.lang, ("grammar_engine", "spellcheck_engine"))
     perplexity_probe = _probe(perplexity, ctx.lang, ("perplexity_engine",))

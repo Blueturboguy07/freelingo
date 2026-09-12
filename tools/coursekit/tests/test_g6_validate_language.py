@@ -750,3 +750,45 @@ def test_the_invocation_build_es_uses_today_leaves_v8_with_nothing(
     findings = blocking(run_v8())
     assert findings, "V8 passed a run in which nothing that can find an error ran"
     assert "zero errors from nothing" in findings[0].message
+
+
+def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, es_adapter: None  # noqa: F811
+) -> None:
+    """A course whose candidates live only in `content/es/candidates/*.jsonl`.
+
+    This is the shape the P2 fix round shipped: sharding moved every authored row out of
+    `content/es/candidates.jsonl` and into one file per authoring lane, and the legacy
+    file stopped existing. G6 built its back-translation engine from that one path, so it
+    probed a file that was not there, reported `backtranslation_engine: none` and failed
+    the stage with "an engine was requested and could not run" — while every score sat on
+    disk, one directory across. Zero scores read from a file nobody wrote is exactly the
+    "checked nothing" reading INV-PACK-14 exists to catch, so the fix is tested here and
+    not only in the engine.
+    """
+    from coursekit.stages.g5_gapfill import authored_shard_dir
+
+    rows = authored_rows(REAL_CANDIDATES)
+    monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path / "content"))
+    shard_dir = authored_shard_dir("es")
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    (shard_dir / "lane-a.jsonl").write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    assert not (shard_dir.parent / "candidates.jsonl").exists()
+
+    stage_g4("es", gap_list(rows))
+    assert run_g5().ok
+
+    from coursekit.engines import ENGINES
+    from coursekit.stages.g5_gapfill import authored_candidates_paths
+
+    build = ENGINES.get("agent_rubric")
+    assert build is not None
+    engine = build([str(path) for path in authored_candidates_paths("es")])
+    assert engine is not None
+    probe = engine.probe("es")
+    assert probe["available"], probe["reason"]
+    assert probe["detail"]["scored"] == len({row["text"] for row in rows})
+    assert engine.score(rows[0]["text"]) == rows[0]["backtranslation"]["score"]

@@ -3,7 +3,9 @@
   "branch": "p2fix/author-u24-u30",
   "phase": "P2",
   "owns": ["content/es/candidates/u24-u30.jsonl", "docs/owned/p2fix-author-u24-u30.json"],
-  "invariants": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
+  "owned": [],
+  "contributesTo": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
+  "whyOwnedIsEmpty": "This lane writes ONE content file and no test, so it owns no invariant id. The three ids under `contributesTo` are the gates its content has to survive and they are already owned by the lanes that wrote their tests (docs/owned/p2-g3-g4.json, p2-g5-g6.json, p2-g7.json); claiming them here would be the duplicate claim scripts/coverage-map.ts fails on. The key was `invariants` until the P2 fix integration: coverage-map reads `owned`, and a file without it crashed the gate with `file.ids is not iterable` instead of naming the file.",
   "authored_at": "2026-09-12",
   "author": "claude-opus-5 (agent; Freelingo p2fix-author-u24-u30 lane)",
   "authority": {
