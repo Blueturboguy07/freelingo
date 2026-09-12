@@ -602,13 +602,28 @@ analysis at all, so POS is empty and the band is `unbanded` and the rule core ha
 to choose from. Every authored item whose gap lands on a capitalised or inflected surface
 is exposed.
 
+**Half of it is fixed here and the half that is left is the half that needs a decision.**
+`_anchor_lemma` now hands `_decoys` the lemma at the gap index instead of the surface at
+the gap index, and for a corpus sentence that is the real lemma from G1. For an authored
+candidate the "lemma" is still only the casefolded stripped surface, because there is no
+analysis to take a real one from, so the next run stops one item later:
+
+```
+g7 failed: NotEnoughDistractors: authored:1:1:Bueno, tardes, noches.: needed 3
+distractors for 'tardes' (POS , band unbanded) and the rule core found 0.
+```
+
+`tardes` is a surface; `tarde` is the lemma. Every authored item whose gap lands on an
+inflected form is exposed, which over 490 authored items is most of them.
+
 Two possible fixes, and the choice is a design decision for the G7 lane rather than an
 integration patch:
 
 1. **Analyse authored candidates in G7 with the registered adapter.** It is the same
    adapter and the same pinned model G5 already runs over the same text, so it is not the
    "second analyser version" the docstring worries about — but it is another full pass
-   over every authored item, and it makes G7 depend on `nlp` as well as `align`.
+   over every authored item, and it makes G7 depend on `nlp` as well as `align`, which
+   means deciding what G7 does on a runner that has `align` and not `nlp`.
 2. **Carry the analysis across the G5 → G7 boundary.** Cleaner and cheaper, and it
    changes `coursekit.artifacts.CANDIDATE`, which is frozen
    (`additionalProperties: false`, `required == properties`, contract digest
