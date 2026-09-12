@@ -73,12 +73,13 @@ from ..config.g8 import (
     STORY_MINUTES_EACH,
 )
 from ..exercises.shapes import shape_of_record
+from ..inputs import MissingInput
 from ..runlog import require_successful
 from ..stages import StageContext, StageResult, register_stage
 from ..tts import TTS
 from ..tts.cast import Cast, load_cast, rebake_key
 from ..tts.loudness import master, measure_lufs, trim_gain
-from ..tts.transcode import decode, encode, require_tools
+from ..tts.transcode import EncodedClip, clip_filename, decode, encode, require_tools
 
 __all__ = ["Utterance", "bake", "bank_dir", "manifest_path", "plan_utterances", "spoken_text"]
 
@@ -195,6 +196,130 @@ def spoken_text(exercise: Mapping[str, Any]) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True, slots=True)
+class _Baked:
+    """One clip on disk plus everything the manifest says about it.
+
+    The same shape whether the clip was just rendered or read back off the bank, which
+    is what lets the loop below stay one loop.
+    """
+
+    clip: Any
+    decoded: Any
+    decoded_rate: int
+    measured: Any
+    limiter_db: float
+    encode_passes: int
+
+
+def _render(engine: Any, cast: Cast, utterance: Utterance, role: Any, directory: Path) -> _Baked:
+    """Synthesise, level, encode, and close the loop on the file that shipped."""
+    samples, rate = engine.synthesise(utterance.text, role)
+    levelled, limiter_db = master(
+        samples,
+        rate,
+        cast.target_lufs,
+        ceiling_dbfs=PEAK_CEILING_DBFS,
+        tolerance_lu=cast.tolerance_lu,
+        max_passes=MASTER_MAX_PASSES,
+    )
+
+    # INV-AUD-08: the measurement that counts is taken on the SHIPPED file, and
+    # the loop closes on it. A 20 kbps encode costs a systematic 0.4-0.75 LU
+    # (measured), so a bake that encoded once and widened the tolerance to cover
+    # the loss would be asserting the target rather than reaching it.
+    candidate = levelled
+    encode_pass = 0
+    while encode_pass < ENCODE_MAX_PASSES:
+        encode_pass += 1
+        clip = encode(candidate, rate, utterance.clip_id, directory)
+        decoded, decoded_rate = decode(clip.path)
+        measured = measure_lufs(decoded, decoded_rate)
+        error = cast.target_lufs - measured.lufs
+        if abs(error) <= cast.tolerance_lu / 2.0:
+            break
+        candidate = trim_gain(candidate, rate, error, ceiling_dbfs=PEAK_CEILING_DBFS)
+    return _Baked(clip, decoded, decoded_rate, measured, limiter_db, encode_pass)
+
+
+def _previous_clips(lang: str) -> dict[str, dict[str, Any]]:
+    """The committed manifest's clip rows, by clip id — or nothing, on a first bake."""
+    try:
+        manifest = read_manifest(lang)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    rows = manifest.get("clips")
+    if not isinstance(rows, list):
+        return {}
+    return {str(row["clip_id"]): row for row in rows if isinstance(row, dict) and "clip_id" in row}
+
+
+def _reuse(
+    cast: Cast, utterance: Utterance, directory: Path, previous: dict[str, dict[str, Any]]
+) -> _Baked | None:
+    """The clip already on disk, if it is demonstrably the clip this run would produce.
+
+    THE STAGE'S OWN DOCSTRING PROMISED THIS AND THE CODE DID NOT DO IT. "One edited line
+    therefore re-renders one file and leaves every other id alone" is the property the
+    content-addressed name exists for, and until now every run re-synthesised all of
+    them: a bank is a pure function of its inputs and the stage was recomputing it from
+    scratch each time. Measured on this Mac, 2026-09-12: 0.80 s per clip to render
+    (79% of it Kokoro), 0.032 s to read one back and measure it — 25x. Over the ~2,900
+    clips of the Spanish course that is the difference between a bake that fits inside
+    `build-es`'s budget on a warm cache and one that does not fit at all.
+
+    THE RETURN IS NOT A SHORTCUT PAST INV-AUD-08. A reused clip is still DECODED and
+    MEASURED, and it is held to the same tolerance the failure gate applies to a fresh
+    one; the loop below cannot tell the two apart and does not try. What is skipped is
+    the synthesis and the encode, and only because the encode is deterministic — the Ogg
+    serial is derived from the clip id precisely so that two encodes of identical PCM are
+    identical bytes (`tts/transcode.py`), which `test_g8_bake.py` pins by baking the same
+    utterance twice into two directories and comparing sha256.
+
+    Four conditions, and every one of them can refuse:
+
+    1. the file exists;
+    2. the committed manifest carries a row for that clip id — a clip in the bank that
+       the manifest does not account for is not evidence of anything, and reusing it
+       would let a stray file survive a cast change;
+    3. that row's `sha256` and `bytes` still describe the file on disk. This is the
+       corruption check: a run killed mid-encode leaves a truncated file whose name is
+       still the re-bake key, and a name cannot notice that;
+    4. the decoded file measures inside the declared tolerance.
+
+    Anything else falls through to `_render`, which overwrites the file. There is no
+    repair path: a clip that fails one of these is re-made from its inputs, never
+    patched (INV-PACK-10).
+    """
+    row = previous.get(utterance.clip_id)
+    if row is None:
+        return None
+    path = directory / clip_filename(utterance.clip_id)
+    if not path.is_file():
+        return None
+    size = path.stat().st_size
+    if int(row.get("bytes", -1)) != size or str(row.get("sha256", "")) != _sha256(path):
+        return None
+    try:
+        decoded, decoded_rate = decode(path)
+    except (MissingInput, OSError, ValueError):
+        return None
+    measured = measure_lufs(decoded, decoded_rate)
+    if abs(measured.lufs - cast.target_lufs) > cast.tolerance_lu:
+        return None
+    clip = EncodedClip(clip_id=utterance.clip_id, path=path, bytes=size)
+    limiter_db = row.get("limiter_reduction_db")
+    encode_passes = row.get("encode_passes")
+    if not isinstance(limiter_db, int | float) or not isinstance(encode_passes, int):
+        # The two fields that are facts about the RUN rather than about the file. Without
+        # them a reused clip's manifest row would differ from a rendered one's, so a warm
+        # bake and a cold bake would write different manifests for the same bank — and the
+        # manifest is the committed record of the bank. Refusing here keeps
+        # `bake; bake` byte-identical to `bake`.
+        return None
+    return _Baked(clip, decoded, decoded_rate, measured, float(limiter_db), encode_passes)
+
+
 @register_stage("g8", reads=("exercise",), writes=("baked_clip",), requires_group="tts")
 def bake(ctx: StageContext) -> StageResult:
     """Synthesise, level, transcode and verify the whole bank for one language."""
@@ -212,37 +337,21 @@ def bake(ctx: StageContext) -> StageResult:
     engine = engine_factory(ctx.lang)
 
     directory = bank_dir(ctx.lang)
+    previous = _previous_clips(ctx.lang)
     records: list[dict[str, Any]] = []
     entries: list[dict[str, Any]] = []
     failures: list[str] = []
+    reused_clips = 0
 
     for utterance in utterances:
         role = cast.role(utterance.role_id)
-        samples, rate = engine.synthesise(utterance.text, role)
-        levelled, limiter_db = master(
-            samples,
-            rate,
-            cast.target_lufs,
-            ceiling_dbfs=PEAK_CEILING_DBFS,
-            tolerance_lu=cast.tolerance_lu,
-            max_passes=MASTER_MAX_PASSES,
-        )
-
-        # INV-AUD-08: the measurement that counts is taken on the SHIPPED file, and
-        # the loop closes on it. A 20 kbps encode costs a systematic 0.4-0.75 LU
-        # (measured), so a bake that encoded once and widened the tolerance to cover
-        # the loss would be asserting the target rather than reaching it.
-        candidate = levelled
-        encode_pass = 0
-        while encode_pass < ENCODE_MAX_PASSES:
-            encode_pass += 1
-            clip = encode(candidate, rate, utterance.clip_id, directory)
-            decoded, decoded_rate = decode(clip.path)
-            measured = measure_lufs(decoded, decoded_rate)
-            error = cast.target_lufs - measured.lufs
-            if abs(error) <= cast.tolerance_lu / 2.0:
-                break
-            candidate = trim_gain(candidate, rate, error, ceiling_dbfs=PEAK_CEILING_DBFS)
+        baked = _reuse(cast, utterance, directory, previous)
+        if baked is None:
+            baked = _render(engine, cast, utterance, role, directory)
+        else:
+            reused_clips += 1
+        clip, decoded, decoded_rate = baked.clip, baked.decoded, baked.decoded_rate
+        measured, limiter_db, encode_pass = baked.measured, baked.limiter_db, baked.encode_passes
 
         drift = abs(measured.lufs - cast.target_lufs)
         if drift > cast.tolerance_lu:
@@ -308,6 +417,8 @@ def bake(ctx: StageContext) -> StageResult:
         target_lufs=cast.target_lufs,
         tolerance_lu=cast.tolerance_lu,
         clips=len(entries),
+        reused_clips=reused_clips,
+        synthesised_clips=len(entries) - reused_clips,
         bytes=manifest["totals"]["bytes"],
         declared_bytes=budget["declared_bytes"],
         budget_bytes=budget["budget_bytes"],

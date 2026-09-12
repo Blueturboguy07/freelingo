@@ -17,8 +17,10 @@ when the weights are on the machine.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -46,6 +48,7 @@ from coursekit.exercises.shapes import prompt_for, shape
 from coursekit.inputs import group_is_installed
 from coursekit.stages.g8_bake import build_manifest, plan_utterances, spoken_text
 from coursekit.tts.cast import load_cast, rebake_key
+from coursekit.tts.transcode import EncodedClip
 
 FALSIFIERS = Path(__file__).parent / "falsifiers"
 PACK15 = json.loads((FALSIFIERS / "INV-PACK-15.json").read_text(encoding="utf-8"))["input"]
@@ -107,6 +110,173 @@ def _entry(pipeline: str, byte_count: int, clip_id: str, duration_ms: int = 2000
         "peak_dbfs": -1.0,
         "limiter_reduction_db": 0.0,
     }
+
+
+def _cached_row(path: Path, *, loudness: float = -16.0) -> dict[str, Any]:
+    return {
+        "clip_id": path.stem,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "bytes": path.stat().st_size,
+        "loudness_lufs": loudness,
+        "limiter_reduction_db": 0.25,
+        "encode_passes": 2,
+    }
+
+
+def test_inv_aud_08_valid_cache_reuse_revalidates_the_shipped_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-AUD-08] reuse skips synthesis but still decodes and measures real bytes."""
+    from coursekit.stages import g8_bake
+
+    cast = load_cast("es")
+    utterance = g8_bake.Utterance("a" * 16, "narrator", "Hola.", "lesson", False)
+    path = tmp_path / f"{utterance.clip_id}.opus"
+    path.write_bytes(b"valid cached opus")
+    calls: list[str] = []
+    measured = SimpleNamespace(lufs=cast.target_lufs, gated=True, peak_dbfs=-1.0)
+    monkeypatch.setattr(g8_bake, "decode", lambda actual: (calls.append(str(actual)) or [0.0], 1))
+    monkeypatch.setattr(g8_bake, "measure_lufs", lambda samples, rate: measured)
+
+    reused = g8_bake._reuse(cast, utterance, tmp_path, {utterance.clip_id: _cached_row(path)})
+
+    assert reused is not None
+    assert calls == [str(path)], "a cache hit bypassed decode and loudness revalidation"
+    assert reused.clip.path == path
+    assert reused.encode_passes == 2
+
+
+@pytest.mark.parametrize("damage", ["missing", "hash", "size", "decode"])
+def test_inv_aud_08_damaged_cache_is_refused_for_rerender(
+    damage: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-AUD-08] absent/corrupt/mismatched bytes never become a packed cache hit."""
+    from coursekit.inputs import MissingInput
+    from coursekit.stages import g8_bake
+
+    cast = load_cast("es")
+    utterance = g8_bake.Utterance("b" * 16, "narrator", "Hola.", "lesson", False)
+    path = tmp_path / f"{utterance.clip_id}.opus"
+    path.write_bytes(b"cached opus")
+    row = _cached_row(path)
+    if damage == "missing":
+        path.unlink()
+    elif damage == "hash":
+        row["sha256"] = "0" * 64
+    elif damage == "size":
+        row["bytes"] += 1
+    elif damage == "decode":
+        monkeypatch.setattr(
+            g8_bake, "decode", lambda unused: (_ for _ in ()).throw(MissingInput("bad opus"))
+        )
+
+    assert g8_bake._reuse(cast, utterance, tmp_path, {utterance.clip_id: row}) is None
+
+
+def test_inv_aud_08_out_of_tolerance_cache_is_refused_for_rerender(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-AUD-08] matching bytes are not reusable when shipped loudness has drifted."""
+    from coursekit.stages import g8_bake
+
+    cast = load_cast("es")
+    utterance = g8_bake.Utterance("c" * 16, "narrator", "Hola.", "lesson", False)
+    path = tmp_path / f"{utterance.clip_id}.opus"
+    path.write_bytes(b"quiet opus")
+    monkeypatch.setattr(g8_bake, "decode", lambda unused: ([0.0], 1))
+    monkeypatch.setattr(
+        g8_bake,
+        "measure_lufs",
+        lambda samples, rate: SimpleNamespace(
+            lufs=cast.target_lufs - cast.tolerance_lu - 0.01, gated=True, peak_dbfs=-20.0
+        ),
+    )
+
+    assert g8_bake._reuse(cast, utterance, tmp_path, {utterance.clip_id: _cached_row(path)}) is None
+
+
+def test_inv_aud_08_warm_and_cold_bakes_write_identical_outputs_and_exact_counters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-AUD-08] cache choice changes work performed, never records or manifests."""
+    from coursekit.stages import g8_bake
+
+    cast = load_cast("es")
+    utterances = [
+        g8_bake.Utterance("d" * 16, "narrator", "Hola.", "lesson", False),
+        g8_bake.Utterance("e" * 16, "narrator", "Adiós.", "lesson", False),
+    ]
+    measured = SimpleNamespace(lufs=cast.target_lufs, gated=True, peak_dbfs=-1.0)
+    baked: dict[str, Any] = {}
+    for utterance in utterances:
+        path = tmp_path / f"{utterance.clip_id}.opus"
+        path.write_bytes(utterance.text.encode())
+        baked[utterance.clip_id] = g8_bake._Baked(
+            EncodedClip(utterance.clip_id, path, path.stat().st_size),
+            [0.0, 0.0],
+            1,
+            measured,
+            0.25,
+            2,
+        )
+
+    monkeypatch.setattr(g8_bake, "load_cast", lambda lang: cast)
+    monkeypatch.setattr(g8_bake, "require_tools", lambda: None)
+    monkeypatch.setattr(g8_bake, "require_successful", lambda lang, stages: None)
+    monkeypatch.setattr(g8_bake, "read_records", lambda kind, lang: [])
+    monkeypatch.setattr(g8_bake, "plan_utterances", lambda actual_cast, rows: utterances)
+    monkeypatch.setattr(g8_bake, "TTS", SimpleNamespace(get=lambda engine: lambda lang: object()))
+    monkeypatch.setattr(g8_bake, "bank_dir", lambda lang: tmp_path)
+    monkeypatch.setattr(g8_bake, "write_records", lambda *args, **kwargs: None)
+    monkeypatch.setattr(g8_bake, "_write_manifest", lambda *args, **kwargs: None)
+
+    def run(
+        reused: set[str],
+    ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any], list[str]]:
+        rows: list[dict[str, Any]] = []
+        manifests: list[dict[str, Any]] = []
+        notes: dict[str, Any] = {}
+        rendered: list[str] = []
+        entry = SimpleNamespace(
+            read=0,
+            written=0,
+            record_output=lambda kind: None,
+            note=lambda **values: notes.update(values),
+        )
+        monkeypatch.setattr(
+            g8_bake,
+            "_reuse",
+            lambda actual_cast, utterance, directory, previous: (
+                baked[utterance.clip_id] if utterance.clip_id in reused else None
+            ),
+        )
+        monkeypatch.setattr(
+            g8_bake,
+            "_render",
+            lambda engine, actual_cast, utterance, role, directory: (
+                rendered.append(utterance.clip_id) or baked[utterance.clip_id]
+            ),
+        )
+        monkeypatch.setattr(g8_bake, "_previous_clips", lambda lang: {})
+        monkeypatch.setattr(
+            g8_bake, "write_records", lambda kind, values, lang: rows.extend(values)
+        )
+        monkeypatch.setattr(g8_bake, "_write_manifest", lambda lang, value: manifests.append(value))
+        result = g8_bake.bake(SimpleNamespace(lang="es", entry=entry))
+        assert result.ok
+        return rows, manifests[0], notes, rendered
+
+    cold_rows, cold_manifest, cold_notes, cold_rendered = run(set())
+    warm_rows, warm_manifest, warm_notes, warm_rendered = run(
+        {utterance.clip_id for utterance in utterances}
+    )
+
+    assert warm_rows == cold_rows
+    assert warm_manifest == cold_manifest
+    assert (cold_notes["reused_clips"], cold_notes["synthesised_clips"]) == (0, 2)
+    assert (warm_notes["reused_clips"], warm_notes["synthesised_clips"]) == (2, 0)
+    assert cold_rendered == [utterance.clip_id for utterance in utterances]
+    assert warm_rendered == [], "a valid warm cache still entered the synthesis path"
 
 
 # ---------------------------------------------------------------------------
