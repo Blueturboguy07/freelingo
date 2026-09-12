@@ -171,8 +171,13 @@ committed falsifier inputs per invariant; Stryker score ≥ threshold nightly."_
 | 12  | `packages/core` imports no react-native                                 | **GREEN**                    | `purity.test.ts` green                                                                                                     |
 | 13  | Stryker score ≥ threshold nightly                                       | **NOT MET** — see _Mutation_ | the nightly reports rather than gates; no whole-engine score exists yet                                                    |
 
-Twelve of thirteen. Clause 13 is the one the phase does not meet, and it is the same clause
-the pre-merge report marked NOT MET, for the same reason.
+Twelve of thirteen, all twelve with a CI run behind them on `75d6242`. Clause 13 is the one
+the phase does not meet — the same clause the pre-merge report marked NOT MET, though for a
+reason that is now much more specific (see _Mutation_).
+
+Beyond the plan's own list, `native-e2e.yml` is green on all four jobs, so P1 regressed
+nothing native: `flows exist`, `INV-PLAT-02 — native trees are generated and reproducible`,
+`Android emulator`, `iOS simulator`.
 
 ## CI runs behind these numbers
 
@@ -187,13 +192,31 @@ Two rounds, because round 1 went red. The evidence that counts is round 2, on `7
 | `mutation.yml` (dispatched) | <https://github.com/Blueturboguy07/freelingo/actions/runs/34672747773> | job failed in the dry run — see _Mutation_                                            |
 | `pack-ci.yml`               | not triggered                                                          | P1 changed nothing under `content/`                                                   |
 
-### Round 2, on `75d6242`
+### Round 2, on `75d6242` — the evidence
 
-| Workflow                    | Run                                                                    | Result                         |
-| --------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
-| `ci.yml`                    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673122298> | pending at the time of writing |
-| `native-e2e.yml`            | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673122296> | pending at the time of writing |
-| `mutation.yml` (dispatched) | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673140566> | pending at the time of writing |
+| Workflow                    | Run                                                                    | Result                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`                    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673122298> | **SUCCESS** — lint + typecheck + 112 files / 1,258 tests on ubuntu-latest, golden-DB migrations (9), gitleaks         |
+| `native-e2e.yml`            | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673122296> | **SUCCESS**, all four jobs — flows-present, INV-PLAT-02, Android emulator, iOS simulator (iOS on a re-run; see below) |
+| `mutation.yml` (dispatched) | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673140566> | job failed in the dry run — see _Mutation_. Non-gating.                                                               |
+| `pack-ci.yml`               | not triggered                                                          | P1 changed nothing under `content/`                                                                                   |
+
+**The iOS job needed a re-run, and that is recorded rather than hidden.** On the first
+attempt it failed after building and installing the app successfully:
+
+```
+› Installing …/Release-iphonesimulator/Freelingo.app
+Error: xcrun simctl openurl 3D025AD9-… exp+freelingo://expo-development-client/?url=http%3A%2F%2F192.168.64.9%3A8081
+  exited with non-zero code: 60
+```
+
+Code 60 is `ETIMEDOUT`. The pre-P1 green run (34660595621) issued the **same** command and
+succeeded — `› Opening exp+freelingo://expo-development-client/?url=…192.168.64.4:8081`.
+Same code, same command, different outcome, with the Release build and install green both
+times. `gh run rerun --failed` on the same commit passed, which is what distinguishes a
+flake from a regression; no code was changed between the two attempts. Recorded here
+because "it passed on the second try" is a fact a reader should get from the report rather
+than from the run list.
 
 `pack-ci.yml` is content-only and this phase touched no content, so it did not run. That is
 correct behaviour and not a skipped gate: the plan's P2 row is what puts a pack in front of
@@ -238,6 +261,14 @@ no torsion encoding is that key — which the test's own original comment alread
 
 See _Mutation_ below. Same class of finding: an assertion that was true in one execution
 mode and not in another.
+
+### And one thing CI found that was not a defect at all
+
+The iOS job's first round-2 failure. Worth separating from the two above, because the
+correct response to it was a re-run and not a fix — and telling those apart is the whole
+skill. The evidence that it was a flake is in _CI runs_: same command, green before P1 and
+green on re-run of the identical commit, with the build and install succeeding every time.
+Fixing something here would have been worse than doing nothing.
 
 ## The engine, by module
 
@@ -301,15 +332,46 @@ the gate's own additions; none is below 10,000.
 
 ## Screenshots
 
-**There are none, and none were expected.** P1 is an engine phase: it adds no screen, no
-native code and no Maestro flow. `native-e2e.yml` ran on this sha to prove it did not
-regress, and its artefacts (`e2e-7d65b56-ios`, `e2e-7d65b56-android`) carry the same
-onboarding-and-lesson frames P0 produced, from the same flows. No frame in them shows any
-P1 work, because no P1 work is on a screen yet. The first screenshots that mean something
-are P3's.
+P1 is an engine phase: it adds no screen, no native code and no Maestro flow, so
+`native-e2e.yml` ran to prove it did not regress rather than to show anything new. The
+repository has **one** flow, P0's `p0-db-path`, and that is what ran — on both platforms,
+green.
 
-Nothing was written to `e2e/artifacts/` by hand. Per plan §The build workflow step 3, only
-CI writes there.
+Downloaded with `gh run download` / the artifacts API into
+`/Users/mannbellani/freelingo/e2e/artifacts/ci-75d6242/{android,ios}/`. Nothing there was
+written by hand (plan §The build workflow, step 3); `e2e/artifacts/*` is gitignored, so the
+evidence is local and the repo stays clean.
+
+Two screenshots exist, one per platform, and they are the same screen. Described, because
+they are the only visual evidence this phase produced:
+
+| field                  | Android (API 34, x86_64)                          | iOS (iPhone 17, iOS 26.1)                                 |
+| ---------------------- | ------------------------------------------------- | --------------------------------------------------------- |
+| `db-path`              | `…/org.freelingo.app/files/freelingo-progress.db` | `…/Application/9A0A0CB0…/Documents/freelingo-progress.db` |
+| `journal-mode`         | `wal`                                             | `wal`                                                     |
+| `user-version`         | **`2`**                                           | **`2`**                                                   |
+| `packs-dir`            | `…/org.freelingo.app/cache/packs/`                | `…/Library/Caches/packs/`                                 |
+| `packs-excluded`       | `true`                                            | `true`                                                    |
+| `platform`             | `android`                                         | `ios`                                                     |
+| `db-path-persistent`   | `true`                                            | `true`                                                    |
+| `pre-migration-backup` | `none`                                            | `none`                                                    |
+
+Both render the Diagnostics sheet in Freelingo green on white with a CLOSE action.
+
+**`user-version` reads 2, not 1, on both devices.** That is P1's migration, applied by the
+real migration registry on a real device and a real emulator, and it is the one value in
+these frames that is about this phase rather than about P0. Everything else is INV-PER-06
+holding: progress under `files/`/`Documents/` (persistent), packs under `cache/`/`Caches/`
+(reclaimable and excluded from backup), WAL on.
+
+`runner.txt` pins what produced each frame, so a future snapshot difference caused by a
+rotated runner image cannot read as a code change:
+
+- Android — `platform=android, api_level=34, arch=x86_64, target=google_apis, flows=1, maestro=2.10.0`
+- iOS — `platform=ios, simulator_used=iPhone 17 @ iOS-26-1, udid=3D025AD9-…, xcode=Xcode 26.2 Build version 17C52, flows=1, maestro=2.10.0`
+
+No frame here shows any P1 work on a screen, because no P1 work is on a screen yet. The
+first screenshots that mean something for Freelingo as a product are P3's.
 
 ## Mutation
 
@@ -362,15 +424,46 @@ obvious way to undo this), and the non-Stryker branch must still be the plain co
 `PROPERTY_RUNS` was not touched. The rule for a property that genuinely got slower is
 unchanged: tighten the generator.
 
-The remaining two obstacles stand. The `Regex` mutator is excluded because `weapon-regex`
+### Round 2, and why this clause stops here
+
+The fix worked, and it was not enough.
+<https://github.com/Blueturboguy07/freelingo/actions/runs/34673140566>, on `75d6242`:
+the dry run went from **1 m 48 s to 9 m 39 s** (04:30:04 → 04:39:43), so the INV-REC-01
+timeout is genuinely gone. Then a _different_ test failed:
+
+```
+ERROR DryRunExecutor One or more tests failed in the initial test run:
+  INV-DAT-04 historical rows are never re-stamped; gap days are missed
+    [INV-DAT-04] imported gap days count as missed, never unlived, ...
+      Test timed out in 300000ms.
+```
+
+That test takes **2.5 s** under `pnpm test`. Five minutes is not a limit anybody should
+raise; a property that goes from 2.5 s to over 300 s is not slow, it is a different order
+of growth. So the conclusion changes, and raising the factor a second time would be
+chasing a number rather than reading one:
+
+**`coverageAnalysis: "perTest"` is not viable over this suite.** Recording which of 1,258
+tests covers which of 10,442 mutants, when 230 of those tests are fast-check properties at
+10,000 cases each, is the cost — not any one test. The next thing to try is
+`coverageAnalysis: "all"` or `"off"`, which drops the per-test bookkeeping at the price of
+running more mutants against more tests, and that is a multi-hour experiment and a config
+decision for whoever owns the mutation job. It is **not** something to settle inside a
+phase integration on a clause that does not gate.
+
+Two rounds of fixing on a non-gating job is where this stops. Clause 13 is **NOT MET**, as
+it was before, but the reason is now specific and actionable rather than "nobody has run
+it": the obstacle is the coverage-analysis mode, and the first two obstacles behind it
+(red suite, per-test timeout) are cleared and stay cleared.
+
+The remaining two stand as well. The `Regex` mutator is excluded because `weapon-regex`
 emits `\V` under the `u` flag and kills the whole dry run, and 10,442 mutants over a suite
 whose `day/` subset took 12 minutes for 968 is a multi-hour job
 (`dryRunTimeoutMinutes: 30`, `timeout-minutes: 300`, `incremental` on).
 
 **The commit that records a whole-engine number is the one that removes
-`continue-on-error`.** That commit is not this one. A run on the fixed tree is what
-produces the number, and quoting the `day/`-only 71.28% as if it were the engine's score
-would be exactly the dishonesty this file exists to prevent.
+`continue-on-error`.** That commit is not this one, and quoting the `day/`-only 71.28% as
+if it were the engine's score would be exactly the dishonesty this file exists to prevent.
 
 ## Dependencies added
 
@@ -393,6 +486,79 @@ was not run — correct for an engine phase (INV-PLAT-01).
 `tools/soundbank`: `uv sync` clean, `uv run pytest` **16 passed**. `tools/coursekit` was not
 touched by any P1 branch, so `coursekit validate` was not run and `pack-ci.yml` did not
 fire.
+
+## Deferred, with reasons
+
+### The 13 roster ids P1 does not own
+
+Every one needs a screen, a native surface or a device. Declared in `docs/owned/journey.json`
+with full reasons; `phase-roster.test.ts` fails if one is silently dropped.
+
+| id          | Kind                                                          | Moves to                        |
+| ----------- | ------------------------------------------------------------- | ------------------------------- |
+| INV-CER-12  | a back press on each ceremony screen                          | P4 (S067–S090)                  |
+| INV-CER-16  | every Score-chain CTA resolves to the `macaw` token           | P3 token conformance            |
+| INV-COM-05  | a colour transition never rewinds a width tween               | P3                              |
+| INV-DAT-06  | no notification or widget entry derives from pre-import state | P4 / P5                         |
+| INV-DAT-08  | import never opens a `content://` URI directly                | P5, on a device                 |
+| INV-ECO-31  | equipping a cosmetic changes only `MascotRenderer` output     | P3 art, P5 widget               |
+| INV-GRD-09  | production inputs declare autocorrect and spellcheck off      | P3 component gate               |
+| INV-PATH-10 | the canvas after a section-complete return                    | P3                              |
+| INV-PATH-11 | exactly one pinned header at every scroll offset              | P3                              |
+| INV-PATH-12 | the guidebook route id equals the pinned header's unit id     | P3                              |
+| INV-PATH-24 | every pack-declarable node type has a `PathNode` variant      | P3 (art is its entry criterion) |
+| INV-PER-09  | zero files remain under the recording directory               | P5 (ASR)                        |
+| INV-PER-10  | the on-device backup manifest                                 | P5 checklist                    |
+
+### Other deferrals
+
+| Deferred                                             | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Whole-engine Stryker score                           | Multi-hour run; now _possible_ for the first time (green suite) but not yet _done_. Clause 13.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Stryker's regex mutants                              | Off until `weapon-regex` stops emitting `\V` under `u`, or `sanitise.ts` writes its class differently.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| The remaining 31 descriptive falsifiers → executable | 11 of 42 new fixtures use the `{check, cases}` contract; the older 176 use four lane-specific shapes. Moving one lane per P2 module is the cheapest path, and the gate no longer runs zero cases while waiting.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| One falsifier payload format                         | Four lanes chose four shapes. The gate checks identity, a reason and consumption, and deliberately does not prescribe a fifth.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| The journey against a real SQLite progress DB        | It drives the pure engine; `packages/schema`'s golden corpus is exercised by that lane. Running the same 30 days through `createNodeDb` + `migrate` is the natural P2 extension.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `pnpm format:check` — **35 files repo-wide**         | Measured on the merged tree, spread across seven lanes (economy 7, data 7, session 5, day 5, schema 3, `docs/owned` 2, the rest singletons) plus `docs/P0-REPORT.md`, which was already unformatted before P1 (reproduced against `git show origin/main~2:docs/P0-REPORT.md`). `format:check` is **not** a job in `ci.yml`, so nothing is blocked. Every file this integration touched is prettier-clean; the other 35 were deliberately left, because reformatting seven lanes' source at integration time would bury the integration diff in whitespace and prove nothing. A one-command P2 chore — `pnpm format` — and the honest thing is to name the number rather than tidy a third of it. |
+
+## Blockers
+
+**None blocking the phase gate.** The three that were blocking are closed, and the two CI
+found are fixed in `75d6242`.
+
+Three things a founder should know before P2 starts:
+
+1. **Clause 13 is genuinely unmet.** The mutation number in this file is one module's, and
+   the threshold is derived from that same module. Nobody has seen a whole-engine score.
+   The first one may be well below 70 and that would be information, not a regression.
+2. **The `timed_refill` / `streak_freeze_refill` class of defect will recur.** Two lanes
+   naming the same persisted value differently is invisible to both lanes' suites and to
+   code review, and was caught only because a grep gate written for an unrelated reason
+   happened to match one spelling. P2 should consider a gate that asserts every engine enum
+   whose values reach a column agrees with that column's CHECK constraint.
+3. **Two round-1 failures were environment-dependent, and one of them is a pattern.**
+   `ed25519.test.ts` asserted equality with a platform library whose behaviour changed
+   between versions. Anywhere a test compares our output to a system library's — OpenSSL,
+   ICU, `Intl`, SQLite — the same trap is available, and it is invisible until the runner
+   image rotates. Worth a sweep at P2, when `coursekit` adds spaCy and SudachiPy.
+
+## Disk
+
+```
+df -h ~
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   460Gi   334Gi    78Gi    82%    3.2M  816M    0%   /System/Volumes/Data
+```
+
+**78 GB free at 82%**, measured at the end of this task. It was **28 GB at 94%** when the
+merges started, which is what `docs/P0-REPORT.md` and the pre-merge P1 page both record.
+The 50 GB came back from removing the nine P1 worktrees under
+`/Users/mannbellani/freelingo-wt/` (now deleted, along with the scratch integration one)
+and the build caches that went with them — not from any deletion off the plan's candidate
+list, which is still waiting on founder approval. Nothing on that list was touched.
+
+That is close to the plan's ≥ 80 GB target without anybody having approved a deletion, and
+it was never a constraint here: the brief's floor is 15 GB and the phase never went near it.
 
 ## Deferred, with reasons
 
