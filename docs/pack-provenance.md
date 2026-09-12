@@ -119,8 +119,10 @@ cast row to row. Two things about it are worth knowing here rather than in the r
   spelling does not lower the rate, it destroys it. It is the sixth member of that tuple
   since the P2 round-3 integration; the rubric shipped the dimension one lane ahead of
   the constant, which is exactly the mismatch this bullet describes;
-- the drawn sheet carries **no clip reference and no voice role** today, so the dimension
-  is defined and not yet scoreable. That is **B18** in `docs/P2-BLOCKERS.md`.
+- the round-4 sheet carries playable clip references for 80 rows, all narrator/Plumas.
+  Every file passes Opus container checks, but the agent reviewer interface cannot render
+  local audio to its model, so `accent_consistency` remains `null`, never an invented
+  pass. The draw also contains no Rosa/Nico row, so blend distinctness is unanswered.
 
 **2. Two of the four cast roles are blends.** Kokoro ships three Spanish voices where the
 cast wants four, and the shortfall is a _female_ voice: of `ef_dora`, `em_alex` and
@@ -189,6 +191,11 @@ So every rate this pipeline publishes carries, verbatim:
 ```
 PROVISIONAL (unreviewed by a paid native speaker)
 ```
+
+The seed-20260912 round-4 sheet is fully scored: **51 wrong of 300 (17.00%)** and
+**22 awkward of 300 (7.33%)**. It does **not** pass the 2% P3 gate. These are the real
+exercise rows, not the earlier candidate-only diagnostic; all 300 scored ids join the
+draw. `content/es/review/scores-method.md` records the defects and audio limitation.
 
 It is a constant — `PROVISIONAL_DEFECT_RATE_NOTE` in
 `tools/coursekit/src/coursekit/config/sample.py` — so that it cannot be paraphrased in

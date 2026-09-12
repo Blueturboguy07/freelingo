@@ -5,13 +5,13 @@ The H1 human-review pass for the Spanish pack.
 | File           | What it is                                                                    |
 | -------------- | ----------------------------------------------------------------------------- |
 | `RUBRIC.md`    | how a row is scored, what counts as a defect, and who is scoring in this run  |
-| `scores.jsonl` | one JSON object per scored sheet row; **empty until the reviewer agent runs** |
+| `scores.jsonl` | the 300 scored rows from the seed-20260912 round-4 sheet               |
+| `score_round4.py` | the auditable decision table that materialises those rows          |
 
-`scores.jsonl` is committed empty on purpose rather than omitted. `coursekit` treats an
-absent file and an empty one the same way — no rows, so `wrong_item_rate` is `None` and
-`gate_passed()` is `false` — and `None` is not 0%: an unscored sample does not pass the
-2% gate by having no numerator. The file exists so the path a reviewer writes to is the
-path CI reads from, and so a reviewer never has to guess where it goes.
+The current review is complete: 300/300 unique rows join the real sheet. It measures
+**51 wrong (17.00%)**, **22 awkward (7.33%)**, and 227 ok. The 2% gate is therefore red;
+the scores were not softened to produce a pass. See `scores-method.md` for findings and
+reproducible counts.
 
 The sheet to score is `build/es/sample-300.jsonl`, drawn by `coursekit sample es`. It is
 not committed: it is reproducible output of a recorded seed, and `build/` is gitignored.
@@ -33,9 +33,7 @@ baked on Kokoro, whose Spanish voices declare no regional accent, so the manifes
 accent of a shipped bank. This sample is the only check there is. Two caveats a scorer
 needs before starting:
 
-- the drawn sheet carries **no clip reference and no voice role** today, so the dimension
-  is unscoreable — `docs/P2-BLOCKERS.md` **B18**;
-- the key must be in `REVIEW_DIMENSIONS` (`config/sample.py`) before it appears in a
-  `dimensions` object. `read_scores` raises on an unknown key and the whole file then
-  produces **no rate**, so `RUBRIC.md` §"If the constant does not carry it yet" gives the
-  note-only fallback.
+- the fresh sheet carries playable clip references for 80 rows, all narrator/Plumas;
+- all 80 files passed Opus container/48 kHz/mono checks, but this reviewer interface could
+  not present their sound to the model. `accent_consistency` is therefore honestly
+  `null`, never `pass`; no Rosa/Nico row was drawn, so blend distinctness is unanswered.

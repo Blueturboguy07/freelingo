@@ -165,6 +165,12 @@ verbatim in both, rather than comparing the literal to itself. `awkward` verdict
 reported separately and never folded into the wrong-item rate. An **unscored** sample has a rate of `None`, and
 `None` does not pass the 2% gate.
 
+The completed seed-20260912 Spanish pass scores all 300 drawn exercise ids: **51 wrong
+(17.00%)**, **22 awkward (7.33%)**, 227 ok. That result is above the 2% gate and remains a
+failure; see `content/es/review/scores-method.md`. The 80 audio-bearing rows passed Opus
+byte/container checks, but the reviewer runtime could not present audio to the model, so
+their `accent_consistency` values remain `null` rather than being falsely passed.
+
 Founder ruling **B3** (2026-09-12) settled what an agent-scored rate unblocks:
 `gate_passed()` accepts `REVIEWER_KIND_AGENT` at ≤ 2% **for the automated run**, so P3
 may build on the pack, and the **paid** native review is a release prerequisite — item 1

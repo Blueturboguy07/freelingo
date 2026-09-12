@@ -25,6 +25,7 @@ from coursekit.config import MAX_DEFECT_RATE, REVIEWER_SAMPLE_ITEMS
 from coursekit.config.sample import (
     PROVISIONAL_DEFECT_RATE_NOTE,
     RECORDED_REVIEWER_KINDS,
+    REVIEW_DIMENSIONS,
     REVIEW_VERDICTS,
     REVIEWER_KIND_AGENT,
     REVIEWER_KIND_PAID_NATIVE,
@@ -144,9 +145,7 @@ def test_a_different_seed_draws_a_different_sheet(make_es_build) -> None:
     make_es_build(units=5, per_unit=12)
     first = draw_sample("es", n=30, seed=SAMPLE_SEED)
     second = draw_sample("es", n=30, seed=SAMPLE_SEED + 1)
-    assert [item.exercise_id for item in first.items] != [
-        item.exercise_id for item in second.items
-    ]
+    assert [item.exercise_id for item in first.items] != [item.exercise_id for item in second.items]
 
 
 def test_the_sheet_records_everything_needed_to_redraw_it(make_es_build) -> None:
@@ -218,10 +217,7 @@ def make_scores(tmp_path, rows) -> None:
 def test_scores_are_read_and_the_rate_is_the_wrong_fraction(tmp_path) -> None:
     make_scores(
         tmp_path,
-        [
-            {"exercise_id": f"e{index}", "verdict": "ok", "reviewer": "opus"}
-            for index in range(98)
-        ]
+        [{"exercise_id": f"e{index}", "verdict": "ok", "reviewer": "opus"} for index in range(98)]
         + [
             {"exercise_id": "e98", "verdict": "wrong", "reviewer": "opus"},
             {"exercise_id": "e99", "verdict": "awkward", "reviewer": "opus"},
@@ -239,7 +235,7 @@ def test_scores_are_read_and_the_rate_is_the_wrong_fraction(tmp_path) -> None:
 
 
 def test_awkward_is_not_folded_into_the_wrong_item_rate(tmp_path) -> None:
-    """"A native speaker would not say it this way" and "this is not Spanish" are
+    """ "A native speaker would not say it this way" and "this is not Spanish" are
     different claims, and the published number is about the second one."""
     make_scores(
         tmp_path,
@@ -493,9 +489,7 @@ def test_the_docs_do_not_claim_the_note_already_appears_where_it_cannot() -> Non
 def test_unscored_sheet_rows_are_reportable(make_es_build, tmp_path) -> None:
     make_es_build(units=3, per_unit=8)
     sheet = draw_sample("es", n=12)
-    scored = [
-        {"exercise_id": sheet.items[0].exercise_id, "verdict": "ok", "reviewer": "opus"}
-    ]
+    scored = [{"exercise_id": sheet.items[0].exercise_id, "verdict": "ok", "reviewer": "opus"}]
     assert len(unscored_items(sheet, scored)) == 11
 
 
@@ -516,15 +510,45 @@ def test_the_committed_es_scores_parse_against_the_rubric() -> None:
         assert row["reviewer"]
 
 
+def test_the_committed_es_review_is_the_complete_round_four_agent_pass() -> None:
+    """The P2 gate may not quote a rate from a stale or partially scored sheet."""
+    scores = read_scores(REPO_REVIEW_LANG)
+
+    assert len(scores) == REVIEWER_SAMPLE_ITEMS
+    assert len({row["exercise_id"] for row in scores}) == REVIEWER_SAMPLE_ITEMS
+    assert {row["reviewer"] for row in scores} == {REVIEWER_KIND_AGENT}
+    assert all(set(row["dimensions"]) == set(REVIEW_DIMENSIONS) for row in scores)
+
+    method = (REPO_ROOT / "content" / "es" / "review" / "scores-method.md").read_text(
+        encoding="utf-8"
+    )
+    assert PROVISIONAL_DEFECT_RATE_NOTE in method
+
+
+def test_the_round_four_review_reports_its_red_gate_without_rounding_it_clean() -> None:
+    scores = read_scores(REPO_REVIEW_LANG)
+    sheet_ids = [row["exercise_id"] for row in scores]
+    summary = review_summary(
+        scores=scores,
+        sample_size=REVIEWER_SAMPLE_ITEMS,
+        sheet_item_ids=sheet_ids,
+    )
+
+    assert (summary["scored"], summary["joined"], summary["unjoined"]) == (300, 300, 0)
+    assert summary["reviewer_kind"] == REVIEWER_KIND_AGENT
+    assert summary["wrong_item_rate"] == pytest.approx(51 / 300)
+    assert summary["awkward_rate"] == pytest.approx(22 / 300)
+    assert summary["note"] == PROVISIONAL_DEFECT_RATE_NOTE
+    assert gate_passed(summary) is False
+
+
 def test_derive_review_is_none_when_nothing_has_been_drawn_or_scored(tmp_path) -> None:
     """Nothing to say is said as nothing, not as a rate of zero."""
     assert derive_review("es", repo_root=tmp_path) is None
 
 
-def test_a_drawn_but_unscored_sample_still_appears_in_the_report(
-    make_es_build, tmp_path
-) -> None:
-    """"We have not measured this" and "we measured it and it was fine" must differ.
+def test_a_drawn_but_unscored_sample_still_appears_in_the_report(make_es_build, tmp_path) -> None:
+    """ "We have not measured this" and "we measured it and it was fine" must differ.
 
     A drawn sheet with no scores is the state a pack is in between `coursekit sample`
     and the reviewer finishing, and the report has to show `sample_size: 40, scored: 0,
