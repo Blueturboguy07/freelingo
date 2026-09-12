@@ -27,6 +27,10 @@
     "maxTestsToLog": 2
   },
   "coverageAnalysis": "perTest",
+  "mutator_comment": "The Regex mutator is off, and the reason is measured, not stylistic. weapon-regex negates predefined classes (\\d -> \\D, \\s -> \\S) and applies the same rule to \\v, producing \\V — which is an INVALID ESCAPE under the `u` flag. packages/core/src/security/sanitise.ts carries /[\\t\\n\\r\\f\\v]+/gu, and because every mutant is instrumented inline, rollup fails to parse the whole file: measured 2026-09-11 on the merged P1 engine, the initial dry run died with `SyntaxError: Invalid regular expression: /[\\t\\n\\r\\f\\V]+/gu: Invalid escape` and Stryker produced no score at all. One mutator off with a written reason beats no measurement; the loss is regex mutants only, and docs/P1-REPORT.md records it as an open item.",
+  "mutator": {
+    "excludedMutations": ["Regex"]
+  },
   "thresholds_comment": "high/low colour the report. `break` is the gate: below it the run exits non-zero. It is set from a measured baseline (docs/P1-REPORT.md records the number and the date) and is raised, never lowered, when the engine grows a well-tested module. A threshold above the measured score would make the first nightly red for a reason nobody would read.",
   "thresholds": {
     "high": 90,

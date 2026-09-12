@@ -62,6 +62,9 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          # The JS below is single-quoted on purpose: its ${...} are template literals for
+          # node, not shell expansions.
+          # shellcheck disable=SC2016
           node --input-type=module -e '
             import { readFileSync, appendFileSync } from "node:fs";
             const report = JSON.parse(readFileSync("reports/mutation/mutation.json", "utf8"));
@@ -69,14 +72,23 @@ jobs:
             const mutants = Object.values(report.files).flatMap((f) => f.mutants);
             const count = (status) => mutants.filter((m) => m.status === status).length;
             const killed = count("Killed") + count("Timeout");
-            const covered = killed + count("Survived");
-            const score = covered === 0 ? 0 : (killed / covered) * 100;
+            const survived = count("Survived");
+            const noCoverage = count("NoCoverage");
+            // TWO scores, because they are different numbers and only one is the gate.
+            // Stryker breaks on the TOTAL score, which counts a mutant no test covers as
+            // survived; the covered score ignores those and always reads higher. Printing
+            // only the covered one would quote a figure the threshold never sees.
+            const total = killed + survived + noCoverage;
+            const score = total === 0 ? 0 : (killed / total) * 100;
+            const coveredDenominator = killed + survived;
+            const covered = coveredDenominator === 0 ? 0 : (killed / coveredDenominator) * 100;
             const rows = ["Killed", "Timeout", "Survived", "NoCoverage", "CompileError", "RuntimeError", "Ignored"]
               .map((s) => `| ${s} | ${count(s)} |`).join("\n");
             appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
               `## Mutation score: **${score.toFixed(2)}%**`,
               ``,
-              `threshold (\`thresholds.break\`): **${config.thresholds.break}%**`,
+              `threshold (\`thresholds.break\`, compared against THIS number): **${config.thresholds.break}%**`,
+              `covered score (ignores uncovered mutants, always higher): ${covered.toFixed(2)}%`,
               `mutants: ${mutants.length} across ${Object.keys(report.files).length} files`,
               ``,
               `| state | n |`,
@@ -84,7 +96,7 @@ jobs:
               rows,
               ``,
             ].join("\n"));
-            console.log(`mutation score ${score.toFixed(2)}% (threshold ${config.thresholds.break}%)`);
+            console.log(`mutation score ${score.toFixed(2)}% (covered ${covered.toFixed(2)}%, threshold ${config.thresholds.break}%)`);
           '
 
       - name: Upload the mutation report
