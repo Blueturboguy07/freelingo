@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Nightly mutation testing over the pure engine (packages/core). A green unit suite that survives every mutant is not a suite: it pins behaviour nobody asserted. At P0 this reported; at P1 it is a gate, so `thresholds.break` is a number and .github/workflows/mutation.yml no longer carries continue-on-error. The recorded score and the threshold are in docs/P1-REPORT.md — 'the mutation job is green' is not a measurement.",
+  "_comment": "Nightly mutation testing over the pure engine (packages/core). A green unit suite that survives every mutant is not a suite: it pins behaviour nobody asserted. The recorded score and the threshold are in docs/P1-REPORT.md — 'the mutation job is green' is not a measurement. The P1 gate clause 'Stryker score >= threshold nightly' is NOT met yet and the report says so: only `packages/core/src/day/` has ever been scored (71.28%, 968 mutants, 12 min 19 s), the whole engine is 9,802 mutants, and Stryker refuses a tree whose initial test run is red — which the merged P1 tree still is. Until a whole-engine number exists the nightly REPORTS (continue-on-error in the workflow) and `thresholds.break` is a documented derivation, not a gate anyone has validated.",
   "packageManager": "pnpm",
   "plugins": ["@stryker-mutator/vitest-runner"],
   "testRunner": "vitest",
@@ -31,7 +31,7 @@
   "mutator": {
     "excludedMutations": ["Regex"]
   },
-  "thresholds_comment": "high/low colour the report. `break` is the gate: below it the run exits non-zero. It is set from a measured baseline (docs/P1-REPORT.md records the number and the date) and is raised, never lowered, when the engine grows a well-tested module. A threshold above the measured score would make the first nightly red for a reason nobody would read.",
+  "thresholds_comment": "high/low colour the report. `break` is the number Stryker exits non-zero below. IT IS DERIVED FROM ONE MODULE, NOT FROM THE ENGINE: 70 comes from `packages/core/src/day/` alone, measured at 71.28% over 968 mutants on 2026-09-11 (docs/P1-REPORT.md §Mutation, with the per-file table — rollover.ts 61.85%, config.ts and state.ts 44.44%). 1.3 points of headroom on 10% of the engine is not evidence about the other 8,834 mutants, so .github/workflows/mutation.yml keeps `continue-on-error: true` and the nightly REPORTS the score rather than gating on it. The first whole-engine run replaces this number with a measured one, at which point continue-on-error comes off in the same commit. Raised, never lowered, afterwards.",
   "thresholds": {
     "high": 90,
     "low": 80,

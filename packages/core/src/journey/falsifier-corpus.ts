@@ -20,10 +20,13 @@
  *      file name. A fixture filed under the wrong id reads as coverage and is not.
  *   3. **a reason** — a sentence saying what the input falsifies (`falsifier`, `why` or
  *      `case`). A fixture with no sentence cannot be reviewed against the invariant text.
- *   4. **consumption** — some test file reads the directory this fixture lives in, and at
- *      least one of that file's test NAMES carries the filter term `pnpm test:falsify`
- *      selects by. This is what makes the script execute the corpus rather than select
- *      nothing and exit green.
+ *   4. **consumption** — a test file **in the module that owns the corpus** (`day/` for
+ *      `day/__falsifiers__`, never the whole package) reads the directory, and at least
+ *      one of that file's test NAMES carries the filter term `pnpm test:falsify` selects
+ *      by. This is what makes the script execute the corpus rather than select nothing and
+ *      exit green. This gate's own test file is excluded from counting as a consumer of
+ *      anything (`GATE_TEST_FILE`): it mentions the directory name and is selected by the
+ *      filter, so counting it would mark every corpus read by the checker itself.
  *   5. **execution here, when offered** — a fixture may additionally declare `check`
  *      (`{module, export}`); this gate then imports that module, calls that function with
  *      each case and compares structurally. Lanes that keep their own runner are not
@@ -354,15 +357,44 @@ export function testNamesIn(source: string): string[] {
 }
 
 /**
+ * This gate's own test file, repo-relative.
+ *
+ * It mentions `__falsifiers__` (it is about them) and its test names carry the filter
+ * term (it is selected by `pnpm test:falsify`), so counting it as a consumer would make
+ * every corpus directory in its scan range read and selectable **by the gate itself**.
+ * That is exactly the vacuity this check exists to prevent, so it is excluded by name.
+ */
+export const GATE_TEST_FILE = join(
+  'packages',
+  'core',
+  'src',
+  'journey',
+  'falsifier-corpus.test.ts',
+);
+
+/**
+ * The module that owns a corpus directory: `packages/core/src/day` for
+ * `packages/core/src/day/__falsifiers__`. Absolute.
+ *
+ * The scan is scoped to this and nothing wider. Scoping it to the package (all of
+ * `packages/core/src`) makes the check non-discriminating: any one test file anywhere in
+ * the package that mentions the directory name marks every corpus in the package read.
+ */
+export function moduleRootFor(directory: string, root = repoRoot()): string {
+  return dirname(join(root, directory));
+}
+
+/**
  * For every `__falsifiers__` directory: which tests read it, and which of those
  * `pnpm test:falsify` would actually select.
  *
- * "Reads it" is: a test file in the same package whose source mentions `__falsifiers__`.
- * That is a loose match on purpose — a lane may read the directory with `readdirSync`, an
- * `import.meta.glob` or a literal path, and prescribing one of those would be prescribing
- * a runner. What is not loose is the second half: `pnpm test:falsify` filters by test NAME,
- * so a consumer whose test names do not carry the filter term is never run by that script
- * and the corpus it reads is executed only by chance, under `pnpm test`.
+ * "Reads it" is: a test file **in the module that owns the corpus** (`moduleRootFor`)
+ * whose source mentions `__falsifiers__`. The mention is a loose match on purpose — a lane
+ * may read the directory with `readdirSync`, an `import.meta.glob` or a literal path, and
+ * prescribing one of those would be prescribing a runner. The module scope is not loose,
+ * and neither is the second half: `pnpm test:falsify` filters by test NAME, so a consumer
+ * whose test names do not carry the filter term is never run by that script and the corpus
+ * it reads is executed only by chance, under `pnpm test`.
  */
 export function consumersFor(
   directories: readonly string[],
@@ -372,12 +404,11 @@ export function consumersFor(
   const reports: ConsumerReport[] = [];
   const sourceCache = new Map<string, string>();
   for (const directory of directories) {
-    // The package this corpus belongs to: .../packages/<pkg>/src/...
-    const absolute = join(root, directory);
-    const packageRoot = absolute.slice(0, absolute.indexOf(`${join('', 'src')}`) + 4) || absolute;
+    const moduleRoot = moduleRootFor(directory, root);
     const consumers: string[] = [];
     const selectable: string[] = [];
-    for (const file of testFilesUnder(packageRoot)) {
+    for (const file of testFilesUnder(moduleRoot)) {
+      if (relative(root, file) === GATE_TEST_FILE) continue;
       let source = sourceCache.get(file);
       if (source === undefined) {
         source = readFileSync(file, 'utf8');

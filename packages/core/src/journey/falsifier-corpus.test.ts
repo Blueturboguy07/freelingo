@@ -6,9 +6,11 @@
  *
  *   1. the corpus was actually found and is not empty;
  *   2. every committed input parses, names its own invariant, and says what it falsifies;
- *   3. every corpus directory is READ by a test, and that test's names carry the filter
- *      term — which is what makes `pnpm test:falsify` execute the corpus instead of
- *      selecting nothing and exiting green;
+ *   3. every corpus directory is READ by a test IN THE MODULE THAT OWNS IT, and that
+ *      test's names carry the filter term — which is what makes `pnpm test:falsify`
+ *      execute the corpus instead of selecting nothing and exiting green. This file is
+ *      excluded from counting as a reader: it mentions the directory name and matches the
+ *      filter, so counting it made every corpus in the package read by the checker itself;
  *   4. every input that offers the executable contract is imported and run here;
  *   5. every invariant id this phase owns has at least one committed input.
  *
@@ -20,8 +22,9 @@
  * The gate's own failure paths are executed below against fixtures, because a gate whose
  * red path has never run is a gate nobody has checked.
  */
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { afterAll, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   consumersFor,
@@ -281,16 +284,103 @@ describe.skipIf(UNDER_STRYKER)('falsifier gate self-test', () => {
     ).toBe(true);
   });
 
-  it('a falsifier corpus read by a test with no matching test name is reported', () => {
-    // The consumption check, against this repository rather than a fixture: the term must
-    // be one that appears in a test NAME, not merely in a file name or a comment.
+  it('a falsifier filter term counts only in a test NAME, never in a comment', () => {
+    // `testNamesIn` alone. The consumption check it feeds is driven, end to end, by the
+    // fixture-tree describe below — asserting this helper was never evidence for that.
     const names = testNamesIn("describe('reads __falsifiers__', () => { it('loads', () => {}) })");
     expect(names).toEqual(['reads __falsifiers__', 'loads']);
     expect(names.some((n) => n.includes('falsifier'))).toBe(true);
     expect(testNamesIn('// falsifier in a comment')).toEqual([]);
   });
+});
 
-  it('a falsifier comparison is structural, and refuses a value JSON cannot express', () => {
+/* ------------------------------------- the consumption check, against a fixture tree */
+
+/**
+ * The half of the gate that is load-bearing and was, in the first version of this file,
+ * asserted only through `testNamesIn` — a string helper. `consumersFor` itself was never
+ * driven, and it was wrong: it scanned the whole package (`packages/core/src`), where this
+ * very file mentions `__falsifiers__` and carries the filter term in its test names, so
+ * **every** corpus directory in the package was reported read and selectable no matter who
+ * read it. A refuter proved it by dropping a fixture into an unread `db/__falsifiers__`
+ * and getting the same 33 consumers / 31 selectable as every real corpus.
+ *
+ * So the four outcomes now run against a fixture tree on disk, one directory per outcome:
+ * read-and-selectable, read-but-not-selectable, **read by nobody**, and read only by this
+ * gate (which must not count).
+ */
+describe.skipIf(UNDER_STRYKER)('falsifier consumption check, on a fixture tree', () => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), 'freelingo-falsifier-'));
+  afterAll(() => rmSync(fixtureRoot, { recursive: true, force: true }));
+
+  const src = join(fixtureRoot, 'packages', 'core', 'src');
+  const dirName = '__falsifiers__'; // built, not written, so this file's own literals do not matter
+  const write = (relativePath: string, contents: string): void => {
+    const absolute = join(src, relativePath);
+    mkdirSync(join(absolute, '..'), { recursive: true });
+    writeFileSync(absolute, contents);
+  };
+  const fixture = (id: string): string => `{"invariant":"${id}","why":"a sentence long enough"}`;
+  const reader = (module: string, testName: string): string =>
+    `import { readdirSync } from 'node:fs';\n` +
+    `const dir = '${module}/${dirName}';\n` +
+    `describe('${module}', () => { it('${testName}', () => { readdirSync(dir); }); });\n`;
+
+  // 1. read by its own module, by a test the filter selects.
+  write(`day/${dirName}/INV-DAY-01.json`, fixture('INV-DAY-01'));
+  write('day/falsifiers.test.ts', reader('day', 'every committed falsifier input holds'));
+  // 2. read by its own module, by a test the filter does NOT select.
+  write(`economy/${dirName}/INV-ECO-01.json`, fixture('INV-ECO-01'));
+  write('economy/config.test.ts', reader('economy', 'the goal ladder is one table'));
+  // 3. read by nobody at all — the refuter's probe.
+  write(`db/${dirName}/INV-PER-06.json`, fixture('INV-PER-06'));
+  // 4. read only by this gate's own test file, which must not count as a consumer.
+  write(`journey/${dirName}/INV-DAY-09.json`, fixture('INV-DAY-09'));
+  write('journey/falsifier-corpus.test.ts', reader('journey', 'the falsifier corpus is read'));
+
+  const directories = [
+    `packages/core/src/day/${dirName}`,
+    `packages/core/src/economy/${dirName}`,
+    `packages/core/src/db/${dirName}`,
+    `packages/core/src/journey/${dirName}`,
+  ];
+  const reports = consumersFor(directories, 'falsifier', fixtureRoot);
+  const byDirectory = new Map(reports.map((report) => [report.directory, report]));
+  const report = (module: string) => byDirectory.get(`packages/core/src/${module}/${dirName}`)!;
+
+  it('a falsifier corpus read by its own module, by a selected test, is read and selectable', () => {
+    expect(report('day').consumers).toEqual(['packages/core/src/day/falsifiers.test.ts']);
+    expect(report('day').selectable).toEqual(['packages/core/src/day/falsifiers.test.ts']);
+  });
+
+  it('a falsifier corpus read by a test with no matching test name is read but NOT selectable', () => {
+    expect(report('economy').consumers).toEqual(['packages/core/src/economy/config.test.ts']);
+    expect(report('economy').selectable).toEqual([]);
+  });
+
+  it('a falsifier corpus no test reads is reported UNREAD (the check discriminates)', () => {
+    expect(report('db').consumers).toEqual([]);
+    expect(report('db').selectable).toEqual([]);
+  });
+
+  it("a falsifier corpus read only by this gate's own test file is reported UNREAD", () => {
+    expect(report('journey').consumers).toEqual([]);
+  });
+
+  it('a falsifier consumer in a SIBLING module never counts (the scan is module-scoped)', () => {
+    // day/falsifiers.test.ts mentions the directory name and is selected by the filter;
+    // it is one directory away from db/ and must still leave db/ unread. This is the
+    // property the package-wide scan did not have.
+    const everyConsumer = reports.flatMap((entry) => entry.consumers);
+    expect(everyConsumer).toEqual([
+      'packages/core/src/day/falsifiers.test.ts',
+      'packages/core/src/economy/config.test.ts',
+    ]);
+  });
+});
+
+describe.skipIf(UNDER_STRYKER)('falsifier gate structural equality', () => {
+  it('a falsifier comparison of JSON-shaped values is structural', () => {
     expect(deepEqual({ a: [1, { b: null }] }, { a: [1, { b: null }] })).toBe(true);
     expect(deepEqual({ a: 1, b: 2 }, { a: 1 })).toBe(false);
     expect(deepEqual(new Map([['a', 1]]), {})).toBe(false);

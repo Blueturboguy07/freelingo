@@ -50,11 +50,17 @@ describe.skipIf(UNDER_STRYKER)('the 30-day two-course four-zone journey', () => 
   });
 
   it("[INV-DAY-09] every day's rollover is idempotent: replaying it decides nothing", () => {
+    // The length assertion is the point. `runJourney` returns an EMPTY ledger when a port
+    // is unbound, and `[].every(…)` is `true`: without this line the test passed against
+    // nothing while carrying an invariant id into `owningTests()`. A test that claims an
+    // id must not be satisfiable by a ledger with no days in it.
+    expect(ledger.days).toHaveLength(JOURNEY_DAYS);
     expect(ledger.replayViolations).toEqual([]);
     expect(ledger.days.every((d) => d.replayClean)).toBe(true);
   });
 
   it('the engine agrees with an independent reference all thirty days', () => {
+    expect(ledger.days).toHaveLength(JOURNEY_DAYS);
     expect(ledger.refutations).toEqual([]);
   });
 
@@ -87,6 +93,10 @@ describe.skipIf(UNDER_STRYKER)('the 30-day two-course four-zone journey', () => 
   });
 
   it('[INV-REC-01] at most one Streak Repair per calendar month, and never on a frozen day', () => {
+    // "at most one" over zero repairs is vacuously true, so the trace must contain the
+    // repair the script schedules before the property means anything.
+    expect(ledger.days).toHaveLength(JOURNEY_DAYS);
+    expect(ledger.account.repairs.length).toBe(1);
     const byMonth = new Map<string, number>();
     for (const repair of ledger.account.repairs) {
       byMonth.set(repair.monthKey, (byMonth.get(repair.monthKey) ?? 0) + 1);

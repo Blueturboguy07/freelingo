@@ -596,7 +596,10 @@ function applyEvent(ctx: EventContext): number {
     case 'change-goal-mid-day': {
       const tier = String(event.detail?.['to'] ?? event.detail?.['goal'] ?? 'regular');
       if (engine.economy === null) {
-        ctx.cannot('economy', 'the named daily-goal tiers (10/20/30/50 XP)');
+        // No numbers here: INV-ECO-01 says the goal ladder exists once, in economy's
+        // config, and its grep gate reads string literals too — a copy in this harness is
+        // a second copy. The tier NAMES are the economy module's to map to XP.
+        ctx.cannot('economy', 'the named daily-goal tiers');
         return 0;
       }
       world.goalTier = tier;

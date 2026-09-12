@@ -3,9 +3,13 @@ name: mutation
 # Nightly Stryker on packages/core. A green unit suite that survives every mutant is not
 # a suite.
 #
-# At P0 this job reported and was allowed to fail. At P1 the plan makes it a gate —
-# "Stryker score >= threshold nightly" — so `continue-on-error` is gone and the threshold
-# lives in stryker.config.json (`thresholds.break`), which is what actually fails the run.
+# The plan's P1 gate says "Stryker score >= threshold nightly". That clause is NOT met and
+# this job does not pretend otherwise: the only score ever measured is
+# `packages/core/src/day/` at 71.28% over 968 mutants, the engine is 9,802 mutants, and
+# `thresholds.break: 70` in stryker.config.json is therefore derived from a tenth of the
+# tree. Gating on it would make the first nightly a coin flip on 8,834 mutants nobody has
+# run. So the job REPORTS: `continue-on-error` stays until a whole-engine score exists, and
+# the commit that records that score in docs/P1-REPORT.md is the one that takes it off.
 #
 # The job also PRINTS THE SCORE. "The mutation job is green" is not a measurement: a run
 # whose config stopped matching any file is green, and so is a run whose threshold was
@@ -25,6 +29,9 @@ jobs:
   stryker:
     name: stryker (packages/core)
     runs-on: ubuntu-latest
+    # Reports, does not gate — see the header. Removed in the same commit that records a
+    # measured whole-engine score in docs/P1-REPORT.md.
+    continue-on-error: true
     # A cold run over 9,802 mutants is hours, and the dry run alone is minutes because it
     # collects per-test coverage over 222 fast-check properties. The incremental cache
     # below makes the steady state small; this timeout is sized for the cold run that
@@ -46,8 +53,12 @@ jobs:
       # Incremental mode re-tests only the mutants whose file or covering tests changed.
       # `restore-keys` is what makes it work at all: the exact key carries the sha, so it
       # never hits, and the prefix match picks up the previous night's report.
+      #
+      # `cache/restore`, not `cache`: the plain action also SAVES in its post step, under
+      # the same key the explicit save step below writes, so the pair attempted the same
+      # save twice every night.
       - name: Restore the incremental report
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: reports/stryker-incremental.json
           key: stryker-incremental-${{ github.sha }}
@@ -55,14 +66,54 @@ jobs:
             stryker-incremental-
 
       # A mutate glob that matches nothing produces a 100% score and a green tick, which
-      # is the most expensive way this workflow could lie. Counted before Stryker runs.
-      - name: The mutate globs match engine sources
+      # is the most expensive way this workflow could lie. Counted before Stryker runs,
+      # from stryker.config.json's OWN globs rather than from a second copy of them in a
+      # `find` command, because a copy drifts and a drifted copy counts files Stryker is
+      # not mutating. The floor is near the real number — 115 files on the merged P1
+      # engine, 2026-09-11 — not 3: at 3, a glob regression that dropped 112 of the 115
+      # still passed this step.
+      - name: The mutate globs still match the engine
+        env:
+          SCOPE_FLOOR: '100'
         run: |
           set -euo pipefail
-          count=$(find packages/core/src -name '*.ts' \
-            ! -name '*.test.ts' ! -name 'index.ts' ! -path 'packages/core/src/journey/*' | wc -l)
-          echo "engine sources in scope: $count"
-          test "$count" -ge 3
+          # The JS below is single-quoted on purpose: its ${...} are template literals for
+          # node, not shell expansions.
+          # shellcheck disable=SC2016
+          node --input-type=module -e '
+            import { readdirSync, statSync, readFileSync } from "node:fs";
+            const { mutate } = JSON.parse(readFileSync("stryker.config.json", "utf8"));
+            // Glob -> RegExp for the three shapes this config uses: `**/`, `**`, `*`.
+            const toRegExp = (glob) => new RegExp("^" + glob
+              .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+              .replace(/\*\*\/|\*\*|\*/g, (star) =>
+                star === "**/" ? "(?:.*/)?" : star === "**" ? ".*" : "[^/]*") + "$");
+            const included = mutate.filter((g) => !g.startsWith("!")).map(toRegExp);
+            const excluded = mutate.filter((g) => g.startsWith("!")).map((g) => toRegExp(g.slice(1)));
+            const walk = (dir, out = []) => {
+              for (const entry of readdirSync(dir)) {
+                if (entry === "node_modules" || entry === "dist") continue;
+                const full = `${dir}/${entry}`;
+                if (statSync(full).isDirectory()) walk(full, out); else out.push(full);
+              }
+              return out;
+            };
+            const all = walk("packages");
+            const matched = all.filter((f) => included.some((r) => r.test(f)));
+            const inScope = matched.filter((f) => !excluded.some((r) => r.test(f)));
+            console.log(`engine sources in Stryker scope: ${inScope.length} of ${matched.length} matched`);
+            // Three ways this count could be a count of nothing in particular:
+            if (matched.length === inScope.length) {
+              throw new Error("the ! globs exclude nothing — they no longer match any file");
+            }
+            if (inScope.some((f) => f.endsWith(".test.ts") || f.includes("/journey/"))) {
+              throw new Error("a test file or the journey harness is inside mutation scope");
+            }
+            const floor = Number(process.env.SCOPE_FLOOR);
+            if (inScope.length < floor) {
+              throw new Error(`only ${inScope.length} engine sources in scope; floor is ${floor}`);
+            }
+          '
 
       - name: Run Stryker
         run: pnpm exec stryker run stryker.config.json
@@ -114,8 +165,10 @@ jobs:
             console.log(`mutation score ${score.toFixed(2)}% (covered ${covered.toFixed(2)}%, threshold ${config.thresholds.break}%)`);
           '
 
+      # No `if: always()`. An incremental report from a crashed or threshold-failed run is
+      # a baseline that tells the next night's run those mutants are settled; saving it
+      # poisons every run after it.
       - name: Save the incremental report
-        if: always()
         uses: actions/cache/save@v4
         with:
           path: reports/stryker-incremental.json
