@@ -1,4 +1,4 @@
-GATE: TBD-GATE
+GATE: RED
 
 # P2 — Spanish pack v0: the integration report (round 3)
 
@@ -485,10 +485,6 @@ phase round's report is `docs/P2-REPORT-round2.md` and is called that by name.
 | `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the second CI pass's push, not by a failure |
 | `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                             |
 
-### The second CI pass, on `859f3fb`
-
-TBD-ROUND2
-
 ### `ci.yml` — red twice on one sha, green on the next, with every test passing throughout
 
 ```
@@ -588,7 +584,7 @@ X iOS simulator                                              CANCELLED
 **The iOS job was cancelled, not failed**, and this is the hazard `docs/P2-REPORT-round2.md`
 already named: `pack-ci` and `native-e2e` share a concurrency group with the branch, so
 the push that carried the re-key (`2d16f5f` … `859f3fb`) killed a job that had been
-running for 27 minutes. Recorded as a cancellation. The second CI pass below re-runs it on the
+running for 27 minutes. Recorded as a cancellation. The second CI pass, below, re-runs it on the
 final code sha, which is the only honest way to get the iOS half back.
 
 `flows exist` and `prebuild-determinism` are the two jobs that can lie cheaply and both
@@ -617,6 +613,10 @@ and not a screen.** The first surfaces that render any of it — S001's course c
 `{{n}}% machine-authored` and the measured wrong-item rate, S002's validator-report
 summary, S137's About, S152's credits — are P3's and P4's. `docs/pack-provenance.md`
 specifies their copy.
+
+### The second CI pass, on `859f3fb`
+
+TBD-ROUND2
 
 ## Blockers
 
