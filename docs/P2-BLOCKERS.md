@@ -1,9 +1,16 @@
 # P2 blockers
 
 What is stopping the Spanish pack, in one place, with the evidence each claim rests on.
-`docs/P2-REPORT.md` is the phase report at sha 78cfae3 and stays as written; this file is
-the live list. Last rewritten **2026-09-12, P2 round 3**, against the founder rulings of
-the same date.
+`docs/P2-REPORT.md` is the phase report and stays as written once a round closes; this
+file is the live list. Last rewritten **2026-09-12, P2 round 3**, against the founder
+rulings of the same date.
+
+(That first sentence used to read "the phase report at sha 78cfae3". It was true when it
+was written and stopped being true when round 3 rewrote `P2-REPORT.md` from scratch —
+`78cfae3` is a round-2 commit, "P2 report: say which sha the numbers belong to", so the
+pointer sent a reader to the previous phase report's state while claiming to name the
+current one. Frozen-report shas are named in each report's own header, which is the only
+place that cannot go stale.)
 
 **The nine founder decisions were answered on 2026-09-12** — B3, B5, B6, B9, B1b, B16,
 B14, B17 and B7, plus a scheduling note about `pnpm format`. They are recorded verbatim
@@ -47,7 +54,7 @@ So the status column distinguishes three things, and the distinction is the poin
 | **B17** | V11 sees mean difficulty fall across 13 unit boundaries                                    | content + code       | **DECIDED, BUILT, MEASURED** — 1 blocking (u10→u11, −1.039, across s1→s2) and 12 within-section warnings, not 13 blocking                                     |
 | **B18** | the accent dimension B6 made load-bearing has nothing to listen to                         | code                 | **OPEN, measured** — found 2026-09-12 by this round                                                                                                           |
 | **B19** | B9(a)+(c) moved the ledger, so 18 authored slots died and 22 new gap slots appeared        | content              | **OPEN — the phase blocker**; re-key done, 29 slots to author                                                                                                 |
-| **B20** | `ci.yml` fails with every test passing: `Timeout calling "onTaskUpdate"`, twice on one sha | infrastructure       | **OPEN, measured** — not a flake any more                                                                                                                     |
+| **B20** | `ci.yml` fails with every test passing: `Timeout calling "onTaskUpdate"`, twice on one sha | infrastructure       | **OPEN, measured — a flake, 2 of 4 attempts**; green on the last two shas                                                                                     |
 
 **The four rows above were re-measured on `main` at the P2 round-3 integration**, because
 each was written on a lane that could not see its sibling's files and each had gone stale
@@ -1183,6 +1190,22 @@ against the CI artefact `es-gap-brief-86f2430…` — same 494 slots, **0 rows d
 only `generated_at` and `g4_run_id` differ in the header. Two machines, two ingests, one
 gap list.
 
+**Re-confirmed on a third sha at the P2 round-3 third integration pass**, against
+`es-gap-brief-42b0be3…` (35,723 B, run 34708331193): 495 rows each, 494 slots, **0 slots
+only in CI, 0 only committed, 0 differing `ledger_digest`, and no difference on any field
+of any of the 494 slot rows** — `g4_run_id` and `generated_at` in the header are the whole
+of it. So the brief is stable across runs and the 22 slots can be authored against it.
+
+**Which committed brief a comparison used is load-bearing, and neither document used to
+say.** `docs/P2-REPORT.md` §"The artefact that settles it" reports this same
+`es-gap-brief-86f2430…` artefact as differing from the committed brief by "only in CI 22 ·
+only frozen 18 · 463 of 472 shared slots carry a different `ledger_digest`", which
+contradicts the paragraph above until you notice the two are measured against **different
+committed states**: the report against the pre-regeneration brief (490 slots, digest
+`e1dcba85…`), this file against the brief after `35635fa` regenerated it (494 slots, digest
+`e041abe5…`). Both are correct. A brief comparison is meaningless without naming the
+digest it was compared to, so every one above now names it.
+
 ### What is left, and it is authoring
 
 **22 slots with no candidate at all** (20 each = 440 rows). The windows are not the B9
@@ -1277,9 +1300,27 @@ Every attempt, in order:
 | `86f2430` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | FAILURE, 1,316/1,316 pass, 2 errors |
 | `86f2430` | 2       | same run, `gh run rerun --failed`                                      | FAILURE, 1,316/1,316 pass, 1 error  |
 | `859f3fb` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, 1,316/1,316 pass       |
+| `42b0be3` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34708331247> | **SUCCESS**, 1,316/1,316 pass       |
 
 A re-run on the same sha is therefore not a reliable way to clear it, which is what the
 "re-run once before calling it a regression" rule assumes.
+
+**Added at the third integration pass, and it changes the row's wording rather than its
+status.** The summary row used to read "not a flake any more", which contradicted this
+section's own conclusion two paragraphs up ("So it is a flake") — the row was written in
+the hour when both attempts on `86f2430` had failed and no later sha had passed yet, and
+nothing updated it when `859f3fb` went green. `42b0be3` is now the **second consecutive
+green**, so the measured rate is **2 failures in 4 attempts, both on one sha**, and the
+row says that instead.
+
+The third pass also produced the first evidence about the mechanism rather than the rate.
+`42b0be3` ran the identical suite in **152.73 s wall / 401.53 s test-time** against
+`86f2430`'s 227.31 s / 604.56 s — a 33% faster wall clock on the same tests — and the two
+failures are the two slowest runs recorded. That is consistent with the reporter-RPC
+timeout being a function of runner speed rather than of anything in the suite, which
+matters for whoever fixes it: it predicts the failure will reappear on a slow runner
+without any change to the tests, and that a green run is not evidence a fix worked. The
+levers below are unchanged.
 
 Not fixed here on purpose. The suite is 27 s wall on this Mac and 227 s on the runner, so
 there is no way to reproduce the timing locally, and a change pushed as a fix that cannot

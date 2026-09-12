@@ -42,6 +42,51 @@ _corroboration_ below was produced on this Mac and is not evidence. The gate is 
 only if `pack-ci`'s four jobs all **ran** and all **passed**; a skipped pack job reads
 green and proves nothing (`docs/ci.md` §"the job that was green because it never ran").
 
+## The plan's stop condition has been reached, and nothing in this repo was going to say so
+
+This is the item the founder checkpoint should read first, because it is a governance fact
+and not a measurement, and no lane could have raised it: a lane sees its own round.
+
+The plan's build workflow, step 6, sets a **stop condition**: _"a phase that fails its gate
+twice escalates to a scope decision, not a third attempt."_ The three P2 reports' first
+lines are:
+
+```
+docs/P2-REPORT-round1.md : GATE: RED
+docs/P2-REPORT-round2.md : GATE: RED
+docs/P2-REPORT.md        : GATE: RED      <- this file, round 3
+```
+
+So round 3 was already the attempt the plan said not to make, and round 4 is not a decision
+the workflow has left to make on its own. **Nothing anywhere in `docs/` mentioned the stop
+condition before this paragraph** — `grep -rn -i "stop condition\|escalat" docs/` returned
+nothing — which is the more interesting half: the rule was in the plan, every round
+measured itself honestly against its gate, and the counter across rounds was the one thing
+no round's own report was structured to keep.
+
+What makes this a scope decision rather than a fourth attempt is that the three red rounds
+are **not** three attempts at the same thing, and the trend is the argument for a decision
+rather than against one:
+
+| Round | Why it was red                                 | What it proved on the way             |
+| ----- | ---------------------------------------------- | ------------------------------------- |
+| 1     | ~18,200 authored sentences did not exist       | the framework and validators exist    |
+| 2     | the last two stages had never seen the content | G0–G5 run on real data                |
+| 3     | the content is keyed to a course B9 changed    | G6–G9 run; the content measures 4.00% |
+
+Each round moved the failure one stage later, and this round moved it out of the
+pipeline entirely: **what is left is not a stage that does not work, it is 22 slots of
+Spanish nobody has written and one question about `usted`.** That is why the honest
+framing is an escalation and not a defeat — but it is an escalation, and the two things it
+puts in front of the founder are B19 and B3, both of which are content decisions with
+costs, not bugs with fixes. §Blockers states both.
+
+The integrator did **not** start a fourth round, author the 22 slots, or decide B19.
+Authoring 440 candidate sentences from the integrate task would land unreviewed content
+through the one task that is supposed to only merge and measure, and one of the 22 slots
+(`u1/l3/s3`) cannot be authored at all until the founder answers whether `usted` stays a
+target lexeme in a `tu` course.
+
 ## What was merged
 
 Seven branches were in the queue and **six were merged**, one at a time, `--no-ff`, with
@@ -111,9 +156,20 @@ accent_consistency scored on 0 of 300 rows — G8 never ran, so there is no clip
 **Recomputed from the file rather than quoted from the lane's summary**: 300 rows are
 present, the verdicts are `ok 220 / awkward 68 / wrong 12`, 12/300 = 0.04 and 68/300 =
 0.2267 exactly, the provenance split is 246 llm / 54 corpus, the wrong rows' failing
-dimensions are `answer_set 5 · grammar 4 · meaning 3`, and **0 of 300 rows carry an
-`accent_consistency` key** — consistent with the lane's note that G8 never ran, so there
-was nothing to listen to. Every row carries a `note`; the first wrong one reads
+dimensions are `answer_set 5 · grammar 4 · meaning 3`, and **`accent_consistency` is
+`null` on all 300 rows** — consistent with the lane's note that G8 never ran, so there
+was nothing to listen to.
+
+(Corrected at the third integration pass. This paragraph previously read "0 of 300 rows
+carry an `accent_consistency` key", which is the wrong claim about the right fact: the key
+is **present on all 300 and `null` on all 300**, not absent. The distinction is the one
+`p2r3/deps-contract` spent its whole round on — a required-and-nullable key is the schema
+saying "this was considered and there was nothing to record", where an absent key says
+"nobody looked" — so a report that mixes them up is contradicting the mechanism it is
+reporting. Re-measured on the committed file: `Counter(repr(r['accent_consistency']))` is
+`{'None': 300}`, non-null 0.)
+
+Every row carries a `note`; the first wrong one reads
 _"`¿Son cuarenta, señor?` is glossed 'Are there forty, sir?'; `son` is not existential"_,
 which is a reviewer's finding and not a template.
 
@@ -532,13 +588,13 @@ whose measurement it is.
 | `pnpm typecheck`                                                                         | **GREEN**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                               |
 | `pnpm format:check`                                                                      | **GREEN**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                               |
 | `pnpm invariants:check`                                                                  | **GREEN** — 424 ids, digest matches the corpus                                                                                                                                                                                                                                                                                                                                                                                                                                                              | ci.yml                               |
-| `pnpm test`                                                                              | **GREEN on the final code sha** — 1,316 passed / 6 skipped on `859f3fb`, first attempt. It FAILED on both attempts of `86f2430` with the same 1,316 passing and `Timeout calling "onTaskUpdate"`: an intermittent reporter RPC timeout, recorded as B20 with all three attempts                                                                                                                                                                                                                             | ci.yml                               |
+| `pnpm test`                                                                              | **GREEN on the handed-over sha** — 1,316 passed / 6 skipped on `42b0be3`, first attempt, and on `859f3fb` before it. It FAILED on both attempts of `86f2430` with the same 1,316 passing and `Timeout calling "onTaskUpdate"`: an intermittent reporter RPC timeout, now 2 failures in 4 attempts and both on the two slowest runs recorded (B20)                                                                                                                                                           | ci.yml                               |
 | `pnpm test:falsify`                                                                      | **GREEN** — 280 committed falsifier cases                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                               |
 | `pnpm test:coverage-map`                                                                 | **GREEN** — no unowned id, no id claimed twice                                                                                                                                                                                                                                                                                                                                                                                                                                                              | ci.yml                               |
-| `uv run ruff check .` + `uv run pytest`                                                  | **GREEN** — ruff clean; pytest all passed                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | pack-ci `coursekit`                  |
+| `uv run ruff check .` + `uv run pytest`                                                  | **GREEN** — ruff clean (`All checks passed!`); pytest **934 passed / 8 skipped** of 942 collected                                                                                                                                                                                                                                                                                                                                                                                                           | pack-ci `coursekit`                  |
 | `pipeline-ready` — every stage and validator registered                                  | **GREEN** — 10/10 stages, 17/17 validators; both pack jobs live                                                                                                                                                                                                                                                                                                                                                                                                                                             | pack-ci                              |
-| `uv run coursekit build es` (G0–G9)                                                      | **RED in CI twice, one check apart.** `86f2430`: G0–G4 pass, G5 exits 4 on the 18 orphaned slots. `859f3fb` (re-keyed): G5 gets **past** that and exits 4 on the 22 slots with no candidate — the same 22 this Mac named, same order, each `(0)`. B19                                                                                                                                                                                                                                                       | pack-ci `build-es`                   |
-| `uv run coursekit validate es` → exit 0                                                  | **DID NOT RUN IN CI** — `validate-es` skipped on `needs: build-es`; `pipeline-ready` was green, so the skip is a real dependency and not the green-because-skipped failure mode. Run on this Mac over the G0–G5 tree: **5/17 green, 0 unregistered, 0 skipped, 33 blocking**                                                                                                                                                                                                                                | pack-ci `validate-es`                |
+| `uv run coursekit build es` (G0–G9)                                                      | **RED in CI three times, and the last two are the same failure.** `86f2430`: G0–G4 pass, G5 exits 4 on the 18 orphaned slots. `859f3fb` (re-keyed): G5 gets **past** that and exits 4 on the 22 slots with no candidate. `42b0be3`: identical — same 22 slots, same order, each `(0)`, 23m56s. B19                                                                                                                                                                                                          | pack-ci `build-es`                   |
+| `uv run coursekit validate es` → exit 0                                                  | **DID NOT RUN IN CI, on all three passes** — `validate-es` skipped on `needs: build-es`; `pipeline-ready` was green every time, so the skip is a real dependency and not the green-because-skipped failure mode. Re-run on this Mac over the G0–G5 tree at `42b0be3`: **5/17 green, 0 unregistered, 0 skipped, 33 blocking. Nothing ships.**                                                                                                                                                                | pack-ci `validate-es`                |
 | V1–V4 = 100%, zero violations \[INV-PACK-06]                                             | **NOT PROVEN** — V1–V4 need G7's artefact and G5 exits 4                                                                                                                                                                                                                                                                                                                                                                                                                                                    | —                                    |
 | V5–V12, F1–F5: the report names every validator that ran                                 | **PARTIAL, and it names all 17** — 5 green, 0 unregistered, 0 skipped, and each of the rest says which of _clean_, _nothing to check_ and _never ran_ it is. Measured on this Mac; the last run over a real pack was the expand lane's, on a tree that no longer exists: 11/17 green, 0 unregistered, 0 skipped, 210 blocking, 48 warnings                                                                                                                                                                  | —                                    |
 | V8 records the engines actually used \[INV-PACK-14]                                      | **PROVEN at one remove** — `languagetool/6.6/es` for grammar and spellcheck, `agent_rubric/v1` for backtranslation, `perplexity none`, `degraded_to grammar_only`; the sidecar step is green in CI on this sha, the G6 run is not on this tree                                                                                                                                                                                                                                                              | —                                    |
@@ -554,12 +610,23 @@ whose measurement it is.
 
 ## CI
 
-All three workflows ran on the integration sha **`86f2430`** — the merge queue plus the
-first two integration fixes and the format sweep. The re-key (`2d16f5f`) and the blockers
-(`a81b729`) landed after it, so **a second CI pass** ran on `859f3fb` and is quoted below.
+**Three CI passes, on three shas**, because the integration kept landing work after each
+one. In order, and each is a section below:
+
+| Pass | Sha       | What it carried                                             | Outcome                             |
+| ---- | --------- | ----------------------------------------------------------- | ----------------------------------- |
+| 1    | `86f2430` | the merge queue, two integration fixes, the format sweep    | ci FAILURE ×2, pack RED, e2e killed |
+| 2    | `859f3fb` | the re-key (`2d16f5f`) and the blockers (`a81b729`)         | ci GREEN, pack RED, e2e GREEN       |
+| 3    | `42b0be3` | the reviewer sample's data files and this report — no stage | ci GREEN, pack RED, e2e GREEN       |
+
+The gate verdict is pass 3's, and pass 3 is the sha this file is written at. Passes 1 and 2
+are kept because the differences between them are the evidence for B19 and B20 and neither
+would be visible from the final run alone.
 
 "Round 2" in this file always means the second CI pass of this integration. The previous
 phase round's report is `docs/P2-REPORT-round2.md` and is called that by name.
+
+### The first CI pass, on `86f2430`
 
 | Workflow         | Run                                                                    | Result                                                                                                                                           |
 | ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -720,6 +787,11 @@ So **INV-PER-06's DB-path gate is green on both platforms on the integrated tree
 is the P0 gate item this round could most easily have broken with a schema-adjacent merge
 and did not.
 
+(Pass 3 repeated both, on `42b0be3`, and both were downloaded and opened again — see
+§"The third CI pass". The field values are identical on both platforms across all three
+passes; the only thing that moves is the iOS app-container UUID, which changes on every
+fresh install.)
+
 **And there are no pack screenshots, as in round 2, because P2's product is a content pack
 and not a screen.** The first surfaces that render any of it — S001's course card with
 `{{n}}% machine-authored` and the measured wrong-item rate, S002's validator-report
@@ -792,6 +864,271 @@ filter**, so any push to `main`, documentation included, kills a running device 
 Artefacts: `e2e-859f3fb…-ios` (7,012,551 B) and `e2e-859f3fb…-android` (77,267 B) on
 <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937>.
 
+## The third pass: every gate re-run on the integrated tree, and four numbers re-derived
+
+The rounds above were written as the merges landed. This section is the whole gate re-run
+**once, in one sitting, on `main` at `42b0be3`** — the tree being handed over — because a
+gate measured incrementally across twelve integration commits is not the same claim as a
+gate measured on the result. Corroboration where it says this Mac; CI where it says CI.
+
+| Command                                  | Result                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`         | exit 0, no lockfile diff                                               |
+| `pnpm lint`                              | exit 0                                                                 |
+| `pnpm typecheck`                         | exit 0                                                                 |
+| `pnpm format:check`                      | exit 0 — the merge queue's format debt is paid                         |
+| `pnpm invariants:check`                  | exit 0 — 424 ids, digest matches the corpus                            |
+| `pnpm test:coverage-map`                 | exit 0 — no unowned id, none claimed twice                             |
+| `pnpm test:falsify`                      | exit 0 — 280 passed / 978 skipped                                      |
+| `pnpm test`                              | exit 0 — **114 files, 1,316 passed, 6 skipped**, 29.41 s               |
+| `uv sync --locked` (nlp, lm, align, tts) | exit 0 — 89 resolved, 87 checked, no lockfile diff                     |
+| `uv run ruff check .`                    | exit 0 — `All checks passed!`                                          |
+| `uv run pytest`                          | exit 0 — **934 passed, 8 skipped** of 942 collected, 40.62 s           |
+| `uv run coursekit validate es`           | **5/17 green, 0 unregistered, 0 skipped, 33 blocking. Nothing ships.** |
+
+Four numbers were **re-derived from the committed files rather than carried from a lane's
+report**, because a lane reporting its own headline is the one measurement this phase has
+already been burned by:
+
+- **The reviewer rate.** Recomputed from `docs/owned/p2r3-reviewer-sample.json`: 300 rows,
+  `ok 220 / awkward 68 / wrong 12`, so **12/300 = 4.0000%** and 68/300 = 22.6667%,
+  provenance 246 llm / 54 corpus, the wrong rows' failing dimensions
+  `answer_set 5 · grammar 4 · meaning 3`. Every figure in §`p2r3/reviewer-sample-300`
+  holds. The one claim that did not is corrected in place there: `accent_consistency` is
+  present-and-`null` on all 300 rows, not absent.
+- **Ownership.** `docs/invariants-owned.json` carries **5** ids (P0's) and the union of the
+  33 `docs/owned/*.json` files carries **226**, for **231** with **no id claimed twice** —
+  including all 23 P2 `INV-PACK` ids (01–08, 10, 12–15, 17–19, 27, 35, 40, 41, 50, 51, 56)
+  and both `INV-AUD` ids (01, 08). All seven round-3 lanes declare `owned: []` with a
+  written reason, which `docs/README.md` §"A lane that claims nothing" sanctions and
+  `test:coverage-map` confirms costs nothing: the P2 ids were claimed in rounds 1 and 2 and
+  are still owned and still green. **No id was dropped to make this round green.**
+- **The validator split.** `coursekit validate es` on this tree reproduces the recorded
+  numbers exactly — 5/17, 33 blocking — and reproduces **B17's split** on real data: one
+  blocking fall (`u10→u11`, −1.039, across the section boundary `s1→s2`) and **12**
+  within-section warnings, which is the shape founder ruling B17 asked for and not the 13
+  blocking boundaries the lane originally reported. The 27 V10 `licence is unresolved ('')`
+  findings are the 22 empty slots plus five more, i.e. B19 again, seen by a second
+  validator.
+- **Every P2 invariant id, with its owning test count.** `pnpm test:coverage-map` on
+  `42b0be3`, the `INV-PACK`/`INV-AUD` rows in full, so the gate's "ids green" clause is a
+  list and not an adjective:
+
+  ```
+  INV-AUD-01   2    INV-PACK-06  43    INV-PACK-15  20    INV-PACK-40  49
+  INV-AUD-08  24    INV-PACK-07  19    INV-PACK-17  27    INV-PACK-41  15
+  INV-PACK-01  7    INV-PACK-08  18    INV-PACK-18  26    INV-PACK-50  18
+  INV-PACK-02 14    INV-PACK-10  21    INV-PACK-19   4    INV-PACK-51  22
+  INV-PACK-03  6    INV-PACK-12  30    INV-PACK-27  10    INV-PACK-56   5
+  INV-PACK-04  3    INV-PACK-13  64    INV-PACK-35   2
+  INV-PACK-05  2    INV-PACK-14  25
+  ```
+
+  All 25 `OK`, 458 owning tests between them, thinnest at 2 (`INV-AUD-01`, `INV-PACK-05`,
+  `INV-PACK-35`). Property tests in `packages/core` run at `PROPERTY_RUNS = 10_000` per
+  zone (`packages/testkit/src/config.ts`), four zones, per the P0 floor.
+
+  **What this number does and does not say.** It says no id in the phase's ownership files
+  is unowned and none is claimed twice — the failure plan rule 4 names. It does **not** say
+  the ids are exercised end to end: the `C`-kind ones among them are properties of a pack,
+  and no pack exists, which is why `docs/RELEASE.md` §2 keeps "owned and green" and
+  "exercised end to end" as two rows. `INV-PACK-18` is the worked example and its 26 tests
+  are all of the first kind.
+
+- **The loader gate cannot be green over nothing.** Re-run here rather than believed:
+  `packages/core/src/packs/real-pack.test.ts` is **1 file / 6 tests skipped** with
+  `FREELINGO_REAL_PACK` unset, and **6 of 6 failed** with it set to `/nonexistent/pack.sqlite`,
+  naming the path it wanted. So the gate's one interesting property holds; it has still
+  never had a pack to open.
+
+### The third CI pass, on `42b0be3`
+
+`42b0be3` is the sha this report is written at and the tree that is handed over. It differs
+from `859f3fb` by `content/es/review/` (two data files), the reviewer lane's ownership file
+and documentation — **no stage, no validator, no TypeScript** — and `content/**` is in
+`pack-ci.yml`'s paths filter, so all three workflows ran again.
+
+| Workflow         | Run                                                                    | Result                                                                                          |
+| ---------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34708331247> | **SUCCESS**, first attempt, all three jobs — 114 files / 1,316 passed / 6 skipped, **152.73 s** |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34708331193> | **FAILURE at G5, the same 22 slots** — `validate-es` skipped on `needs:`                        |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34708331267> | **SUCCESS** — all four jobs, both platforms, first attempt                                      |
+
+`ci.yml`'s three jobs are `lint + typecheck + unit/property tests`, `gitleaks` and
+`golden-DB migrations (INV-PER-03, INV-PACK-35)` — all green, the migration job at
+1 passed / 7 skipped. This is the **second consecutive green** after the two `86f2430`
+failures, and it ran the identical suite in 152.73 s wall / 401.53 s test-time against
+`86f2430`'s 227.31 s / 604.56 s. B20's row in `docs/P2-BLOCKERS.md` was reworded on that
+evidence: it is a flake, 2 failures in 4 attempts, and the two failures are the two
+slowest runs on record.
+
+#### `build-es`: the third failure is the same failure, to the slot
+
+```
+✓ pipeline-ready                                       ~13s
+✓ coursekit lint + tests                               ~1m30s
+X build-es (G0-G9, capped ingest)                      23m56s
+- validate-es (V1-V12 + F1-F5)                         skipped (needs: build-es)
+
+17:29:19  g0  Ingest
+17:30:15  g1  Analyze
+17:46:19  g2  Band
+17:49:17  g3  Solve curriculum
+17:49:19  g4  Select
+17:52:42  g5  Gap-fill
+17:53:14  g5 failed: 22 slot(s) authored below the over-generation floor of 20:
+          u1/l3/s1 (0), u1/l3/s3 (0), u1/l3/s4 (0), u1/l3/s5 (0), u1/l3/s6 (0),
+          u1/l3/s7 (0), u4/l24/s6 (0), u16/l96/s6 (0), u17/l102/s6 (0),
+          u21/l121/s8 (0), u23/l131/s6 (0), u23/l132/s7 (0), u23/l134/s6 (0),
+          u25/l145/s4 (0), u27/l154/s4 (0), u27/l154/s5 (0), u27/l154/s6 (0),
+          u27/l156/s3 (0), u27/l157/s5 (0), u27/l157/s6 (0), u27/l158/s7 (0),
+          u29/l168/s6 (0). Generate-and-reject has nothing to resample from, and
+          the alternative is patching.
+##[error]Process completed with exit code 4.
+```
+
+The same 22 slots as `859f3fb`, in the same order, each `(0)`, and nothing earlier moved —
+which is what should happen, because `42b0be3` changes no stage. G1 is again the long pole
+at **16m04s** against `859f3fb`'s 15m52s.
+
+**And the gap brief is reproducible on a third sha — which also resolves a contradiction
+between two documents in this repo.** `es-gap-brief-42b0be3…` (35,723 B) was downloaded and
+compared row by row against the committed `content/es/authoring/gap-brief.jsonl`:
+
+```
+CI brief                 495 rows = 1 header + 494 slots
+committed brief          495 rows = 1 header + 494 slots
+slots only in CI          0
+slots only in committed   0
+slots whose ledger_digest differs   0
+per-key differences across all 494 slot rows   {}   (none, on any field)
+only differences, both in the header row:
+    g4_run_id     eb89519a319c4181a7abdbdc0a3ab5f3  vs  5a119350003a45cc92c2dc97f1d9ce10
+    generated_at  2026-09-12T17:53:19+00:00         vs  2026-09-12T16:38:00+00:00
+```
+
+**The contradiction.** §"The artefact that settles it" above reports the same comparison on
+`86f2430` as "only in CI 22 · only frozen 18 · 463 of the 472 shared slots carry a
+different `ledger_digest`", while `docs/P2-BLOCKERS.md` §B19 reports it on the _same_
+`es-gap-brief-86f2430…` artefact as "same 494 slots, **0 rows differing**". Read side by
+side those look like two answers to one question, and a reader would be right to distrust
+both. They are two different questions: the report compared CI's brief against the
+**pre-regeneration** committed brief (490 slots, digest `e1dcba85…`) and the blockers file
+compared it against the brief **after** `35635fa` regenerated it (494 slots, digest
+`e041abe5…`). Both measurements are correct; neither says which committed state it used,
+which is what made them look inconsistent. Stated here so the next reader does not have to
+work it out, and both sections are left as they were measured.
+
+**What pass 3 adds** is that the comparison now holds on a third sha, against a brief that
+has not moved since: zero, zero, zero, with a run id and a timestamp the whole of the
+difference. **The committed brief describes exactly the course CI builds**, so `35635fa`'s
+regeneration is confirmed on two independent runs, and an author picking up the 22 slots is
+authoring against the real ledger rather than a stale snapshot — which was the trap that
+cost 9,269 rows this round. B19 is now purely an authoring debt with no moving target
+underneath it.
+
+#### Android: green, and the screenshot was opened
+
+`Android emulator` passed, and this is the artefact this integration downloaded and looked
+at rather than cited:
+
+```
+gh run download 34708331267 -n e2e-42b0be33b3a227d8aca8d778ee66d1db2e875d73-android
+  -> e2e/artifacts/ci-42b0be3/android/
+     runner.txt  report.xml  screenshots/p0-db-path-p0-db-path.png  maestro/…
+```
+
+`runner.txt`: `sha=42b0be33b3a227d8aca8d778ee66d1db2e875d73 platform=android api_level=34
+arch=x86_64 target=google_apis flows=1 maestro=2.10.0`.
+`report.xml`: `tests="1" failures="0" time="15.848"`, testcase `p0-db-path` `status="SUCCESS"`,
+tagged `p0, persistence`.
+
+**`screenshots/p0-db-path-p0-db-path.png`** (25,202 B, sha256
+`1c364fe8645003225a049aa0cabf06ef570beda2af18331a1019f26ddea00c33`) — the app's
+**Diagnostics** sheet, "Diagnostics" as a bold Freelingo-green heading on an off-white
+ground, eight grey-labelled rows in a single column, and a green **CLOSE** at the foot:
+
+| Row                    | Value                                                               |
+| ---------------------- | ------------------------------------------------------------------- |
+| `db-path`              | `file:///data/user/0/org.freelingo.app/files/freelingo-progress.db` |
+| `journal-mode`         | `wal`                                                               |
+| `user-version`         | `2`                                                                 |
+| `packs-dir`            | `file:///data/user/0/org.freelingo.app/cache/packs/`                |
+| `packs-excluded`       | `true`                                                              |
+| `platform`             | `android`                                                           |
+| `db-path-persistent`   | `true`                                                              |
+| `pre-migration-backup` | `none`                                                              |
+
+That is INV-PER-06's DB-path gate, on a device, on the handed-over tree: progress in the
+app's `files/` directory under WAL at `user_version` 2, packs in `cache/` and flagged
+excluded from backup. Identical field values to `859f3fb`'s and `86f2430`'s.
+
+#### iOS: green, and that screenshot was opened too
+
+```
+✓ flows exist                                                 4s
+✓ INV-PLAT-02 — native trees are generated and reproducible   22s
+✓ Android emulator                                            22m23s
+✓ iOS simulator                                               30m10s
+```
+
+`runner.txt`: `platform=ios simulator_requested=iPhone 17 (iOS-26-1)
+simulator_used=iPhone 17 @ iOS-26-1 udid=3D025AD9-C9BB-46A3-BCB4-B84F592C53A0
+xcode=Xcode 26.2 Build version 17C52 flows=1 maestro=2.10.0`.
+`report.xml`: `tests="1" failures="0" time="67.845"`, `p0-db-path` `status="SUCCESS"` on
+device `iPhone 17 - iOS 26.1 - 3D025AD9…`.
+
+**`e2e/artifacts/ci-42b0be3/ios/screenshots/p0-db-path-p0-db-path.png`** (201,080 B, sha256
+`2d6f347c9ccb1b16ca1c8028a28ea28b443b85f7f0dd3622748180e8fabd3010`) — the same
+**Diagnostics** sheet, same eight rows in the same order, same green heading and green
+CLOSE, rendered at iPhone 17 scale with the status bar reading 5:58. The two
+platform-specific rows:
+
+```
+db-path    file:///Users/runner/Library/Developer/CoreSimulator/Devices/
+           3D025AD9-C9BB-46A3-BCB4-B84F592C53A0/data/Containers/Data/Application/
+           4172B018-D4FE-490F-A76A-D2BD4F4618BE/Documents/freelingo-progress.db
+packs-dir  …/4172B018-D4FE-490F-A76A-D2BD4F4618BE/Library/Caches/packs/
+```
+
+and `journal-mode wal`, `user-version 2`, `packs-excluded true`, `platform ios`,
+`db-path-persistent true`, `pre-migration-backup none`. The app-container UUID differs from
+`859f3fb`'s `B813D6D0…`, which is a fresh install on the same simulator and not a finding.
+
+**So INV-PER-06's DB-path gate is green on both platforms on the handed-over tree** —
+progress in `Documents/` on iOS and `files/` on Android, both under WAL at `user_version`
+2, packs in the platform cache directory and flagged excluded from backup. This is the P0
+gate item a schema-adjacent merge round could most easily have broken, and it did not,
+three passes running.
+
+**Wall-clock, because the plan says to budget it**: the iOS job was **30m10s** here against
+`859f3fb`'s 47m and round 2's 29m34s, with `Build and install on the booted simulator`
+taking **22m17s** of it (17:34:11 → 17:56:28) and Maestro 2m11s. Android was 22m23s. The
+47-minute figure in §"The second CI pass" was the outlier, not the norm; 30 minutes is the
+number to plan with, and the build step is three-quarters of it either way.
+
+**There are still no pack screenshots, and there cannot be**: P2's product is a content
+pack, not a screen, and the surfaces that render any of it (S001, S002, S137, S152) are
+P3's and P4's.
+
+#### Where the downloaded artefacts are
+
+Everything quoted above was downloaded with `gh run download` into
+`e2e/artifacts/ci-42b0be3/` (gitignored — `.gitignore:48 e2e/artifacts/*`, so CI stays the
+only writer of record):
+
+| Path                                  | Artefact                | Size        |
+| ------------------------------------- | ----------------------- | ----------- |
+| `e2e/artifacts/ci-42b0be3/ios/`       | `e2e-42b0be3…-ios`      | 4,766,174 B |
+| `e2e/artifacts/ci-42b0be3/android/`   | `e2e-42b0be3…-android`  | 77,494 B    |
+| `e2e/artifacts/ci-42b0be3/gap-brief/` | `es-gap-brief-42b0be3…` | 35,723 B    |
+
+Each of the two e2e trees carries `runner.txt`, `report.xml`, `screenshots/` and the full
+`maestro/<timestamp>/p0-db-path/` run directory with `commands.json`, `manifest.json` and
+the device logs. **No `es-pack-<sha>` and no `es-build-<sha>` exist on this run either**, for
+the same reason as the previous two: both are uploaded after G9, and the build exits 4 at
+G5. Three passes, three times no pack.
+
 ## Blockers
 
 The live list is `docs/P2-BLOCKERS.md`, and this round **re-measured five of its rows**
@@ -844,6 +1181,12 @@ the build: 65 GiB. At the end: **65 GiB**, `df -g` agreeing. Well above the 15 G
 the brief names, so no cache was cleared and `apps/mobile/ios/build`,
 `apps/mobile/android/build` and `~/Library/Developer/Xcode/DerivedData/Freelingo-*` were
 left alone.
+
+At the third integration pass, after the whole gate was re-run and three CI artefact trees
+were downloaded: **65 GiB free of 460 GiB (85% used)**, `df -g` agreeing at 65. Unmoved, and
+four times the 15 GB floor the brief names, so again no cache was cleared and none of
+`apps/mobile/ios/build`, `apps/mobile/android/build` or
+`~/Library/Developer/Xcode/DerivedData/Freelingo-*` was touched.
 
 P0's target of ≥ 80 GB free is still unmet and nothing in P2 needed it. What this round
 added locally and does not need again: `build/` 520 MB (the G0–G5 tree, gitignored),
