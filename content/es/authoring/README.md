@@ -54,6 +54,18 @@ One file per lane, read in sorted filename order after the legacy
 `content/es/candidates.jsonl`. Two shards naming the same `(slot, text)` is a hard stop,
 not a dedup — it would leave the slot nineteen deep while the floor still read twenty.
 
+**Read order is not ship order, and guessing that it is will cost you an item.** G5
+reports a slot filled by the FIRST accepted candidate it reads, so sorted filename order
+is what decides that number. But `g7_expand.py` builds its lookup as
+`candidates[key] = row` over every accepted row, so **G7 expands the LAST accepted
+candidate for the slot**. If your shard and another lane's both have an accepted candidate
+for one slot, G5's runlog names yours and the pack may ship theirs, silently. Two
+consequences for you: keep exactly one admissible candidate per slot (the other nineteen
+are over-generation and should fail a real axis), and do not assume a low-sorting filename
+protects a slot from a shard that sorts after yours. This is a known defect recorded
+against the expand lane in `docs/owned/p2r3-gapfill-lesson1.json`; until it is fixed,
+content that accepts once per slot is content for which the two stages agree.
+
 Each row:
 
 ```json
