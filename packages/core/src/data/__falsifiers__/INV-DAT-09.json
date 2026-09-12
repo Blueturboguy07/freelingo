@@ -1,0 +1,34 @@
+{
+  "id": "INV-DAT-09",
+  "covers": ["EC-PER-22"],
+  "why": "An archive produced by an AGPL fork carries extra columns, a different economy config and unresolvable pack ids. An imported config must not raise this build's freeze cap.",
+  "cases": [
+    {
+      "why": "EC-PER-22: the fork's archive declares freezeCap 99. This build's cap is 2.",
+      "archiveFreezes": 99,
+      "archiveEconomy": {
+        "freezeCap": 99,
+        "freezePrice": 1
+      },
+      "buildFreezeCap": 2,
+      "freezesAfter": 2,
+      "economyFieldsWritten": []
+    },
+    {
+      "why": "A cap of zero is honoured too: the clamp is to the build, not to a minimum.",
+      "archiveFreezes": 5,
+      "archiveEconomy": {
+        "freezeCap": 5
+      },
+      "buildFreezeCap": 0,
+      "freezesAfter": 0,
+      "economyFieldsWritten": []
+    }
+  ],
+  "unresolvablePackCase": {
+    "why": "A pack id this build has never heard of is refused, and the course it belongs to is kept rather than dropped (EC-PER-09).",
+    "archivePackIds": ["es-ES@1.0.0", "xx-XX@9.9.9"],
+    "installedPackIds": ["es-ES@1.0.0"],
+    "unresolvable": ["xx-XX@9.9.9"]
+  }
+}

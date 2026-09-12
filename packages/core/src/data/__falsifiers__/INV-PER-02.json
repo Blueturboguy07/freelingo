@@ -1,0 +1,40 @@
+{
+  "id": "INV-PER-02",
+  "covers": ["EC-PER-02"],
+  "why": "A write fails with SQLITE_CORRUPT mid-session at a 212-day streak. A rollover against damaged rows could burn a freeze or break a streak from corruption rather than behaviour, and freeze consumption is irreversible.",
+  "cases": [
+    {
+      "why": "The 212-day streak with five missed days and two freezes: nothing is spent, nothing is broken.",
+      "integrity": "corrupt",
+      "missedDays": 5,
+      "freezesOwned": 2,
+      "streak": 212,
+      "applied": false,
+      "freezesConsumed": 0,
+      "streakAfter": 212,
+      "streakBroken": false
+    },
+    {
+      "why": "Even one missed day and one freeze: still nothing.",
+      "integrity": "corrupt",
+      "missedDays": 1,
+      "freezesOwned": 1,
+      "streak": 3,
+      "applied": false,
+      "freezesConsumed": 0,
+      "streakAfter": 3,
+      "streakBroken": false
+    },
+    {
+      "why": "The same input on a healthy DB does roll over, so the precondition is not a permanent refusal.",
+      "integrity": "healthy",
+      "missedDays": 1,
+      "freezesOwned": 1,
+      "streak": 3,
+      "applied": true,
+      "freezesConsumed": 1,
+      "streakAfter": 3,
+      "streakBroken": false
+    }
+  ]
+}

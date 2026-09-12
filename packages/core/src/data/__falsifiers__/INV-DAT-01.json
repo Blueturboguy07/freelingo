@@ -1,0 +1,62 @@
+{
+  "id": "INV-DAT-01",
+  "covers": ["EC-PER-05"],
+  "why": "Export needs 20 MB, 12 MB free. The dangerous artefact is the half-written file that reaches the share sheet and is imported six months later - import is replace-only, so it destroys a good state and restores nothing.",
+  "cases": [
+    {
+      "why": "EC-PER-05: the short disk refuses up front and writes nothing.",
+      "estimatedBytes": 20971520,
+      "freeBytes": 12582912,
+      "checkpointed": true,
+      "bytesWritten": 0,
+      "digestMatches": true,
+      "shareSheet": false,
+      "artefacts": 0,
+      "refusal": "short-disk"
+    },
+    {
+      "why": "A short write: the file exists on disk but is not what the manifest describes.",
+      "estimatedBytes": 20000,
+      "freeBytes": 524288000,
+      "checkpointed": true,
+      "bytesWritten": 19000,
+      "digestMatches": true,
+      "shareSheet": false,
+      "artefacts": 0,
+      "refusal": "short-write"
+    },
+    {
+      "why": "Right length, wrong bytes.",
+      "estimatedBytes": 20000,
+      "freeBytes": 524288000,
+      "checkpointed": true,
+      "bytesWritten": 20000,
+      "digestMatches": false,
+      "shareSheet": false,
+      "artefacts": 0,
+      "refusal": "checksum-mismatch"
+    },
+    {
+      "why": "The dump was taken without checkpointing, so it is missing whatever was in the -wal.",
+      "estimatedBytes": 20000,
+      "freeBytes": 524288000,
+      "checkpointed": false,
+      "bytesWritten": 20000,
+      "digestMatches": true,
+      "shareSheet": false,
+      "artefacts": 0,
+      "refusal": "checkpoint-failed"
+    },
+    {
+      "why": "A verified-complete write, and only then the share sheet.",
+      "estimatedBytes": 20000,
+      "freeBytes": 524288000,
+      "checkpointed": true,
+      "bytesWritten": 20000,
+      "digestMatches": true,
+      "shareSheet": true,
+      "artefacts": 1,
+      "refusal": null
+    }
+  ]
+}

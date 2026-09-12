@@ -1,0 +1,55 @@
+{
+  "id": "INV-PACK-27",
+  "covers": ["EC-PACK-23"],
+  "why": "Abroad on metered roaming, iOS reclaims the inactive 38 MB pack and the learner switches to that course.",
+  "cases": [
+    {
+      "why": "EC-PACK-23: the switch must resolve to not-downloaded, not launch a session with failing audio.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "metered",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": false
+    },
+    {
+      "why": "A cellular fixture that auto-resumes a 38 MB download is the falsifier named in the invariant.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "metered",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": false
+    },
+    {
+      "why": "On an unmetered link the queued download does resume by itself (EC-CRS-06).",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "unmetered",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": true
+    }
+  ]
+}

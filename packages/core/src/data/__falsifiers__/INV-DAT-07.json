@@ -1,0 +1,59 @@
+{
+  "id": "INV-DAT-07",
+  "covers": ["EC-PER-19"],
+  "why": "A restore supplies freelingo.db without its -wal: SQLite opens cleanly, integrity_check passes, and the last sessions are silently gone. integrity_check proves validity, never completeness.",
+  "cases": [
+    {
+      "why": "EC-PER-19: no -wal and the producer never checkpointed.",
+      "observation": {
+        "dbPresent": true,
+        "walPresent": false,
+        "checkpointedAtSource": false,
+        "declaredRowCount": 900,
+        "actualRowCount": 900,
+        "maxLocalDaySeen": "2026-09-10",
+        "newestSessionDay": "2026-09-10"
+      },
+      "verdict": "incomplete-restore"
+    },
+    {
+      "why": "The row count falls short of the manifest's.",
+      "observation": {
+        "dbPresent": true,
+        "walPresent": true,
+        "checkpointedAtSource": true,
+        "declaredRowCount": 900,
+        "actualRowCount": 611,
+        "maxLocalDaySeen": "2026-09-10",
+        "newestSessionDay": "2026-09-10"
+      },
+      "verdict": "incomplete-restore"
+    },
+    {
+      "why": "The device remembers days whose sessions are not in this file.",
+      "observation": {
+        "dbPresent": true,
+        "walPresent": true,
+        "checkpointedAtSource": true,
+        "declaredRowCount": 900,
+        "actualRowCount": 900,
+        "maxLocalDaySeen": "2026-09-11",
+        "newestSessionDay": "2026-09-04"
+      },
+      "verdict": "incomplete-restore"
+    },
+    {
+      "why": "Checkpointed at the source, complete: a normal open.",
+      "observation": {
+        "dbPresent": true,
+        "walPresent": false,
+        "checkpointedAtSource": true,
+        "declaredRowCount": 900,
+        "actualRowCount": 900,
+        "maxLocalDaySeen": "2026-09-10",
+        "newestSessionDay": "2026-09-10"
+      },
+      "verdict": "complete"
+    }
+  ]
+}

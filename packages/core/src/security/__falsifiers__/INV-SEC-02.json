@@ -1,0 +1,37 @@
+{
+  "id": "INV-SEC-02",
+  "covers": ["EC-SEC-02"],
+  "why": "execAsync does not bind parameters. Each `source` is a call site the gate must report; each `allowed` is one it must not.",
+  "violations": [
+    {
+      "why": "the obvious one: a template hole",
+      "source": "await db.execAsync(`PRAGMA user_version = ${next}`);",
+      "reason": "template literal with an interpolated hole"
+    },
+    {
+      "why": "concatenation reads as safe and is not",
+      "source": "db.execAsync('DELETE FROM item_report WHERE note = ' + note);",
+      "reason": "string concatenation"
+    },
+    {
+      "why": "a variable the author is sure is constant",
+      "source": "await db.execAsync(migrationSql);",
+      "reason": "non-literal argument"
+    },
+    {
+      "why": "a builder call, the shape a refactor leaves behind",
+      "source": "await handle.execAsync(buildSchemaSql(version));",
+      "reason": "non-literal argument"
+    },
+    {
+      "why": "a nested template inside a call argument",
+      "source": "db.execAsync(`INSERT INTO t VALUES ('${value}')`);",
+      "reason": "template literal with an interpolated hole"
+    }
+  ],
+  "allowed": [
+    "await db.execAsync('PRAGMA journal_mode = WAL');",
+    "await db.execAsync(`PRAGMA foreign_keys = ON`);",
+    "await db.execAsync(\"PRAGMA wal_checkpoint(TRUNCATE)\");"
+  ]
+}

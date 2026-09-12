@@ -1,0 +1,49 @@
+{
+  "id": "INV-PER-08",
+  "covers": ["EC-PER-14"],
+  "why": "An update ships a migration; the DB is 40 MB with 20 MB free when onInit runs. Any DDL executed without a verified backup file on disk is the falsifier.",
+  "cases": [
+    {
+      "why": "EC-PER-14 exactly: no verified backup, so no DDL, and the blocking screen still exports.",
+      "pendingMigrations": 1,
+      "dbBytes": 41943040,
+      "freeBytes": 20971520,
+      "backupVerified": false,
+      "currentUserVersion": 2,
+      "targetUserVersion": 3,
+      "ddlAllowed": false,
+      "userVersionAfter": 2,
+      "openReadOnly": true,
+      "screen": "S149-blocking-free-space",
+      "offers": ["export-my-data", "remove-downloaded-audio"]
+    },
+    {
+      "why": "Plenty of space but the backup write still failed: the rule is the backup, not the space.",
+      "pendingMigrations": 1,
+      "dbBytes": 1048576,
+      "freeBytes": 524288000,
+      "backupVerified": false,
+      "currentUserVersion": 2,
+      "targetUserVersion": 3,
+      "ddlAllowed": false,
+      "userVersionAfter": 2,
+      "openReadOnly": true,
+      "screen": "S149-blocking-free-space",
+      "offers": ["export-my-data", "remove-downloaded-audio"]
+    },
+    {
+      "why": "A verified backup lets it run.",
+      "pendingMigrations": 1,
+      "dbBytes": 1048576,
+      "freeBytes": 524288000,
+      "backupVerified": true,
+      "currentUserVersion": 2,
+      "targetUserVersion": 3,
+      "ddlAllowed": true,
+      "userVersionAfter": 3,
+      "openReadOnly": false,
+      "screen": "none",
+      "offers": []
+    }
+  ]
+}

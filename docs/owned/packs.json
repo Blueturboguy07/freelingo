@@ -1,0 +1,27 @@
+{
+  "$comment": "Invariant ids owned by the P1 task `p1-packs-data-security`: the pack lifecycle harness, export/import, and the two security gates. One file per task: `pnpm test:coverage-map` unions docs/invariants-owned.json with every docs/owned/*.json and fails if two files claim the same id, so parallel P1 tasks can each declare what they own without editing a shared array. Every id here has a test whose name contains it, under packages/core/src/{packs,data,security}/. The C-kind INV-PACK ids — the coursekit content gates (ledger, licences, story structure, characters) — are P2's and are deliberately NOT claimed here.",
+  "task": "p1-packs-data-security",
+  "phase": "P1",
+  "owned": [
+    "INV-PACK-01",
+    "INV-PACK-02",
+    "INV-PACK-04",
+    "INV-PACK-18",
+    "INV-PACK-27",
+    "INV-PER-01",
+    "INV-PER-02",
+    "INV-PER-04",
+    "INV-PER-05",
+    "INV-PER-08",
+    "INV-DAT-01",
+    "INV-DAT-02",
+    "INV-DAT-03",
+    "INV-DAT-04",
+    "INV-DAT-05",
+    "INV-DAT-07",
+    "INV-DAT-09",
+    "INV-DAT-10",
+    "INV-SEC-01",
+    "INV-SEC-02"
+  ]
+}

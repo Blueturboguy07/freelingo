@@ -1,0 +1,67 @@
+{
+  "id": "INV-PER-01",
+  "covers": ["EC-PER-01"],
+  "why": "The total-loss case. A 300-day streak vanishing silently is indistinguishable from a bug that ate it, and there is no server to prove otherwise. The falsifier named by the invariant is a corrupted byte range in a fixture DB; `integrity.test.ts` builds a real SQLite file, corrupts pages 2-3, and replays these.",
+  "cases": [
+    {
+      "why": "SQLITE_CORRUPT at cold launch.",
+      "observation": {
+        "errorCode": "SQLITE_CORRUPT",
+        "integrityCheck": "failed",
+        "walRecovered": false
+      },
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "The file opens, but `PRAGMA integrity_check` reports a problem.",
+      "observation": {
+        "errorCode": null,
+        "integrityCheck": "failed",
+        "walRecovered": true
+      },
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "`SQLITE_NOTADB`: somebody imported the wrong file into the right path.",
+      "observation": {
+        "errorCode": "SQLITE_NOTADB",
+        "integrityCheck": "not-run",
+        "walRecovered": false
+      },
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "A busy database is not a damaged one - renaming it would destroy a healthy file.",
+      "observation": {
+        "errorCode": "SQLITE_BUSY",
+        "integrityCheck": "ok",
+        "walRecovered": true
+      },
+      "verdict": "healthy",
+      "action": "none",
+      "deletes": [],
+      "screen": "none"
+    },
+    {
+      "why": "A full disk is not a damaged one either (that is INV-PER-05).",
+      "observation": {
+        "errorCode": "SQLITE_FULL",
+        "integrityCheck": "ok",
+        "walRecovered": true
+      },
+      "verdict": "healthy",
+      "action": "none",
+      "deletes": [],
+      "screen": "none"
+    }
+  ]
+}

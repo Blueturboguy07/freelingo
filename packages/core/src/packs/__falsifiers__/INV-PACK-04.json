@@ -1,0 +1,51 @@
+{
+  "id": "INV-PACK-04",
+  "covers": ["EC-PACK-01", "EC-HUB-04"],
+  "why": "The audio bank stopped at 60% because the disk filled. Reusing the corrupt string here strands a learner who could still study all evening.",
+  "cases": [
+    {
+      "why": "EC-PACK-01: interrupted at 60%. The path renders in full, lessons run with per-item fallback, the Listen card offers RESUME.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "ok",
+        "audioBytesPresent": 22800000,
+        "audioBytesExpected": 38000000
+      },
+      "state": "partial",
+      "pathRendered": true,
+      "lessonsPlayable": true,
+      "perItemAudioFallback": true,
+      "action": "resume",
+      "showsUnavailable": false
+    },
+    {
+      "why": "Zero bytes of audio is still partial, not corrupt: the structure is installed and every item falls back.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "state": "partial",
+      "showsUnavailable": false
+    },
+    {
+      "why": "EC-HUB-04: only a genuinely corrupt pack shows `Practice Hub is currently unavailable`, with a re-download action.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "failed",
+        "audioBytesPresent": 38000000,
+        "audioBytesExpected": 38000000
+      },
+      "state": "corrupt",
+      "showsUnavailable": true,
+      "action": "repair"
+    }
+  ]
+}

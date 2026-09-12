@@ -1,0 +1,32 @@
+{
+  "id": "INV-PER-04",
+  "covers": ["EC-CER-02"],
+  "why": "Rewards written before attempts leave a learner holding a chest their counters cannot reproduce. The property is that the ceremony never displays a reward that is not in the DB.",
+  "order": ["attempts", "mistakes", "rewards"],
+  "cases": [
+    {
+      "why": "SQLITE_FULL at the rewards write: the ceremony is suppressed entirely, not shown with half its tiles.",
+      "failAt": "rewards",
+      "errorCode": "SQLITE_FULL",
+      "written": ["attempts", "mistakes"],
+      "ceremonySuppressed": true,
+      "ceremonyRewards": 0
+    },
+    {
+      "why": "SQLITE_FULL at the attempts write: nothing landed and nothing is shown.",
+      "failAt": "attempts",
+      "errorCode": "SQLITE_FULL",
+      "written": [],
+      "ceremonySuppressed": true,
+      "ceremonyRewards": 0
+    },
+    {
+      "why": "A clean commit shows exactly what it wrote.",
+      "failAt": null,
+      "errorCode": "",
+      "written": ["attempts", "mistakes", "rewards"],
+      "ceremonySuppressed": false,
+      "ceremonyRewards": 2
+    }
+  ]
+}

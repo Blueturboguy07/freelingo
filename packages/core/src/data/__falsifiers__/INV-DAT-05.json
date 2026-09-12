@@ -1,0 +1,31 @@
+{
+  "id": "INV-DAT-05",
+  "covers": ["EC-PER-15"],
+  "why": "Device A exported while its clock read 2027; device B with a correct clock imports and completes a lesson. Without the clamp the anti-tamper guard suppresses every day-keyed reward until the calendar catches up - a self-inflicted denial of service.",
+  "cases": [
+    {
+      "why": "EC-PER-15: an archive from a 2027 clock.",
+      "archiveMaxLocalDaySeen": "2027-06-01",
+      "deviceMaxLocalDaySeen": "2026-09-10",
+      "today": "2026-09-11",
+      "clamped": "2026-09-11",
+      "nextSessionGrantsGoalChest": true
+    },
+    {
+      "why": "The device's own value had also run ahead: it comes back to today too.",
+      "archiveMaxLocalDaySeen": "2026-09-01",
+      "deviceMaxLocalDaySeen": "2026-12-25",
+      "today": "2026-09-11",
+      "clamped": "2026-09-11",
+      "nextSessionGrantsGoalChest": true
+    },
+    {
+      "why": "An archive from the past cannot drag the device backwards either.",
+      "archiveMaxLocalDaySeen": "2020-01-01",
+      "deviceMaxLocalDaySeen": "2026-09-10",
+      "today": "2026-09-11",
+      "clamped": "2026-09-11",
+      "nextSessionGrantsGoalChest": true
+    }
+  ]
+}

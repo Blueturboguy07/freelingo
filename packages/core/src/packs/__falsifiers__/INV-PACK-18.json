@@ -1,0 +1,74 @@
+{
+  "id": "INV-PACK-18",
+  "covers": ["EC-PACK-57"],
+  "why": "An invalid signature must never take the destructive ladder. `corrupt` renames files and tells a learner their data is damaged; these bytes were never installed.",
+  "cases": [
+    {
+      "why": "EC-PACK-57: a pack archive arrives with an invalid signature.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "invalid",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "state": "unverified",
+      "action": "redownload"
+    },
+    {
+      "why": "An invalid signature outranks an integrity failure: nothing was installed, so nothing can have rotted.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "invalid",
+        "integrity": "failed",
+        "audioBytesPresent": 10,
+        "audioBytesExpected": 10
+      },
+      "state": "unverified"
+    },
+    {
+      "why": "Bytes on disk that no verify has ever run over are not installed either.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 10,
+        "audioBytesExpected": 10
+      },
+      "state": "unverified"
+    }
+  ],
+  "installCases": [
+    {
+      "why": "A wrong key: the signature is genuine, but not ours.",
+      "mutate": "wrong-key",
+      "state": "unverified",
+      "installed": false,
+      "installStepRan": false
+    },
+    {
+      "why": "A truncated signature - 32 of the 64 bytes.",
+      "mutate": "truncated-signature",
+      "state": "unverified",
+      "installed": false,
+      "installStepRan": false
+    },
+    {
+      "why": "A tampered manifest: one flipped bit in the declared defect rate.",
+      "mutate": "tampered-manifest",
+      "state": "unverified",
+      "installed": false,
+      "installStepRan": false
+    },
+    {
+      "why": "A genuine signature over a payload that is not the one that arrived.",
+      "mutate": "wrong-payload",
+      "state": "unverified",
+      "installed": false,
+      "installStepRan": false
+    }
+  ]
+}
