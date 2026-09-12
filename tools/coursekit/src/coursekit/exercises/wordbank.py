@@ -4,20 +4,38 @@ Two measured mechanics from `scope/09`, both of which constrain the *pack*, not 
 the player:
 
 - **The grid never reflows.** Tapping a bank tile appends its word to the answer strip
-  and leaves a blank placeholder in that tile's original grid position. So the bank is
-  an ORDERED list fixed at build time and the answer is a list of indices into it — not
-  a set of strings the player sorts. A pack that ships a bag of words hands the player
-  no way to keep the grid still.
+  and leaves a blank placeholder in that tile's original grid position, so the tile
+  order has to be FIXED for the whole of a session and a repeated answer token needs its
+  own tile — removing one word from the strip must not restore a tile that is still in
+  use. `build_word_bank` is where that is worked out: `tiles` + `answer_indices`, with
+  one ordinal per answer token.
 - **The bank always holds more tiles than the answer needs.** `MIN_EXTRA_WORD_BANK_TILES`
   is 2 and the cap is 4, because a four-token sentence with a twelve-tile bank is a
   scanning exercise rather than a language one.
 
+## What of this reaches the pack, and what does not
+
+Be exact about it, because a previous version of this docstring was not. The frozen
+`exercise` contract (`coursekit.artifacts.EXERCISE`, `additionalProperties: false`) has
+`distractors` and `alignment` and NOTHING ELSE this module produces: no tile array, no
+answer-index array, no hint list. So what ships is the EXTRA TILES (`extra_tiles`) plus
+the alignment, and the player fixes an order once at session start and stores the
+indices in `session_state` — which keeps the grid still, because "still" is a property
+of the session and not of the file. `tiles`/`answer_indices` are the build-time proof
+that such an order EXISTS with the duplicate-token rule satisfied; they are not a
+serialisation format. The request to add the three fields to the contract is filed in
+`docs/owned/p2-g7.json`; until it lands, claiming the pack ships a tile order would be
+false.
+
 Hints are the dotted underlines: only tokens the scheduler flags new-or-shaky carry
 one. At build time "new" is what the pack knows — a lemma introduced in this unit — so
-`build_word_bank` takes that set and attaches a gloss taken from the alignment. A hint
-is emitted only when the alignment actually covers the token: a positional guess
-rendered as a translation is the failure `deep/10` edge case 16 is about, and the
-learner has no way to tell it from a real one.
+`build_hints` takes that set and attaches a gloss taken from the alignment. A hint is
+emitted only when the alignment actually covers the token: a positional guess rendered
+as a translation is the failure `deep/10` edge case 16 is about, and the learner has no
+way to tell it from a real one. The hint LIST cannot ride the record either, so the
+stage ships the `alignment` the hints are derived from and runs `build_hints` at build
+time to put the count on the runlog — a pack whose aligner produced no hintable token
+then says `word_bank_hints: 0` instead of shipping a feature that renders nothing.
 """
 
 from __future__ import annotations

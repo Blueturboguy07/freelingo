@@ -28,6 +28,7 @@ from coursekit.config.g7 import (
 from coursekit.exercises.distractors import (
     AlternativesIndex,
     DistractorPool,
+    L1DecoyPool,
     NotEnoughDistractors,
     RerankerUnavailable,
     normalise,
@@ -187,7 +188,7 @@ def test_V5_the_rule_core_never_returns_a_valid_alternative(
     lemmas = drawable(pool, ledger, 4)
     rng = random.Random(DISTRACTOR_SEED + 2)
 
-    for _run in range(PROPERTY_RUNS // 10):
+    for _run in range(PROPERTY_RUNS):
         lemma = rng.choice(lemmas)
         siblings = [
             other
@@ -369,3 +370,108 @@ def test_the_call_site_walk_would_catch_one(tmp_path: Path) -> None:
         and node.func.id == "rerank"
     ]
     assert len(found) == 1
+
+
+# ---------------------------------------------------------------------------
+# The L1 pool — decoy tiles for a bank rendered in English
+# ---------------------------------------------------------------------------
+
+
+TRANSLATIONS = [
+    "The bread is warm.",
+    "The soup is very tasty.",
+    "My house has three rooms.",
+    "The dog runs in the park.",
+    "The book is on the table.",
+]
+
+
+def test_the_l1_pool_holds_english_tokens_and_no_course_language_lemma() -> None:
+    """`word_bank_reverse` renders an English grid, so its tiles have to be English.
+
+    The rule core is a course-language machine — its POS tags, its bands and its
+    attested inflections are facts about Spanish — and asking it for an English tile
+    returned `["aprendo", "está", "conocerte"]` under the prompt `Write this in
+    English`. V5 could not catch it: its POS clause can only be evaluated against the
+    course-language ledger, and those three have no row in it.
+    """
+    pool = L1DecoyPool.build(TRANSLATIONS, exclude_lemmas=["the", "is", "el", "pan"])
+    assert "bread" in pool.tokens
+    assert "the" not in pool.tokens and "is" not in pool.tokens
+    # Sorted, deduplicated, and a sentence-initial capital is lower-cased: a tile is not
+    # a sentence start.
+    assert list(pool.tokens) == sorted(pool.tokens)
+    assert len(set(pool.tokens)) == len(pool.tokens)
+    assert "The" not in pool.tokens
+    # Trailing punctuation never rides onto a tile.
+    assert all(not token.endswith((".", ",", "?", "!")) for token in pool.tokens)
+
+
+def test_the_l1_pool_never_offers_a_token_of_the_displayed_prompt() -> None:
+    """The second half of the same defect: one shipped decoy (`está`) was a word of the
+    Spanish sentence rendered directly above the bank, so the exercise was answerable by
+    copying."""
+    pool = L1DecoyPool.build(TRANSLATIONS)
+    drawn = pool.decoys(
+        key="sentence:x",
+        accepted=["The", "soup", "is", "very", "tasty."],
+        prompt_tokens=["The", "book", "is", "on", "the", "table."],
+        alternatives=AlternativesIndex(),
+        count=3,
+    )
+    assert len(drawn) == 3
+    forbidden = {"the", "soup", "is", "very", "tasty", "book", "on", "table"}
+    assert not {token.casefold() for token in drawn} & forbidden
+
+
+def test_the_l1_pool_refuses_rather_than_repeating_itself() -> None:
+    """Same rule as the rule core: running out is a content failure, not a licence to
+    pad from the course language."""
+    pool = L1DecoyPool.build(["The bread is warm."])
+    with pytest.raises(NotEnoughDistractors, match="English word bank"):
+        pool.decoys(
+            key="sentence:x",
+            accepted=["bread"],
+            prompt_tokens=["warm"],
+            alternatives=AlternativesIndex(),
+            count=3,
+        )
+
+
+def test_the_l1_pool_honours_the_alternatives_index() -> None:
+    """V5's third clause applies to an English tile too: a string that is an accepted
+    answer of a sibling exercise over the same item may not be a distractor for it."""
+    pool = L1DecoyPool.build(TRANSLATIONS)
+    alternatives = AlternativesIndex()
+    alternatives.add("lexeme:perro", ["dog", "park", "runs"])
+    drawn = pool.decoys(
+        key="lexeme:perro",
+        accepted=["dog"],
+        prompt_tokens=[],
+        alternatives=alternatives,
+        count=4,
+    )
+    assert not {token.casefold() for token in drawn} & {"dog", "park", "runs"}
+
+
+def test_the_l1_pool_is_deterministic() -> None:
+    """A pack must rebuild byte-identically; the player's saved tile indices ride on it."""
+    pool = L1DecoyPool.build(TRANSLATIONS)
+    call = dict(
+        key="sentence:x", accepted=["bread"], prompt_tokens=[],
+        alternatives=AlternativesIndex(), count=3,
+    )
+    assert pool.decoys(**call) == pool.decoys(**call)
+
+
+def test_the_alternatives_index_renders_the_authored_casing() -> None:
+    """`everywhere` holds casefolded comparison keys. `complete_the_chat` drew its one
+    wrong reply line from there and shipped `el pan está caliente.` as rendered copy."""
+    index = AlternativesIndex()
+    index.add("sentence:1", ["El pan está caliente."])
+    folded = normalise("El pan está caliente.")
+    assert folded in index.everywhere
+    assert folded == "el pan está caliente."
+    assert index.original(folded) == "El pan está caliente."
+    with pytest.raises(KeyError):
+        index.original("a string nobody added")

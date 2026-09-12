@@ -24,6 +24,16 @@ unit and refuses to emit anything inside it. Where a back-translation engine exi
 because the authored accepted-answer sets of sibling exercises are themselves the
 alternatives that matter most.
 
+## What the rule core is NOT for
+
+Everything above is a COURSE-LANGUAGE machine. The POS tags come from G1, the frequency
+bands from G2 and the attested inflections from the ledger's own tokens — all of them
+facts about Spanish. An exercise whose option list is rendered in English
+(`word_bank_reverse`, S035 `Write this in English`) cannot be served from it, and asking
+anyway returns Spanish words in an English bank. `L1DecoyPool` below is that case's pool,
+and it is separate rather than a mode of the rule core so the two cannot be confused at
+a call site.
+
 ## Determinism
 
 A pack must rebuild byte-identically or the content-addressed audio and the FSRS item
@@ -45,6 +55,7 @@ from ..config.g7 import (
     DISTRACTOR_BAND_WIDENING,
     DISTRACTOR_SEED,
     DISTRACTOR_STRATEGIES,
+    MIN_L1_DECOY_POOL,
     RERANK_ENABLED,
     RERANK_UNAVAILABLE_REASON,
 )
@@ -53,6 +64,7 @@ __all__ = [
     "AlternativesIndex",
     "Candidate",
     "DistractorPool",
+    "L1DecoyPool",
     "NotEnoughDistractors",
     "RerankerUnavailable",
     "normalise",
@@ -104,6 +116,13 @@ class AlternativesIndex:
     by_key: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
     #: Every accepted string anywhere, for the cross-item check.
     everywhere: set[str] = field(default_factory=set)
+    #: `normalised -> the string as it was authored`. The index compares folded and
+    #: RENDERS unfolded: `complete_the_chat` draws its one wrong reply line from
+    #: `everywhere`, and shipping the folded key put `el pan está caliente.` on screen
+    #: as rendered copy — a lower-case sentence start the learner is asked to read as
+    #: real Spanish. First writer wins, which is deterministic because the stage adds in
+    #: `selected_item` order.
+    originals: dict[str, str] = field(default_factory=dict)
 
     def add(self, key: str, accepted: Iterable[str]) -> None:
         bucket = self.by_key.setdefault(key, set())
@@ -111,6 +130,21 @@ class AlternativesIndex:
             folded = normalise(answer)
             bucket.add(folded)
             self.everywhere.add(folded)
+            self.originals.setdefault(folded, answer)
+
+    def original(self, folded: str) -> str:
+        """The authored form of a normalised key. Never the casefolded one.
+
+        Raises rather than falling back to `folded`: a miss means the caller is holding
+        a string this index never saw, and quietly rendering the fold is how the
+        lower-cased chat line shipped in the first place.
+        """
+        if folded not in self.originals:
+            raise KeyError(
+                f"{folded!r} is not an accepted string this index recorded; "
+                "only strings added through add() have an authored form"
+            )
+        return self.originals[folded]
 
     def forbidden_for(self, key: str) -> set[str]:
         """What may not be a distractor for this key."""
@@ -298,6 +332,95 @@ def rule_core_distractors(
             "failure: widen the ledger for this band or drop the item."
         )
     return tuple(chosen[:count])
+
+
+# ---------------------------------------------------------------------------
+# The L1 pool — decoy tiles for a bank rendered in English
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class L1DecoyPool:
+    """English decoy tiles for `word_bank_reverse` (S035 `Write this in English`).
+
+    The rule core above is a COURSE-LANGUAGE machine: its POS tags, its frequency bands
+    and its attested inflections all come from `banded_lemma` and `analysed_sentence`,
+    which describe Spanish. Asking it for a tile in an English word bank returned
+    Spanish words — `["aprendo", "está", "conocerte"]` under the prompt `Write this in
+    English / La sopa está muy rica.` — and one of them was a word of the displayed
+    sentence, so the exercise was answerable by copying. Neither failure is visible to
+    V5, whose POS clause can only be evaluated against the course-language ledger.
+
+    So the reverse direction gets its own pool: every token of every OTHER sentence's
+    English translation, with the course-language lemmas removed. Sibling translations
+    rather than a generic English word list, because a decoy has to be a word this
+    course uses — a tile from an English frequency list is eliminable on register alone.
+
+    Sentence-initial tokens are lower-cased into the pool (`The` -> `the`) because a
+    tile is not a sentence start; a token capitalised anywhere else keeps its case,
+    which is how a proper noun survives.
+    """
+
+    #: Ordered, deduplicated, deterministic. Order is first appearance in the ledger.
+    tokens: tuple[str, ...] = ()
+
+    @classmethod
+    def build(
+        cls,
+        translations: Iterable[str],
+        *,
+        exclude_lemmas: Iterable[str] = (),
+    ) -> L1DecoyPool:
+        excluded = {normalise(lemma) for lemma in exclude_lemmas}
+        seen: dict[str, str] = {}
+        for translation in translations:
+            for position, raw in enumerate(translation.split()):
+                token = raw.strip(".,!?;:\u00bf\u00a1\"\u201c\u201d")
+                if not token:
+                    continue
+                if position == 0 and token[:1].isupper() and not token.isupper():
+                    token = token[0].lower() + token[1:]
+                folded = normalise(token)
+                if not folded or folded in excluded:
+                    continue
+                seen.setdefault(folded, token)
+        return cls(tokens=tuple(seen[key] for key in sorted(seen)))
+
+    def decoys(
+        self,
+        *,
+        key: str,
+        accepted: Sequence[str],
+        prompt_tokens: Sequence[str],
+        alternatives: AlternativesIndex,
+        count: int,
+        seed: int = DISTRACTOR_SEED,
+    ) -> tuple[str, ...]:
+        """`count` English tiles that are in neither the answer nor the prompt.
+
+        Three exclusions, and the second is the one the refuter found missing: a decoy
+        may not be a token of the sentence rendered above the bank, whichever language
+        that sentence is in.
+        """
+        if count == 0:
+            return ()
+        forbidden = {normalise(token) for token in accepted}
+        forbidden |= {normalise(token.strip(".,!?;:\u00bf\u00a1")) for token in prompt_tokens}
+        forbidden |= alternatives.forbidden_for(key)
+        eligible = [token for token in self.tokens if normalise(token) not in forbidden]
+        if len(self.tokens) < MIN_L1_DECOY_POOL or len(eligible) < count:
+            raise NotEnoughDistractors(
+                f"{key}: an English word bank needs {count} English decoy tiles and the "
+                f"L1 pool offers {len(eligible)} after removing the answer and the "
+                f"displayed prompt (pool size {len(self.tokens)}, floor "
+                f"{MIN_L1_DECOY_POOL}). Padding it from the course-language ledger is "
+                "what shipped Spanish tiles into an English bank; this is a content "
+                "failure, so the stage fails instead."
+            )
+        rng = random.Random(f"{seed}:l1:{key}")
+        eligible.sort()
+        rng.shuffle(eligible)
+        return tuple(eligible[:count])
 
 
 # ---------------------------------------------------------------------------

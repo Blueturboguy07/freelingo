@@ -31,8 +31,12 @@ from coursekit.cli import app
 from coursekit.config import EXERCISE_TYPES, EXIT_FAILED, EXIT_MISSING_INPUT, EXIT_OK
 from coursekit.config.g7 import (
     FORBIDDEN_SHAPE_IDS,
+    GAP_MARKER,
     GRAMMAR_FORM_PLAN,
     LEXEME_FORM_PLAN,
+    MATCH_PAIR_SEPARATOR,
+    MATCH_PAIRS_PER_EXERCISE,
+    MIN_ENDING_STEM_CHARS,
     MIN_FORMS_PER_MISSABLE_ITEM,
     PHASE_ORDER,
     PROPERTY_RUNS,
@@ -57,6 +61,7 @@ from coursekit.exercises.wordbank import build_hints, build_word_bank, tile_coun
 from coursekit.inputs import group_is_installed
 from coursekit.runlog import RunLog, read_entries
 from coursekit.stages import STAGES
+from coursekit.stages.g7_expand import ending_split
 
 
 @pytest.fixture(autouse=True)
@@ -523,6 +528,21 @@ SENTENCES: list[tuple[str, str, list[tuple[str, str, str]]]] = [
 ]
 
 
+#: Which lemmas each slot INTRODUCES. Seven, not one, and every one of them a NOUN in
+#: band A1 — because a match (S033) is only authored over lemmas that already carry two
+#: punitive lexeme forms, and `meaning_select` is only authored when the lemma has a
+#: gloss AND two same-POS same-band glossed neighbours to fill its option list. One new
+#: lemma in the lesson is why the previous fixture could never emit a match: the shape
+#: needs five eligible rows and there was one.
+NEW_LEMMAS_BY_SLOT: list[list[str]] = [
+    ["pan"],
+    [],
+    ["casa", "cuarto"],
+    ["perro", "parque"],
+    ["libro", "mesa"],
+]
+
+
 def _banded() -> list[dict[str, Any]]:
     return [
         json.loads(line)
@@ -593,7 +613,7 @@ def _write_ledger(lang: str = LANG) -> None:
                 "sentence_id": sid,
                 "provenance": "corpus",
                 "gap": False,
-                "new_lemmas": ["perro"] if slot == 3 else [],
+                "new_lemmas": NEW_LEMMAS_BY_SLOT[slot],
                 "known_lemmas": [lemma for _s, lemma, _p in tokens],
                 "grammar_concept": "present tense -er verbs",
             }
@@ -621,13 +641,24 @@ def test_the_stage_runs_end_to_end_with_the_declared_fallback_aligner() -> None:
     records = list(read_records("exercise", lang=LANG))
     assert records, "G7 wrote no exercises"
     shapes = {shape_of_record(record).id for record in records}
-    # Every family the brief names, from one five-sentence lesson.
+    # Every family the brief names, from one five-sentence lesson. The recognition row
+    # was missing from this assertion while the report claimed all three shipped, and
+    # `match_pairs` in fact did not: a shape named in a report and absent from the
+    # assertion set is a shape nobody is checking.
+    assert {"picture_select", "meaning_select", "match_pairs"} <= shapes
     assert {"word_bank_forward", "word_bank_reverse"} <= shapes
     assert {"typed_translate_forward", "typed_translate_reverse"} <= shapes
     assert {"tap_what_you_hear", "type_what_you_hear", "listen_for_the_missing_word"} <= shapes
     assert {"fill_in_the_blank", "complete_the_translation", "type_the_word_ending"} <= shapes
     assert {"complete_the_chat", "read_and_respond", "listen_and_respond"} <= shapes
     assert "speak_this_sentence" in shapes
+
+    # …and, because "every shape this phase ships" is the actual claim, assert it as a
+    # SET EQUALITY against the table rather than as a list somebody keeps in step by hand.
+    p2 = PHASE_ORDER.index("P2")
+    assert shapes == {
+        item.id for item in SHAPES if PHASE_ORDER.index(item.available_from) <= p2
+    }
 
 
 def test_the_run_records_which_aligner_actually_ran() -> None:
@@ -706,3 +737,329 @@ def test_the_stage_refuses_to_run_before_its_upstream() -> None:
     )
     assert result.exit_code == EXIT_FAILED, result.output
     assert "has no successful run" in result.output
+
+
+# ---------------------------------------------------------------------------
+# 5. The defects a refuter found in the first attempt, each with its own test
+# ---------------------------------------------------------------------------
+
+
+def _built_records() -> list[dict[str, Any]]:
+    """One real stage run over the fixture ledger, with the fallback aligner named."""
+    _write_ledger()
+    result = runner.invoke(
+        app, ["build", LANG, "--only", "g7", "--set", "align_engine=deterministic"]
+    )
+    assert result.exit_code == EXIT_OK, result.output
+    return [dict(record) for record in read_records("exercise", lang=LANG)]
+
+
+def _of_shape(records: list[dict[str, Any]], shape_id: str) -> list[dict[str, Any]]:
+    return [record for record in records if shape_of_record(record).id == shape_id]
+
+
+def test_S033_match_pairs_is_emitted_by_a_real_run_with_five_rows() -> None:
+    """S033 ships, and it ships five rows tagged with five lemmas.
+
+    It did not before: `build_match_pairs` was fed only `selected_item.new_lemmas`, one
+    lemma per lesson in the fixture, and returned `None` below five. The shape had zero
+    references in this file, so nothing noticed.
+    """
+    records = _built_records()
+    matches = _of_shape(records, "match_pairs")
+    assert len(matches) == 1, [record["prompt"] for record in matches]
+    match = matches[0]
+    assert len(match["accepted_answers"]) == MATCH_PAIRS_PER_EXERCISE
+    assert len(match["item_tags"]["lemmas"]) == MATCH_PAIRS_PER_EXERCISE
+    for row in match["accepted_answers"]:
+        lemma, _separator, gloss = row.partition(MATCH_PAIR_SEPARATOR)
+        assert lemma in match["item_tags"]["lemmas"]
+        assert gloss and gloss != lemma
+    assert match["prompt"].startswith("Tap the matching pairs\n")
+
+
+def test_INV_PACK_07_a_match_is_only_built_over_lemmas_already_taught_twice() -> None:
+    """[INV-PACK-07] a match is a SECOND form, never a first.
+
+    `item_keys` files a match under one key per tagged lemma, so a match over a lemma
+    with no other punitive lexeme form makes that lemma a single-form missable item. The
+    obvious fix for "S033 never ships" — feed it every glossed lemma in the lesson — is
+    exactly that bug, so the eligibility is computed from the drafts that exist.
+    """
+    from coursekit.validators.exercise import check_pack_07, item_keys
+
+    records = _built_records()
+    match = _of_shape(records, "match_pairs")[0]
+    punitive_by_key: dict[str, set[str]] = {}
+    for record in records:
+        found = shape_of_record(record)
+        if not found.punitive:
+            continue
+        for key in item_keys(record):
+            punitive_by_key.setdefault(key, set()).add(found.id)
+    for lemma in match["item_tags"]["lemmas"]:
+        others = punitive_by_key[f"lexeme:{lemma}"] - {"match_pairs"}
+        assert len(others) >= MIN_FORMS_PER_MISSABLE_ITEM, (lemma, others)
+    assert [f for f in check_pack_07(records) if f.severity == "blocking"] == []
+
+
+def test_build_match_pairs_returns_none_below_five_glossed_rows() -> None:
+    """Four rows is a different exercise, so the builder declines rather than shrinks."""
+    from coursekit.exercises.distractors import DistractorPool, L1DecoyPool
+    from coursekit.stages.g7_expand import ExpansionInputs, build_match_pairs
+
+    inputs = ExpansionInputs(
+        lang=LANG,
+        analysed={},
+        units={},
+        selected=[],
+        candidates={},
+        translations={},
+        texts={},
+        pool=DistractorPool(),
+        l1_pool=L1DecoyPool(),
+        pos_of={},
+        band_of={},
+    )
+    glosses = {"casa": "house", "libro": "book", "mesa": "table", "pan": "bread"}
+    assert (
+        build_match_pairs(
+            inputs, unit=1, lesson=1, lemmas=sorted(glosses), glosses=glosses, register="tu"
+        )
+        is None
+    )
+    glosses["perro"] = "dog"
+    built = build_match_pairs(
+        inputs, unit=1, lesson=1, lemmas=sorted(glosses), glosses=glosses, register="tu"
+    )
+    assert built is not None
+    assert built.shape_id == "match_pairs"
+    assert len(built.accepted_answers) == MATCH_PAIRS_PER_EXERCISE
+    # An unglossed lemma is never a row: a blank right-hand column is not a match.
+    assert build_match_pairs(
+        inputs, unit=1, lesson=1, lemmas=[*sorted(glosses), "sinGloss"],
+        glosses=glosses, register="tu",
+    ) is not None
+
+
+def test_the_reverse_word_bank_ships_english_tiles_not_course_language_ones() -> None:
+    """S035 `Write this in English`: the decoys are English and none is in the prompt.
+
+    Real output before this fix, from a real run: prompt `Write this in English / La
+    sopa está muy rica.`, accepted `The soup is very tasty.`, distractors `["aprendo",
+    "está", "conocerte"]` — Spanish tiles in an English bank, one of them a word of the
+    sentence displayed directly above it. V5 cannot catch either: its POS clause can
+    only be evaluated against the course-language ledger, and these have no row in it.
+    """
+    records = _built_records()
+    course_lemmas = {row["lemma"] for row in _banded()}
+    reverse = _of_shape(records, "word_bank_reverse")
+    assert reverse
+    for record in reverse:
+        prompt_body = record["prompt"].split("\n", 1)[1]
+        prompt_tokens = {token.strip(".,¿?¡!").casefold() for token in prompt_body.split()}
+        answer_tokens = {
+            token.strip(".,¿?¡!").casefold()
+            for answer in record["accepted_answers"]
+            for token in answer.split()
+        }
+        assert record["distractors"]
+        for decoy in record["distractors"]:
+            folded = decoy.casefold()
+            assert folded not in prompt_tokens, (decoy, prompt_body)
+            assert folded not in answer_tokens, decoy
+            assert folded not in course_lemmas, (
+                f"{decoy!r} is a course-language lemma in an English word bank"
+            )
+
+
+def test_the_forward_word_bank_never_draws_a_decoy_from_its_own_prompt() -> None:
+    """The same exclusion in the other direction, so the rule is about prompts, not about
+    which pool happened to be wrong."""
+    records = _built_records()
+    for shape_id in ("word_bank_forward", "tap_what_you_hear"):
+        for record in _of_shape(records, shape_id):
+            body = record["prompt"].split("\n", 1)[1]
+            tokens = {token.strip(".,¿?¡!").casefold() for token in body.split()}
+            for decoy in record["distractors"]:
+                assert decoy.casefold() not in tokens, (shape_id, decoy, body)
+
+
+def test_the_complete_the_chat_distractor_is_a_verbatim_ledger_sentence() -> None:
+    """S037's wrong reply line is rendered copy and must keep its authored casing.
+
+    It shipped as `el pan está caliente.` — `_chat_distractor` returned the key from
+    `AlternativesIndex.everywhere`, which stores `normalise()`d (casefolded) strings, and
+    wrote it straight onto the record.
+    """
+    records = _built_records()
+    chats = _of_shape(records, "complete_the_chat")
+    assert chats
+    ledger = {text for text, _translation, _tokens in SENTENCES}
+    for record in chats:
+        assert len(record["distractors"]) == 1
+        wrong = record["distractors"][0]
+        assert wrong in ledger, wrong
+        assert wrong not in record["accepted_answers"]
+        assert wrong[0].isupper(), f"{wrong!r} was casefolded on the way onto the record"
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "pos", "expected"),
+    [
+        # Regular verbs: the stem is the infinitive minus its two-letter ending.
+        ("está", "estar", "AUX", ("est", "á")),
+        ("corre", "correr", "VERB", ("corr", "e")),
+        ("como", "comer", "VERB", ("com", "o")),
+        ("viven", "vivir", "VERB", ("viv", "en")),
+        # A stem change is not segmentable by that rule, so it gets nothing at all.
+        ("tiene", "tener", "VERB", None),
+        ("quiero", "querer", "VERB", None),
+        # Everything else splits at the longest common prefix with its own lemma.
+        ("cuartos", "cuarto", "NOUN", ("cuarto", "s")),
+        ("rica", "rico", "ADJ", ("ric", "a")),
+        # A citation form has no ending.
+        ("caliente", "caliente", "ADJ", None),
+        ("pan", "pan", "NOUN", None),
+        # Guards: a one-letter stem is unanswerable, a five-letter "ending" is a word.
+        ("es", "ser", "AUX", None),
+    ],
+)
+def test_ending_split_is_a_morphological_segmentation_not_a_character_chop(
+    surface: str, lemma: str, pos: str, expected: tuple[str, str] | None
+) -> None:
+    """`deep/00-PRODUCT-MAP` §3.2 S039 obliges a segmentation per surface form.
+
+    The previous implementation took the last two characters of the longest token, which
+    shipped `El pan está calien____` with the accepted answer `te`.
+    """
+    assert ending_split(surface, lemma, pos, "es") == expected
+    if expected is not None:
+        assert "".join(expected) == surface
+
+
+def test_ending_split_has_no_table_for_a_language_it_was_not_written_for() -> None:
+    """Refuses rather than applying Spanish morphology to German. P7's problem."""
+    assert ending_split("gegangen", "gehen", "VERB", "de") is None
+
+
+def test_S039_the_written_ending_drill_reassembles_into_a_real_surface_form() -> None:
+    """The drill's stem + its accepted ending is a token of the sentence it came from."""
+    records = _built_records()
+    endings = _of_shape(records, "type_the_word_ending")
+    assert endings
+    for record in endings:
+        body = record["prompt"].split("\n", 1)[1]
+        gapped = [token for token in body.split() if token.endswith(GAP_MARKER)]
+        assert len(gapped) == 1, body
+        stem = gapped[0][: -len(GAP_MARKER)]
+        ending = record["accepted_answers"][0]
+        surface = stem + ending
+        source = next(
+            text
+            for text, _t, _k in SENTENCES
+            if sentence_id(LANG, text) == record["source_sentence_id"]
+        )
+        assert surface in source.replace(".", "").split(), (surface, source)
+        assert len(stem) >= MIN_ENDING_STEM_CHARS
+
+
+def test_a_sentence_with_no_separable_ending_authors_no_ending_drill() -> None:
+    """Dropped, never faked — and safe, because a grammar draft is filed under its
+    sentence item, whose form-plan row already carries two punitive shapes."""
+    from coursekit.exercises.distractors import DistractorPool, L1DecoyPool
+    from coursekit.stages.g7_expand import ExpansionInputs, _ending_target
+
+    sid = "aaaaaaaaaaaa0001"
+    inputs = ExpansionInputs(
+        lang=LANG,
+        analysed={
+            sid: {
+                "tokens": [
+                    {"surface": "El", "lemma": "el", "pos": "DET"},
+                    {"surface": "pan", "lemma": "pan", "pos": "NOUN"},
+                ],
+                "display_tokens": ["El", "pan"],
+                "lemmas": ["el", "pan"],
+            }
+        },
+        units={},
+        selected=[],
+        candidates={},
+        translations={},
+        texts={},
+        pool=DistractorPool(),
+        l1_pool=L1DecoyPool(),
+        pos_of={},
+        band_of={},
+    )
+    assert _ending_target(inputs, sid, ["El", "pan"]) is None
+    # An authored G5 candidate has never been through G1, so it gets no drill either.
+    assert _ending_target(inputs, None, ["El", "pan"]) is None
+
+
+def test_the_alignment_pairs_ride_on_the_records_that_need_them() -> None:
+    """Every record shipped `alignment: []` while the stage said the pairs were written.
+
+    The frozen contract has an `alignment` array and no field for tiles, tile order or
+    hints, so this is the one learner-visible thing the aligner buys that survives the
+    projection — and the player re-derives the dotted underlines from it.
+    """
+    records = _built_records()
+    needing = [record for record in records if shape_of_record(record).needs_alignment]
+    assert needing
+    assert all(record["alignment"] for record in needing), [
+        shape_of_record(record).id for record in needing if not record["alignment"]
+    ]
+    for record in needing:
+        for pair in record["alignment"]:
+            assert len(pair) == 2 and all(index >= 0 for index in pair)
+    # And nothing else carries a stray array nobody reads.
+    for record in records:
+        if not shape_of_record(record).needs_alignment:
+            assert record["alignment"] == []
+
+
+def test_the_run_reports_what_the_alignment_actually_bought() -> None:
+    """`build_hints` has a call site and its output is a number on the runlog.
+
+    The hint LIST cannot ride the record (no field for it; the request is in
+    docs/owned/p2-g7.json), so what is asserted is the honest remainder: the alignment
+    that produces the hints ships, and the count of hints those pairs will render is
+    recorded. A pack whose aligner produced no hintable token says `word_bank_hints: 0`
+    instead of shipping a feature that renders nothing.
+    """
+    _built_records()
+    notes = read_entries(LANG, stage="g7")[-1]["notes"]
+    assert notes["alignment_pairs_written"] > 0
+    assert notes["word_bank_hints"] > 0
+    assert notes["hinted_glosses"]
+    assert notes["ending_drills_written"] <= notes["ending_drills_planned"]
+
+
+def test_build_hints_refuses_a_positional_guess_and_honours_the_new_lemma_gate() -> None:
+    """Two refusals in the one function, asserted rather than described.
+
+    A source token the alignment does not cover gets NO hint, and — under
+    `HINT_ONLY_FOR_NEW_LEMMAS` — a token whose lemma the learner already knows gets none
+    either.
+    """
+    source = ["The", "dog", "runs"]
+    target = ["El", "perro", "corre"]
+    alignment = [(1, 1), (2, 2)]
+    lemma_of_source = ["", "perro", "correr"]
+    hints = build_hints(
+        source, target, alignment, new_lemmas=["perro"], lemma_of_source_index=lemma_of_source
+    )
+    assert [(hint.source_index, hint.surface, hint.gloss) for hint in hints] == [
+        (1, "dog", "perro")
+    ]
+    # A multi-token gloss (`con leche`) joins in target order.
+    hints = build_hints(
+        ["with", "milk"],
+        ["con", "leche"],
+        [(0, 0), (0, 1)],
+        new_lemmas=["con"],
+        lemma_of_source_index=["con", "leche"],
+    )
+    assert hints[0].gloss == "con leche"

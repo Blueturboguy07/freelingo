@@ -64,8 +64,17 @@ def _fold(text: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
+#: Everything that can sit against a word and is not part of it. Category-based rather
+#: than a hand-listed set: the previous version replaced `¿` and `?` and nothing else, so
+#: a sentence ENDING in the marker (`¿Cómo está usted.`) had its marker read as `usted.`
+#: and matched nothing — V6 silently missed every out-of-register answer that put the
+#: pronoun last, which in Spanish is where it usually goes.
 def _words(text: str) -> list[str]:
-    return [word for word in _fold(text).replace("¿", " ").replace("?", " ").split() if word]
+    stripped = "".join(
+        " " if unicodedata.category(char).startswith(("P", "S")) else char
+        for char in _fold(text)
+    )
+    return [word for word in stripped.split() if word]
 
 
 def item_keys(record: Mapping[str, Any]) -> tuple[str, ...]:
@@ -357,8 +366,19 @@ def register_of(text: str, lang: str) -> set[str]:
     """Which registers this string carries markers for. Empty = register-neutral.
 
     Lexical, not syntactic: a marker list rather than a parser, because the thing V6
-    has to catch is a `usted` sentence in a `tú` unit, and that is always visible in
-    the pronoun or the clitic.
+    has to catch is a `usted` sentence in a `tú` unit.
+
+    HIGH PRECISION, NOT HIGH RECALL, and the difference is the whole reason this
+    function is safe to block a pack with. The `usted` row used to carry `le`, `les`,
+    `su` and `sus` — the ordinary third-person clitic and possessive, which carry no
+    register at all — so `A él le gusta su casa.` was reported as `usted`, and any A1
+    Spanish pack containing `su casa` or `le gusta` inside a tuteo unit was blocked by a
+    finding that was not true. Those forms are ambiguous between ustedeo and plain third
+    person and cannot be separated lexically, so they are gone
+    (`ES_AMBIGUOUS_THIRD_PERSON_FORMS` keeps the list for the regression test). What is
+    left is only what can ONLY be register. The cost is stated rather than hidden: an
+    ustedeo sentence that never names the pronoun (`¿Cómo está?`) passes V6, and no
+    lexical table can catch that one.
     """
     if lang != "es":
         raise ValueError(f"register_of has no marker table for {lang!r}")

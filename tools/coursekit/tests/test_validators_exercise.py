@@ -21,6 +21,8 @@ import pytest
 
 from coursekit.artifacts import validate_record
 from coursekit.config.g7 import (
+    ES_AMBIGUOUS_THIRD_PERSON_FORMS,
+    ES_REGISTER_MARKERS,
     MIN_FORMS_PER_MISSABLE_ITEM,
     SHAPES,
     V6_IMPLEMENTED_LANGUAGES,
@@ -268,6 +270,28 @@ def test_V5_an_uncheckable_pos_is_reported_not_swallowed() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _record(*, register: str, accepted_answers: list[str]) -> dict[str, Any]:
+    """One `translate` record with a chosen register and answer set. V6 reads no more."""
+    record = {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000901",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "translate",
+        "prompt": "Translate this sentence\nWhat is your name?",
+        "accepted_answers": accepted_answers,
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {"lemmas": ["casa"], "grammar_concepts": []},
+        "audio_ref": None,
+        "register": register,
+        "source_sentence_id": None,
+    }
+    validate_record("exercise", record)
+    return record
+
+
 def test_INV_PACK_08_the_falsifier_is_caught() -> None:
     """[INV-PACK-08] an usted answer in a tú unit is blocked."""
     findings = blocking(check_v6(load("INV-PACK-08", "falsifier"), lang="es"))
@@ -306,7 +330,44 @@ def test_register_of_is_lexical_and_accent_insensitive() -> None:
     assert register_of("¿Cómo te llamas?", "es") == {"tu"}
     assert register_of("¿Cómo se llama usted?", "es") == {"usted"}
     assert register_of("La casa es blanca.", "es") == set()
-    assert register_of("Tu casa es su casa.", "es") == {"tu", "usted"}
+    # `su` is the ordinary third-person possessive and carries NO register; only `tu`
+    # here is a marker. This line asserted `{"tu", "usted"}` until a refuter pointed out
+    # that `check_v6` then reports a BLOCKING "mixes registers" finding for it.
+    assert register_of("Tu casa es su casa.", "es") == {"tu"}
+
+
+def test_INV_PACK_08_ordinary_third_person_spanish_carries_no_register() -> None:
+    """[INV-PACK-08] the V6 false positive that would block every real A1 pack.
+
+    `le`, `les`, `su` and `sus` were in `ES_REGISTER_MARKERS['usted']`. They are the
+    third-person clitic and possessive, they appear in ordinary tuteo Spanish, and with
+    them listed V6 read `A él le gusta su casa.` as `usted` inside a `tu` unit and
+    returned a blocking finding. Any A1 Spanish pack containing `su casa` or `le gusta`
+    was unshippable for a reason that is not true.
+    """
+    assert register_of("A él le gusta su casa.", "es") == set()
+    assert register_of("Les doy sus libros.", "es") == set()
+    for form in ES_AMBIGUOUS_THIRD_PERSON_FORMS:
+        assert register_of(f"Yo {form} veo.", "es") == set(), form
+        assert form not in ES_REGISTER_MARKERS["usted"], form
+    # And the case the invariant IS about still fails: an explicit usted in a tu unit.
+    findings = check_v6(
+        [_record(register="tu", accepted_answers=["¿Usted tiene hambre?"])],
+        lang="es",
+    )
+    assert [f for f in findings if f.severity == "blocking"]
+
+
+def test_INV_PACK_08_a_third_person_answer_passes_v6_in_a_tu_unit() -> None:
+    """[INV-PACK-08] the same regression, through the validator rather than the table."""
+    findings = check_v6(
+        [
+            _record(register="tu", accepted_answers=["A él le gusta su casa."]),
+            _record(register="tu", accepted_answers=["Tu casa es su casa."]),
+        ],
+        lang="es",
+    )
+    assert findings == []
 
 
 def test_register_of_refuses_a_language_it_has_no_table_for() -> None:
