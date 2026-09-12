@@ -69,9 +69,76 @@ from coursekit.stages.g7_expand import (
     ResolvedSlot,
     StarvedSlot,
     _display_split,
+    _plausible_gloss,
+    _spanish_accepted_surfaces,
     _target_tokens,
+    build_glosses,
     ending_split,
 )
+
+
+@pytest.mark.parametrize(
+    ("surface", "expected"),
+    [
+        ("¿Él es americano?", ("¿Él es americano?", "¿Es americano?")),
+        ("Ella habló fuerte y claro.", ("Ella habló fuerte y claro.", "Habló fuerte y claro.")),
+        ("Ellos jamás mienten.", ("Ellos jamás mienten.", "Jamás mienten.")),
+        ("La alumna estudia.", ("La alumna estudia.",)),
+        ("Él mismo habló.", ("Él mismo habló.",)),
+    ],
+)
+def test_INV_PACK_07_spanish_subject_pronoun_variants_are_authored_generally(
+    surface: str, expected: tuple[str, ...]
+) -> None:
+    """[INV-PACK-07] obvious pro-drop is accepted without sampled-id exceptions."""
+    assert _spanish_accepted_surfaces(surface) == expected
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pos", "gloss"),
+    [
+        ("solicitar", "VERB", "that"),
+        ("alcanzar", "VERB", "was"),
+        ("encargar", "VERB", "of"),
+        ("repetir", "VERB", "repeats"),
+        ("recibir", "VERB", "received"),
+        ("grado", "NOUN", "degrees"),
+        ("uno", "NUM", "a"),
+    ],
+)
+def test_INV_PACK_07_malformed_alignment_glosses_never_reach_match_rows(
+    lemma: str, pos: str, gloss: str
+) -> None:
+    """[INV-PACK-07] form-incompatible alignment guesses are not taught as meanings."""
+    assert _plausible_gloss(lemma, pos, gloss) is False
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pos", "gloss"),
+    [
+        ("solicitar", "VERB", "request"),
+        ("enfocar", "VERB", "focus"),
+        ("autobús", "NOUN", "bus"),
+        ("noticia", "NOUN", "news"),
+        ("grado", "NOUN", "degree"),
+        ("mi", "DET", "my"),
+    ],
+)
+def test_INV_PACK_07_well_formed_glosses_remain_match_eligible(
+    lemma: str, pos: str, gloss: str
+) -> None:
+    assert _plausible_gloss(lemma, pos, gloss) is True
+
+
+def test_INV_PACK_07_build_glosses_discards_bad_alignment_votes_without_repair() -> None:
+    analysis = {"tokens": [{"surface": "Solicitar", "lemma": "solicitar", "pos": "VERB"}]}
+    bad = ResolvedSlot("Solicitar.", "That.", "bad", analysis, None)
+    good = ResolvedSlot("Solicitar.", "Request.", "good", analysis, None)
+
+    assert build_glosses(None, [(bad, [(0, 0)])]) == {}
+    assert build_glosses(None, [(good, [(0, 0)])]) == {
+        "solicitar": "request"
+    }
 
 
 @pytest.fixture(autouse=True)

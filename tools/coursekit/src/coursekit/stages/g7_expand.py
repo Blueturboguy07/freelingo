@@ -616,7 +616,9 @@ def _sentence_draft(
     item_key = f"sentence:{sid}" if sid else f"concept:{concept}"
     reverse = chosen.direction == "l2_to_l1"
     body = translation if chosen.direction == "l1_to_l2" else text
-    accepted: tuple[str, ...] = (text,) if not reverse else (translation,)
+    accepted: tuple[str, ...] = (
+        _spanish_accepted_surfaces(text) if not reverse else (translation,)
+    )
     distractors: tuple[str, ...] = ()
 
     if chosen.id in {"word_bank_forward", "word_bank_reverse", "tap_what_you_hear"}:
@@ -695,6 +697,41 @@ def _sentence_draft(
         register=register,
         source_sentence_id=sid,
     )
+
+
+_DROPPABLE_SUBJECTS = frozenset(
+    {
+        "yo",
+        "tú",
+        "él",
+        "ella",
+        "nosotros",
+        "nosotras",
+        "vosotros",
+        "vosotras",
+        "ellos",
+        "ellas",
+    }
+)
+
+
+def _spanish_accepted_surfaces(surface: str) -> tuple[str, ...]:
+    """Add the ordinary Spanish pro-drop form when the leading pronoun is unambiguous.
+
+    This is deliberately syntactic and conservative: it does not infer gender, swap a
+    lexeme, or drop emphatic ``él mismo``. Those require authored evidence. Spanish
+    subject pronouns before a finite predicate are optional, so omitting one is the
+    systematic answer-set variant G7 can derive without guessing.
+    """
+    opening = surface[:1] if surface[:1] in {"¿", "¡"} else ""
+    body = surface[1:] if opening else surface
+    subject, separator, remainder = body.partition(" ")
+    if not separator or subject.casefold() not in _DROPPABLE_SUBJECTS:
+        return (surface,)
+    if remainder.casefold().startswith(("mismo ", "misma ", "mismos ", "mismas ")):
+        return (surface,)
+    dropped = opening + remainder[:1].upper() + remainder[1:]
+    return (surface, dropped) if dropped != surface else (surface,)
 
 
 def _gap_index(tokens: Sequence[str]) -> int:
@@ -1253,7 +1290,7 @@ def _match_cuts(
 
 
 def build_glosses(
-    inputs: ExpansionInputs,
+    inputs: ExpansionInputs | None,
     aligned: Sequence[tuple[ResolvedSlot, Sequence[tuple[int, int]]]],
 ) -> dict[str, str]:
     """`lemma -> English gloss`, taken from the alignment and nothing else.
@@ -1273,6 +1310,7 @@ def build_glosses(
     them by name. An authored slot now carries G5's analysis (B16) and its own
     translation, which is all this function ever needed.
     """
+    del inputs  # Reserved for language-specific gloss policies; no second oracle today.
     votes: dict[str, dict[str, int]] = {}
     for slot, pairs in aligned:
         if slot.analysis is None:
@@ -1284,13 +1322,48 @@ def build_glosses(
                 continue
             lemma = tokens[target_index]["lemma"]
             gloss = translation[source_index].strip(".,!?¿¡").casefold()
-            if not gloss:
+            if not gloss or not _plausible_gloss(lemma, str(tokens[target_index]["pos"]), gloss):
                 continue
             votes.setdefault(lemma, {})[gloss] = votes.setdefault(lemma, {}).get(gloss, 0) + 1
     return {
         lemma: max(sorted(counts), key=lambda gloss: (counts[gloss], gloss))
         for lemma, counts in votes.items()
     }
+
+
+_CONTENT_POS = frozenset({"ADJ", "ADV", "NOUN", "NUM", "PROPN", "VERB"})
+_ENGLISH_FUNCTION_WORDS = frozenset(
+    {"a", "an", "and", "is", "of", "that", "the", "this", "was", "while"}
+)
+_ENGLISH_IRREGULAR_PAST = frozenset(
+    {"had", "hung", "lost", "made", "ran", "spoke", "threw", "was", "were", "woke"}
+)
+
+
+def _plausible_gloss(lemma: str, pos: str, gloss: str) -> bool:
+    """Conservative form gate for learner-visible one-token alignment glosses.
+
+    Alignment is allowed to abstain. It is not allowed to teach a content lemma as a
+    function word, a Spanish infinitive as an English finite/past form, or a singular
+    noun as an English plural. This checks form compatibility only; it does not invent
+    semantics or repair a rejected gloss (INV-PACK-10).
+    """
+    del lemma  # Meaning is never guessed here; this gate only checks POS/form compatibility.
+    word = gloss.casefold()
+    if pos in _CONTENT_POS and word in _ENGLISH_FUNCTION_WORDS:
+        return False
+    if pos == "VERB" and (
+        word in _ENGLISH_IRREGULAR_PAST
+        or word.endswith("ed")
+        or (word.endswith("s") and not word.endswith(("ss", "us")))
+    ):
+        return False
+    return not (
+        pos in {"NOUN", "PROPN"}
+        and word.endswith("s")
+        and not word.endswith(("ss", "us"))
+        and word not in {"news", "series", "species"}
+    )
 
 
 # ---------------------------------------------------------------------------
