@@ -537,7 +537,7 @@ whose measurement it is.
 | `pnpm test:coverage-map`                                                                 | **GREEN** — no unowned id, no id claimed twice                                                                                                                                                                                                                                                                                                                                                                                                                                                              | ci.yml                               |
 | `uv run ruff check .` + `uv run pytest`                                                  | **GREEN** — ruff clean; pytest all passed                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | pack-ci `coursekit`                  |
 | `pipeline-ready` — every stage and validator registered                                  | **GREEN** — 10/10 stages, 17/17 validators; both pack jobs live                                                                                                                                                                                                                                                                                                                                                                                                                                             | pack-ci                              |
-| `uv run coursekit build es` (G0–G9)                                                      | **RED — G0–G4 pass, G5 exits 4** on the 18 orphaned slots (`86f2430`, pre-re-key) and on the 22 unauthored ones (post-re-key, this Mac). B19                                                                                                                                                                                                                                                                                                                                                                | pack-ci `build-es`                   |
+| `uv run coursekit build es` (G0–G9)                                                      | **RED in CI twice, one check apart.** `86f2430`: G0–G4 pass, G5 exits 4 on the 18 orphaned slots. `859f3fb` (re-keyed): G5 gets **past** that and exits 4 on the 22 slots with no candidate — the same 22 this Mac named, same order, each `(0)`. B19                                                                                                                                                                                                                                                       | pack-ci `build-es`                   |
 | `uv run coursekit validate es` → exit 0                                                  | **DID NOT RUN IN CI** — `validate-es` skipped on `needs: build-es`; `pipeline-ready` was green, so the skip is a real dependency and not the green-because-skipped failure mode. Run on this Mac over the G0–G5 tree: **5/17 green, 0 unregistered, 0 skipped, 33 blocking**                                                                                                                                                                                                                                | pack-ci `validate-es`                |
 | V1–V4 = 100%, zero violations \[INV-PACK-06]                                             | **NOT PROVEN** — V1–V4 need G7's artefact and G5 exits 4                                                                                                                                                                                                                                                                                                                                                                                                                                                    | —                                    |
 | V5–V12, F1–F5: the report names every validator that ran                                 | **PARTIAL, and it names all 17** — 5 green, 0 unregistered, 0 skipped, and each of the rest says which of _clean_, _nothing to check_ and _never ran_ it is. Measured on this Mac; the last run over a real pack was the expand lane's, on a tree that no longer exists: 11/17 green, 0 unregistered, 0 skipped, 210 blocking, 48 warnings                                                                                                                                                                  | —                                    |
@@ -716,13 +716,57 @@ specifies their copy.
 tree this integration actually hands over. The reviewer-sample merge (`034f14d`) and this
 report land after it, and neither changes a stage.
 
-| Workflow         | Run                                                                    | Result                                                                                    |
-| ---------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, first attempt — 114 files / 1,316 passed, 6 skipped, no `onTaskUpdate` error |
-| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920930> | TBD-R2-PACK                                                                               |
-| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937> | TBD-R2-NATIVE                                                                             |
+| Workflow         | Run                                                                    | Result                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, first attempt — 114 files / 1,316 passed, 6 skipped, no `onTaskUpdate` error                       |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920930> | **FAILURE at G5, one check later than round 1** — `validate-es` skipped on `needs:`                             |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937> | **PARTIAL** — `flows exist`, INV-PLAT-02 and Android green; the iOS job was still running when this was written |
 
-TBD-R2-PROSE
+#### `build-es`: the re-key is CI-verified, and so is what is left
+
+```
+✓ pipeline-ready                                       13s
+✓ coursekit lint + tests                               1m37s
+X build-es (G0-G9, capped ingest)                      24m31s
+- validate-es (V1-V12 + F1-F5)                         skipped (needs: build-es)
+
+16:40:41  g0  Ingest
+16:41:43  g1  Analyze
+16:57:35  g2  Band
+17:00:32  g3  Solve curriculum
+17:00:35  g4  Select
+17:03:58  g5  Gap-fill
+17:04:30  g5 failed: 22 slot(s) authored below the over-generation floor of 20:
+          u1/l3/s1 (0), u1/l3/s3 (0), u1/l3/s4 (0), u1/l3/s5 (0), u1/l3/s6 (0),
+          u1/l3/s7 (0), u4/l24/s6 (0), u16/l96/s6 (0), u17/l102/s6 (0),
+          u21/l121/s8 (0), u23/l131/s6 (0), u23/l132/s7 (0), u23/l134/s6 (0),
+          u25/l145/s4 (0), u27/l154/s4 (0), u27/l154/s5 (0), u27/l154/s6 (0),
+          u27/l156/s3 (0), u27/l157/s5 (0), u27/l157/s6 (0), u27/l158/s7 (0),
+          u29/l168/s6 (0). Generate-and-reject has nothing to resample from, and
+          the alternative is patching.
+##[error]Process completed with exit code 4.
+```
+
+**This is the sentence the round turns on.** Round 1 of CI died on the 18 orphaned slots;
+round 2, on the re-keyed tree, **gets past that check** and dies on the 22 slots that have
+no candidate at all — the same twenty-two this Mac named, in the same order, each with the
+same `(0)`. So both halves of B19 are now CI-measured rather than corroborated:
+
+- the re-key works on a runner, not only here — `stale_ledger` no longer stops the build;
+- what remains is exactly 22 slots of authoring, and CI says which.
+
+`es-gap-brief-859f3fb…` (35,723 B) was uploaded again, the same size as round 1's.
+
+#### `native-e2e`: Android green, iOS still running when this report was written
+
+`flows exist`, `prebuild-determinism` (INV-PLAT-02) and **Android emulator** are all
+green on `859f3fb`, with `e2e-859f3fb…-android` (77,267 B) uploaded. The **iOS simulator
+job was still in progress** at the time of writing — it takes about 29 minutes and this
+round's push re-started it — so this report does **not** claim an iOS result for
+`859f3fb`. Round 1's iOS job on `86f2430` was cancelled by this round's own push. **The
+last green iOS simulator job in this repository is therefore `b9a68eb`'s**, before the
+merge queue ran, and that is the honest state of the iOS half: not failing, not proven on
+the integrated tree.
 
 ## Blockers
 
