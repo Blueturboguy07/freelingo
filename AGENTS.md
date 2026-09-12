@@ -60,3 +60,12 @@ uv run coursekit doctor es | build es | validate es | sample es | sign es
 maestro test e2e/flows --output <dir>/report.xml --format junit --test-output-dir <dir>/maestro -e PLATFORM=ios|android
 gh run list / gh run view <id> --log / gh run download <id>   # always in the background when watching
 ```
+
+Local devices (corroboration only; CI artefacts are the gate):
+
+```
+xcrun simctl list devices booted                                   # iPhone 17 Pro Test is normally booted
+EXPO_PUBLIC_FREELINGO_E2E=1 npx expo run:ios --device <UDID>       # in apps/mobile; the E2E flag compiles in the diagnostics screen
+$ANDROID_HOME/emulator/emulator -avd Pixel_3a_API_34 -no-window -no-audio -no-snapshot &   # only once the SDK is reinstalled, see docs/HANDOFF.md
+adb wait-for-device && EXPO_PUBLIC_FREELINGO_E2E=1 npx expo run:android --no-bundler --variant release
+```

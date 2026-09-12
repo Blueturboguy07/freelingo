@@ -48,9 +48,26 @@ Founder rulings so far are in `~/duolingo-research/DECISIONS-LOG.md` (2026-09-12
 - App Store Connect credentials for TestFlight (P8 leaves it a documented manual step).
 - Azure or Polly credentials if vendor-backed locale claims are ever wanted (Kokoro is accepted for now).
 
+## Environment caveats on this Mac (checked 2026-09-12 15:40 CDT)
+
+- **The Android SDK is gone.** A different Claude session's disk cleanup at 2026-09-12 04:30 UTC removed `~/Library/Android`, `~/.gradle` and `~/.android`: the SDK, Gradle's home and every AVD. The headless `Pixel_3a_API_34` emulator (`emulator-5554`, pid 32883) is still running only because the process holds the deleted binaries open. **Do not kill it**; it can still take `adb install` of a CI-built APK and run Maestro until it dies. `npx expo run:android` cannot work locally until the SDK is reinstalled: `brew install --cask android-commandlinetools`, export `ANDROID_HOME=$HOME/Library/Android/sdk`, then `sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "emulator" "system-images;android-34;google_apis;arm64-v8a"` plus whatever platform and build-tools versions the first `npx expo run:android` error names, then `avdmanager create avd -n Pixel_3a_API_34 -k "system-images;android-34;google_apis;arm64-v8a" -d pixel_3a`. Android Studio 2023.3 is still in `/Applications` as an alternative installer. The **Android gate is CI** (`native-e2e.yml`, ubuntu + `reactivecircus/android-emulator-runner`), which is unaffected; local Android runs were always corroboration only.
+- iOS is intact: the `iPhone 17 Pro Test` simulator (`D17B7885-ACFB-4B21-B938-65D2205F8DEF`) is booted; build with `EXPO_PUBLIC_FREELINGO_E2E=1 npx expo run:ios --device <UDID>` so the diagnostics screen the Maestro flows rely on is compiled in.
+- Disk: 61 GB free (86 % used). Keep the `df -h ~` rule from `AGENTS.md`.
+- The same cleanup removed `~/Library/Application Support/Codex`, so `codex doctor` warns that thread rows point at missing rollout files. Auth (ChatGPT login) and the CLI itself are fine.
+
 ## Resume mechanics (if the Claude workflow is ever resumed instead)
 
 Script: `~/duolingo-research/build/p1-p8.workflow.js`; run id `wf_ba7e09ae-ab2`. `Workflow({scriptPath, resumeFromRunId: 'wf_ba7e09ae-ab2', args: {repo: '~/freelingo', date: '2026-09-11'}})` replays cached agents. The harness kills any agent silent for 180 s, which is why every long command must run in the background.
+
+## How to launch Codex so it works the way the Claude run did
+
+The Claude workflow ran its agents with full disk and network access and no per-command approvals; that is what let it create worktrees under `~/freelingo-wt/`, drive the simulator, call `gh`, and watch CI. The equivalent Codex invocation, from the repo root so `AGENTS.md` is picked up:
+
+```
+cd ~/freelingo && ~/.npm-global/bin/codex --sandbox danger-full-access --ask-for-approval never --search "$(sed -n '/^> /p' docs/HANDOFF.md | sed 's/^> //')"
+```
+
+`--sandbox danger-full-access` is required because the build writes outside the repo (`~/freelingo-wt`, DerivedData, `~/.maestro`) and needs the network for `gh`, `uv sync`, `pnpm install` and pack downloads. `--ask-for-approval never` matches "no stops between phases"; the stop condition (red twice) is enforced by the prompt, not by approvals. `--search` gives it web search, which the Claude agents also had. Add `-m <model>` to choose the model. For a fully unattended run that logs to a file, use `codex exec` with the same flags under `nohup … > ~/freelingo-codex.log 2>&1 &`.
 
 ## Kickoff prompt for Codex
 
