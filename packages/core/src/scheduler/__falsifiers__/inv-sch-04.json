@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-SCH-04",
+  "test": "[INV-SCH-04] falsifier: a 200-item backlog leaves the node byte-identical",
+  "covers": "EC-PTH-19",
+  "what": "A learner returns after three months to a 200-item due backlog against a 15-exercise session: more than thirteen sessions of arrears, so the node popup must lead with a review. The falsifier is the node itself changing — dropped items, re-weighting by due-ness, a shortened lesson — so that which lesson you get depends on how long you were away, with nothing on screen saying so.",
+  "measured": "2026-09-11. JSON.stringify of the node contents is byte-identical in both branches and equal to generateNodeContents(spec) called on its own; surfaceReviewFirst flips to true; the review slice is drawn entirely from the backlog and contains none of the node's own items.",
+  "nodeId": "unit-3-node-2",
+  "nodeItemCount": 7,
+  "nodeLength": 15,
+  "sessionLength": 15,
+  "dueItems": 200,
+  "multiplierK": 3
+}

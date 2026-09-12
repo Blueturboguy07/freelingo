@@ -1,0 +1,11 @@
+{
+  "invariant": "INV-SCH-12",
+  "test": "[INV-SCH-12] falsifier: twelve ruby-on sightings of 学校 leave 学 exactly where it was",
+  "covers": "EC-SCH-13",
+  "what": "Furigana on for three weeks: the kanji 学 is met twelve times inside ruby-rendered renderings of 学校. The catalogue's failure is FSRS driving 学 to four bars on encounters where the learner read the kana above it and never the glyph.",
+  "measured": "2026-09-11. With the rule, twelve ruby-on encounters leave stability, due_at and state byte-identical; the thirteenth encounter with ruby OFF schedules normally, so the item is still learnable.",
+  "start": "2026-03-01T09:00:00.000Z",
+  "graphemeItemId": "gra:ja:U+5B66",
+  "rubyOnEncounters": 12,
+  "hoursBetweenEncounters": 42
+}

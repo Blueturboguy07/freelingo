@@ -1,0 +1,11 @@
+{
+  "invariant": "INV-SCH-06",
+  "test": "[INV-SCH-06] falsifier: session 7 of a completed-course day has a legal source",
+  "covers": "EC-SCH-06",
+  "what": "The course is finished and the learner wants twenty sessions in one day. Fifty unseen items sit in the pool beside four hundred introduced ones. The falsifier is the generator reaching for an unseen item to fill a short session, which hands the learner content nobody taught them (INV-SCH-11) and mints an introduction outside the daily budget (INV-SCH-10).",
+  "measured": "2026-09-11. Twenty consecutive sessions of fifteen items each are generated from the due pool; every served item is introduced; no unseen id appears once.",
+  "introducedItems": 400,
+  "unseenItems": 50,
+  "sessions": 20,
+  "sessionLength": 15
+}

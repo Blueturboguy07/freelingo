@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-SCH-07",
+  "test": "[INV-SCH-07] falsifier: the item reported at 09:00 that came back the same afternoon",
+  "covers": "EC-SCH-08",
+  "what": "An item is reported at 09:00 as wrong or unnatural. The catalogue's failure is FSRS re-serving it at 14:00 and again in a Mistakes session at 20:00, and the second failure is the dismissal reading as a lapse because the item accrued a week of overdue-ness while it was out of circulation.",
+  "measured": "2026-09-11, America/Los_Angeles, reported 2026-03-05T17:00:00Z (09:00 local). The window runs 158 hours, not 168: seven local days is civil-date arithmetic and 2026-03-08 is the 23-hour spring-forward day. Generation returns zero rows at every probe inside it. Overdue-ness at the moment the window closes equals overdue-ness at the moment of the report, exactly. Dismissal at +30h closes the window early with the same result.",
+  "timeZone": "America/Los_Angeles",
+  "reportedAt": "2026-03-05T17:00:00.000Z",
+  "probeHoursAfterReport": [5, 11, 24, 72, 157],
+  "dismissAfterHours": 30,
+  "suppressionLocalDays": 7,
+  "windowLengthHours": 158
+}

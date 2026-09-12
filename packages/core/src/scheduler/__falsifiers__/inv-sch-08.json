@@ -1,0 +1,10 @@
+{
+  "invariant": "INV-SCH-08",
+  "test": "[INV-SCH-08] falsifier: three days with listening off at 20 sessions a day",
+  "covers": "EC-SCH-09",
+  "what": "Listening exercises switched OFF for three days, then back on. Three hundred items whose only form is listening sit behind the toggle. Leave their clocks running and re-enabling buries new material under a several-hundred-item false backlog that the learner did nothing to earn.",
+  "measured": "2026-09-11. The due set among held rows at the moment of re-enable is identical to the due set at the moment of disable; held milliseconds equal the full window; nothing is generable while the modality is off; an item that can still be read is not held at all.",
+  "heldItems": 300,
+  "modality": "listening",
+  "offDays": 3
+}

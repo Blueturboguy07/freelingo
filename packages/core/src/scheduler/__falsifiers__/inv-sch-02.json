@@ -1,0 +1,10 @@
+{
+  "invariant": "INV-SCH-02",
+  "test": "[INV-SCH-02] falsifier: the week-back clock that used to move stability",
+  "covers": "EC-SCH-02",
+  "what": "The clock is set back, then an item is reviewed. Five honest reviews put the card in the Review state with a 163-day interval and a last_review 163 days old; the three jumps below then hand the scheduler a negative elapsed.",
+  "measured": "2026-09-11, ts-fsrs 5.4.2, called WITHOUT the clamp: -1 day silently returned stability 496.41 where the honest answer at that instant is 499.34; -7 days returned 487.48; -365 days threw `Invalid delta_t \"-202\"` from inside the library, mid-commit. With the clamp all three resolve to elapsed 0, one `negativeElapsed` anomaly row each, and a finite stability.",
+  "start": "2026-03-01T09:00:00.000Z",
+  "honestReviews": 5,
+  "backwardJumpsDays": [1, 7, 365]
+}

@@ -1,0 +1,66 @@
+{
+  "$comment": "Invariant ids the P1 `p1-scheduler` task owns, with the file that owns each and the test that proves it. `docs/invariants-owned.json` is a single-owner file this task may not touch, so the integration task merges the `owned` array below into it; until then `pnpm test:coverage-map` does not enforce these ids even though every one of them already has a green owning test. See `requests` for what that merge must do.",
+  "phase": "P1",
+  "task": "p1-scheduler",
+  "branch": "p1/scheduler",
+  "screens": ["S025", "S027", "S063", "S064", "S066", "S092"],
+  "owned": [
+    "INV-SCH-01",
+    "INV-SCH-02",
+    "INV-SCH-03",
+    "INV-SCH-04",
+    "INV-SCH-05",
+    "INV-SCH-06",
+    "INV-SCH-07",
+    "INV-SCH-08",
+    "INV-SCH-09",
+    "INV-SCH-10",
+    "INV-SCH-11",
+    "INV-SCH-12"
+  ],
+  "ownedBy": {
+    "INV-SCH-01": "packages/core/src/scheduler/fsrs.ts — the 0.6x early-review guard",
+    "INV-SCH-02": "packages/core/src/scheduler/elapsed.ts — the two-sided elapsed clamp and its anomaly rows",
+    "INV-SCH-03": "packages/core/src/scheduler/attempts.ts — append-only attempts, idempotent commit replay",
+    "INV-SCH-04": "packages/core/src/scheduler/backlog.ts — review-first routing over byte-identical node contents",
+    "INV-SCH-05": "packages/core/src/scheduler/pool.ts — one pool, two surfaces, one per-local_day spent-marker",
+    "INV-SCH-06": "packages/core/src/scheduler/endgame.ts — S066's generator and the `Come back later…` state",
+    "INV-SCH-07": "packages/core/src/scheduler/holds.ts — report suppression for 7 local days at zero elapsed",
+    "INV-SCH-08": "packages/core/src/scheduler/holds.ts — a disabled modality accrues zero elapsed",
+    "INV-SCH-09": "packages/core/src/scheduler/score.ts — Score over an ever-mastered high-water set",
+    "INV-SCH-10": "packages/core/src/scheduler/introduction.ts — daily new-item budget and the production delay",
+    "INV-SCH-11": "packages/core/src/scheduler/fsrs.ts — rows keyed (item, surface), introduction beats",
+    "INV-SCH-12": "packages/core/src/scheduler/fsrs.ts — ruby-on encounters credit the lexeme, not the glyph"
+  },
+  "falsifiers": "packages/core/src/scheduler/__falsifiers__/inv-sch-<nn>.json, one per id. `falsifiers.test.ts` fails if an owned id has no file, if a file names an id that is not owned, or if the test a file names does not exist.",
+  "requests": [
+    {
+      "to": "integration",
+      "what": "Merge the `owned` array above into docs/invariants-owned.json. Every id already has a green owning test on this branch; the coverage map simply cannot see them from here."
+    },
+    {
+      "to": "economy (packages/core/src/economy/config.ts)",
+      "what": "EC-SCH-11 calls `max_new_items_per_local_day = 40` and `min_hours_between_introduction_and_production = 4` SHARED constants, and the economy config is the one table. They are currently declared as `DEFAULT_SCHEDULER_ECONOMY` in packages/core/src/scheduler/config.ts, injected through a `SchedulerEconomy` parameter that every call site already takes. Move the two values into the economy table and delete `DEFAULT_SCHEDULER_ECONOMY`; no call site changes."
+    },
+    {
+      "to": "foundation (packages/core/src/types/index.ts)",
+      "what": "`ItemId` and `SessionId` are re-declared in packages/core/src/scheduler/types.ts with the SAME brand strings, because the shared type surface had not landed on origin/main when this branch was cut. Identical brands are structurally identical, so replacing those declarations with a re-export is a no-op. Do it rather than leaving two spellings."
+    },
+    {
+      "to": "economy (packages/core/src/economy/daily-refresh.ts)",
+      "what": "`spendDailyRefreshItem` keeps its own `spentItemIds` list. INV-SCH-05's spent-marker must be ONE marker shared by both surfaces, which is `ReviewPoolDay.spentBy` in packages/core/src/scheduler/pool.ts. Have the daily-refresh helper delegate to `serveItemsFromPool`, or the two lists will drift and the invariant becomes true in each file and false in the app."
+    },
+    {
+      "to": "day (packages/core/src/day/)",
+      "what": "`startOfLocalDay(day, zone)` — the inverse of `localDayOf`, used by the 7-local-day report window — lives in packages/core/src/scheduler/holds.ts because `day/` is another task's lane. It is day arithmetic; move it there."
+    },
+    {
+      "to": "day (packages/core/src/day/civil.ts)",
+      "what": "`localDayOf` constructs a fresh `Intl.DateTimeFormat` on every call. Measured 2026-09-11 on this Mac: 200,000 calls take 5,706 ms that way against 115 ms with one formatter reused per zone — 28 us per call against 0.6 us, a factor of 50. It is on the render path (every streak chip, every quest countdown, every day-keyed rule) and it dominates every zone-keyed property in the suite, this task's included. Cache one formatter per `timeZone` in a module-level Map; the function stays pure."
+    }
+  ],
+  "notes": [
+    "INV-SCH-01's median clause is asserted over histories with NO LAPSE. A lapse (`Again`) legitimately shortens the interval — that is what forgetting means — and asserting otherwise would require the scheduler to hide a real memory event. The guard's own clause (an early review changes nothing) is asserted over every history, lapses included. Measured 2026-09-11: with the guard removed, non-lapse histories produce up to 28 outright interval decreases and a median decrease in roughly one history in four hundred, so the clause is falsifiable rather than decorative.",
+    "INV-SCH-02's `honest-clock bound` is proved, not estimated. An analytic ceiling (the same grade at maximum elapsed) is WRONG: stability is not monotone in elapsed across states and grades, and `[Easy, Again]` falsified it at 8.2956 against a computed ceiling of 3.9056. The property instead constructs the monotone, non-negative clock sequence that reproduces the adversarial state exactly."
+  ]
+}

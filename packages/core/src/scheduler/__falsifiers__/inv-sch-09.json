@@ -1,0 +1,10 @@
+{
+  "invariant": "INV-SCH-09",
+  "test": "[INV-SCH-09] falsifier: three days offline do not move the chip or the fraction",
+  "covers": "EC-SCH-10",
+  "what": "Three days offline decay around 180 items below the mastery threshold and the learner completes a lesson. Score computed from live retrievability walks backwards, which takes a number away from somebody for not opening an app. Score is learned, not remembered (EC-HUB-07); strength bars are the surface that renders retrievability, and they say Ready to review.",
+  "measured": "2026-09-11. Sixty mastered items, every row then forced to stability 1 and retrievability 0.1: points, fractionToNext and masteredCount are all unchanged. The score floor additionally survives a mastery threshold raised in a later release.",
+  "masteredItems": 60,
+  "offlineDays": 3,
+  "decayedStabilityDays": 1
+}
