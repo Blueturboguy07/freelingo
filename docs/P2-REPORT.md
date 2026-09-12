@@ -3,8 +3,15 @@ GATE: RED
 # P2 — Spanish pack v0: the integration report
 
 Repository: <https://github.com/Blueturboguy07/freelingo> (public, AGPL code / CC BY-NC-SA packs)
-Integrated at **`281b623`** on `main`. Written at the P2 founder checkpoint (plan §The
-build workflow, step 5 → 6).
+Integrated at **`281b623`** on `main` — the last sha that changes a line of code.
+Everything after it on this branch touches only this file and three other documents.
+Written at the P2 founder checkpoint (plan §The build workflow, step 5 → 6).
+
+Every CI figure below therefore names `281b623`, deliberately: a docs commit re-runs the
+workflows over a byte-identical `packages/` and `tools/` tree, and quoting the newer run
+would be quoting a re-measurement of the same code with a different number on it. The
+re-run of `pack-ci` on the docs sha fails at G5 for the identical reason, because nothing
+a document says changes how many candidates exist.
 
 Every CI figure below names a run URL. Where something is not proven, the row says NOT
 PROVEN and does not round up. A locally produced artefact is labelled as corroboration and
