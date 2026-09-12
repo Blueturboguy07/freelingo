@@ -1974,7 +1974,7 @@ def test_the_lesson_one_shard_ships_none_of_the_eleven_word_lists() -> None:
     assert found == [], found
 
     # Narrowed to `u1/l1` DELIBERATELY, and the number is recorded rather than asserted
-    # away: 217 rows of `u01-u06.jsonl` still carry one of these eleven strings for OTHER
+    # away: rows of `u01-u06.jsonl` still carry one of these eleven strings for OTHER
     # slots of unit 1 (272 in origin/main, minus the 55 keyed `u1/l1` deleted above),
     # where they are over-generation the `duplicate` and
     # `out_of_vocabulary` axes deal with. Whether any of them SURVIVES for one of those
@@ -1982,15 +1982,33 @@ def test_the_lesson_one_shard_ships_none_of_the_eleven_word_lists() -> None:
     # question about another lane's shard against a real G4, not about this gate, and it
     # is written up in `docs/owned/p2r3-gapfill-lesson1.json` instead of being guessed
     # at here.
+    #
+    # **217 -> 201 at the P2 round-3 integration, and this guard is what noticed.** Its
+    # own message says "if the number went DOWN a lane cleaned up", and that is what
+    # happened: B9(a)+(c) moved the ledger, 18 authored slots stopped existing, and the
+    # 363 rows keyed to them were moved to `content/es/candidates-orphaned/` — 16 of them
+    # word lists (B19). `201 + 16 == 217`, measured, so nothing was edited away. The
+    # orphan tree is outside `COMMITTED_SHARDS`'s glob on purpose: those rows are not
+    # course content until a slot exists for them again.
     elsewhere = [
         row["text"]
         for path in COMMITTED_SHARDS
         for row in authored_shard(path)
         if row["text"] in word_lists
     ]
-    assert len(elsewhere) == 217, (
-        f"{len(elsewhere)} word-list rows outside u1/l1, not 217. If the number went "
+    assert len(elsewhere) == 201, (
+        f"{len(elsewhere)} word-list rows outside u1/l1, not 201. If the number went "
         f"DOWN a lane cleaned up; if it went UP, a lane is padding with them again."
+    )
+    orphaned = [
+        row["text"]
+        for path in sorted((REPO_ROOT / "content" / "es" / "candidates-orphaned").glob("*.jsonl"))
+        for row in authored_shard(path)
+        if row["text"] in word_lists
+    ]
+    assert len(elsewhere) + len(orphaned) == 217, (
+        f"{len(elsewhere)} in the shards + {len(orphaned)} orphaned != 217: a word-list "
+        f"row was deleted rather than orphaned, or a lane authored a new one"
     )
 
 

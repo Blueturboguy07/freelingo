@@ -24,28 +24,42 @@ So the status column distinguishes three things, and the distinction is the poin
   going green and leaving the block invisible.
 - **OPEN / NON-GATING** — neither.
 
-| Id      | What                                                                                     | Kind                 | Status                                                             |
-| ------- | ---------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
-| **B1**  | the candidate sentences do not exist                                                     | authoring            | **AUTHORED 2026-09-12** — 9,687 rows, 481/490 slots; 9 short = B9  |
-| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                 | **RESOLVED** — p2fix/ledger-freeze                                 |
-| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision      | **DECIDED + BUILT** — course-global is canonical; fixture verified |
-| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                 | **RESOLVED 2026-09-12** — deleted                                  |
-| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision** | **DECIDED** — agent-scored gate; paid review → `docs/RELEASE.md`   |
-| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                 | **RESOLVED 2026-09-12**                                            |
-| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen             |
-| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, BUILT** — 5/5 at the round-3 integration                |
-| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing         | **NON-GATING by ruling** — still no score, measured                |
-| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                  |
-| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision** | **DECIDED, NOT BUILT** — all three parts owed; the phase blocker   |
-| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)            | content              | **RESOLVED 2026-09-12** — rewritten                                |
-| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                 | **RESOLVED 2026-09-12**                                            |
-| **B12** | the gate's `coursekit validate es --pack … --report …` spelling does not exist           | docs                 | **RESOLVED 2026-09-12** — docs only                                |
-| **B13** | `build-es` synced no `align` group                                                       | code (CI)            | **RESOLVED 2026-09-12** — pack-ci.yml                              |
-| **B14** | a starved slot crashes G7 instead of failing by name                                     | code                 | **DECIDED, NOT BUILT** — still `raise KeyError`                    |
-| **B15** | G7 made word-bank tiles out of punctuation                                               | code                 | **RESOLVED 2026-09-12**                                            |
-| **B16** | G7 looks a distractor up by SURFACE, and an authored candidate has no analysis           | code                 | **DECIDED, PART-BUILT** — writer landed, reader outstanding        |
-| **B17** | V11 sees mean difficulty fall across 13 unit boundaries                                  | content + code       | **DECIDED, NOT BUILT** — V11 has no section awareness              |
-| **B18** | the accent dimension B6 made load-bearing has nothing to listen to                       | code                 | **OPEN, measured** — found 2026-09-12 by this round                |
+| Id      | What                                                                                       | Kind                 | Status                                                             |
+| ------- | ------------------------------------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------ |
+| **B1**  | the candidate sentences do not exist                                                       | authoring            | **AUTHORED 2026-09-12** — 9,687 rows, 481/490 slots; 9 short = B9  |
+| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5   | code                 | **RESOLVED** — p2fix/ledger-freeze                                 |
+| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                   | code + decision      | **DECIDED + BUILT** — course-global is canonical; fixture verified |
+| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                          | code                 | **RESOLVED 2026-09-12** — deleted                                  |
+| **B3**  | the wrong-item rate is `None`, not 2%                                                      | **founder decision** | **DECIDED** — agent-scored gate; paid review → `docs/RELEASE.md`   |
+| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                                | docs                 | **RESOLVED 2026-09-12**                                            |
+| **B5**  | S152 has a validator, F3, and no row in the product map                                    | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen             |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                     | **founder decision** | **DECIDED, BUILT** — 5/5 at the round-3 integration                |
+| **B7**  | `mutation.yml` has never produced a score                                                  | pre-existing         | **NON-GATING by ruling** — still no score, measured                |
+| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed                | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                  |
+| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable      | **founder decision** | **DECIDED, BUILT** — all three parts landed at the r3 integration  |
+| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)              | content              | **RESOLVED 2026-09-12** — rewritten                                |
+| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing        | code                 | **RESOLVED 2026-09-12**                                            |
+| **B12** | the gate's `coursekit validate es --pack … --report …` spelling does not exist             | docs                 | **RESOLVED 2026-09-12** — docs only                                |
+| **B13** | `build-es` synced no `align` group                                                         | code (CI)            | **RESOLVED 2026-09-12** — pack-ci.yml                              |
+| **B14** | a starved slot crashes G7 instead of failing by name                                       | code                 | **DECIDED, BUILT** — `StarvedSlot(LookupError)`, message verbatim  |
+| **B15** | G7 made word-bank tiles out of punctuation                                                 | code                 | **RESOLVED 2026-09-12**                                            |
+| **B16** | G7 looks a distractor up by SURFACE, and an authored candidate has no analysis             | code                 | **DECIDED, BUILT** — writer (deps) + reader (`_anchor_lemma`)      |
+| **B17** | V11 sees mean difficulty fall across 13 unit boundaries                                    | content + code       | **DECIDED, BUILT** — severity splits on the section boundary       |
+| **B18** | the accent dimension B6 made load-bearing has nothing to listen to                         | code                 | **OPEN, measured** — found 2026-09-12 by this round                |
+| **B19** | B9(a)+(c) moved the ledger, so 18 authored slots died and 22 new gap slots appeared        | content              | **OPEN — the phase blocker**; re-key done, 29 slots to author      |
+| **B20** | `ci.yml` fails with every test passing: `Timeout calling "onTaskUpdate"`, twice on one sha | infrastructure       | **OPEN, measured** — not a flake any more                          |
+
+**The four rows above were re-measured on `main` at the P2 round-3 integration**, because
+each was written on a lane that could not see its sibling's files and each had gone stale
+in the same direction — done, and reported undone. `git grep` on `main`, 2026-09-12:
+B9(a) `config/g1.py::LEMMA_NORMALISATION_ES` + `adapters/spacy_es.py` (3 references
+each); B9(b) `config/g5.py:195 MIN_TOKENS_VERBLESS_LESSON = 1` with
+`min_tokens_for_slot`; B9(c) `stages/g3_solve.py:503 unreachable_lexemes` reported in the
+stage's own note; B14 `stages/g7_expand.py:130 class StarvedSlot(LookupError)` raised at
+`:295`, with the expand lane's test asserting the message verbatim and that no traceback
+is printed; B16's reader `stages/g7_expand.py:712 _anchor_lemma`; B17
+`validators/pack.py:516 severity=CROSS_SECTION_DIFFICULTY_FALL_SEVERITY` against
+`unit_assignment.section_cefr`. **B18 is the only row of this table still open on code.**
 
 ---
 
@@ -1097,3 +1111,144 @@ and what has been built; **only** the sections above say anything about build st
 - **B17** → V11 hard-fails only across section boundaries; within a section a fall is a warning in the report.
 - **B7** → stays non-gating; Stryker `coverageAnalysis: off` and tighter INV-DAT generators as a P3 chore.
 - `pnpm format` is the first commit of P3's deps task.
+
+---
+
+## B19 — the B9 ruling's own other clauses moved the gap list — OPEN, the phase blocker
+
+**Found by running the pipeline after the round-3 merge queue, 2026-09-12.** Not a
+contradiction between two specs and not a lane's mistake: two clauses of one founder
+ruling, both implemented correctly, have a consequence the ruling's third clause
+under-costed.
+
+### What moved
+
+B9(a) added `config/g1.py::LEMMA_NORMALISATION_ES` and B9(c) made G3 fail the build on a
+target lexeme no form of which the pinned lemmatiser can reach. To satisfy (c),
+`content/es/curriculum.yaml` had to declare the lemmas `es_core_news_md` actually
+produces and drop the ones it merges (`ella`/`nosotros`/`ellos` → `él`, the reflexive
+infinitives, `vacaciones` → `vacación`). Measured on `main`:
+
+|                                         | frozen build                 | after B9(a)+(c)                  |
+| --------------------------------------- | ---------------------------- | -------------------------------- |
+| lexemes authored / assigned / deferred  | 990 / 928 / 63               | 952 / 945 / 7                    |
+| `unreachable_lexemes`                   | 92 of 990                    | **0**                            |
+| G4 slots / filled / gaps / gap_fraction | 1,584 / 1,094 / 490 / 0.3093 | 1,584 / 1,090 / **494** / 0.3119 |
+
+A different ledger admits different corpus sentences, so the gap list is a different set
+— not merely four larger.
+
+### The blast radius, measured
+
+```
+18 authored slots no longer exist            363 rows
+22 gap slots appeared with no author           0 rows
+463 of 472 surviving slots moved digest    9,269 rows of 9,812
+```
+
+`coursekit build es` stopped at G5: `18 authored slot(s) are not in G4's gap list`. **Its
+message misdiagnoses this case** — it blames the B1b per-unit-vs-global lesson keying,
+which was a real bug once and is not this one. These slots were correctly keyed and then
+ceased to exist. A message that names one cause for a check with two is worth fixing when
+someone is next in that file.
+
+### What the re-key fixed, and what it did not
+
+B9's last clause — _"Re-key only rows whose `ledger_digest` changes"_ — is the sanctioned
+remedy and it is now a script,
+`tools/coursekit/scripts/rekey_authored_candidates.py` (dry-run by default). After it,
+G5 on the same tree:
+
+```
+read 9,449 · written 9,449 · rejected 3,646 · reject_rate 0.3859
+stale_ledger 0 · out_of_vocabulary 283 · duplicate 2,965 · length 398 · new_lemma_budget 0
+orphan_authored_slots []
+494 gap slots · 465 filled
+g5 failed: 22 slot(s) authored below the over-generation floor of 20
+```
+
+`stale_ledger` went 9,269 → 0, and 283 rows were caught by the **new** window instead —
+by name, in the census, which is the axis doing its job rather than being bypassed. The
+363 orphaned rows are in `content/es/candidates-orphaned/` with their reason, outside the
+glob G5 reads, because INV-PACK-10 forbids patching a candidate into a window it was not
+written for.
+
+### What is left, and it is authoring
+
+**22 slots with no candidate at all** (20 each = 440 rows). The windows are not the B9
+five-lemma trap — most are wide — which is why this is work rather than a decision:
+
+| Slot                                                                | reserves          | known lemmas | concept                 |
+| ------------------------------------------------------------------- | ----------------- | ------------ | ----------------------- |
+| `u1/l3/s1`                                                          | `yo`              | 14           | subject_pronouns        |
+| `u1/l3/s3`                                                          | `usted`           | 14           | subject_pronouns        |
+| `u1/l3/s4 s5 s6 s7`                                                 | —                 | 14           | subject_pronouns        |
+| `u4/l24/s6`                                                         | `suelo`           | 127          | definite_articles       |
+| `u16/l96/s6`                                                        | `mediodía`        | 521          | time_expressions        |
+| `u17/l102/s6`                                                       | —                 | 530+         | time_expressions        |
+| `u21/l121/s8`                                                       | `peinar`          | 658          | reflexive_daily_routine |
+| `u23/l131/s6`                                                       | `molestia`        | 712          | formal_informal_address |
+| `u23/l132/s7`, `u23/l134/s6`                                        | —                 | 712+         | formal_informal_address |
+| `u25/l145/s4`                                                       | `ojo`             | 787          | estar_gerund            |
+| `u27/l154/s4 s5 s6`, `u27/l156/s3`, `u27/l157/s5 s6`, `u27/l158/s7` | `doble` … `total` | 834–855      | comparatives_basic      |
+| `u29/l168/s6`                                                       | `cortado`         | 906          | yes_no_questions        |
+
+**7 slots that have 20+ candidates and no survivor**, which is a different job — fresh
+candidates against the new window, not a re-key:
+
+```
+u1/l2/s2   20 rows: out_of_vocabulary 3,  duplicate 17
+u1/l2/s4   20 rows: out_of_vocabulary 4,  duplicate 16
+u1/l2/s6   22 rows: out_of_vocabulary 7,  duplicate 15
+u1/l2/s7   20 rows: out_of_vocabulary 4,  duplicate 16
+u17/l101/s8  20 rows: out_of_vocabulary 20
+u25/l143/s8  20 rows: out_of_vocabulary 20
+u25/l144/s8  20 rows: out_of_vocabulary 20
+```
+
+The four `u1/l2` slots are duplicate-starved (the unit's window admits few enough strings
+that the earlier slots consume them); the other three are wholly out of vocabulary under
+the new ledger and need rewriting, not re-keying.
+
+### And one contradiction inside the new gap list
+
+**`u1/l3/s3` is reserved to teach the lemma `usted`** (`content/es/curriculum.yaml:420`),
+in a course whose register is `tu` (`config/g7.py::DEFAULT_REGISTER_BY_SLOT['binary_t_v']`),
+where V6 treats an `usted` marker in an accepted answer as a **blocking** finding — the
+rule 218 rows were rewritten for at the P2 fix round (B10). So no candidate that teaches
+that slot's reserved lemma can pass V6, and no candidate that passes V6 can teach it. It
+is not authorable as it stands. Whoever takes B19 has to either scope V6's rule to
+exclude the slot that introduces the pronoun, or drop `usted` from the course's target
+lexemes and teach the form inside `formal_informal_address` (u23) as a grammar concept,
+which is the shape Q2 option C already allows.
+
+### The question for the founder
+
+Not "may we re-key" — B9 already said yes, and it is done. It is: **who authors the 29
+slots, and does `usted` stay a target lexeme?** The costed options are the three above;
+none is taken here, because authoring 440 candidates inside an integration pass is what
+produced the starved-slot defect at the last one.
+
+---
+
+## B20 — `ci.yml` fails with 1,316 of 1,316 tests passing — OPEN, measured
+
+`Error: [vitest-worker]: Timeout calling "onTaskUpdate"`, with
+`Test Files 114 passed | 1 skipped`, `Tests 1316 passed | 6 skipped`, on a 227-second
+wall / 604-second test-time run. It is the reporter's RPC to the worker timing out, not a
+test.
+
+Round 2 saw it once, re-ran the job, got green, and wrote it down as a flake
+(`docs/P2-REPORT-round2.md` §ci.yml). **This round it failed on both attempts of the same
+sha** — `86f2430` attempt 1 and attempt 2 — so it is no longer a flake that a re-run
+clears, and `ci.yml` is RED with nothing wrong with any test.
+
+Not fixed here on purpose. The suite is 27 s wall on this Mac and 227 s on the runner, so
+there is no way to reproduce the timing locally, and a change pushed as a fix that cannot
+be measured is the "fixed it five times without fixing it" failure this project has
+already paid for once. The levers, for whoever takes it: a quieter CI reporter (the
+default reporter's per-task RPC is what times out), `fileParallelism` so no single worker
+holds a 15–25-second property test while the reporter waits, or splitting
+`packages/core/src/day/recovery.test.ts` (four properties, 25 s together) out of the main
+run. **Not** `PROPERTY_RUNS`: the floor is a gate on purpose
+(`docs/ci.md` §The property floor).
