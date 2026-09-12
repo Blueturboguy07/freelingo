@@ -47,6 +47,7 @@ from ..config.g0 import (
     OPUS_DOWNLOAD_URL,
     OPUS_HOSTS,
     OPUS_LEGACY_LICENCE_PAGE,
+    OPUS_MOSES_MEMBER,
     OPUS_PAIR_RULE,
     OPUS_PREPROCESSING,
     OPUS_STALE_SIZE_SOURCES,
@@ -166,9 +167,16 @@ def member_names(corpus: str, lang: str) -> tuple[str, str]:
     Both carry the ALPHABETICAL pair segment in the middle and the plain language code at
     the end: `NLLB.en-es.en` and `NLLB.en-es.es`; for German, `NLLB.de-en.en` and
     `NLLB.de-en.de`.
+
+    Formatted from `config.g0.OPUS_MOSES_MEMBER` rather than spelled here, so the naming
+    rule has exactly one definition: a second spelling of a constant is the constant not
+    doing its job.
     """
     pair = opus_pair(lang)
-    return f"{corpus}.{pair}.{L1}", f"{corpus}.{pair}.{lang}"
+    return (
+        OPUS_MOSES_MEMBER.format(corpus=corpus, pair=pair, lang=L1),
+        OPUS_MOSES_MEMBER.format(corpus=corpus, pair=pair, lang=lang),
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,7 @@ import pytest
 from test_licences import RecordingTransport
 
 from coursekit.config.g0 import (
+    MAX_STREAM_BYTES_DEFAULT,
     TATOEBA_CC0_COMPRESSED_BYTES,
     TATOEBA_DETAILED_COLUMNS,
     TATOEBA_HOSTS,
@@ -71,8 +72,11 @@ def _exports(
         ENGLISH: _bz2(
             english
             if english is not None
-            else ["11\teng\tLet's try something!", "12\teng\tI have to go to sleep.",
-                  "13\teng\tWhat are you doing?"]
+            else [
+                "11\teng\tLet's try something!",
+                "12\teng\tI have to go to sleep.",
+                "13\teng\tWhat are you doing?",
+            ]
         ),
     }
 
@@ -125,6 +129,71 @@ def test_the_detailed_export_is_the_one_with_the_owner_column() -> None:
 
 def test_only_the_tatoeba_host_is_reachable_under_a_tatoeba_permit() -> None:
     assert TATOEBA_HOSTS == ("downloads.tatoeba.org",)
+
+
+# ---------------------------------------------------------------------------
+# The cap, on all three files
+# ---------------------------------------------------------------------------
+
+
+def test_the_english_export_stops_once_every_linked_id_has_text() -> None:
+    """ "Capped" has to hold for the English side too, or every run pays ~100 MB.
+
+    The English export is a LOOKUP TABLE for the ids the links file named, not a corpus
+    this build reads, and under `--max-pairs 2000` against Tatoeba's ~2 M English
+    sentences the wanted ids are a small prefix. Reading past the last one is pure waste
+    that no output difference would ever reveal — so the assertion is made structural: a
+    row that would RAISE if it were parsed sits immediately after the last wanted id. If
+    the reader runs on, the test fails with `WrongExportShape`; if it stops, the row is
+    never looked at.
+    """
+    granted = permit("tatoeba", "es")
+    transport = _transport(
+        links=["2481\t11", "2482\t12"],
+        english=[
+            "11\teng\tLet's try something!",
+            "12\teng\tI have to go to sleep.",
+            "13\teng\tWhat are you doing?\tAN\tEXTRA\tCOLUMN",  # would raise if parsed
+        ],
+        detailed=[
+            "2481\tspa\t¡Intentemos algo!\tShishir\t\\N\t2010-08-08 23:28:48",
+            "2482\tspa\tTengo que irme a dormir.\tShishir\t\\N\t2010-09-25 23:27:04",
+        ],
+    )
+    rows = list(tatoeba.fetch_pairs(granted, transport, max_pairs=10)[1])
+    assert [row.sentence_id for row in rows] == [2481, 2482]
+
+
+def test_the_links_and_target_exports_are_both_capped_at_max_pairs() -> None:
+    """The other two sides of the same property, so "capped" is not one file's habit."""
+    granted = permit("tatoeba", "es")
+    rows = list(tatoeba.fetch_pairs(granted, _transport(), max_pairs=1)[1])
+    assert len(rows) == 1
+
+
+def test_a_pathological_export_hits_the_compressed_byte_ceiling_and_raises() -> None:
+    """MAX_STREAM_BYTES_DEFAULT is a runaway guard, and it stops rather than truncating.
+
+    A short ledger nobody was told about is the outcome this exists to prevent, so
+    exceeding the ceiling raises with the file named instead of quietly returning what it
+    had. Driven at `_rows` directly because the real ceiling is two gigabytes and a test
+    that allocated that would be the disk risk it is guarding against.
+    """
+    granted = permit("tatoeba", "es")
+    transport = _transport()
+    gated = tatoeba.open_transport(granted, transport, hosts=TATOEBA_HOSTS)
+    with pytest.raises(tatoeba.WrongExportShape) as raised:
+        list(
+            tatoeba._rows(
+                gated,
+                ENGLISH,
+                ("id", "lang", "text"),
+                remedy="the eng sentences export",
+                max_bytes=8,
+            )
+        )
+    assert "compressed bytes" in str(raised.value)
+    assert MAX_STREAM_BYTES_DEFAULT == 2_000_000_000
 
 
 # ---------------------------------------------------------------------------

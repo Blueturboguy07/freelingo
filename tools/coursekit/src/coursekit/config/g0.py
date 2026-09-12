@@ -48,8 +48,8 @@ OPUS_DOWNLOAD_URL: Final[str] = (
 )
 
 #: The readable per-corpus licence page. Non-legacy paths 404; this one is where every
-#: OPUS licence string in `config.SOURCES` was read from, and it is recorded on every
-#: emitted row so an auditor can re-read the same page.
+#: OPUS licence string in `config.SOURCES` was read from. See `LICENCE_PAGE_BY_SOURCE`
+#: below for where a run records it — the runlog, per corpus, NOT per sentence.
 OPUS_LEGACY_LICENCE_PAGE: Final[str] = "https://opus.nlpl.eu/legacy/{corpus}-{version}.php"
 
 #: Source id -> (OPUS corpus name, OPUS version). The forbidden corpora are listed on
@@ -82,13 +82,23 @@ OPUS_STALE_SIZE_SOURCES: Final[tuple[str, ...]] = ("nllb",)
 #: has. Two million pairs is ~8x the ~250k raw candidates the ledger needs.
 MAX_PAIRS_DEFAULT: Final[int] = 2_000_000
 
-#: A second, independent cap: bytes pulled off the wire before the stream is abandoned.
-#: `max_pairs` alone does not bound a stream whose lines are pathological, and a build
-#: machine that fills its disk is the failure mode the plan's disk risk is about.
+#: A second, independent cap, in COMPRESSED bytes off the wire, applied per streamed file
+#: by `sources/tatoeba.py`. `max_pairs` alone does not bound a stream whose rows are
+#: pathological (a links export that is 99% self-links yields no pairs and never stops),
+#: and a build machine that fills its disk is the failure mode the plan's disk risk is
+#: about. The OPUS side has its own, tighter, per-member bound below.
 MAX_STREAM_BYTES_DEFAULT: Final[int] = 2_000_000_000
 
-#: Moses archives hold one file per side, named `<CORPUS>.<pair>.<lang>`.
+#: Moses archives hold one file per side, named `<CORPUS>.<pair>.<lang>`. Spelled once:
+#: `sources/opus.py` formats THIS constant rather than re-spelling the pattern, so the
+#: member-naming rule has one definition and a test can assert against it.
 OPUS_MOSES_MEMBER: Final[str] = "{corpus}.{pair}.{lang}"
+
+#: How many redirect hops `GatedTransport` will follow. Each hop is re-gated — host
+#: allow-list and licence verdict — before it is made; httpx never follows one itself
+#: (`HttpTransport` sets `follow_redirects=False`). Three is the OPUS API's one hop with
+#: room, and a chain longer than this is a host doing something nobody classified.
+MAX_REDIRECT_HOPS: Final[int] = 3
 
 #: The only hosts an OPUS permit may reach. `GatedTransport` refuses anything else, so a
 #: redirect or a mis-templated URL cannot quietly fetch from somewhere nobody classified.
@@ -168,7 +178,8 @@ TATOEBA_CC0_COMPRESSED_BYTES: Final[dict[str, int]] = {
 #: attribution (INV-PACK-17) or not ship at all.
 TATOEBA_CC0_VIABLE_ISO3: Final[tuple[str, ...]] = ("fra",)
 
-#: Where the Tatoeba licence string was read from. Recorded on every emitted row.
+#: Where the Tatoeba licence string was read from. Recorded in the G0 runlog entry, per
+#: corpus — see `LICENCE_PAGE_BY_SOURCE`.
 TATOEBA_LICENCE_PAGE: Final[str] = "https://tatoeba.org/en/downloads"
 
 #: Tatoeba rebuilds weekly, Saturdays 06:30 UTC.
@@ -200,10 +211,19 @@ TATOEBA_NULL_OWNER: Final[str] = "\\N"
 # Licence resolution
 # ---------------------------------------------------------------------------
 
-#: The page each source's licence string was resolved FROM. Recorded per sentence so an
-#: audit can re-read the page rather than trust the table (edge case 4: "OPUS licence
+#: The page each source's licence string was resolved FROM (edge case 4: "OPUS licence
 #: assumed from the front page" — OPUS grants no blanket licence and its API returns no
 #: licence field).
+#:
+#: WHERE A RUN RECORDS IT, exactly: `stages/g0_ingest.py` writes `notes.licence_pages`
+#: ({source_id: url}) into the G0 runlog entry, so the page is PER CORPUS PER RUN. It is
+#: **not** on the emitted `ingested_sentence` rows and not on `runlog.LicenceRow`:
+#: `artifacts.INGESTED_SENTENCE` is `additionalProperties: false` with no such property
+#: and `LicenceRow` has five fixed fields, and both are owned by `p2-deps-scaffold`. A
+#: per-sentence page needs a schema change requested there — recorded in
+#: `docs/owned/p2-g0-ingest.json` `blockedOn` — and until it lands nothing in this lane
+#: claims otherwise. The per-corpus record is still the audit trail edge case 4 needs:
+#: every corpus a run read names the page its licence string came from.
 #:
 #: A source with no page here resolves to `UNRESOLVED_LICENCE` and can never be ingested.
 LICENCE_PAGE_BY_SOURCE: Final[dict[str, str]] = {
@@ -304,6 +324,14 @@ PROFANITY_TOKENS: Final[dict[str, tuple[str, ...]]] = {
 
 #: Reject reasons, as they appear in the runlog's `notes.rejected_by`. Named so the
 #: counts are comparable across runs and so a spike in one of them is legible.
+#:
+#: There is no `unresolved_licence` reason here on purpose, and the omission is the
+#: invariant: an unresolved licence is not a row G0 *rejects*, it is a build G0 *stops*.
+#: A counted rejection would mean the corpus was fetched, parsed and then dropped — which
+#: is "filtered at package time" wearing an ingest-shaped coat (INV-PACK-13). `permit()`
+#: refuses it before a socket exists, and `stages/g0_ingest._rows` re-asserts it as a
+#: raise. `tests/test_g0_ingest.py` asserts the reason set and the raise together, so
+#: adding the reason back without changing the behaviour turns that test red.
 REJECT_REASONS: Final[tuple[str, ...]] = (
     "too_short",
     "too_long",
@@ -312,5 +340,4 @@ REJECT_REASONS: Final[tuple[str, ...]] = (
     "register",
     "profanity",
     "untranslated",
-    "unresolved_licence",
 )

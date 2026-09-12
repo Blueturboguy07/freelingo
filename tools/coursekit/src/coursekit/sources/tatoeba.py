@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from ..config import ISO3_BY_LANGUAGE
 from ..config.g0 import (
     MAX_PAIRS_DEFAULT,
+    MAX_STREAM_BYTES_DEFAULT,
     TATOEBA_CC0_ARCHIVE,
     TATOEBA_CC0_COMPRESSED_BYTES,
     TATOEBA_CC0_PER_LANGUAGE,
@@ -202,6 +203,7 @@ def _rows(
     columns: tuple[str, ...],
     *,
     remedy: str,
+    max_bytes: int = MAX_STREAM_BYTES_DEFAULT,
 ) -> Iterator[list[str]]:
     """Stream one bz2 TSV export, refusing a file whose shape is not the declared one.
 
@@ -209,7 +211,15 @@ def _rows(
     "at least". `sentences` has three columns and `sentences_detailed` has six; accepting
     "at least three" is precisely how a file that carries no owner ends up standing in for
     one that does.
+
+    `max_bytes` bounds the COMPRESSED bytes pulled off the wire. It is a runaway guard,
+    not a cap that shapes the output: the real per-file caps are the callers' (`max_pairs`
+    on the links and target files, "every wanted id resolved" on the English one), and a
+    Tatoeba export that exceeded two gigabytes compressed would mean the URL is not the
+    file its name promises. So exceeding it RAISES rather than truncating — a short ledger
+    nobody was told about is the outcome this is here to prevent.
     """
+    pulled = 0
     decompressor = bz2.BZ2Decompressor()
     # An INCREMENTAL decoder, not `bytes.decode` per chunk: bz2 hands back blocks whose
     # boundaries fall wherever they fall, and a multi-byte character split across two of
@@ -220,6 +230,13 @@ def _rows(
     number = 0
     try:
         for chunk in gated.stream(url):
+            pulled += len(chunk)
+            if pulled > max_bytes:
+                raise WrongExportShape(
+                    f"{url} has sent more than {max_bytes} compressed bytes and is still "
+                    f"going. A Tatoeba per-language export is megabytes, not gigabytes: "
+                    f"this URL is not the file its name promises. Remedy: {remedy}."
+                )
             raw = decompressor.decompress(chunk)
             if not raw:
                 continue
@@ -262,9 +279,16 @@ def fetch_pairs(
 ) -> tuple[IngestPermit, Iterator[TatoebaPair]]:
     """`(permit, an iterator of joined pairs)`. Three files, one join, no fallbacks.
 
-    Read in the order that keeps memory proportional to the PAIR count rather than to
-    Tatoeba: links first (which is the only file that says which English sentences matter),
-    then the English side filtered to those ids, then the target side streamed.
+    Read in the order that keeps memory — and bytes off the wire — proportional to the
+    PAIR count rather than to Tatoeba: links first (the only file that says which English
+    sentences matter, capped at `max_pairs`), then the English side filtered to those ids
+    and **stopped as soon as every one of them is resolved**, then the target side
+    streamed and capped at `max_pairs`. All three also carry a compressed-byte ceiling.
+
+    Every one of the three caps is load-bearing. Capping only the target side leaves the
+    whole ~100 MB English export being pulled on every run for a `--max-pairs 2000` build,
+    which is the difference between "capped" as a property and "capped" as a word in a
+    docstring.
     """
     require(granted)
     iso3 = ISO3_BY_LANGUAGE[granted.lang]
@@ -289,20 +313,29 @@ def fetch_pairs(
         if len(translation_of) >= max_pairs:
             break
 
+    # The English export is a LOOKUP TABLE for the ids the links file named, not a corpus
+    # this build reads. So it stops the moment every wanted id has text — which under a
+    # `--max-pairs` far below Tatoeba's size is a small prefix of a ~100 MB file, and
+    # without which "capped" would have held for the target side only and every run would
+    # have paid the whole English export. The set is the cap; there is no separate number
+    # to keep in step with `max_pairs`.
     wanted = set(translation_of.values())
     l1_text: dict[int, str] = {}
-    for fields in _rows(
-        gated,
-        l1_url,
-        TATOEBA_SENTENCES_COLUMNS,
-        remedy=f"the {TATOEBA_L1_ISO3} sentences export",
-    ):
-        try:
-            identifier = int(fields[0])
-        except ValueError:
-            continue
-        if identifier in wanted:
-            l1_text[identifier] = fields[2]
+    if wanted:
+        for fields in _rows(
+            gated,
+            l1_url,
+            TATOEBA_SENTENCES_COLUMNS,
+            remedy=f"the {TATOEBA_L1_ISO3} sentences export",
+        ):
+            try:
+                identifier = int(fields[0])
+            except ValueError:
+                continue
+            if identifier in wanted:
+                l1_text[identifier] = fields[2]
+                if len(l1_text) == len(wanted):
+                    break
 
     # Last, deliberately. The ids file is the only one that says which pairs exist, and
     # the English side is the only one that says whether they have text; a build that

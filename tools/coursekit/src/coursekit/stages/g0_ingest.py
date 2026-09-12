@@ -258,8 +258,7 @@ def _candidates(
     if source_id == "nllb":
         stamped, _info, pairs = opus.stream_pairs(granted, transport, max_pairs=max_pairs)
         return stamped, (
-            Candidate(text=text, translation=translation, owner=None)
-            for text, translation in pairs
+            Candidate(text=text, translation=translation, owner=None) for text, translation in pairs
         )
     raise MissingInput(
         f"G0 has no fetcher for {source_id!r}. config/g0.py INGEST_CORPORA_BY_LANGUAGE lists "
@@ -292,20 +291,33 @@ def ingest(
     report = IngestReport()
     seen: set[str] = set()
     records: list[dict[str, object]] = []
+    #: source_id -> the page its licence string was read from. Written into the runlog
+    #: below. This is the ONLY place a run persists the page: `ingested_sentence` is
+    #: `additionalProperties: false` and `runlog.LicenceRow` has five fixed fields, both
+    #: owned by `p2-deps-scaffold`, so a per-sentence page needs a schema change requested
+    #: there. Per corpus per run is still the audit trail edge case 4 asks for — every
+    #: corpus this run read names the page its licence came from — and it is a fact on
+    #: disk rather than a claim in a comment.
+    licence_pages: dict[str, str] = {}
 
     for source_id in wanted:
         # The gate, before anything opens a socket. An exception here is the correct
         # end of the build: a corpus nobody classified is never "skipped".
         granted = permit(source_id, lang)
+
+        # Recorded the moment the gate says yes, BEFORE a socket opens — not after the
+        # rows are in. A stage that dies half way through NLLB must still leave behind
+        # which corpora it opened and under which licence; recording at the end of the
+        # loop body means the one run that failed is the one run with no provenance.
+        # (A corpus the gate REFUSES is never recorded: it was not touched.)
+        entry.record_input(source_id)
+        entry.record_licence(granted.licence_row())
+        licence_pages[source_id] = granted.licence_page
+
         stamped, candidates = _candidates(source_id, granted, transport, max_pairs=max_pairs)
         before = report.written
-        records.extend(
-            _rows(stamped, candidates, report=report, seen=seen, max_pairs=max_pairs)
-        )
+        records.extend(_rows(stamped, candidates, report=report, seen=seen, max_pairs=max_pairs))
         report.per_corpus[source_id] = report.written - before
-
-        entry.record_input(source_id)
-        entry.record_licence(stamped.licence_row())
 
     write_records("ingested_sentence", records, lang=lang)
     entry.record_output("ingested_sentence")
@@ -319,6 +331,7 @@ def ingest(
         rejected_by=dict(report.rejected_by),
         length_window=[MIN_TOKENS, MAX_TOKENS],
         normalisation=NORMALISATION_FORM,
+        licence_pages=dict(licence_pages),
     )
     return report
 
@@ -335,9 +348,7 @@ def run(ctx: StageContext) -> StageResult:
     chosen = ctx.options.get("corpora")
     corpora = tuple(part.strip() for part in chosen.split(",") if part.strip()) if chosen else None
 
-    report = ingest(
-        ctx.lang, ctx.entry, HttpTransport(), max_pairs=max_pairs, corpora=corpora
-    )
+    report = ingest(ctx.lang, ctx.entry, HttpTransport(), max_pairs=max_pairs, corpora=corpora)
     if report.written == 0:
         return StageResult(
             ok=False,

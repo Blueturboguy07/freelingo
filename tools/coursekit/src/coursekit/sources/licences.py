@@ -46,7 +46,7 @@ from dataclasses import fields as dataclass_fields
 from typing import Any, Protocol, runtime_checkable
 
 from ..config import INGEST_LICENCE_ALLOW_LIST, LANGUAGES, SOURCES, Source
-from ..config.g0 import LICENCE_PAGE_BY_SOURCE, UNRESOLVED_LICENCE
+from ..config.g0 import LICENCE_PAGE_BY_SOURCE, MAX_REDIRECT_HOPS, UNRESOLVED_LICENCE
 from ..inputs import ForbiddenSource, MissingInput, ResolvedSource, resolve
 from ..runlog import LicenceRow
 
@@ -56,6 +56,7 @@ __all__ = [
     "IngestPermit",
     "LicenceGateBypassed",
     "NotFound",
+    "Redirected",
     "Response",
     "Transport",
     "UnresolvedLicence",
@@ -98,10 +99,17 @@ class IngestPermit:
     """Proof that one source, for one language, cleared the ingest licence gate.
 
     Carries everything a row needs to be self-describing: the corpus and its version, the
-    licence string, the page it was resolved from, the verdict, and the attribution
-    owner. `G0` copies these onto every `ingested_sentence`, which is what makes V10's
-    "every sentence carries a resolved licence and attribution owner" checkable from the
-    artefact alone rather than from a corpus-level footnote.
+    licence string, the page it was resolved from, the verdict, and the attribution owner.
+
+    Where each field lands, precisely, because a comment that overstates this is worse
+    than no comment: `G0` copies the corpus, version, licence, verdict and attribution
+    owner onto every `ingested_sentence`, which is what makes V10's "every sentence
+    carries a resolved licence and attribution owner" checkable from the artefact alone.
+    `licence_page` is **not** among them — `artifacts.INGESTED_SENTENCE` is
+    `additionalProperties: false` and `runlog.LicenceRow` has five fixed fields, both
+    owned by `p2-deps-scaffold`. The page is recorded per corpus per run, in the G0
+    runlog entry's `notes.licence_pages`; a per-sentence page needs a schema change
+    requested there (`docs/owned/p2-g0-ingest.json` `blockedOn`).
     """
 
     source_id: str
@@ -371,30 +379,75 @@ class Transport(Protocol):
     def stream(self, url: str) -> Iterator[bytes]: ...
 
 
+class Redirected(Exception):
+    """A transport was answered with a 3xx and did NOT follow it.
+
+    It is an exception rather than a followed hop because following is a decision only the
+    gate may make: the new URL has to clear the host allow-list and the licence verdict
+    before a byte is fetched from it. `HttpTransport` raises this; `GatedTransport` is the
+    only thing that catches it.
+    """
+
+    def __init__(self, location: str, status_code: int) -> None:
+        super().__init__(f"HTTP {status_code} -> {location}")
+        self.location = location
+        self.status_code = status_code
+
+
+def _host_of(url: str) -> str:
+    return url.split("://", 1)[-1].split("/", 1)[0].split("@")[-1]
+
+
+def _absolute(base: str, location: str) -> str:
+    """Resolve a `Location` against the URL it came from, without importing a parser.
+
+    Relative locations are real — the OPUS API's own redirect is one — and a relative hop
+    must stay on the host that issued it rather than being refused for looking like a bare
+    path.
+    """
+    from urllib.parse import urljoin
+
+    return urljoin(base, location)
+
+
 class GatedTransport:
-    """A transport that re-checks the licence gate before every single request.
+    """A transport that re-checks the licence gate before every single request AND hop.
 
     Wrapping rather than trusting matters because a fetcher is a loop: `permit()` runs
     once and `get()` runs per file. This re-derives the verdict from `config.SOURCES` on
     each call, and additionally refuses a URL whose host is not one this source is
-    expected to live on — so a redirect, a templated URL with the wrong substitution, or
-    a future fetcher pointed at the wrong corpus cannot quietly reach another host under
-    a permit that was granted for this one.
+    expected to live on.
+
+    **Redirects are followed here, one hop at a time, and each hop is re-gated.** That is
+    the whole reason `HttpTransport` sets `follow_redirects=False`: a 302 from a permitted
+    host to an unclassified one, followed inside the HTTP client, is a fetch from a host
+    nobody read the terms of, made under a permit granted for a different one — and no
+    amount of checking the URL a *fetcher* asked for can see it.
     """
 
-    __slots__ = ("_hosts", "_inner", "_permit", "requests")
+    __slots__ = ("_hops", "_hosts", "_inner", "_permit", "requests")
 
-    def __init__(self, granted: IngestPermit, inner: Transport, hosts: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        granted: IngestPermit,
+        inner: Transport,
+        hosts: tuple[str, ...],
+        *,
+        max_hops: int = MAX_REDIRECT_HOPS,
+    ) -> None:
         self._permit = require(granted)
         self._inner = inner
         self._hosts = hosts
-        #: Every URL this transport was asked for, in order. Read by the runlog and by
-        #: the tests; it is the audit trail for "what did this run actually fetch".
+        self._hops = max_hops
+        #: Every URL this transport was asked for, in order, redirect hops included. Read
+        #: by the runlog and by the tests; it is the audit trail for "what did this run
+        #: actually fetch", and a hop that did not appear here would be a fetch nobody
+        #: recorded.
         self.requests: list[str] = []
 
     def _check(self, url: str) -> None:
         require(self._permit)
-        host = url.split("://", 1)[-1].split("/", 1)[0]
+        host = _host_of(url)
         if host not in self._hosts:
             raise ForbiddenSource(
                 f"{self._permit.source_id} is permitted to fetch from {', '.join(self._hosts)}, "
@@ -404,13 +457,42 @@ class GatedTransport:
             )
         self.requests.append(url)
 
+    def _too_many(self, url: str) -> ForbiddenSource:
+        return ForbiddenSource(
+            f"{self._permit.source_id}: more than {self._hops} redirect hops ending at {url}. "
+            f"Each hop is re-gated against the host allow-list, and a chain this long is a "
+            f"host doing something nobody classified."
+        )
+
     def get(self, url: str, *, byte_range: tuple[int, int | None] | None = None) -> Response:
-        self._check(url)
-        return self._inner.get(url, byte_range=byte_range)
+        for _hop in range(self._hops + 1):
+            self._check(url)
+            try:
+                return self._inner.get(url, byte_range=byte_range)
+            except Redirected as hop:
+                url = _absolute(url, hop.location)
+        raise self._too_many(url)
 
     def stream(self, url: str) -> Iterator[bytes]:
-        self._check(url)
-        return self._inner.stream(url)
+        for _hop in range(self._hops + 1):
+            self._check(url)
+            sent = False
+            try:
+                for chunk in self._inner.stream(url):
+                    sent = True
+                    yield chunk
+                return
+            except Redirected as hop:
+                if sent:
+                    # A 3xx is decided before any body arrives, so this cannot happen from
+                    # `HttpTransport`. If some other transport manages it, restarting the
+                    # stream elsewhere would silently splice two files together.
+                    raise ForbiddenSource(
+                        f"{self._permit.source_id}: {url} redirected after it had already sent "
+                        f"data. A part-read body followed by another host's body is not a file."
+                    ) from hop
+                url = _absolute(url, hop.location)
+        raise self._too_many(url)
 
 
 def open_transport(
@@ -429,15 +511,24 @@ def open_transport(
 
 
 class HttpTransport:
-    """The real transport: httpx, streamed, with no retry and no redirect to a new host.
+    """The real transport: httpx, streamed, with no retry and **no redirect following**.
 
     No retry because a 404 here is a build failure by design and retrying it only delays
-    the message. Redirects are followed (the OPUS API issues one), but `GatedTransport`
-    re-checks the host of every URL a fetcher asks for, and httpx is configured to refuse
-    a redirect chain longer than a couple of hops.
+    the message.
+
+    No redirect following because this class does not know the host allow-list. The OPUS
+    API does issue one, and it is followed — by `GatedTransport`, which re-runs the host
+    check and the licence check on the new URL first. So `follow_redirects=False` and a
+    3xx becomes `Redirected`, which only the gate catches. Handing httpx
+    `follow_redirects=True` is what made the old docstring's "no redirect to a new host"
+    a claim the code did not enforce.
     """
 
     __slots__ = ("_timeout",)
+
+    #: Statuses that carry a `Location` worth following. 304 is deliberately absent: it
+    #: is a cache answer, not a hop.
+    _REDIRECTS = frozenset({301, 302, 303, 307, 308})
 
     def __init__(self, timeout: float = 60.0) -> None:
         self._timeout = timeout
@@ -449,10 +540,13 @@ class HttpTransport:
         if byte_range is not None:
             first, last = byte_range
             headers["Range"] = f"bytes={first}" if first < 0 else f"bytes={first}-{last or ''}"
-        with httpx.Client(timeout=self._timeout, follow_redirects=True, max_redirects=3) as client:
+        with httpx.Client(timeout=self._timeout, follow_redirects=False) as client:
             reply = client.get(url, headers=headers)
         if reply.status_code == 404:
             raise NotFound(f"404 for {url}")
+        location = reply.headers.get("location")
+        if reply.status_code in self._REDIRECTS and location:
+            raise Redirected(location, reply.status_code)
         return Response(
             status_code=reply.status_code,
             url=str(reply.url),
@@ -464,10 +558,13 @@ class HttpTransport:
         import httpx
 
         with (
-            httpx.Client(timeout=self._timeout, follow_redirects=True, max_redirects=3) as client,
+            httpx.Client(timeout=self._timeout, follow_redirects=False) as client,
             client.stream("GET", url) as reply,
         ):
             if reply.status_code == 404:
                 raise NotFound(f"404 for {url}")
+            location = reply.headers.get("location")
+            if reply.status_code in self._REDIRECTS and location:
+                raise Redirected(location, reply.status_code)
             reply.raise_for_status()
             yield from reply.iter_bytes()

@@ -3,8 +3,15 @@
 `test_licences.py` and `test_sources_*.py` prove the two invariants at the door. This
 file proves the door is the only way in — that the *stage*, run the way `coursekit build`
 runs it, refuses a forbidden corpus before a socket exists, names a missing input, and
-emits rows that carry the licence, the page it was resolved from and the attribution owner
-V10 and INV-PACK-17 need.
+emits rows that carry the licence, the verdict and the attribution owner V10 and
+INV-PACK-17 need.
+
+The page a licence was READ FROM is recorded per corpus per run, in the G0 runlog entry's
+`notes.licence_pages` — not on the rows. `artifacts.INGESTED_SENTENCE` is
+`additionalProperties: false` and `runlog.LicenceRow` has five fixed fields, both owned by
+`p2-deps-scaffold`, so a per-sentence page is a schema request (recorded in
+`docs/owned/p2-g0-ingest.json`). `…_the_runlog_records_the_page_each_licence_was_read_from`
+asserts what actually exists, which is the version of edge case 4 this lane can keep.
 
 Two corpora, and the difference between them is the licence posture in one assertion:
 `tatoeba` rows come out `shippable` with an owner, `nllb` rows come out `oracle_only` with
@@ -29,13 +36,16 @@ from coursekit.config.g0 import (
     INGEST_CORPORA_BY_LANGUAGE,
     MAX_TOKENS,
     MIN_TOKENS,
+    REJECT_REASONS,
     UNRESOLVED_LICENCE,
 )
 from coursekit.inputs import ForbiddenSource, MissingInput
 from coursekit.runlog import RunLog, read_entries
 from coursekit.sources import opus, tatoeba
+from coursekit.sources.licences import permit
 from coursekit.stages import STAGES
-from coursekit.stages.g0_ingest import ingest, normalise, token_count
+from coursekit.stages.g0_ingest import IngestReport, ingest, normalise, token_count
+from coursekit.stages.g0_ingest import _rows as _g0_rows
 
 DETAILED = tatoeba.detailed_export_url("spa")
 LINKS = tatoeba.links_export_url("spa")
@@ -235,13 +245,51 @@ def test_INV_PACK_13_the_runlog_carries_one_licence_row_per_corpus_read() -> Non
     assert entries[0]["outputs"] == ["ingested_sentence"]
 
 
+def test_INV_PACK_13_the_runlog_records_the_page_each_licence_was_read_from() -> None:
+    """[INV-PACK-13] edge case 4: the licence string must be traceable to a page.
+
+    OPUS grants no blanket licence and its API returns no licence field, so "ODC-By-1.0"
+    is a claim until a run says where it read it. That is `notes.licence_pages`, per
+    corpus per run — the honest scope of what this lane can persist, because the
+    `ingested_sentence` schema is closed and owned elsewhere. The last assertion is the
+    one that keeps it honest: the ROWS do not carry it, so nothing downstream may pretend
+    they do.
+    """
+    _report, _entry_, _log = _run(_transport())
+    entries = read_entries("es", stage="g0")
+    pages = entries[0]["notes"]["licence_pages"]
+    assert pages == {
+        "tatoeba": "https://tatoeba.org/en/downloads",
+        "nllb": "https://opus.nlpl.eu/legacy/NLLB-v1.php",
+    }
+    assert set(pages) == {row["source_id"] for row in entries[0]["licences"]}
+
+    rows = list(read_records("ingested_sentence", lang="es"))
+    assert rows and all("licence_page" not in row for row in rows)
+
+
 def test_INV_PACK_13_a_failed_stage_still_records_which_corpora_it_touched() -> None:
-    """[INV-PACK-13] a missing entry and a failed entry send a reader to different places."""
+    """[INV-PACK-13] a missing entry and a failed entry send a reader to different places.
+
+    Two halves. A corpus the gate REFUSED was never touched, so it leaves no licence row —
+    recording one would claim a read that never happened. A corpus the gate ALLOWED and
+    that then died mid-fetch was touched, and its licence row and page must survive the
+    failure: recording provenance at the end of the loop body means the one run that
+    failed is the one run with nothing to read.
+    """
     with pytest.raises(ForbiddenSource):
         _run(_transport(), corpora=("ted2020",))
     entries = read_entries("es", stage="g0")
     assert [entry["status"] for entry in entries] == ["failed"]
     assert entries[0]["licences"] == []
+
+    # Allowed, then the target-side export is missing: a mid-fetch death.
+    with pytest.raises(MissingInput):
+        _run(_transport(drop="spa_sentences_detailed.tsv.bz2"), corpora=("tatoeba",))
+    failed = read_entries("es", stage="g0")[-1]
+    assert failed["status"] == "failed"
+    assert [row["source_id"] for row in failed["licences"]] == ["tatoeba"]
+    assert failed["inputs"] == ["tatoeba"]
 
 
 # ---------------------------------------------------------------------------
@@ -322,9 +370,7 @@ def test_rows_outside_the_window_and_duplicates_are_rejected_with_a_named_reason
         ("la casa blanca es muy grande.", "The white house is very big."),  # dedup on fold
         (" ".join(["palabra"] * 20), "a word " * 20),  # too_long
     ]
-    report, _entry_, _log = _run(
-        _transport(tatoeba_rows=rows), corpora=("tatoeba",)
-    )
+    report, _entry_, _log = _run(_transport(tatoeba_rows=rows), corpora=("tatoeba",))
     assert report.written == 1
     assert report.rejected_by == {"too_short": 1, "duplicate": 1, "too_long": 1}
 
@@ -340,6 +386,39 @@ def test_markup_profanity_and_untranslated_rows_never_reach_the_ledger() -> None
     report, _entry_, _log = _run(_transport(nllb_rows=rows), corpora=("nllb",))
     assert report.written == 1
     assert report.rejected_by == {"register": 1, "profanity": 1, "untranslated": 1}
+
+
+def test_an_unresolved_licence_is_a_stop_not_a_counted_rejection() -> None:
+    """There is no `unresolved_licence` reject reason, and the absence is the invariant.
+
+    A counted rejection would mean the corpus was fetched, parsed and then dropped — which
+    is "filtered at package time" wearing an ingest-shaped coat. So `REJECT_REASONS` does
+    not carry it (`IngestReport.reject` refuses any reason that is not in the tuple, so a
+    future `report.reject("unresolved_licence")` raises), and `_rows` re-asserts the
+    decision as a raise for anything that somehow got past `permit()`.
+    """
+    assert "unresolved_licence" not in REJECT_REASONS
+    with pytest.raises(ValueError):
+        IngestReport().reject("unresolved_licence")
+
+    granted = permit("nllb", "es")
+    forged = object.__new__(type(granted))
+    for name, value in (
+        ("source_id", "nllb"),
+        ("lang", "es"),
+        ("url", None),
+        ("corpus", "NLLB"),
+        ("corpus_version", "v1"),
+        ("licence", UNRESOLVED_LICENCE),
+        ("licence_page", ""),
+        ("verdict", "oracle_only"),
+        ("attribution_required", True),
+        ("attribution_owner", "x"),
+    ):
+        object.__setattr__(forged, name, value)
+    with pytest.raises(MissingInput) as raised:
+        list(_g0_rows(forged, [], report=IngestReport(), seen=set(), max_pairs=1))
+    assert UNRESOLVED_LICENCE in str(raised.value)
 
 
 def test_max_pairs_caps_what_is_kept_per_corpus() -> None:

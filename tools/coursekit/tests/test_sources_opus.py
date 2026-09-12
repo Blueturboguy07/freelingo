@@ -29,6 +29,7 @@ from test_licences import RecordingTransport
 from coursekit.config.g0 import (
     MAX_PAIRS_DEFAULT,
     OPUS_HOSTS,
+    OPUS_MOSES_MEMBER,
     ZIP_RANGE_SLICE_BYTES,
 )
 from coursekit.inputs import MissingInput, opus_pair
@@ -78,9 +79,7 @@ def _archive(
         for lang, lines in ((pair.split("-")[0], lines_en), (pair.split("-")[1], lines_es)):
             name = f"{corpus}.{pair}.{lang}"
             body = ("\n".join(lines) + "\n").encode()
-            with archive.open(
-                zipfile.ZipInfo(name), "w", force_zip64=zip64
-            ) as member:
+            with archive.open(zipfile.ZipInfo(name), "w", force_zip64=zip64) as member:
                 member.write(body)
     return buffer.getvalue()
 
@@ -123,6 +122,19 @@ def test_the_api_query_orders_l1_first_while_the_pair_segment_is_alphabetical() 
 def test_member_names_carry_the_alphabetical_pair_and_the_plain_language_code() -> None:
     assert opus.member_names("NLLB", "es") == ("NLLB.en-es.en", "NLLB.en-es.es")
     assert opus.member_names("NLLB", "de") == ("NLLB.de-en.en", "NLLB.de-en.de")
+
+
+def test_member_names_are_formatted_from_the_constant_rather_than_respelled() -> None:
+    """One definition of the naming rule, not two that happen to agree today.
+
+    `OPUS_MOSES_MEMBER` exists to pin `<CORPUS>.<pair>.<lang>`; a module that re-spells the
+    pattern in an f-string leaves the constant as decoration and the rule in two places.
+    """
+    assert OPUS_MOSES_MEMBER == "{corpus}.{pair}.{lang}"
+    assert opus.member_names("NLLB", "es") == (
+        OPUS_MOSES_MEMBER.format(corpus="NLLB", pair="en-es", lang="en"),
+        OPUS_MOSES_MEMBER.format(corpus="NLLB", pair="en-es", lang="es"),
+    )
 
 
 def test_a_404_is_a_hard_failure_naming_the_direction_not_a_fallback() -> None:
