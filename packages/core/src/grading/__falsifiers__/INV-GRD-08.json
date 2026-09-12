@@ -1,0 +1,86 @@
+{
+  "invariant": "INV-GRD-08",
+  "why": "read/listen-and-respond never costs a heart and keeps one session shape across all three degradation paths",
+  "kind": "open-response",
+  "cases": [
+    {
+      "note": "over the minimum with a required lexeme — keyword+length path",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "ella escribe una carta larga",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0,
+        "comboReset": false,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "the same reply on the LLM path: same shape",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "ella escribe una carta larga",
+      "path": "llm",
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "the unconditional fallback accepts, and still costs nothing",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "no",
+      "path": "accept-all",
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "under the minimum: a re-prompt in place, never a heart and never a mistake row",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "si",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 0,
+        "wrong": false,
+        "heartCost": 0,
+        "comboReset": false,
+        "mistakeLexemeIds": [],
+        "writesAttemptRow": false
+      }
+    }
+  ]
+}

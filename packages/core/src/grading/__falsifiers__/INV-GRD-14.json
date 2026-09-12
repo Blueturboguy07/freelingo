@@ -1,0 +1,69 @@
+{
+  "invariant": "INV-GRD-14",
+  "why": "an answer with zero target-script characters produces no verdict, no attempt row, no heart and no combo change",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "romaji against a script-only accepted set: CHECK never arms",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-script",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "neko",
+      "expect": {
+        "tier": 0,
+        "verdictClass": "no-verdict",
+        "wrong": false,
+        "softCorrected": false,
+        "heartCost": 0,
+        "comboReset": false,
+        "mistakeLexemeIds": [],
+        "writesAttemptRow": false,
+        "escape": "word-bank",
+        "notArmedReason": "no-target-script"
+      }
+    },
+    {
+      "note": "one kana is enough to arm CHECK, and then the ordinary tiers apply",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-script",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "ねこ",
+      "expect": {
+        "tier": 1,
+        "writesAttemptRow": true
+      }
+    }
+  ]
+}

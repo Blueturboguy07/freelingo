@@ -1,0 +1,119 @@
+{
+  "invariant": "INV-GRD-27",
+  "why": "the alternate-solution note fires IFF the matched surface ranks below an already-introduced surface",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "a Section-1 learner who has never seen 猫 is never shown it",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "ねこ",
+      "introducedSurfaceIds": ["kana"],
+      "expect": {
+        "tier": 1,
+        "alternateSolution": null
+      }
+    },
+    {
+      "note": "once 猫 has been introduced, the note fires",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "ねこ",
+      "introducedSurfaceIds": ["kana", "kanji"],
+      "expect": {
+        "tier": 1,
+        "alternateSolution": {
+          "label": "Another correct solution:",
+          "rendering": "猫"
+        }
+      }
+    },
+    {
+      "note": "typing the taught top surface suppresses it: nothing outranks the match",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "猫",
+      "introducedSurfaceIds": ["kana", "kanji"],
+      "expect": {
+        "alternateSolution": null
+      }
+    },
+    {
+      "note": "an empty introduced set never fires it",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "ねこ",
+      "expect": {
+        "alternateSolution": null
+      }
+    }
+  ]
+}

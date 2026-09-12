@@ -1,0 +1,281 @@
+{
+  "invariant": "INV-GRD-01",
+  "why": "the tier-2 ladder is total and ordered, and its note pool holds six notes, not four",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "whitespace-insertion",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "el ga to",
+      "expect": {
+        "tier": 2,
+        "channel": "whitespace-insertion",
+        "note": "You have an extra space.",
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0,
+        "comboReset": false
+      }
+    },
+    {
+      "note": "whitespace-omission — the channel the three-tier checker had no branch for (EC-GRD-02)",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "elgato",
+      "expect": {
+        "tier": 2,
+        "channel": "whitespace-omission",
+        "note": "You missed a space.",
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "capitalisation is SILENT: a class with a pool entry and no note",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "El gato",
+      "expect": {
+        "tier": 2,
+        "channel": "capitalisation",
+        "note": null,
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "terminal punctuation rides the capitalisation class",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "El gato.",
+      "expect": {
+        "tier": 2,
+        "channel": "capitalisation",
+        "note": null,
+        "softCorrected": true
+      }
+    },
+    {
+      "note": "non-contrastive diacritic",
+      "pack": "es",
+      "item": {
+        "itemId": "es-2",
+        "family": "typed-translate",
+        "targetLexemeId": "estar",
+        "targetLexemeSurface": "está",
+        "accepted": [
+          {
+            "surface": "ella está",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "ella esta",
+      "expect": {
+        "tier": 2,
+        "channel": "diacritic",
+        "note": "Pay attention to the accents.",
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "single-edit typo, all three guards satisfied",
+      "pack": "es",
+      "item": {
+        "itemId": "es-3",
+        "family": "typed-translate",
+        "targetLexemeId": "carta",
+        "targetLexemeSurface": "carta",
+        "accepted": [
+          {
+            "surface": "ella escribe una carta",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "ella escrribe una carta",
+      "expect": {
+        "tier": 2,
+        "channel": "typo",
+        "note": "You have a typo.",
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "dropped function-class token — the plan's EC-GRD-03 ruling, the sixth note",
+      "pack": "es",
+      "item": {
+        "itemId": "es-4",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato come",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "gato come",
+      "expect": {
+        "tier": 2,
+        "channel": "dropped-token",
+        "note": "You missed a word.",
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "dropping a CONTENT token is hard wrong — 'else hard wrong'",
+      "pack": "es",
+      "item": {
+        "itemId": "es-4",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato come",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "el come",
+      "expect": {
+        "tier": 3,
+        "channel": null,
+        "wrong": true,
+        "heartCost": 1,
+        "comboReset": true
+      }
+    },
+    {
+      "note": "ORDER: 'Casa' is both a case slip and a single edit; capitalisation wins",
+      "pack": "es",
+      "item": {
+        "itemId": "es-5",
+        "family": "typed-translate",
+        "targetLexemeId": "casa",
+        "targetLexemeSurface": "casa",
+        "accepted": [
+          {
+            "surface": "casa",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "Casa",
+      "expect": {
+        "tier": 2,
+        "channel": "capitalisation",
+        "note": null
+      }
+    },
+    {
+      "note": "ORDER: 'esta' is both a dropped accent and a single edit; diacritic wins",
+      "pack": "es",
+      "item": {
+        "itemId": "es-2",
+        "family": "typed-translate",
+        "targetLexemeId": "estar",
+        "targetLexemeSurface": "está",
+        "accepted": [
+          {
+            "surface": "ella está",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "ella esta",
+      "expect": {
+        "channel": "diacritic"
+      }
+    },
+    {
+      "note": "TOTAL: an answer no class explains is tier 3, never a thrown error",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "perro",
+      "expect": {
+        "tier": 3,
+        "channel": null,
+        "note": null,
+        "wrong": true
+      }
+    }
+  ]
+}

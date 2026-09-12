@@ -1,0 +1,84 @@
+{
+  "invariant": "INV-GRD-21",
+  "why": "a reply failing the register detector still grades correct and emits exactly one advisory on all three paths",
+  "kind": "open-response",
+  "cases": [
+    {
+      "note": "keyword+length path",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-rr",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "まいにちなにをたべますか",
+        "requiredLexemeIds": ["たべる"]
+      },
+      "reply": "まいにちすしを食べる",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": [],
+        "advisories": ["Try the polite form next time."]
+      }
+    },
+    {
+      "note": "llm path: the same single advisory",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-rr",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "まいにちなにをたべますか",
+        "requiredLexemeIds": ["たべる"]
+      },
+      "reply": "まいにちすしを食べる",
+      "path": "llm",
+      "expect": {
+        "tier": 1,
+        "heartCost": 0,
+        "advisories": ["Try the polite form next time."]
+      }
+    },
+    {
+      "note": "unconditional-accept fallback KEEPS the note (EC-GRD-32)",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-rr",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "まいにちなにをたべますか",
+        "requiredLexemeIds": ["たべる"]
+      },
+      "reply": "まいにちすしを食べる",
+      "path": "accept-all",
+      "expect": {
+        "tier": 1,
+        "heartCost": 0,
+        "advisories": ["Try the polite form next time."]
+      }
+    },
+    {
+      "note": "a polite reply gets no advisory at all",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-rr",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "まいにちなにをたべますか",
+        "requiredLexemeIds": ["たべる"]
+      },
+      "reply": "まいにちすしを食べます",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 1,
+        "advisories": []
+      }
+    }
+  ]
+}

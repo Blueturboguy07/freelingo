@@ -1,0 +1,78 @@
+{
+  "invariant": "INV-GRD-04",
+  "why": "soft_corrected and wrong are two independent flags, and a soft correct never creates a mistake row",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "tier 2: softCorrected true, wrong false, zero mistake rows",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "El gato",
+      "expect": {
+        "softCorrected": true,
+        "wrong": false,
+        "mistakeLexemeIds": [],
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "tier 3: wrong true, softCorrected false, one mistake row",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "perro",
+      "expect": {
+        "softCorrected": false,
+        "wrong": true,
+        "mistakeLexemeIds": ["gato"],
+        "heartCost": 1
+      }
+    },
+    {
+      "note": "tier 1: neither flag",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "el gato",
+      "expect": {
+        "softCorrected": false,
+        "wrong": false,
+        "mistakeLexemeIds": []
+      }
+    }
+  ]
+}

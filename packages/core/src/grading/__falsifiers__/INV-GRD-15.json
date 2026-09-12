@@ -1,0 +1,81 @@
+{
+  "invariant": "INV-GRD-15",
+  "why": "the typo guards resolve per pack, and 'You have a typo.' is reachable in every shipped pack",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "es reaches the typo note with a five-character guard",
+      "pack": "es",
+      "item": {
+        "itemId": "es-3",
+        "family": "typed-translate",
+        "targetLexemeId": "carta",
+        "targetLexemeSurface": "carta",
+        "accepted": [
+          {
+            "surface": "ella escribe una carta",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "ella escrribe una carta",
+      "expect": {
+        "tier": 2,
+        "channel": "typo",
+        "note": "You have a typo."
+      }
+    },
+    {
+      "note": "ja reaches it too — four MORA, because a five-character guard is structurally dead here (EC-GRD-26)",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-typo",
+        "family": "typed-translate",
+        "targetLexemeId": "iku",
+        "targetLexemeSurface": "いき",
+        "accepted": [
+          {
+            "surface": "がっこうへいきます",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "がつこうへいきます",
+      "expect": {
+        "tier": 2,
+        "channel": "typo",
+        "note": "You have a typo.",
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "de reaches it too, on a word that is neither the taught lexeme nor a German word",
+      "pack": "de",
+      "unit": "de",
+      "item": {
+        "itemId": "de-3",
+        "family": "typed-translate",
+        "targetLexemeSurface": "Mädchen",
+        "accepted": [
+          {
+            "surface": "das Mädchen schreibt",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "das Mädchen schrreibt",
+      "expect": {
+        "tier": 2,
+        "channel": "typo",
+        "note": "You have a typo.",
+        "wrong": false,
+        "heartCost": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "invariant": "INV-GRD-13",
+  "why": "tier 1 applies the ACTIVE pack's orthographic_equivalences: heisst passes for de while ano fails against año for es",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "de: ß→ss is a tier-1 equivalence — silent accept, no accent note",
+      "pack": "de",
+      "unit": "de",
+      "item": {
+        "itemId": "de-1",
+        "family": "typed-translate",
+        "targetLexemeId": "heissen",
+        "targetLexemeSurface": "heißt",
+        "accepted": [
+          {
+            "surface": "heißt",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "heisst",
+      "expect": {
+        "tier": 1,
+        "note": null,
+        "softCorrected": false,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "de: the umlaut table too",
+      "pack": "de",
+      "unit": "de",
+      "item": {
+        "itemId": "de-2",
+        "family": "typed-translate",
+        "accepted": [
+          {
+            "surface": "Mädchen",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "Maedchen",
+      "expect": {
+        "tier": 1,
+        "note": null,
+        "wrong": false
+      }
+    },
+    {
+      "note": "es: the table is EMPTY there, and the tilde is contrastive — ano is not año",
+      "pack": "es",
+      "item": {
+        "itemId": "es-ano",
+        "family": "typed-translate",
+        "targetLexemeId": "ano",
+        "targetLexemeSurface": "año",
+        "accepted": [
+          {
+            "surface": "año",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "ano",
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1
+      }
+    },
+    {
+      "note": "es: a non-contrastive accent is still a soft correct, so the pack is parameterised and not merely strict",
+      "pack": "es",
+      "item": {
+        "itemId": "es-2",
+        "family": "typed-translate",
+        "targetLexemeId": "estar",
+        "targetLexemeSurface": "está",
+        "accepted": [
+          {
+            "surface": "ella está",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "ella esta",
+      "expect": {
+        "tier": 2,
+        "channel": "diacritic"
+      }
+    }
+  ]
+}

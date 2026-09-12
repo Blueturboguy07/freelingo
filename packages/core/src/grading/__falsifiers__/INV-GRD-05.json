@@ -1,0 +1,167 @@
+{
+  "invariant": "INV-GRD-05",
+  "why": "a multi-gap item is correct iff every gap is correct — no partial credit, and one heart for the item",
+  "kind": "multigap",
+  "cases": [
+    {
+      "note": "every gap right",
+      "pack": "es",
+      "item": {
+        "itemId": "es-gap",
+        "family": "gap-fill",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [],
+        "gaps": [
+          {
+            "gapId": "g1",
+            "accepted": [
+              {
+                "surface": "el",
+                "rank": 1,
+                "surfaceId": "g1s"
+              }
+            ]
+          },
+          {
+            "gapId": "g2",
+            "accepted": [
+              {
+                "surface": "gato",
+                "rank": 1,
+                "surfaceId": "g2s"
+              }
+            ]
+          }
+        ]
+      },
+      "answers": ["el", "gato"],
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "one gap wrong makes the WHOLE item wrong, and costs exactly one heart",
+      "pack": "es",
+      "item": {
+        "itemId": "es-gap",
+        "family": "gap-fill",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [],
+        "gaps": [
+          {
+            "gapId": "g1",
+            "accepted": [
+              {
+                "surface": "el",
+                "rank": 1,
+                "surfaceId": "g1s"
+              }
+            ]
+          },
+          {
+            "gapId": "g2",
+            "accepted": [
+              {
+                "surface": "gato",
+                "rank": 1,
+                "surfaceId": "g2s"
+              }
+            ]
+          }
+        ]
+      },
+      "answers": ["el", "gatoo"],
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1,
+        "mistakeLexemeIds": ["gato"]
+      }
+    },
+    {
+      "note": "the other gap wrong: same verdict, no partial credit for the one that was right",
+      "pack": "es",
+      "item": {
+        "itemId": "es-gap",
+        "family": "gap-fill",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [],
+        "gaps": [
+          {
+            "gapId": "g1",
+            "accepted": [
+              {
+                "surface": "el",
+                "rank": 1,
+                "surfaceId": "g1s"
+              }
+            ]
+          },
+          {
+            "gapId": "g2",
+            "accepted": [
+              {
+                "surface": "gato",
+                "rank": 1,
+                "surfaceId": "g2s"
+              }
+            ]
+          }
+        ]
+      },
+      "answers": ["la", "gato"],
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1
+      }
+    },
+    {
+      "note": "a soft-corrected gap keeps the item soft-corrected, never wrong",
+      "pack": "es",
+      "item": {
+        "itemId": "es-gap",
+        "family": "gap-fill",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [],
+        "gaps": [
+          {
+            "gapId": "g1",
+            "accepted": [
+              {
+                "surface": "el",
+                "rank": 1,
+                "surfaceId": "g1s"
+              }
+            ]
+          },
+          {
+            "gapId": "g2",
+            "accepted": [
+              {
+                "surface": "gato",
+                "rank": 1,
+                "surfaceId": "g2s"
+              }
+            ]
+          }
+        ]
+      },
+      "answers": ["El", "gato"],
+      "expect": {
+        "tier": 2,
+        "wrong": false,
+        "softCorrected": true,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    }
+  ]
+}

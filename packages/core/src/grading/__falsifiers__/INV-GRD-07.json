@@ -1,0 +1,110 @@
+{
+  "invariant": "INV-GRD-07",
+  "why": "a match grid with any wrong pair yields exactly ONE mistake row and ONE accuracy miss",
+  "kind": "match",
+  "cases": [
+    {
+      "note": "two wrong taps still produce one mistake row: the LEFT lexeme of the FIRST wrong pair",
+      "item": {
+        "itemId": "m1",
+        "family": "match",
+        "accepted": [],
+        "pairs": [
+          {
+            "leftLexemeId": "l1",
+            "rightLexemeId": "r1",
+            "left": "gato",
+            "right": "cat",
+            "facet": "meaning"
+          },
+          {
+            "leftLexemeId": "l2",
+            "rightLexemeId": "r2",
+            "left": "casa",
+            "right": "house",
+            "facet": "meaning"
+          },
+          {
+            "leftLexemeId": "l3",
+            "rightLexemeId": "r3",
+            "left": "carta",
+            "right": "letter",
+            "facet": "meaning"
+          }
+        ]
+      },
+      "taps": [
+        {
+          "leftLexemeId": "l1",
+          "rightLexemeId": "r2"
+        },
+        {
+          "leftLexemeId": "l2",
+          "rightLexemeId": "r3"
+        },
+        {
+          "leftLexemeId": "l3",
+          "rightLexemeId": "r3"
+        }
+      ],
+      "expect": {
+        "mistakeLexemeIds": ["l1"],
+        "accuracyMisses": 1,
+        "wrongTapCount": 2,
+        "heartsSpent": 2,
+        "wrong": true
+      }
+    },
+    {
+      "note": "a clean grid: no mistake row, no accuracy miss, no heart",
+      "item": {
+        "itemId": "m1",
+        "family": "match",
+        "accepted": [],
+        "pairs": [
+          {
+            "leftLexemeId": "l1",
+            "rightLexemeId": "r1",
+            "left": "gato",
+            "right": "cat",
+            "facet": "meaning"
+          },
+          {
+            "leftLexemeId": "l2",
+            "rightLexemeId": "r2",
+            "left": "casa",
+            "right": "house",
+            "facet": "meaning"
+          },
+          {
+            "leftLexemeId": "l3",
+            "rightLexemeId": "r3",
+            "left": "carta",
+            "right": "letter",
+            "facet": "meaning"
+          }
+        ]
+      },
+      "taps": [
+        {
+          "leftLexemeId": "l1",
+          "rightLexemeId": "r1"
+        },
+        {
+          "leftLexemeId": "l2",
+          "rightLexemeId": "r2"
+        },
+        {
+          "leftLexemeId": "l3",
+          "rightLexemeId": "r3"
+        }
+      ],
+      "expect": {
+        "mistakeLexemeIds": [],
+        "accuracyMisses": 0,
+        "heartsSpent": 0,
+        "wrong": false
+      }
+    }
+  ]
+}
