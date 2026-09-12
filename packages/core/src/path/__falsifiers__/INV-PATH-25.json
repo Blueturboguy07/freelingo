@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-PATH-25",
+  "why": "EC-PTH-43: complete every non-letters level of a `ja` unit and the trophy must turn gold. A denominator that counts the letters node leaves it grey forever, because a script node is legendary-exempt and can never be made legendary.",
+  "unitShape": ["letters", "lesson", "unitReview"],
+  "legendaryNodes": ["lesson"],
+  "expect": { "trophyLegendary": true, "offerOnLetters": false }
+}

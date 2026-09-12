@@ -1,0 +1,9 @@
+{
+  "invariant": "INV-PATH-22",
+  "why": "EC-PTH-40: a pack update that ADDS items must never lower a section's displayed number. A per-section Score model computed from `mastered/total` in the section does exactly that. The clamp reads only the course Score.",
+  "sectionBand": "A2",
+  "courseScoreBefore": 45,
+  "courseScoreAfter": 45,
+  "itemsAddedToSection": 400,
+  "expect": { "sectionScoreBefore": 45, "sectionScoreAfter": 45 }
+}

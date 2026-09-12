@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-PATH-21",
+  "why": "EC-PTH-39: a learner mid-Section 3 navigates back into Section 1 and practises a completed node. A predicate that tests the STATE rather than the TRANSITION fires a section-complete screen, and a viewport that follows the frontier dumps them in Section 3.",
+  "viewingSection": 0,
+  "currentSection": 2,
+  "expect": { "sectionCompletedFired": false, "viewportAfter": 0 }
+}

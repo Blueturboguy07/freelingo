@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-PATH-19",
+  "why": "EC-PTH-37: the frontier reaches a Roleplay node on a device with no on-device model and no BYOK key. A linear chain must never contain a node the generating device cannot finish, and rebalancing must not change the node count per unit.",
+  "template": ["lesson", "roleplay", "lesson", "unitReview"],
+  "capabilities": { "llm": false, "microphone": true, "audioOutput": true },
+  "expect": { "roleplayNodes": 0, "nodeCount": 4, "uncompletable": 0 }
+}

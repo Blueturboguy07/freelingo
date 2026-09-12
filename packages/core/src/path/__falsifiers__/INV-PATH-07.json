@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-PATH-07",
+  "why": "EC-PTH-10: accepting the demotion must move the learner without destroying progress. The falsifier is an implementation that relocks or resets the nodes it moves away from.",
+  "targetSection": 0,
+  "expect": { "progressPreserved": true }
+}

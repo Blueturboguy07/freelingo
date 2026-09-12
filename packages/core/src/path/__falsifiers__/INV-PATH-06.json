@@ -1,0 +1,8 @@
+{
+  "invariant": "INV-PATH-06",
+  "why": "EC-PTH-09: a learner jumps from Section 1 to Section 5 (early B1, band floor 60) with a Score of 0. Without a score_floor the Score chip reads `very early A1` next to a section chip reading `early B1` - five bands apart - and FSRS silently assumes mastery of everything skipped.",
+  "jumpToSectionBand": "early B1",
+  "scoreEarned": 0,
+  "skippedItemIds": ["it-1", "it-2", "it-3"],
+  "expect": { "scoreFloor": 60, "displayedScore": 60, "chipDisagreementBands": 0, "markUnseen": 3 }
+}

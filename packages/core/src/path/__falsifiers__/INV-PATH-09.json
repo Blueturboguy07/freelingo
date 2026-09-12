@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-PATH-09",
+  "why": "EC-PTH-18: returning after months away must find identical path state - no forced review, no relocking, same current node. The falsifier is any absence length at all producing a different model.",
+  "absenceDays": [0, 1, 30, 365, 3650, 100000],
+  "expect": { "sameReference": true }
+}

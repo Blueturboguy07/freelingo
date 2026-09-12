@@ -1,0 +1,9 @@
+{
+  "invariant": "INV-PATH-26",
+  "why": "EC-PTH-44: a Japanese learner self-reports conversational ability and lands in a unit rendered entirely in kana. Script nodes are a hard prerequisite no jump can skip. This is a Section-2 jump over the unit that introduces 'hiragana-a'.",
+  "shape": [[["letters", "lesson", "unitReview"]], [["lesson", "unitReview"]]],
+  "lettersIntroduces": ["hiragana-a"],
+  "targetUnitRequires": ["hiragana-a"],
+  "jumpTargetUnitIndex": 1,
+  "expect": { "unintroducedInServedItems": [], "lettersReachable": true }
+}

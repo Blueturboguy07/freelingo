@@ -1,0 +1,9 @@
+{
+  "invariant": "INV-PATH-15",
+  "why": "EC-PTH-33: every star node of Unit 1 is done and only the 15-exercise Unit Review remains, for a Casual learner with five minutes. A flat 15-exercise Unit Review exceeds the Casual budget of 14, so the route must come from the completed-node PRACTICE affordance and the Unit Review must be sized from the stored daily goal.",
+  "shape": [[["lesson", "lesson", "unitReview"]]],
+  "completedNodeCount": 2,
+  "tier": "casual",
+  "flatUnitReviewLength": 15,
+  "expect": { "ok": true, "sizedUnitReviewLength": 14, "budget": 14 }
+}

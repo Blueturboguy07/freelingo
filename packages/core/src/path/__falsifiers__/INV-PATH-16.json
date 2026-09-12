@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-PATH-16",
+  "why": "EC-PTH-34: every star node of a unit is made legendary, in a unit that also holds a chest and ends in a Unit Review. A denominator that folds over every node makes the trophy unreachable - the chest and the trophy can never be legendary. Fold only over node types that declare a LEGENDARY offer, against the pack-declared denominator.",
+  "unitShape": ["lesson", "lesson", "chest", "unitReview"],
+  "legendaryNodes": ["lesson", "lesson"],
+  "expect": { "trophyLegendary": true, "denominatorSize": 2 }
+}

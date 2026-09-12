@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-PATH-18",
+  "why": "EC-PTH-36: a completed story node tapped days later must NOT offer `PRACTICE +5 XP` and must not carry the proficiency subtitle. The falsifier is the story node falling through to the lesson popup.",
+  "node": { "type": "story", "subLessonsDone": 1, "subLessonsTotal": 1, "legendary": false },
+  "expect": { "buttons": ["READ", "LEGENDARY"], "subtitle": null }
+}

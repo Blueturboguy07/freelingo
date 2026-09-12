@@ -1,0 +1,27 @@
+{
+  "invariant": "INV-CER-05",
+  "why": "EC-CER-08 / EC-CER-09: deep/104 is a flawless 11-exercise PRACTICE run and it renders `Practice Complete!` + `AMAZING 100%`, not `Perfect lesson!`. And deep/145's perfect lesson TERMINATES on the single COMBO tile - the S1a loading spinner is absent and scope/09 says the tile set collapses. Perfection is celebrated for new material, merely scored for review.",
+  "cases": [
+    {
+      "flavour": "lesson",
+      "mistakes": 0,
+      "variant": "Perfect lesson!",
+      "tileCount": 1,
+      "terminal": true
+    },
+    {
+      "flavour": "practice",
+      "mistakes": 0,
+      "variant": "Practice Complete!",
+      "tileCount": 2,
+      "terminal": false
+    },
+    {
+      "flavour": "lesson",
+      "mistakes": 1,
+      "variant": "Lesson Complete!",
+      "tileCount": 2,
+      "terminal": false
+    }
+  ]
+}

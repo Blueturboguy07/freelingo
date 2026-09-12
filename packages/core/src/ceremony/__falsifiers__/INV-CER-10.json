@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-CER-10",
+  "why": "EC-CER-17: a casual learner completes a node every third day and declines the full-screen `Prove you're a legend` takeover every time. A ten-node decline run rendering ten takeovers is the falsifier. Freelingo's Legendary is free, so the funnel has nothing left to sell - suppress after two consecutive declines and leave the offer on the popup, which stays permanently reachable.",
+  "nodes": 10,
+  "expect": { "takeoversRendered": 2, "popupButtonAlwaysEnabled": true }
+}

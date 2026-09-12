@@ -1,0 +1,10 @@
+{
+  "invariant": "INV-CER-07",
+  "why": "EC-CER-11: one session crosses two tiers of Sage and one tier of Wildfire. A screen per tier opens a six-screen ceremony on a 20-lesson day. One screen, highest tier per achievement, `+N tiers` sub-line, all gems summed into the single chest. Personal Records update silently.",
+  "crossings": [
+    { "achievementId": "sage", "achievementName": "Sage", "tier": 3, "gems": 25 },
+    { "achievementId": "sage", "achievementName": "Sage", "tier": 4, "gems": 25 },
+    { "achievementId": "wildfire", "achievementName": "Wildfire", "tier": 2, "gems": 25 }
+  ],
+  "expect": { "screens": 1, "rows": 2, "sageTier": 4, "sageExtraTiers": 1, "gems": 75 }
+}

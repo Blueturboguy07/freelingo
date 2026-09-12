@@ -1,0 +1,19 @@
+{
+  "invariant": "INV-CER-02",
+  "why": "EC-PTH-11: one session completes a node, a unit and a section together. The order is fixed - S067 -> Score -> streak block -> quests/achievements/chest -> node complete -> legendary offer -> unit complete -> section complete -> return - and the section switch is applied to the path model BEFORE the return renders, so the learner lands already scrolled. A queue re-evaluated per screen can also render a slot twice.",
+  "expect": {
+    "chain": [
+      "S067_sessionComplete",
+      "S069_scoreProgress",
+      "S071_streakCountUp",
+      "S072_streakGoalPicker",
+      "S078_quests",
+      "S080_rewardBundle",
+      "S081_nodeCompleteLegendaryOffer",
+      "S082_unitComplete",
+      "S083_sectionComplete",
+      "S087_returnToPath"
+    ],
+    "everyPredicateEvaluatedOnce": true
+  }
+}

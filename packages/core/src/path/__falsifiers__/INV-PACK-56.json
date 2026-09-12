@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-PACK-56",
+  "why": "EC-PACK-55: the learner completes the last unit trophy of the A1-band Japanese BETA pack. A section list hardcoded to eight renders five placeholders, and completion copy that claims the course is finished contradicts a Score chip reading `29 / 160`.",
+  "sectionTitles": ["Section 1", "Section 2", "Section 3"],
+  "scoreCeiling": 29,
+  "expect": { "sectionCards": 3, "beta": true, "bandReached": "high A1", "copyCeiling": 29 }
+}

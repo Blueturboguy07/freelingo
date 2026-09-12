@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-CER-17",
+  "why": "EC-CER-28: a session rolls the Score integer 29 -> 30, which is also the high-A1 -> A2 band boundary. ONE screen in the Score slot: the band crossing adds one extra LINE, never a second screen, because the dwell budget binds. Property: band beats equal band boundaries crossed.",
+  "before": 29,
+  "after": 30,
+  "expect": { "scoreSlotEntries": 1, "bandBeats": 1 }
+}

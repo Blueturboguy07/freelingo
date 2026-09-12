@@ -1,0 +1,9 @@
+{
+  "invariant": "INV-CER-06",
+  "why": "ADV 02/A20: deep/02 ruled `zero XP => no ceremony` for failures, but the build ships `Nice try! You earned {{xp}} XP` (L1208) and `You didn't unlock Unit {{num}}, but you can try again later!` (L2704). A failed gated challenge gets a consolation screen; only a genuine zero-award abandonment returns straight to the path.",
+  "cases": [
+    { "outcome": "failed", "gated": true, "xp": 20, "expectSlot": "S085_consolation" },
+    { "outcome": "abandoned", "gated": false, "xp": 0, "expectChainLength": 0 },
+    { "outcome": "abandoned", "gated": false, "xp": 7, "expectSlot": "S067_sessionComplete" }
+  ]
+}

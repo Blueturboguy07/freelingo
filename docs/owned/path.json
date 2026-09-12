@@ -1,0 +1,45 @@
+{
+  "$comment": "Invariant ids the P1 task `p1-path-and-ceremony` turns green in packages/core/src/path/. The integrate task merges these into docs/invariants-owned.json, which `pnpm test:coverage-map` reads; this file is the per-task manifest so two lanes cannot silently clobber each other's list.",
+  "task": "p1-path-and-ceremony",
+  "module": "packages/core/src/path",
+  "phase": "P1",
+  "owned": [
+    "INV-PATH-01",
+    "INV-PATH-02",
+    "INV-PATH-03",
+    "INV-PATH-04",
+    "INV-PATH-05",
+    "INV-PATH-06",
+    "INV-PATH-07",
+    "INV-PATH-08",
+    "INV-PATH-09",
+    "INV-PATH-13",
+    "INV-PATH-14",
+    "INV-PATH-15",
+    "INV-PATH-16",
+    "INV-PATH-17",
+    "INV-PATH-18",
+    "INV-PATH-19",
+    "INV-PATH-20",
+    "INV-PATH-21",
+    "INV-PATH-22",
+    "INV-PATH-23",
+    "INV-PATH-25",
+    "INV-PATH-26",
+    "INV-PACK-03",
+    "INV-PACK-56"
+  ],
+  "notOwnedHere": {
+    "INV-PATH-10": "S, E - the section-complete canvas. UI, P3.",
+    "INV-PATH-11": "S - exactly one pinned header at every scroll offset. UI, P3.",
+    "INV-PATH-12": "P, E - the guidebook route. UI + scheduler, P3.",
+    "INV-PATH-24": "U, C - the PathNode component registry with per-state art. packages/ui, P3."
+  },
+  "falsifiers": "packages/core/src/path/__falsifiers__/*.json, one per invariant, consumed by the tests whose names contain `falsifier` (pnpm test:falsify).",
+  "rulings": {
+    "EC-PTH-21": "Node unlock is linear within a unit AND unit n+1 unlocks only when the LAST node of unit n is complete; no early unlock on the first level. unlock.ts:unitAdvanced, falsified in __falsifiers__/INV-PATH-01.json.",
+    "S016 chest completion path": "The chest is a node in the linear chain (captured Unit 1 shape: lesson, lesson, lesson, chest, lesson, unitReview), so it MUST have a completion path or every node after it deadlocks and the next unit never opens. Freelingo's chest declares the `chest` launch flavour - S016's `Open chest` (str:1573), one tap, no exercises, no failure - implemented in path/chest.ts. `canComplete` now treats an empty `launchable` as UNCOMPLETABLE and `placeableTypesWithNoCompletionPath()` is the registry gate. INV-PATH-19.",
+    "INV-PATH-13 overlay density": "`jumpHereOverlays` emits one overlay per locked unit that HEADS A SECTION or is the NEXT LOCKED UNIT AFTER THE FRONTIER - the rule its doc comment always stated, matching S010/S019. The earlier code emitted one per locked unit, drawing eight `Jump here?` nodes on a 9-unit course. The narrowed set is a strict subset of `locked`, so EC-PTH-26 (the overlay disappears the instant its target unlocks) still holds.",
+    "INV-PATH-08 latch": "`dailyRefreshLocked` deliberately does NOT read the `dailyRefreshUnlocked` latch. `locked iff the course is incomplete` is a biconditional over the current model, so a pack update that adds a unit re-locks the section; `unlocks exactly once` is about the ceremony and is the latch's job. Folding them together would lose the re-lock."
+  }
+}

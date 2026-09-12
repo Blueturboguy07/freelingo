@@ -1,0 +1,294 @@
+/**
+ * The node-type registry: what each node type offers, can launch, and renders.
+ *
+ * The registry is *code* (every declarable type must exist here, or the path cannot be
+ * rendered at all) but which types are *used* is **pack-driven**: `nodeTypesFor(manifest)`
+ * intersects the registry with what the pack declares, which is what INV-PACK-03 means by
+ * "a pack declaring no stories produces a path with no book nodes ... with no empty
+ * states anywhere".
+ *
+ * Copy is quoted from the 2026-09-11 web string bundle where a string exists; slots with
+ * no shipped string carry a Freelingo decision and say so.
+ */
+import type { LaunchFlavour, NodeType, PackManifest } from './types.js';
+import { NODE_TYPES } from './types.js';
+
+/** Runtime capabilities a device may or may not have (INV-PATH-19). */
+export interface DeviceCapabilities {
+  /** An on-device model or a BYOK key is available. */
+  readonly llm: boolean;
+  readonly microphone: boolean;
+  readonly audioOutput: boolean;
+}
+
+export interface PopupButton {
+  readonly label: string;
+  readonly flavour: LaunchFlavour;
+  /** Gold striped treatment; Legendary is gold since `Legendary is now Gold!`. */
+  readonly gold: boolean;
+}
+
+export interface NodeTypeSpec {
+  readonly type: NodeType;
+  /** May the LEGENDARY offer ever fire on this node? Letters: never (INV-PATH-25). */
+  readonly offersLegendary: boolean;
+  /**
+   * Flavours a node of this type can launch. Popup buttons may name only these.
+   *
+   * **A placeable type with an empty `launchable` has no completion path**, which in a
+   * strictly linear chain is a permanent deadlock for every node after it (INV-PATH-19).
+   * `canComplete` therefore reads this list, and `placeableTypesWithNoCompletionPath`
+   * is the registry gate that stops one being added.
+   */
+  readonly launchable: readonly LaunchFlavour[];
+  /** Label of the single button on the *incomplete* popup. `Open chest` for S016. */
+  readonly startLabel: string;
+  /** Does this type have sub-lessons to count? A chest has one tap, not `Lesson 1 of 3`. */
+  readonly showsSubLessonCounter: boolean;
+  /** Buttons on the *completed* popup, in render order. Never START, never a counter. */
+  readonly completedButtons: readonly PopupButton[];
+  /** Subtitle of the completed popup, or null where the type has none (EC-PTH-36). */
+  readonly completedSubtitle: string | null;
+  /** Copy shown when a locked node of this type is tapped. Never null (INV-PATH-01). */
+  readonly lockedCopy: string;
+  /** Capability the *generator* must probe before placing this type (INV-PATH-19). */
+  readonly requiresCapability: keyof DeviceCapabilities | null;
+  /** May the generator place this type on the path at all? */
+  readonly placeable: boolean;
+  /**
+   * May this type be the FIRST node of a unit?
+   *
+   * A chest or a trophy at the head of a unit gives a learner who has just arrived no
+   * session at all - the chest launches nothing and the trophy is the unit's closing
+   * challenge - which is how INV-PATH-15's guarantee gets broken by content rather than
+   * by code. The captured Unit 1 shape is star, star, star, chest, star, trophy.
+   */
+  readonly canHeadUnit: boolean;
+  /** Copy when the pack cannot serve this node's content (S028). */
+  readonly unavailableCopy: string;
+}
+
+const LOCKED = 'Complete all levels above to unlock this!';
+
+/**
+ * `Prove your proficiency with Legendary` (str:2061) — the lesson/practice completed
+ * subtitle. Story nodes deliberately do not carry it (EC-PTH-36).
+ */
+const PROFICIENCY = 'Prove your proficiency with Legendary';
+
+const PRACTICE_BUTTON: PopupButton = { label: 'PRACTICE', flavour: 'practice', gold: false };
+const LEGENDARY_BUTTON: PopupButton = { label: 'LEGENDARY', flavour: 'legendary', gold: true };
+
+const SPECS: Readonly<Record<NodeType, NodeTypeSpec>> = {
+  lesson: {
+    type: 'lesson',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: true,
+    launchable: ['lesson', 'practice', 'legendary'],
+    completedButtons: [PRACTICE_BUTTON, LEGENDARY_BUTTON],
+    completedSubtitle: PROFICIENCY,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  practice: {
+    type: 'practice',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: true,
+    launchable: ['practice', 'legendary'],
+    completedButtons: [PRACTICE_BUTTON, LEGENDARY_BUTTON],
+    completedSubtitle: PROFICIENCY,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  letters: {
+    // EC-PTH-43: script nodes are legendary-exempt. Legendary strips hints a script node
+    // never had, and tracing is non-punitive so the mistake budget cannot be spent.
+    type: 'letters',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: false,
+    launchable: ['letters'],
+    completedButtons: [{ label: 'PRACTICE', flavour: 'letters', gold: false }],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'Alphabet Lessons are currently unavailable',
+  },
+  speaking: {
+    type: 'speaking',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: false,
+    launchable: ['speaking'],
+    completedButtons: [{ label: 'SPEAK', flavour: 'speaking', gold: false }],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: 'microphone',
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  radio: {
+    type: 'radio',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: false,
+    launchable: ['radio'],
+    completedButtons: [{ label: 'LISTEN', flavour: 'radio', gold: false }],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: 'audioOutput',
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  roleplay: {
+    type: 'roleplay',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: false,
+    launchable: ['roleplay'],
+    completedButtons: [{ label: 'CONVERSATION', flavour: 'roleplay', gold: false }],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: 'llm',
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  story: {
+    // EC-PTH-36: a completed story gets its own popup shape - `READ`, plus LEGENDARY
+    // where the pack marks it legendary-capable. Never PRACTICE, never the proficiency
+    // subtitle.
+    type: 'story',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: true,
+    launchable: ['story', 'legendary'],
+    completedButtons: [{ label: 'READ', flavour: 'story', gold: false }, LEGENDARY_BUTTON],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: true,
+    canHeadUnit: true,
+    unavailableCopy: 'This story is currently unavailable',
+  },
+  chest: {
+    // S016 `Chest` / `Open chest` (str:1575, str:1573). One tap, no exercises, no failure -
+    // and *that tap is the completion path*. Before this entry the chest declared no
+    // launchable flavour at all, which in a strictly linear chain (`nodeUnlocked` requires
+    // `isComplete(previous)`) deadlocked every node after it and stopped the next unit ever
+    // opening: the captured Unit 1 shape puts a chest at position 4 of 6. INV-PATH-19.
+    type: 'chest',
+    startLabel: 'Open chest',
+    showsSubLessonCounter: false,
+    offersLegendary: false,
+    launchable: ['chest'],
+    // An opened chest is terminal: it has nothing to re-launch, so its completed popup has
+    // no buttons. That is a declared shape, not a fall-through (INV-PATH-18).
+    completedButtons: [],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: true,
+    canHeadUnit: false,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  unitReview: {
+    type: 'unitReview',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: false,
+    launchable: ['unitReview'],
+    completedButtons: [{ label: 'REVIEW', flavour: 'unitReview', gold: false }],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: true,
+    canHeadUnit: false,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+  jumpHere: {
+    // INV-PATH-17: the section test is the section-boundary *variant* of this node
+    // (ruling EC-PTH-35), not a node type of its own. Never placed: the overlay is
+    // computed from lock state (INV-PATH-13).
+    type: 'jumpHere',
+    startLabel: 'START',
+    showsSubLessonCounter: true,
+    offersLegendary: false,
+    launchable: ['jumpHere', 'sectionTest'],
+    completedButtons: [],
+    completedSubtitle: null,
+    lockedCopy: LOCKED,
+    requiresCapability: null,
+    placeable: false,
+    canHeadUnit: false,
+    unavailableCopy: 'This unit is currently unavailable',
+  },
+};
+
+export function specFor(type: NodeType): NodeTypeSpec {
+  const spec = SPECS[type];
+  /* c8 ignore next */
+  if (!spec) throw new Error(`no registry entry for node type ${type}`);
+  return spec;
+}
+
+/** Every type the registry knows. Enumerated for the completeness gates. */
+export const REGISTERED_TYPES: readonly NodeType[] = NODE_TYPES;
+
+/**
+ * The node types this pack can actually produce. INV-PACK-03: a pack declaring no
+ * stories yields a path with no book nodes anywhere.
+ */
+export function nodeTypesFor(manifest: PackManifest): readonly NodeType[] {
+  return NODE_TYPES.filter((t) => manifest.declaredNodeTypes.includes(t));
+}
+
+/**
+ * Can this device finish a node of this type? INV-PATH-19: a linear chain must never
+ * contain a node the generating device cannot finish.
+ *
+ * Two independent ways to fail, and the second one cost a refutation: a capability the
+ * device lacks, **and a type that declares no launchable flavour at all**. The old version
+ * asked only the first question, so a chest - which then launched nothing - was reported
+ * completable while being a permanent deadlock on the path.
+ */
+export function canComplete(type: NodeType, caps: DeviceCapabilities): boolean {
+  return specHasCompletionPath(specFor(type), caps);
+}
+
+/**
+ * The predicate itself, over a spec rather than a registered type.
+ *
+ * Split out so the empty-`launchable` branch is **reachable from a test**. Once the chest
+ * declares `Open chest` no shipped type has an empty list any more, so a test that could
+ * only go through `canComplete(type, caps)` would never execute this guard - the guard
+ * would be dead code that looks like a check. A test hands this function a synthetic spec
+ * with `launchable: []` and gets the answer the guard exists to give.
+ */
+export function specHasCompletionPath(spec: NodeTypeSpec, caps: DeviceCapabilities): boolean {
+  if (spec.launchable.length === 0) return false;
+  const need = spec.requiresCapability;
+  return need === null || caps[need];
+}
+
+/**
+ * Registry gate: placeable types that declare no way to finish them. Asserted empty.
+ *
+ * This is the check that would have caught the chest deadlock at review time rather than
+ * at refutation time, and it is cheap enough to run in a unit test over the whole registry.
+ */
+export function placeableTypesWithNoCompletionPath(): readonly NodeType[] {
+  return NODE_TYPES.filter((t) => SPECS[t].placeable && SPECS[t].launchable.length === 0);
+}

@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-PACK-03",
+  "why": "EC-PTH-17 / EC-PTH-20: a pack declaring no stories must produce a path with no book nodes, section progress with no stories counter, and no empty states anywhere. The falsifier is a template that asks for a story node against a manifest that declares none.",
+  "template": ["lesson", "story", "chest", "unitReview"],
+  "expect": { "storyNodes": 0, "nodeCount": 4, "storiesCounter": null, "emptyStates": [] }
+}

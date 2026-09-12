@@ -1,0 +1,5 @@
+{
+  "invariant": "INV-CER-15",
+  "why": "EC-CER-23: deep/08 specified a third CeremonyTile variant carrying a COMMITTED/time slot with a `macaw` binding. The measured S1b layout is TWO tiles - gold TOTAL XP and green accuracy, 12 px gap at a 614 px viewport. Delete the third variant so there is none left to render.",
+  "expect": { "resolvedTiles": 2, "forbiddenSlots": ["COMMITTED", "TIME", "time", "committed"] }
+}

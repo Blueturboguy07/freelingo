@@ -1,0 +1,8 @@
+{
+  "invariant": "INV-CER-03",
+  "why": "EC-CER-03: the learner adds a second course and finishes its first lesson. Score is course-scoped so the Score-unlock screen MUST fire again; the streak count-up and the goal picker are account-scoped and must NOT. A global once-ever flag on the Score gets the first half wrong; an unscoped queue gets the second half wrong.",
+  "expect": {
+    "secondCourseChainContains": "S068_scoreUnlock",
+    "secondCourseChainExcludes": "S071_streakCountUp"
+  }
+}

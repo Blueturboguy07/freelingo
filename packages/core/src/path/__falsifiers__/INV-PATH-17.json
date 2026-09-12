@@ -1,0 +1,5 @@
+{
+  "invariant": "INV-PATH-17",
+  "why": "EC-PTH-35: the last unit of Section 1 finishes and the flavour table expects a section test the path model has no node for. Resolved: the section test is the section-boundary VARIANT of the JUMP HERE node (S019), not a node type of its own. The falsifier is enumerating the flavour enum against launchable entry points and finding one with none - or a second component rendering a section test.",
+  "expect": { "unreachableFlavours": [], "sectionTestNodeTypes": ["jumpHere"] }
+}
