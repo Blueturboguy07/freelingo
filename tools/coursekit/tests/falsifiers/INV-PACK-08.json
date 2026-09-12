@@ -1,0 +1,131 @@
+{
+  "$comment": "The committed falsifier for INV-PACK-08 (V6). `falsifier` is a unit that declares the `tu` register and accepts `¿Cómo se llama usted?` — an answer nobody in a tuteo unit has been taught, and one the enumerated accepted set cannot rescue because the set IS the tolerance budget (review R24): a learner who types the tú form is marked wrong with no partial credit. `mixed_register` is the second failure mode, a single answer carrying markers of both registers. `repair` is the tú rendering and must pass. `japanese_half` is here to be REFUSED, not to pass: the ja script-variant clause of INV-PACK-08 (kanji+okurigana, all-kana, katakana, alternate-okurigana headwords per EC-GRD-16) is P7's work with the characters stage, and V6 returns a blocking finding for any language it has no marker table for rather than reporting a vacuous pass.",
+  "invariant": "INV-PACK-08",
+  "source": "scope2/00 §2.4 V6, EC-GRD-16, review R24",
+  "declared_register": "tu",
+  "falsifier": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000801",
+        "unit_index": 2,
+        "lesson_index": 1,
+        "type": "translate",
+        "prompt": "Translate this sentence\nWhat is your name?",
+        "accepted_answers": [
+          "¿Cómo se llama usted?"
+        ],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": [
+            "como",
+            "llamar"
+          ],
+          "grammar_concepts": [
+            "question words"
+          ]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0002"
+      }
+    ]
+  },
+  "mixed_register": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000802",
+        "unit_index": 2,
+        "lesson_index": 1,
+        "type": "translate",
+        "prompt": "Translate this sentence\nYour house is your house, sir.",
+        "accepted_answers": [
+          "Tu casa es la casa de usted."
+        ],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": [
+            "tu",
+            "casa",
+            "ser"
+          ],
+          "grammar_concepts": [
+            "possessives"
+          ]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0003"
+      }
+    ],
+    "why": "One accepted string carrying BOTH registers. It used to be `Tu casa es su casa.`, which worked only because `su` was wrongly listed as an `usted` marker: `su` is the ordinary third-person possessive and any A1 pack containing `su casa` was blocked by V6 for a reason that is not true. The replacement mixes registers for real — `tu` in the first clause and the `usted` pronoun itself in the second — so the case survives the marker table getting more honest rather than depending on it being wrong. See ES_AMBIGUOUS_THIRD_PERSON_FORMS in config/g7.py."
+  },
+  "repair": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000803",
+        "unit_index": 2,
+        "lesson_index": 1,
+        "type": "translate",
+        "prompt": "Translate this sentence\nWhat is your name?",
+        "accepted_answers": [
+          "¿Cómo te llamas?",
+          "¿Cuál es tu nombre?"
+        ],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": [
+            "como",
+            "llamar"
+          ],
+          "grammar_concepts": [
+            "question words"
+          ]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0002"
+      }
+    ]
+  },
+  "japanese_half": {
+    "lang": "ja",
+    "owner": "P7 (characters stage, JmdictFurigana, keigo scoping)",
+    "must_not_report_a_pass": true,
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "ja",
+        "exercise_id": "0000000000000804",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "translate",
+        "prompt": "Translate this sentence\nI moved house.",
+        "accepted_answers": [
+          "引っ越しました"
+        ],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": [
+            "引っ越す"
+          ],
+          "grammar_concepts": [
+            "past polite"
+          ]
+        },
+        "audio_ref": null,
+        "register": "polite",
+        "source_sentence_id": null
+      }
+    ]
+  }
+}

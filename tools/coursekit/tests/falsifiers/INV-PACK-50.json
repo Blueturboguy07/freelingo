@@ -1,0 +1,93 @@
+{
+  "$comment": "The committed falsifier for INV-PACK-50, taken straight from EC-PACK-47: 'the generator introduces the bound morpheme 〜枚 through picture-select, whose prompt quotes a standalone word'. `falsifier` is that record — a picture-select quoting a grammar concept the item itself declares. `orphan_quote` is the same class one step out: a lexeme-quoting prompt quoting something that is not in the item's lemma tags at all, which is how a malformed prompt gets shipped when the tag join is wrong rather than the routing. `repair` quotes a real taught lexeme. The NEW WORD clause needs no record here: `shapes.assert_pill_shapes_quote_lexemes` pins the pill-eligible shapes as a strict subset of the lexeme-quoting ones, so a record that passes this check cannot be a grammar concept wearing the pill — and `route()` re-checks that subset relation on every routing decision, so the argument cannot rot.",
+  "invariant": "INV-PACK-50",
+  "source": "EC-PACK-47",
+  "falsifier": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "ja",
+        "exercise_id": "0000000000005001",
+        "unit_index": 4,
+        "lesson_index": 2,
+        "type": "match",
+        "prompt": "Which one of these is “〜枚”?\n〜枚",
+        "accepted_answers": ["〜枚"],
+        "distractors": ["〜本", "〜冊"],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": ["枚"],
+          "grammar_concepts": ["〜枚"]
+        },
+        "audio_ref": null,
+        "register": "plain",
+        "source_sentence_id": null
+      }
+    ]
+  },
+  "orphan_quote": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000005002",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "match",
+        "prompt": "Select the meaning for “perro”\nperro",
+        "accepted_answers": ["dog"],
+        "distractors": ["cat", "house"],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": ["gato"],
+          "grammar_concepts": []
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": null
+      }
+    ]
+  },
+  "repair": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000005003",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "match",
+        "prompt": "Which one of these is “perro”?\nperro",
+        "accepted_answers": ["perro"],
+        "distractors": ["gato", "caballo"],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": ["perro"],
+          "grammar_concepts": []
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": null
+      },
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000005004",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "match",
+        "prompt": "Select the meaning for “perro”\nperro",
+        "accepted_answers": ["dog"],
+        "distractors": ["cat", "horse"],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": ["perro"],
+          "grammar_concepts": []
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": null
+      }
+    ]
+  }
+}
