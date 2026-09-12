@@ -413,12 +413,56 @@ Before the re-key the same tree stopped one check earlier, on the 18 orphans. Th
 hundred sentences in total, so a slot's twenty are its fresh candidates plus texts already
 accepted earlier in the unit.
 
-### G6 – G9, `validate`, `sample`, `sign` — not reached on this Mac
+### G6 – G9 not reached; `validate` and `sample` were run anyway
 
-G5 exits 4, so nothing downstream ran here this round. What is known about them comes from
-the lanes' own live runs, is recorded in `docs/owned/p2r3-expand-bake-package.json`, and
-is **corroboration at one remove** — a different tree, with a diagnostic shard and a
-runtime override neither of which exists any more:
+G5 exits 4, so G6–G9 did not run here. `coursekit validate es` and `coursekit sample es`
+were run over the G0–G5 tree regardless, because a validator suite that has never executed
+is its own risk — and this run produced two things worth having.
+
+```
+es: 5/17 validators green, 0 unregistered, 0 skipped, 33 blocking finding(s). Nothing ships.
+validator report: build/es/validator-report.json
+```
+
+**Founder ruling B17 works, and this is the first time anyone has seen it on real data.**
+V11 finds **13 unit boundaries where mean difficulty falls** and splits them by severity
+exactly as the ruling says:
+
+```
+BLOCKING, 1 of 13:
+  u10->u11  10.398 -> 9.359  (-1.039)  ACROSS the section boundary s1->s2
+WARNING, 12 of 13 (inside a section, carried in the report with the measured delta):
+  u6->u7 -0.344 · u8->u9 -0.700 · u13->u14 -0.419 · u14->u15 -0.428 · u15->u16 -1.542
+  u18->u19 -3.181 · u19->u20 -0.041 · u21->u22 -0.555 · u22->u23 -2.237 · u25->u26 -0.527
+  u26->u27 -1.592 · u28->u29 -1.356
+```
+
+Round 2 reported "V11: mean difficulty falls across 13 unit boundaries" as 13 blocking
+findings. It is **one** blocking finding and twelve warnings, and the largest fall
+(u18→u19, −3.181) is one of the warnings. That is the whole of B17 discharged, measured.
+
+The other 32 blocking findings are B19's shadow rather than new defects: **V10 raises 12
+unresolved-licence findings** and every one of them names a slot on the thin-or-unfilled
+list (`u23/l134/s6`, `u25/l143/s8`, `u25/l144/s8`, `u25/l145/s4`, `u27/l154/s4 s5 s6`,
+`u27/l156/s3`, `u27/l157/s5 s6`, `u27/l158/s7`, `u29/l168/s6`) — a gap slot with no
+accepted candidate has no sentence, so it has no licence. **V12** says the pack declares no
+meta rows because G9 has not run. **F4** says a signature check with no manifest is not a
+pass. **F5** records that the ja character syllabus is not applicable to es rather than
+skipping silently.
+
+`coursekit sample es` refuses, in the words it should:
+
+```
+sample failed: no exercise artefact at build/es/g7/exercises.jsonl; `coursekit sample`
+draws from G7 output, so run `coursekit build es` first. Drawing from nothing would
+produce an empty sheet and a defect rate of 0%.
+```
+
+#### What the lanes measured downstream, at one remove
+
+These are **corroboration at one remove** — the expand lane's own tree, with a diagnostic
+shard and a runtime override, neither of which exists any more — and are in
+`docs/owned/p2r3-expand-bake-package.json`:
 
 - **G7** over the whole committed course exited 0 for the first time: 6,100 exercise
   records, all 16 P2 shapes, INV-PACK-07 / INV-PACK-50 / V5 all 0 blocking.
@@ -455,16 +499,16 @@ CI's; anything marked _corroboration_ is this Mac's.
 | `uv run ruff check .` + `uv run pytest`                                                  | **GREEN** — ruff clean; pytest all passed                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | pack-ci `coursekit`                  |
 | `pipeline-ready` — every stage and validator registered                                  | **GREEN** — 10/10 stages, 17/17 validators; both pack jobs live                                                                                                                                                                                                                                                                                                                                                                                                                                             | pack-ci                              |
 | `uv run coursekit build es` (G0–G9)                                                      | **RED — G0–G4 pass, G5 exits 4** on the 18 orphaned slots (`86f2430`, pre-re-key) and on the 22 unauthored ones (post-re-key, this Mac). B19                                                                                                                                                                                                                                                                                                                                                                | pack-ci `build-es`                   |
-| `uv run coursekit validate es` → exit 0                                                  | **DID NOT RUN** — `validate-es` skipped on `needs: build-es`. `pipeline-ready` was green, so the skip is a real dependency and not the green-because-skipped failure mode                                                                                                                                                                                                                                                                                                                                   | pack-ci `validate-es`                |
+| `uv run coursekit validate es` → exit 0                                                  | **DID NOT RUN IN CI** — `validate-es` skipped on `needs: build-es`; `pipeline-ready` was green, so the skip is a real dependency and not the green-because-skipped failure mode. Run on this Mac over the G0–G5 tree: **5/17 green, 0 unregistered, 0 skipped, 33 blocking**                                                                                                                                                                                                                                | pack-ci `validate-es`                |
 | V1–V4 = 100%, zero violations \[INV-PACK-06]                                             | **NOT PROVEN** — V1–V4 need G7's artefact and G5 exits 4                                                                                                                                                                                                                                                                                                                                                                                                                                                    | —                                    |
-| V5–V12, F1–F5: the report names every validator that ran                                 | **NOT PROVEN this round** — the suite's last real run was the expand lane's, on a tree that no longer exists: 11/17 green, 0 unregistered, 0 skipped, 210 blocking, 48 warnings                                                                                                                                                                                                                                                                                                                             | —                                    |
+| V5–V12, F1–F5: the report names every validator that ran                                 | **PARTIAL, and it names all 17** — 5 green, 0 unregistered, 0 skipped, and each of the rest says which of _clean_, _nothing to check_ and _never ran_ it is. Measured on this Mac; the last run over a real pack was the expand lane's, on a tree that no longer exists: 11/17 green, 0 unregistered, 0 skipped, 210 blocking, 48 warnings                                                                                                                                                                  | —                                    |
 | V8 records the engines actually used \[INV-PACK-14]                                      | **PROVEN at one remove** — `languagetool/6.6/es` for grammar and spellcheck, `agent_rubric/v1` for backtranslation, `perplexity none`, `degraded_to grammar_only`; the sidecar step is green in CI on this sha, the G6 run is not on this tree                                                                                                                                                                                                                                                              | —                                    |
 | zero UNRESOLVED licences; attribution owner on every required row \[V10, INV-PACK-13/17] | **NOT PROVEN** — V10 needs the pack                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | —                                    |
 | audio manifest codec=opus, 20 kbps, ≤ 120 MB on real bytes \[INV-PACK-15]                | **NOT PROVEN on real bytes for the whole course.** Units 1–3 measured 580,184 B over 125 clips (expand lane, another tree); `content/es/audio-manifest.json` declares `codec opus`, `bitrate_kbps 20`, and charges 98,000,000 B of the 120,000,000 B budget across lesson + stories + radio. A declaration, and a third of the bank                                                                                                                                                                         | —                                    |
 | manifest declares `ledger_unit=lemma` exactly once \[INV-PACK-40]                        | **GREEN as a source property** — the grep gate over `tools/coursekit` has no offenders; the manifest half needs a pack                                                                                                                                                                                                                                                                                                                                                                                      | —                                    |
 | every missable item carries ≥ 2 authored forms \[INV-PACK-07]                            | **NOT PROVEN this round** — 0 blocking over 6,100 records on the expand lane's tree; G7 has not run on this one                                                                                                                                                                                                                                                                                                                                                                                             | —                                    |
 | the built pack loads in `packages/core`'s loader                                         | **DID NOT RUN, and the mechanism was verified instead.** The step lives in `validate-es`, which skipped. Locally the file **skips** with `FREELINGO_REAL_PACK` unset (1 file / 6 tests skipped) and, with it set to a path that does not exist, **all 6 tests fail** — `ENOENT: … /nonexistent/manifest.json` — rather than skipping. So the step cannot be green on a missing pack, which is the property it exists for; it has simply never had a pack to open                                            | pack-ci `validate-es`                |
-| `uv run coursekit sample es` — 300 items                                                 | **BLOCKED by B19** — `sample` draws from G7's exercises and refuses to draw from nothing                                                                                                                                                                                                                                                                                                                                                                                                                    | —                                    |
+| `uv run coursekit sample es` — 300 items                                                 | **BLOCKED by B19, and it refuses rather than drawing** — run on this Mac: _"no exercise artefact at build/es/g7/exercises.jsonl … drawing from nothing would produce an empty sheet and a defect rate of 0%"_                                                                                                                                                                                                                                                                                               | —                                    |
 | wrong-item rate, its reviewer kind, and the provisional note                             | **MEASURED at 4.00% and NOT PASSED, and the published rate is still `None`.** 12/300 wrong, 68/300 awkward, over the two populations G7 would expand, `reviewer_kind: opus-agent-reviewer`, seed 20260911, 58 strata. `scores.jsonl` deliberately holds no scored rows (no `exercise_id` exists), so `wrong_item_rate` is `None` and `gate_passed()` is false. `PROVISIONAL (unreviewed by a paid native speaker)` verbatim. Three repeated patterns account for six of the twelve: fixing them lands 2.00% | `content/es/review/scores-method.md` |
 | `uv run coursekit sign es`                                                               | **NOT PROVEN** — `sign` needs a manifest and G9 has not run                                                                                                                                                                                                                                                                                                                                                                                                                                                 | pack-ci `build-es`                   |
 | `mutation.yml` nightly, non-gating                                                       | **NO SCORE EXISTS** — unchanged; Stryker times out in its dry run on an INV-DAT-04 property. Non-gating by ruling                                                                                                                                                                                                                                                                                                                                                                                           | B7                                   |
