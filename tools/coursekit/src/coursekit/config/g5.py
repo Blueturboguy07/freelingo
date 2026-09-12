@@ -28,11 +28,23 @@ only works if the over-generation is real: a slot with three candidates cannot s
 five filter axes, and the stage would then be choosing between "ship the least bad one"
 and "fail". `MIN_CANDIDATES_PER_SLOT` removes that choice at the authoring boundary.
 
-Owner: p2-g5-g6-gapfill-language
+## The length axis has two floors, and neither of them is a flag
+
+`MIN_TOKENS` is 3 — G0's A1 window, so an authored candidate goes through the same filter
+a corpus sentence did. `MIN_TOKENS_VERBLESS_LESSON` is 1, and `min_tokens_for_slot`
+returns it for a slot whose permitted vocabulary contains no lemma the G2 lexicon tags
+`VERB` or `AUX`. That is founder ruling B9(b) and it exists because the first lesson of
+the Spanish course permits five lemmas and none of them is a verb: at three tokens the
+only strings in that window are word lists, and lesson 1 of a real course is words and
+fixed phrases (`Hola.`, `Buenos días.`). The relaxation is derived from the ledger, never
+declared per lesson, so no course can opt a verb-bearing lesson into one-word items.
+
+Owner: p2-g5-g6-gapfill-language (B9(b): p2r3-gapfill-lesson1)
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from typing import Final
 
 # ---------------------------------------------------------------------------
@@ -136,17 +148,93 @@ REJECT_AXES: Final[tuple[str, ...]] = (
 #: sentence goes through the same window: "the same path as a corpus sentence" is not
 #: a slogan if the authoring path gets its own, looser numbers.
 #:
-#: This is G5's own copy and it should not stay that way. `config/ingest.py` (G0's) is an
-#: empty scaffold today and `config/base.py` — where the repo's own rule puts a constant
-#: two stages share — declares no length window, and neither file is in this lane's
-#: ownership, so there is nothing to import yet. What holds the claim in the meantime is
-#: `tests/test_g5_gapfill.py::test_the_length_window_cannot_drift_from_g0s`: it scans
-#: every other config module for a window under any of the plausible names and fails the
-#: build on a disagreement with these two numbers. When G0 lands its window, delete these
-#: two lines and import it — the test is the thing that makes that a one-line change
-#: instead of a silent divergence.
+#: This is G5's own copy and it should not stay that way. Two other declarations of the
+#: same window now exist — `config/g0.py MIN_TOKENS/MAX_TOKENS` (the ingest filter) and
+#: `config/g1.py LENGTH_WINDOW_BY_LANGUAGE` (the per-pack one `coursekit.ledger.
+#: length_window` reads) — and the third of those is the one that is right, because the
+#: window is per pack: `ja` is (4, 18), since a Mode-A morpheme is a smaller unit than a
+#: lemma. So these two lines are correct for `es`/`fr`/`de` and **wrong for `ja`**, which
+#: is recorded in `docs/owned/p2r3-gapfill-lesson1.json` (this file's lane does not own
+#: `docs/P2-BLOCKERS.md`) rather than fixed here: rerouting G5's length axis
+#: through `ledger.length_window` is a change to every G5 test's window and it belongs in
+#: the round that lands the Japanese pack, not in the round that unblocks lesson 1.
+#:
+#: What holds the claim in the meantime is two tests in `tests/test_g5_gapfill.py`:
+#: `test_the_length_window_cannot_drift_from_g0s` scans every other config module for a
+#: window under any of the plausible scalar/tuple names and fails on a disagreement with
+#: these two numbers, and `test_the_length_window_cannot_drift_from_the_per_pack_window`
+#: compares them with `ledger.length_window("es")`. Both are the thing that makes the
+#: eventual import a one-line change instead of a silent divergence.
 MIN_TOKENS: Final[int] = 3
 MAX_TOKENS: Final[int] = 12
+
+#: The UD tags a lemma can carry and still be the thing a Spanish sentence needs in order
+#: to be a sentence. `AUX` as well as `VERB` because `ser`, `estar` and `haber` are tagged
+#: `AUX` in most of their uses and a window that holds only `ser` is not a verbless one.
+VERBAL_POS: Final[frozenset[str]] = frozenset({"VERB", "AUX"})
+
+#: `MIN_TOKENS` for a lesson whose permitted window holds no verb at all.
+#:
+#: FOUNDER RULING B9(b), 2026-09-12. Measured cause: G4 deals unit 1's target lexemes
+#: across its lessons in authored order, so the first lesson of the Spanish course permits
+#: exactly `{bueno, día, hola, noche, tarde}` — no verb (`ser` arrives at lesson 3), no
+#: article (`el` at lesson 19), no preposition, and no proper noun anywhere in the course
+#: ledger. **A Spanish sentence needs one of those.** With `MIN_TOKENS = 3` the only
+#: strings inside that window are word lists (`Día, tarde, noche.`), eleven of them, and
+#: two independent authoring rounds found the same eleven and refused to ship them.
+#:
+#: The ruling is that lesson 1 is **words and fixed phrases** — `Hola.`, `Buenos días.`,
+#: `Buenas tardes.` — which is what the live capture shows a level-1 lesson of the
+#: reference product actually is. So the length axis, and only the length axis, moves:
+#: G0's corpus ingest window stays [3, 12] (`config/g0.py`), a corpus sentence is still
+#: filtered at three tokens, and an authored candidate for a verbless window may be one
+#: token long.
+#:
+#: It is 1 and not 2 because the shortest thing this buys is the one worth buying:
+#: `Hola.` is a complete, idiomatic, teachable Spanish utterance and it is one token.
+MIN_TOKENS_VERBLESS_LESSON: Final[int] = 1
+
+
+def min_tokens_for_slot(
+    known_lemmas: Iterable[str],
+    new_lemmas: Iterable[str],
+    pos_by_lemma: Mapping[str, str],
+    *,
+    base_min_tokens: int = MIN_TOKENS,
+) -> int:
+    """The length axis's lower bound for ONE slot: `MIN_TOKENS_VERBLESS_LESSON` or `MIN_TOKENS`.
+
+    The window is `known | new`, which is what the `out_of_vocabulary` axis tests against,
+    so this predicate is about the same set the candidate is admitted against and not
+    about the lesson's own idea of itself.
+
+    `pos_by_lemma` is the G2 lexicon's consolidated UD tag per lemma
+    (`banded_lemma.pos`), read off the build rather than re-derived: G2 takes the tag from
+    G1's IN-CONTEXT corpus wherever it has one, and a bare-surface tag from the same model
+    calls 6.1% of the top 3,000 Spanish forms `PROPN`. A second opinion here would be a
+    second partition of the vocabulary, which is the thing INV-PACK-40 is about.
+
+    **The relaxation has to be PROVED, and an absent proof keeps the strict floor.** The
+    bound drops only when the window is non-empty and every lemma in it has a tag in the
+    lexicon and none of those tags is in `VERBAL_POS`. A lemma the lexicon has never seen
+    could be a verb, so one unknown lemma is enough to keep `MIN_TOKENS` — the failure
+    direction matters, because a floor that drops by accident admits a one-word candidate
+    into a lesson that could have held a sentence, and nothing downstream can tell that
+    apart from a lesson that had to. An EMPTY window keeps the strict floor for the same
+    reason and a sharper one: an empty `known | new` is the B1a defect (every gap row
+    carried `known_lemmas: []`), and rewarding it with the loosest possible length axis
+    would have turned that silent bug into 918 one-word "lessons".
+    """
+    window = set(known_lemmas) | set(new_lemmas)
+    if not window:
+        return base_min_tokens
+    tags = [pos_by_lemma.get(lemma) for lemma in sorted(window)]
+    if any(tag is None for tag in tags):
+        return base_min_tokens
+    if any(tag in VERBAL_POS for tag in tags):
+        return base_min_tokens
+    return MIN_TOKENS_VERBLESS_LESSON
+
 
 #: V2. One new lemma-or-inflection per exercise, which is Duolingo's own rule.
 MAX_NEW_LEMMAS_PER_ITEM: Final[int] = 1

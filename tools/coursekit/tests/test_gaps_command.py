@@ -361,3 +361,111 @@ def test_the_committed_brief_lives_where_the_authoring_lanes_look() -> None:
     """`content/es/authoring/`, beside the rubric — not in `build/`, which is gitignored."""
     assert COMMITTED_BRIEF.is_file()
     assert COMMITTED_BRIEF.parent.parent == content_root() / "es"
+
+
+# ---------------------------------------------------------------------------
+# B9(b) — the brief prints the window the stage will enforce, per slot
+# ---------------------------------------------------------------------------
+
+
+def _banded_lemma(lemma: str, pos: str, rank: int) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": lemma,
+        "pos": pos,
+        "rank": rank,
+        "frequency": 1000 - rank,
+        "decile": 1,
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": None,
+    }
+
+
+@pytest.fixture
+def verbless_build() -> list[dict[str, Any]]:
+    """One unit, two gap slots, and a G2 lexicon in which only one of them has a verb.
+
+    Shaped after the real `u1/l1`: the window is the unit's first chunk of target
+    lexemes, and whether it can hold a verb is decided by the lexicon's UD tag, not by
+    anything the curriculum says about the lesson.
+    """
+    units = [_unit(1, target=["hola", "bueno", "ser"])]
+    slots = [
+        _slot(1, 1, 0, gap=True, known=["bueno"], new=["hola"]),
+        _slot(1, 2, 0, gap=True, known=["bueno", "hola"], new=["ser"]),
+    ]
+    write_records("unit_assignment", units, lang="es")
+    write_records("selected_item", slots, lang="es")
+    write_records(
+        "banded_lemma",
+        [
+            _banded_lemma("bueno", "ADJ", 1),
+            _banded_lemma("hola", "PROPN", 2),
+            _banded_lemma("ser", "AUX", 3),
+        ],
+        lang="es",
+    )
+    log = RunLog("es")
+    with log.stage("g0", tool="test", tool_version="0") as entry:
+        entry.written = 10
+        entry.note(max_pairs=1000)
+    with log.stage("g4", tool="test", tool_version="0") as entry:
+        entry.record_output("selected_item")
+        entry.written = len(slots)
+        entry.note(slots=len(slots), gap_fraction=1.0)
+    return slots
+
+
+def test_the_token_window_is_per_slot_and_names_the_verbless_case(
+    verbless_build: list[dict[str, Any]],
+) -> None:
+    """`[1, 12]` for the window with no verb, `[3, 12]` for the one with `ser`.
+
+    The brief printed one course-wide `[3, 12]` on every row before this. An author
+    reading it had no way to know that `u1/l1`'s nine slots admit a one-word fixed
+    phrase, which is exactly why those nine went unauthored through two rounds while
+    every other slot in the course got its twenty.
+    """
+    rows, header = gap_brief("es")
+    assert [(row["slot"], row["token_window"], row["verbless_window"]) for row in rows] == [
+        ("u1/l1/s0", [1, 12], True),
+        ("u1/l2/s0", [3, 12], False),
+    ]
+    assert header["verbless_slots"] == 1
+
+
+def test_a_brief_written_before_g2_shows_the_strict_window_everywhere(
+    small_build: list[dict[str, Any]],
+) -> None:
+    """No `banded_lemma` artefact means no proof, and no proof means the strict floor.
+
+    `small_build` stages G3 and G4 and no G2, which is the shape every other test in this
+    file uses — so this is also the assertion that the new lookup did not make the brief
+    depend on a stage it has no business requiring.
+    """
+    rows, header = gap_brief("es")
+    assert {tuple(row["token_window"]) for row in rows} == {(3, 12)}
+    assert {row["verbless_window"] for row in rows} == {False}
+    assert header["verbless_slots"] == 0
+
+
+def test_the_brief_uses_g5s_own_predicate_rather_than_a_second_copy() -> None:
+    """Same rule as the digest: one implementation, imported.
+
+    A brief that computed the window itself would be the second inlined notion
+    INV-PACK-40 is about — one file telling an author 1 while the stage enforced 3 is how
+    twenty candidates get written and then rejected on length.
+    """
+    source = (PACKAGE_ROOT / "commands" / "gaps.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    assert "min_tokens_for_slot" in imported
+    assert "pos_by_lemma" in imported
+    assert "VERBAL_POS" not in source, "the brief is deciding verblessness itself"

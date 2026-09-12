@@ -23,6 +23,19 @@ exactly the second inlined notion of the ledger INV-PACK-40 forbids. So the brie
 written by this command, read by people, and imported by nothing:
 `tests/test_gaps_command.py` fails if any stage imports this module or opens that path.
 
+## The token window is per slot, and it says why
+
+`token_window` used to be the course-wide `[MIN_TOKENS, MAX_TOKENS]` on every row, which
+was a fact about the config and not about the slot. It is now
+`[min_tokens_for_slot(...), MAX_TOKENS]` — the same function G5's length axis calls, with
+the same G2 lexicon behind it — so a slot whose permitted window cannot hold a verb prints
+`[1, 12]` and carries `verbless_window: true` beside it (founder ruling B9(b)).
+
+That is not cosmetic. `u1/l1/s0 … s8` went unauthored through two rounds because the brief
+said those slots needed three tokens, three tokens of `{bueno, día, hola, noche, tarde}`
+is a word list, and two independent authoring lanes refused to write one. The number an
+author reads has to be the number the stage enforces.
+
 ## The digest is the join
 
 Each row carries `ledger_digest`, computed by `stages.g5_gapfill.ledger_digest` — the
@@ -52,11 +65,13 @@ from ..config.g5 import (
     GAP_BRIEF_SCHEMA,
     MIN_CANDIDATES_PER_SLOT,
     MIN_TOKENS,
+    MIN_TOKENS_VERBLESS_LESSON,
+    min_tokens_for_slot,
 )
 from ..config.g5 import MAX_TOKENS as GAP_MAX_TOKENS
 from ..inputs import MissingInput
 from ..runlog import read_entries
-from ..stages.g5_gapfill import Slot, ledger_digest
+from ..stages.g5_gapfill import Slot, ledger_digest, pos_by_lemma
 from ._run import check_language, fail
 
 __all__ = ["brief_path", "gap_brief", "gaps"]
@@ -115,6 +130,10 @@ def gap_brief(lang: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             f"a gap brief is a view of G4's output and there is nothing to view."
         ) from exc
 
+    # The same lookup G5 uses, imported rather than re-derived. `{}` when G2 has not run,
+    # which keeps every slot's window at the strict floor — see `pos_by_lemma`.
+    lexicon_pos = pos_by_lemma(lang)
+
     rows: list[dict[str, Any]] = []
     for item in items:
         if not item["gap"]:
@@ -126,6 +145,7 @@ def gap_brief(lang: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 f"unit. The two artefacts are from different builds; rebuild both."
             )
         slot = Slot.of(item)
+        slot_min_tokens = min_tokens_for_slot(item["known_lemmas"], item["new_lemmas"], lexicon_pos)
         rows.append(
             {
                 "slot": str(slot),
@@ -142,7 +162,16 @@ def gap_brief(lang: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 "known_lemmas": list(item["known_lemmas"]),
                 "ledger_digest": ledger_digest(item["known_lemmas"], item["new_lemmas"]),
                 "candidates_required": MIN_CANDIDATES_PER_SLOT,
-                "token_window": [MIN_TOKENS, GAP_MAX_TOKENS],
+                # PER SLOT, not per course. The lower bound is `MIN_TOKENS` everywhere
+                # except a slot whose permitted window holds no verb, which takes
+                # `MIN_TOKENS_VERBLESS_LESSON` (founder ruling B9(b)). The brief printed
+                # one course-wide `[3, 12]` before, and an author reading it had no way
+                # to know that the nine slots of `u1/l1` admit a one-word fixed phrase —
+                # which is the whole reason those nine went unauthored for two rounds.
+                # `verbless_window` says WHY the number is what it is, because a bare `1`
+                # reads as a typo.
+                "token_window": [slot_min_tokens, GAP_MAX_TOKENS],
+                "verbless_window": slot_min_tokens != MIN_TOKENS,
             }
         )
 
@@ -184,6 +213,10 @@ def _header(lang: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         "generated_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
         "gap_slots": len(rows),
         "candidates_required_total": len(rows) * MIN_CANDIDATES_PER_SLOT,
+        # How many of those slots got the relaxed lower bound, and what it is. A reader
+        # comparing two briefs needs to see the count move, not hunt for a row whose
+        # `token_window` starts with a 1.
+        "verbless_slots": sum(1 for row in rows if row["verbless_window"]),
         "digest": over_all.hexdigest(),
         "g4_run_id": latest.get("run_id"),
         "g4_status": latest.get("status"),
@@ -220,7 +253,9 @@ def gaps(language: str, write: bool = True) -> None:
     typer.secho(
         f"{language}: {header['gap_slots']} gap slot(s), "
         f"{header['candidates_required_total']} candidates required "
-        f"({MIN_CANDIDATES_PER_SLOT} per slot), ledger digest {header['digest'][:16]}",
+        f"({MIN_CANDIDATES_PER_SLOT} per slot), "
+        f"{header['verbless_slots']} verbless slot(s) at {MIN_TOKENS_VERBLESS_LESSON}-"
+        f"{GAP_MAX_TOKENS} tokens, ledger digest {header['digest'][:16]}",
         fg=typer.colors.GREEN,
         err=True,
     )
