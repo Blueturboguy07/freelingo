@@ -1,0 +1,83 @@
+{
+  "id": "INV-PACK-02",
+  "covers": ["EC-PTH-16", "EC-PACK-04"],
+  "why": "A naive index carry-over remaps twelve weeks of FSRS history onto whatever sentence now occupies slot 413, and nothing surfaces it.",
+  "cases": [
+    {
+      "why": "EC-PACK-04: a major bump where two of three ids no longer exist. The rows are quarantined, the count is in the notice, and nothing is deleted.",
+      "fromMajor": 1,
+      "toMajor": 2,
+      "rows": [
+        {
+          "itemId": "A",
+          "quarantined": false,
+          "learned": true,
+          "scoreContribution": 10
+        },
+        {
+          "itemId": "B",
+          "quarantined": false,
+          "learned": true,
+          "scoreContribution": 10
+        },
+        {
+          "itemId": "C",
+          "quarantined": false,
+          "learned": false,
+          "scoreContribution": 5
+        }
+      ],
+      "packItemIds": ["A"],
+      "retired": 2,
+      "notice": "2 items retired in this update",
+      "rowsKept": 3,
+      "score": 10,
+      "wordsLearned": 1
+    },
+    {
+      "why": "The same change inside one major version quarantines nothing - a vanished id there is a build failure instead.",
+      "fromMajor": 1,
+      "toMajor": 1,
+      "rows": [
+        {
+          "itemId": "A",
+          "quarantined": false,
+          "learned": true,
+          "scoreContribution": 10
+        },
+        {
+          "itemId": "B",
+          "quarantined": false,
+          "learned": true,
+          "scoreContribution": 10
+        }
+      ],
+      "packItemIds": ["A"],
+      "retired": 0,
+      "notice": null,
+      "rowsKept": 2,
+      "score": 20,
+      "wordsLearned": 2,
+      "additiveOnlyViolations": ["B"]
+    },
+    {
+      "why": "An export restored onto a build with the older pack brings the quarantined row back.",
+      "fromMajor": 2,
+      "toMajor": 1,
+      "rows": [
+        {
+          "itemId": "A",
+          "quarantined": true,
+          "learned": true,
+          "scoreContribution": 10
+        }
+      ],
+      "packItemIds": ["A"],
+      "retired": 0,
+      "notice": null,
+      "rowsKept": 1,
+      "score": 10,
+      "wordsLearned": 1
+    }
+  ]
+}

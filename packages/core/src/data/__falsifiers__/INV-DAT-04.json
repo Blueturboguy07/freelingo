@@ -1,0 +1,43 @@
+{
+  "id": "INV-DAT-04",
+  "covers": ["EC-PER-08"],
+  "why": "Export taken in Tokyo, imported six days later in LA. deep/04 EC2 says unlived civil days are not missed; EC31 says restore-then-process every intervening day. The plan ruling: imported gap days count as MISSED, and the confirm states the freeze cost before it is paid.",
+  "cases": [
+    {
+      "why": "Six days away, two freezes owned: five gap days, two spent, three uncovered, streak breaks - all stated first.",
+      "archiveLastDay": "2026-09-05",
+      "today": "2026-09-11",
+      "freezesOwned": 2,
+      "gapDays": 5,
+      "freezeCost": 2,
+      "streakWillBreak": true,
+      "missedDays": ["2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10"],
+      "unlivedDays": [],
+      "restampedDays": []
+    },
+    {
+      "why": "Imported the day after the export: no gap at all.",
+      "archiveLastDay": "2026-09-10",
+      "today": "2026-09-11",
+      "freezesOwned": 2,
+      "gapDays": 0,
+      "freezeCost": 0,
+      "streakWillBreak": false,
+      "missedDays": [],
+      "unlivedDays": [],
+      "restampedDays": []
+    },
+    {
+      "why": "Every gap day covered by a freeze: the streak survives, and the cost was still shown.",
+      "archiveLastDay": "2026-09-08",
+      "today": "2026-09-11",
+      "freezesOwned": 2,
+      "gapDays": 2,
+      "freezeCost": 2,
+      "streakWillBreak": false,
+      "missedDays": ["2026-09-09", "2026-09-10"],
+      "unlivedDays": [],
+      "restampedDays": []
+    }
+  ]
+}

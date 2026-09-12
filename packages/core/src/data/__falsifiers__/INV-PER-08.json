@@ -1,0 +1,52 @@
+{
+  "id": "INV-PER-08",
+  "covers": ["EC-PER-14"],
+  "why": "An update ships a migration; the DB is 40 MB with 20 MB free when onInit runs. Any DDL executed without a verified backup file on disk is the falsifier. EC-PER-14's blocking free-up-N-MB screen has NO id in 00-PRODUCT-MAP.md - S149 there is `Interrupted migration / mismatch-detected`, a different failure that routes to S147 - so it is routed to S150, the low-disk notice, as a new state `blocked-migration-needs-space`. That state is a map addition P1 discovered and is filed as a blocker for the integrate task.",
+  "cases": [
+    {
+      "why": "EC-PER-14 exactly: no verified backup, so no DDL, and the blocking screen still exports.",
+      "pendingMigrations": 1,
+      "dbBytes": 41943040,
+      "freeBytes": 20971520,
+      "backupVerified": false,
+      "currentUserVersion": 2,
+      "targetUserVersion": 3,
+      "ddlAllowed": false,
+      "userVersionAfter": 2,
+      "openReadOnly": true,
+      "screen": "S150",
+      "screenState": "blocked-migration-needs-space",
+      "offers": ["export-my-data", "remove-downloaded-audio"]
+    },
+    {
+      "why": "Plenty of space but the backup write still failed: the rule is the backup, not the space.",
+      "pendingMigrations": 1,
+      "dbBytes": 1048576,
+      "freeBytes": 524288000,
+      "backupVerified": false,
+      "currentUserVersion": 2,
+      "targetUserVersion": 3,
+      "ddlAllowed": false,
+      "userVersionAfter": 2,
+      "openReadOnly": true,
+      "screen": "S150",
+      "screenState": "blocked-migration-needs-space",
+      "offers": ["export-my-data", "remove-downloaded-audio"]
+    },
+    {
+      "why": "A verified backup lets it run.",
+      "pendingMigrations": 1,
+      "dbBytes": 1048576,
+      "freeBytes": 524288000,
+      "backupVerified": true,
+      "currentUserVersion": 2,
+      "targetUserVersion": 3,
+      "ddlAllowed": true,
+      "userVersionAfter": 3,
+      "openReadOnly": false,
+      "screen": "none",
+      "screenState": null,
+      "offers": []
+    }
+  ]
+}

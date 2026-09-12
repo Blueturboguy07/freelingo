@@ -1,0 +1,51 @@
+{
+  "id": "INV-DAT-10",
+  "covers": ["EC-SEC-07"],
+  "why": "The learner hand-edits a diffable export to a 99,999 streak, a billion gems, a future max_local_day_seen and unearned achievement tiers. There is no cheat to police locally, but the app must not break.",
+  "cases": [
+    {
+      "why": "EC-SEC-07 exactly.",
+      "archive": {
+        "streak": 99999,
+        "gems": 1000000000,
+        "lifetimeXp": 999999999,
+        "freezes": 9999,
+        "claimedAchievements": {
+          "wildfire": 7,
+          "sage": 6,
+          "scholar": 6,
+          "sharpshooter": 5,
+          "regular": 5
+        }
+      },
+      "buildFreezeCap": 2,
+      "streak": 3650,
+      "gems": 1000000,
+      "lifetimeXp": 100000000,
+      "freezes": 2,
+      "adjustedIncludes": ["streak", "gems", "freezes"],
+      "achievementsFromCounters": true,
+      "provenance": "imported",
+      "nextSessionGrantsGoalChest": true
+    },
+    {
+      "why": "Negative values are clamped up, not carried through into a widget layout.",
+      "archive": {
+        "streak": -5,
+        "gems": -1,
+        "lifetimeXp": -1,
+        "freezes": -3,
+        "claimedAchievements": {}
+      },
+      "buildFreezeCap": 2,
+      "streak": 0,
+      "gems": 0,
+      "lifetimeXp": 0,
+      "freezes": 0,
+      "adjustedIncludes": ["streak", "gems", "lifetimeXp", "freezes"],
+      "achievementsFromCounters": true,
+      "provenance": "imported",
+      "nextSessionGrantsGoalChest": true
+    }
+  ]
+}

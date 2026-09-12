@@ -1,0 +1,79 @@
+{
+  "id": "INV-DAT-02",
+  "covers": ["EC-PER-06", "EC-PER-10", "EC-PER-20", "EC-PER-21"],
+  "why": "A reinstalling learner does two lessons before finding Import. Import is replace-only, so every guard here is the difference between recovering and destroying.",
+  "cases": [
+    {
+      "why": "EC-PER-06: a normal restore. Both last_day values and sessions-since-install in the confirm, backup kept 24 h.",
+      "manifest": {
+        "schemaVersion": 3,
+        "manifestVersion": 1,
+        "lastDay": "2026-09-05",
+        "sessionsSinceInstall": 41
+      },
+      "device": {
+        "schemaVersion": 3,
+        "manifestVersion": 1,
+        "lastDay": "2026-09-10",
+        "sessionsSinceInstall": 3
+      },
+      "accepted": true,
+      "refusal": null,
+      "backupRetainedHours": 24
+    },
+    {
+      "why": "EC-PER-22: an archive from a newer build. Refused by name, instantly, from the manifest alone.",
+      "manifest": {
+        "schemaVersion": 9,
+        "manifestVersion": 1,
+        "lastDay": "2026-09-05",
+        "sessionsSinceInstall": 41
+      },
+      "device": {
+        "schemaVersion": 3,
+        "manifestVersion": 1,
+        "lastDay": "2026-09-10",
+        "sessionsSinceInstall": 3
+      },
+      "accepted": false,
+      "refusal": "newer-schema",
+      "backupRetainedHours": null
+    },
+    {
+      "why": "A manifest format this build cannot read.",
+      "manifest": {
+        "schemaVersion": 3,
+        "manifestVersion": 4,
+        "lastDay": "2026-09-05",
+        "sessionsSinceInstall": 41
+      },
+      "device": {
+        "schemaVersion": 3,
+        "manifestVersion": 1,
+        "lastDay": "2026-09-10",
+        "sessionsSinceInstall": 3
+      },
+      "accepted": false,
+      "refusal": "newer-manifest-format",
+      "backupRetainedHours": null
+    },
+    {
+      "why": "EC-PER-10: an export older than the current state is accepted - replace-only and confirmed, never merged.",
+      "manifest": {
+        "schemaVersion": 2,
+        "manifestVersion": 1,
+        "lastDay": "2026-08-01",
+        "sessionsSinceInstall": 9
+      },
+      "device": {
+        "schemaVersion": 3,
+        "manifestVersion": 1,
+        "lastDay": "2026-09-10",
+        "sessionsSinceInstall": 300
+      },
+      "accepted": true,
+      "refusal": null,
+      "backupRetainedHours": 24
+    }
+  ]
+}

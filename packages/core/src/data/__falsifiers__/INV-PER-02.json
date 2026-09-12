@@ -1,0 +1,34 @@
+{
+  "id": "INV-PER-02",
+  "covers": ["EC-PER-02"],
+  "why": "A write fails with SQLITE_CORRUPT mid-session at a 212-day streak. A rollover against damaged rows could burn a freeze or break a streak from corruption rather than behaviour, and freeze consumption is irreversible. `data/` owns the PRECONDITION only: the walk itself (civil dates, the EC-FRZ-01 freeze rule, long absences) is day/rollover.ts's, and restating it here is how a shadow function with a contradicting freeze rule got shipped once already.",
+  "cases": [
+    {
+      "why": "The 212-day streak with five missed days and two freezes: the walk is never entered, so nothing is spent and nothing is broken.",
+      "integrity": "corrupt",
+      "precondition": "failed-integrity",
+      "walkCalls": 0,
+      "refused": true,
+      "freezesConsumed": 0,
+      "screen": "S148"
+    },
+    {
+      "why": "Even one missed day and one freeze: still nothing. A refusal that depended on the size of the gap would be a rule about days, which data/ does not own.",
+      "integrity": "corrupt",
+      "precondition": "failed-integrity",
+      "walkCalls": 0,
+      "refused": true,
+      "freezesConsumed": 0,
+      "screen": "S148"
+    },
+    {
+      "why": "A healthy DB runs the walk exactly once and returns its result untouched, so the precondition is not a permanent refusal.",
+      "integrity": "healthy",
+      "precondition": "ok",
+      "walkCalls": 1,
+      "refused": false,
+      "freezesConsumed": null,
+      "screen": null
+    }
+  ]
+}

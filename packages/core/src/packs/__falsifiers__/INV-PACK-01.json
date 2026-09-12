@@ -1,0 +1,70 @@
+{
+  "id": "INV-PACK-01",
+  "covers": ["EC-CRS-06", "EC-CRS-07", "EC-PER-09"],
+  "why": "Each case is a reading of the disk and the catalogue that a five-value enum, or a precedence written in a different order, gets wrong.",
+  "cases": [
+    {
+      "why": "EC-CRS-06: a course added with no network. Not corrupt, not an error - just not downloaded.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "state": "not-downloaded"
+    },
+    {
+      "why": "EC-CRS-07: a backup imported against an uninstalled pack. Progress rows are preserved and go live when the pack lands.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "state": "not-downloaded",
+      "progressRowsRetained": true
+    },
+    {
+      "why": "EC-PER-09: the pack was withdrawn from the catalogue. The course stays, read-only, with every account total still counted.",
+      "facts": {
+        "catalogue": "withdrawn",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "ok",
+        "audioBytesPresent": 38000000,
+        "audioBytesExpected": 38000000
+      },
+      "state": "withdrawn",
+      "readOnly": true,
+      "accountTotalsCounted": true
+    },
+    {
+      "why": "A withdrawn pack whose local copy is also damaged still renders as withdrawn: offering the repair that `corrupt` carries would be an action guaranteed to fail.",
+      "facts": {
+        "catalogue": "withdrawn",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "failed",
+        "audioBytesPresent": 10,
+        "audioBytesExpected": 10
+      },
+      "state": "withdrawn"
+    },
+    {
+      "why": "Everything present and verified.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "ok",
+        "audioBytesPresent": 10,
+        "audioBytesExpected": 10
+      },
+      "state": "installed"
+    }
+  ]
+}

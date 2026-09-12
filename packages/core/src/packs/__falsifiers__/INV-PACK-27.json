@@ -1,0 +1,141 @@
+{
+  "id": "INV-PACK-27",
+  "covers": [
+    "EC-PACK-23"
+  ],
+  "why": "Abroad on metered roaming, iOS reclaims the inactive 38 MB pack and the learner switches to that course. EC-PACK-23 has two halves: the switch resolves to `not-downloaded` rather than launching a session with failing audio, AND `re-download is explicitly initiated with the size shown` - so the switch starts nothing on ANY link, metered or not. EC-CRS-06's auto-resume applies to a download the learner already began, which is the `auto-resume` trigger, not a course tap.",
+  "cases": [
+    {
+      "why": "EC-PACK-23: the switch must resolve to not-downloaded, not launch a session with failing audio. The refusal is `needs-explicit-start`, not `metered-needs-confirm`: the switch was never a request, so the link never came into it.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "metered",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": false,
+      "confirmRequired": true,
+      "offerBytes": 38000000,
+      "refusal": "needs-explicit-start"
+    },
+    {
+      "why": "A cellular fixture that auto-resumes a 38 MB download is the falsifier named in the invariant. The refusal is `needs-explicit-start`, not `metered-needs-confirm`: the switch was never a request, so the link never came into it.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "metered",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": false,
+      "confirmRequired": true,
+      "offerBytes": 38000000,
+      "refusal": "needs-explicit-start"
+    },
+    {
+      "why": "On wifi the switch STILL starts nothing: `re-download is explicitly initiated with the size shown`. A silent 38 MB fetch the learner never saw the size of is the other half of EC-PACK-23, and a hotspot the OS failed to flag as metered looks exactly like this case.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "unmetered",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": false,
+      "confirmRequired": true,
+      "offerBytes": 38000000,
+      "refusal": "needs-explicit-start"
+    },
+    {
+      "why": "Offline: nothing starts, and the request is queued for when a link appears.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": false,
+        "signature": "unchecked",
+        "integrity": "ok",
+        "audioBytesPresent": 0,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "offline",
+      "bytesRemaining": 38000000,
+      "state": "not-downloaded",
+      "sessionLaunchable": false,
+      "fetchStarts": false,
+      "confirmRequired": true,
+      "offerBytes": 38000000,
+      "refusal": "needs-explicit-start"
+    },
+    {
+      "why": "A pack that is still fully installed: the switch launches the session and offers nothing at all.",
+      "facts": {
+        "catalogue": "available",
+        "dbPresent": true,
+        "signature": "valid",
+        "integrity": "ok",
+        "audioBytesPresent": 38000000,
+        "audioBytesExpected": 38000000
+      },
+      "connection": "metered",
+      "bytesRemaining": 38000000,
+      "state": "installed",
+      "sessionLaunchable": true,
+      "fetchStarts": false,
+      "confirmRequired": false,
+      "offerBytes": 0,
+      "refusal": "nothing-to-fetch"
+    }
+  ],
+  "explicitStartCases": [
+    {
+      "why": "The learner taps the offer on wifi: this is what actually begins the download.",
+      "connection": "unmetered",
+      "trigger": "explicit-tap",
+      "userConfirmedMetered": false,
+      "starts": true
+    },
+    {
+      "why": "The learner taps it on cellular and confirms, with the size shown.",
+      "connection": "metered",
+      "trigger": "explicit-tap",
+      "userConfirmedMetered": true,
+      "starts": true
+    },
+    {
+      "why": "EC-CRS-06: a download already under way resumes by itself on an unmetered link.",
+      "connection": "unmetered",
+      "trigger": "auto-resume",
+      "userConfirmedMetered": false,
+      "starts": true
+    },
+    {
+      "why": "...but never on a metered one, even with a confirm on record: that confirm belonged to the download the learner was looking at, not to a resume days later in another country.",
+      "connection": "metered",
+      "trigger": "auto-resume",
+      "userConfirmedMetered": true,
+      "starts": false
+    },
+    {
+      "why": "A session start is not a request for 38 MB either.",
+      "connection": "unmetered",
+      "trigger": "session-start",
+      "userConfirmedMetered": false,
+      "starts": false
+    }
+  ]
+}

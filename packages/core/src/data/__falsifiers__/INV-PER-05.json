@@ -1,0 +1,35 @@
+{
+  "id": "INV-PER-05",
+  "covers": ["EC-PER-04"],
+  "why": "Under 50 MB free, WAL growth and boundary writes fail - silently, which is the actual problem. The resume guarantee is a promise; below the threshold it must be withdrawn out loud.",
+  "cases": [
+    {
+      "why": "EC-PER-04: 12 MB free at session start.",
+      "freeBytes": 12582912,
+      "belowThreshold": true,
+      "resumeGuarantee": "in-memory-only",
+      "noticeShown": true
+    },
+    {
+      "why": "One byte under the threshold is still under it.",
+      "freeBytes": 52428799,
+      "belowThreshold": true,
+      "resumeGuarantee": "in-memory-only",
+      "noticeShown": true
+    },
+    {
+      "why": "Exactly at the threshold is fine.",
+      "freeBytes": 52428800,
+      "belowThreshold": false,
+      "resumeGuarantee": "persistent",
+      "noticeShown": false
+    },
+    {
+      "why": "A probe that returns a negative reading is treated as empty, never as plenty.",
+      "freeBytes": -1,
+      "belowThreshold": true,
+      "resumeGuarantee": "in-memory-only",
+      "noticeShown": true
+    }
+  ]
+}

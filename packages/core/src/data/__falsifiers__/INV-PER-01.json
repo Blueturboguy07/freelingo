@@ -1,0 +1,110 @@
+{
+  "id": "INV-PER-01",
+  "covers": ["EC-PER-01"],
+  "why": "The total-loss case. A 300-day streak vanishing silently is indistinguishable from a bug that ate it, and there is no server to prove otherwise. The falsifier named by the invariant is a corrupted byte range in a fixture DB; `integrity.test.ts` builds a real SQLite file, flips one byte at eight offsets in each of its 26 pages, and asserts BOTH detection channels occur. These cases are the error shapes each runtime really produces, so the classifier is exercised against measured values rather than against symbolic names no driver emits.",
+  "measured": {
+    "runtime": "node:sqlite on node 24.18.0",
+    "census": "208 single-byte mutations of a 26-page fixture: 128 returned integrity_check failure rows, 48 threw errcode 11 (SQLITE_CORRUPT), 3 threw errcode 26 (SQLITE_NOTADB), 29 were benign",
+    "note": "expo-sqlite surfaces no numeric code; its shape is read from ios/Exceptions.swift and SQLExceptions.kt in expo-sqlite 57.0.3 and is unproven on a device until P3"
+  },
+  "cases": [
+    {
+      "why": "node:sqlite, corrupted b-tree page. The wrapper code is the same for every SQLite failure; errcode 11 is what discriminates.",
+      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 11, "errstr": "database disk image is malformed" },
+      "classification": "corruption",
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "node:sqlite, header destroyed: somebody imported the wrong file into the right path.",
+      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 26, "errstr": "file is not a database" },
+      "classification": "corruption",
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "SQLITE_CORRUPT_VTAB = 11 | (1 << 8) = 267. A classifier comparing the raw number would call this `other` and skip the ladder.",
+      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 267, "errstr": "database disk image is malformed" },
+      "classification": "corruption",
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "expo-sqlite on device: no numeric field at all, so the sqlite3_errmsg string is the only signal.",
+      "error": { "code": "ERR_INTERNAL_SQLITE_ERROR", "message": "database disk image is malformed" },
+      "classification": "corruption",
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "expo-sqlite, wrong file: `file is not a database`.",
+      "error": { "code": "ERR_INTERNAL_SQLITE_ERROR", "message": "file is not a database" },
+      "classification": "corruption",
+      "verdict": "corrupt",
+      "action": "rename-and-start-fresh",
+      "deletes": [],
+      "screen": "S147"
+    },
+    {
+      "why": "A busy database is not a damaged one - renaming it would destroy a healthy file. errcode 5 is SQLITE_BUSY.",
+      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 5, "errstr": "database is locked" },
+      "classification": "other",
+      "verdict": "healthy",
+      "action": "none",
+      "deletes": [],
+      "screen": "none"
+    },
+    {
+      "why": "A full disk is not a damaged one either (that is INV-PER-05). errcode 13 is SQLITE_FULL.",
+      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 13, "errstr": "database or disk is full" },
+      "classification": "other",
+      "verdict": "healthy",
+      "action": "none",
+      "deletes": [],
+      "screen": "none"
+    },
+    {
+      "why": "A TypeError from somewhere else in the open path is not a SQLite verdict at all, and must not rename the learner's only copy.",
+      "error": { "code": "ERR_INVALID_ARG_TYPE", "message": "path must be a string" },
+      "classification": null,
+      "verdict": "healthy",
+      "action": "none",
+      "deletes": [],
+      "screen": "none"
+    }
+  ],
+  "returnedRowCases": [
+    {
+      "why": "The pragma answers instead of throwing - 128 of the 208 census mutations did. The rows are real output copied from the census.",
+      "rows": [
+        { "integrity_check": "*** in database main ***\nTree 2 page 4 cell 0: Offset 61686 out of range 569..4092" },
+        { "integrity_check": "database disk image is malformed" }
+      ],
+      "integrityCheck": "failed",
+      "verdict": "corrupt",
+      "screen": "S147"
+    },
+    {
+      "why": "A healthy file: one row reading `ok`.",
+      "rows": [{ "integrity_check": "ok" }],
+      "integrityCheck": "ok",
+      "verdict": "healthy",
+      "screen": "none"
+    },
+    {
+      "why": "No rows at all is not `ok`. A pragma that answered nothing proved nothing.",
+      "rows": [],
+      "integrityCheck": "failed",
+      "verdict": "corrupt",
+      "screen": "S147"
+    }
+  ]
+}
