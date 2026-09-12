@@ -1,0 +1,80 @@
+{
+  "account": [
+    {
+      "id": 1,
+      "lifetime_xp": 1830,
+      "gems": 515,
+      "daily_goal_xp": 20,
+      "daily_goal_tier": "regular",
+      "streak": 0,
+      "longest_streak": 0,
+      "streak_start_day": null,
+      "max_local_day_seen": null,
+      "society_entered_on_day": null,
+      "equipped_cosmetic_id": null,
+      "modality_suspension_until": null,
+      "words_introduced": 0,
+      "words_learned": 0,
+      "perfect_lessons": 0,
+      "nodes_completed": 0,
+      "units_legendary": 0,
+      "legendary_levels_earned": 0,
+      "sections_completed": 0,
+      "guidebook_then_lesson": 0,
+      "weekend_pairs": 0,
+      "stories_completed": 0,
+      "night_lessons": 0,
+      "items_retired": 0
+    }
+  ],
+  "account_boost": [],
+  "account_cosmetic": [],
+  "account_daily_xp": [],
+  "account_day": [],
+  "account_freeze": [],
+  "account_monthly_badge": [],
+  "account_personal_record": [],
+  "account_quest": [],
+  "account_streak_repair": [],
+  "committed_session": [
+    {
+      "session_id": "s_v1_1",
+      "committed_at": "2026-08-01T18:30:00Z",
+      "active_ms": 0,
+      "xp_awarded": 0,
+      "local_day": null,
+      "flavour": null
+    },
+    {
+      "session_id": "s_v1_2",
+      "committed_at": "2026-08-02T18:30:00Z",
+      "active_ms": 0,
+      "xp_awarded": 0,
+      "local_day": null,
+      "flavour": null
+    },
+    {
+      "session_id": "s_v1_3",
+      "committed_at": "2026-08-03T18:30:00Z",
+      "active_ms": 0,
+      "xp_awarded": 0,
+      "local_day": null,
+      "flavour": null
+    },
+    {
+      "session_id": "s_v1_4",
+      "committed_at": "2026-08-04T18:30:00Z",
+      "active_ms": 0,
+      "xp_awarded": 0,
+      "local_day": null,
+      "flavour": null
+    }
+  ],
+  "course_attempt": [],
+  "course_display": [],
+  "course_item": [],
+  "course_mistake": [],
+  "course_node": [],
+  "course_progress": [],
+  "course_session_state": []
+}

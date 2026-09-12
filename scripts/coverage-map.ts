@@ -6,11 +6,18 @@
  * Parses every invariant id out of docs/invariants.md, scans every test file for test
  * names carrying an id in brackets (`it('[INV-DAY-01] ...')`), and prints the map.
  *
- * It FAILS when an id listed in docs/invariants-owned.json has no owning test, and when
- * a test claims an id that is not in the registry (a typo is otherwise invisible).
- * Ids not yet owned are reported as pending, one line per phase to add them.
+ * It FAILS when an owned id has no owning test, when a test claims an id that is not in
+ * the registry (a typo is otherwise invisible), when an owned id is not in the registry,
+ * and when two ownership files claim the same id.
  *
- * Run with Node 24: `node --experimental-strip-types scripts/coverage-map.ts`.
+ * **Ownership is a union of files.** `docs/invariants-owned.json` is the phase baseline;
+ * every `docs/owned/<task>.json` beside it adds one task's ids. One shared array would
+ * make nine parallel P1 tasks rebase against each other all day and would let two of them
+ * silently "own" the same invariant — so the id an agent claims goes in its own file, and
+ * a collision between two files is an error rather than a merge conflict.
+ *
+ * Run with Node 24: `node --experimental-strip-types scripts/coverage-map.ts`
+ * Self-test the ownership checker: `… scripts/coverage-map.ts --self-test`
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -21,6 +28,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Named config: where the registry, the owned list and the test sources live. */
 const REGISTRY_PATH = 'docs/invariants.md';
 const OWNED_PATH = 'docs/invariants-owned.json';
+/** One file per task, unioned with OWNED_PATH. See the header. */
+const OWNED_DIR = 'docs/owned';
 const TEST_ROOTS = ['packages', 'apps', 'e2e'];
 const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$/;
 /** Directory names the walk never enters, wherever they appear. */
@@ -83,9 +92,80 @@ if (registry.size === 0) {
   process.exit(1);
 }
 
-const owned: string[] = (
-  JSON.parse(readFileSync(join(ROOT, OWNED_PATH), 'utf8')) as { owned: string[] }
-).owned;
+/* ------------------------------------------------------------- ownership union */
+
+export interface OwnershipFile {
+  /** Path as printed in an error message. */
+  readonly path: string;
+  readonly ids: readonly string[];
+}
+
+export interface OwnershipResult {
+  readonly owned: string[];
+  /** id -> the files that claim it, for every id claimed more than once. */
+  readonly duplicates: Map<string, string[]>;
+  readonly errors: string[];
+}
+
+/**
+ * Union the ownership files, refusing a duplicate claim and an id the registry lacks.
+ *
+ * Pure, and exported, so `--self-test` can hand it inputs that must fail. A gate whose
+ * failure path has never been executed is a gate nobody has checked.
+ */
+export function unionOwnership(
+  files: readonly OwnershipFile[],
+  registry: ReadonlySet<string>,
+): OwnershipResult {
+  const claims = new Map<string, string[]>();
+  for (const file of files) {
+    for (const id of file.ids) {
+      const claimants = claims.get(id) ?? [];
+      claimants.push(file.path);
+      claims.set(id, claimants);
+    }
+  }
+  const duplicates = new Map([...claims].filter(([, where]) => where.length > 1));
+  const errors: string[] = [];
+  for (const [id, where] of duplicates) {
+    errors.push(`ownership: ${id} is claimed by ${where.length} files: ${where.join(', ')}`);
+  }
+  const owned = [...claims.keys()].sort();
+  for (const id of owned) {
+    if (!registry.has(id)) {
+      errors.push(`ownership: ${id} (${claims.get(id)!.join(', ')}) is not in ${REGISTRY_PATH}`);
+    }
+  }
+  return { owned, duplicates, errors };
+}
+
+/** Every ownership file on disk: the phase baseline plus one file per task. */
+function ownershipFiles(): OwnershipFile[] {
+  const read = (relativePath: string): OwnershipFile => ({
+    path: relativePath,
+    ids: (JSON.parse(readFileSync(join(ROOT, relativePath), 'utf8')) as { owned: string[] }).owned,
+  });
+  const files = [read(OWNED_PATH)];
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(join(ROOT, OWNED_DIR))
+      .filter((name) => name.endsWith('.json'))
+      .sort();
+  } catch {
+    entries = []; // no per-task files yet
+  }
+  for (const entry of entries) files.push(read(`${OWNED_DIR}/${entry}`));
+  return files;
+}
+
+if (process.argv.includes('--self-test')) {
+  selfTest();
+  process.exit(0);
+}
+
+const ownershipSources = ownershipFiles();
+const ownership = unionOwnership(ownershipSources, registry);
+const owned = ownership.owned;
 
 const testFiles = TEST_ROOTS.flatMap((r) => walk(join(ROOT, r)));
 const ownerOf = new Map<string, string[]>();
@@ -100,13 +180,13 @@ for (const file of testFiles) {
 
 const unknownClaims = [...ownerOf.keys()].filter((id) => !registry.has(id)).sort();
 const missing = owned.filter((id) => !ownerOf.has(id)).sort();
-const notInRegistry = owned.filter((id) => !registry.has(id)).sort();
 const pending = [...registry].filter((id) => !ownerOf.has(id)).length;
 
 console.log(`coverage-map`);
 console.log(`  registry      ${registry.size} ids in ${REGISTRY_PATH}`);
 console.log(`  test files    ${testFiles.length}`);
-console.log(`  owned now     ${owned.length} (${OWNED_PATH})`);
+console.log(`  owned now     ${owned.length} across ${ownershipSources.length} ownership file(s)`);
+for (const file of ownershipSources) console.log(`    ${file.ids.length}  ${file.path}`);
 console.log(`  with a test   ${ownerOf.size}`);
 console.log(`  pending       ${pending} ids have no owning test yet`);
 for (const id of owned) {
@@ -115,10 +195,8 @@ for (const id of owned) {
 }
 
 let failed = false;
-if (notInRegistry.length > 0) {
-  console.error(
-    `\ncoverage-map: owned id not present in the registry: ${notInRegistry.join(', ')}`,
-  );
+if (ownership.errors.length > 0) {
+  console.error(`\n${ownership.errors.join('\n')}`);
   failed = true;
 }
 if (missing.length > 0) {
@@ -133,3 +211,51 @@ if (unknownClaims.length > 0) {
   failed = true;
 }
 process.exit(failed ? 1 : 0);
+
+/* ------------------------------------------------------------------- self-test */
+
+/**
+ * The two failures this gate exists for, executed against the checker itself.
+ *
+ * Both were possible before the union existed and neither is visible in a green run:
+ * two task files owning the same id (so one of them can delete its test and stay green),
+ * and a file owning an id the registry does not carry (a typo that reads as coverage).
+ */
+function selfTest(): void {
+  const registryFixture = new Set(['INV-ECO-01', 'INV-ECO-02', 'INV-DAY-01']);
+  const failures: string[] = [];
+
+  const clean = unionOwnership(
+    [
+      { path: 'a.json', ids: ['INV-ECO-01'] },
+      { path: 'b.json', ids: ['INV-ECO-02', 'INV-DAY-01'] },
+    ],
+    registryFixture,
+  );
+  if (clean.errors.length !== 0) failures.push(`disjoint files must pass: ${clean.errors}`);
+  if (clean.owned.join(',') !== 'INV-DAY-01,INV-ECO-01,INV-ECO-02') {
+    failures.push(`union must be sorted and complete, got ${clean.owned.join(',')}`);
+  }
+
+  const duplicated = unionOwnership(
+    [
+      { path: 'a.json', ids: ['INV-ECO-01'] },
+      { path: 'b.json', ids: ['INV-ECO-01'] },
+    ],
+    registryFixture,
+  );
+  if (!duplicated.errors.some((e) => e.includes('claimed by 2 files'))) {
+    failures.push('a duplicate id across two files must fail');
+  }
+
+  const unknown = unionOwnership([{ path: 'a.json', ids: ['INV-ECO-99'] }], registryFixture);
+  if (!unknown.errors.some((e) => e.includes('is not in'))) {
+    failures.push('an id absent from the registry must fail');
+  }
+
+  if (failures.length > 0) {
+    console.error(`coverage-map --self-test FAILED\n  ${failures.join('\n  ')}`);
+    process.exit(1);
+  }
+  console.log('coverage-map --self-test: ownership union, duplicate and unknown-id gates OK');
+}
