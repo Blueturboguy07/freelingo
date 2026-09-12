@@ -1,0 +1,11 @@
+{
+  "invariant": "INV-SCH-03",
+  "test": "[INV-SCH-03] falsifier: START OVER after an abandoned session does not double-count",
+  "covers": "EC-SCH-03, EC-SES-03",
+  "what": "A session is abandoned after four answers; INV-SESS-11 commits them to FSRS. The learner then taps START OVER and the same four answers arrive again under the same session id. Every counter in the app is recomputable from attempt rows (plan Data model), so a doubled row is doubled XP, a doubled accuracy denominator and a second FSRS update twenty seconds after the first.",
+  "measured": "2026-09-11. Four attempts written, replayed four times: attempt count stays 4, the FSRS row is returned by identity, and applyEncounter returns the state it was given. A genuinely new session id with the same exercise indices writes four more.",
+  "sessionId": "session-abandoned",
+  "replaySessionId": "session-restarted",
+  "exerciseIndices": [0, 1, 2, 3],
+  "expectedAttemptRowsAfterReplay": 4
+}

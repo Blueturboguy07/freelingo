@@ -1,0 +1,10 @@
+{
+  "invariant": "INV-SCH-11",
+  "test": "[INV-SCH-11] FSRS rows are keyed (item, surface) and each surface carries its own state",
+  "covers": "EC-SCH-12",
+  "what": "猫 is introduced in a picture-select and the pack enumerates three accepted surfaces (ねこ, 猫, neko). Holding one FSRS row per ITEM gives a stored set with no per-member scheduling state, and the kana-only learner is shown a kanji nobody taught them.",
+  "measured": "2026-09-11. The three surfaces carry three distinct row keys; crediting the introduced one leaves the other two untouched; answering an un-introduced surface returns review_kind=uncredited with an uncreditedSurface anomaly and a byte-identical card. A second surface of a word taught today is not a first exposure and does not restart the production delay.",
+  "itemId": "lex:ja:neko",
+  "surfaces": ["ねこ", "猫", "neko"],
+  "introducedSurfaces": ["ねこ"]
+}

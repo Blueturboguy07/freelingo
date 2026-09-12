@@ -1,0 +1,12 @@
+{
+  "invariant": "INV-SCH-02",
+  "test": "[INV-SCH-02] falsifier: the week-back clock that used to move stability",
+  "covers": "EC-SCH-02",
+  "what": "The clock is set back, then an item is reviewed. Five honest reviews put the card in the Review state with a 163-day interval and a last_review 163 days old; the three jumps below then hand the scheduler a negative elapsed.",
+  "measured": "2026-09-11, ts-fsrs 5.4.2, called WITHOUT the clamp: -1 day silently returned stability 496.41 where the honest answer at that instant is 499.34; -7 days returned 487.48; -365 days threw `Invalid delta_t \"-202\"` from inside the library, mid-commit. With the clamp all three resolve to elapsed 0, one `negativeElapsed` anomaly row each, and a finite stability.",
+  "start": "2026-03-01T09:00:00.000Z",
+  "honestReviews": 5,
+  "backwardJumpsDays": [1, 7, 365],
+  "forwardClockMeasured": "2026-09-11, same library, the OTHER jaw. A card at stability 162.9998 after five honest reviews, answered `Good` on a clock set forward: +10 years reaches 1604.6682 unclamped and 1604.4507 at the 3,650-day ceiling (the clamp buys 0.2); +100 years reaches 2457.8172 unclamped and the same 1604.4507 clamped (the clamp buys 853). So the ceiling is a backstop against absurdity, not a defence against a plausibly-sized forward clock — which cannot be told from an honest absence inside this module. Asserted directly by `[INV-SCH-02] a ten-year forward clock is clamped, on the record — and barely blunted`, because the replay property cannot fail for a forward jump.",
+  "ceiling": "MAX_HONEST_ELAPSED_DAYS = 3,650 [DERIVED 2026-09-11]. It was ts-fsrs's 36,500-day `default_maximum_interval` in the first draft, which is a sentinel meaning 'effectively never clamp' rather than a claim about memory, so the upper jaw did not close until a clock was a century out."
+}

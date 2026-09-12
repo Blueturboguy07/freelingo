@@ -1,0 +1,12 @@
+{
+  "invariant": "INV-SCH-10",
+  "test": "[INV-SCH-10] falsifier: a recognition-then-production pair inside one sitting",
+  "covers": "EC-SCH-11",
+  "what": "A lexeme is introduced at 23:50 local and produced twenty minutes later. The trap is that those twenty minutes cross a local-day boundary, so a delay implemented as 'not on the same local day' waves the pair through — and 'inside one sitting' is a statement about the clock, not the calendar. The companion case is twenty frontier lessons in four hours introducing ~120 new lexemes.",
+  "measured": "2026-09-11, Asia/Tokyo. The production encounter at +20 minutes is refused: no FSRS write, the row map returned by identity, one productionTooSoon anomaly row, and the attempt still recorded because it happened. The same encounter four hours after introduction credits normally. Twelve lessons of ten new items on one local day introduce exactly 40.",
+  "timeZone": "Asia/Tokyo",
+  "introducedAt": "2026-03-05T14:50:00.000Z",
+  "productionAfterMinutes": 20,
+  "maxNewItemsPerLocalDay": 40,
+  "minHoursBetweenIntroductionAndProduction": 4
+}

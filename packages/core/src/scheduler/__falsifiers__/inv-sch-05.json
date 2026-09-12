@@ -1,0 +1,11 @@
+{
+  "invariant": "INV-SCH-05",
+  "test": "[INV-SCH-05] falsifier: the same due item served twice inside twenty minutes",
+  "covers": "EC-SCH-05",
+  "what": "One due item, two entry points. The hub's Today's Review serves it, and twenty minutes later the path's Daily Refresh asks the day's set for the same item. Without the shared spent-marker it is served twice, and the second encounter is an early review at a near-zero interval: retrievability inflated, stability unmoved, the learner's twenty minutes spent on nothing.",
+  "measured": "2026-09-11. With the marker the second serve returns zero items and the pool reads exhausted (6/6 on S025). The encounter that did not happen is classified: reviewRow at +20 minutes returns review_kind='early'.",
+  "localDay": "2026-09-11",
+  "timeZone": "Asia/Tokyo",
+  "itemId": "lex:es:gato",
+  "secondSurfaceAfterMinutes": 20
+}
