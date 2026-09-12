@@ -864,31 +864,31 @@ filter**, so any push to `main`, documentation included, kills a running device 
 Artefacts: `e2e-859f3fb…-ios` (7,012,551 B) and `e2e-859f3fb…-android` (77,267 B) on
 <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920937>.
 
-## The third pass: every gate re-run on the integrated tree, and four numbers re-derived
+## The third pass: every gate re-run on the integrated tree, and five things re-derived
 
 The rounds above were written as the merges landed. This section is the whole gate re-run
 **once, in one sitting, on `main` at `42b0be3`** — the tree being handed over — because a
 gate measured incrementally across twelve integration commits is not the same claim as a
 gate measured on the result. Corroboration where it says this Mac; CI where it says CI.
 
-| Command                                  | Result                                                                 |
-| ---------------------------------------- | ---------------------------------------------------------------------- |
-| `pnpm install --frozen-lockfile`         | exit 0, no lockfile diff                                               |
-| `pnpm lint`                              | exit 0                                                                 |
-| `pnpm typecheck`                         | exit 0                                                                 |
-| `pnpm format:check`                      | exit 0 — the merge queue's format debt is paid                         |
-| `pnpm invariants:check`                  | exit 0 — 424 ids, digest matches the corpus                            |
-| `pnpm test:coverage-map`                 | exit 0 — no unowned id, none claimed twice                             |
-| `pnpm test:falsify`                      | exit 0 — 280 passed / 978 skipped                                      |
-| `pnpm test`                              | exit 0 — **114 files, 1,316 passed, 6 skipped**, 29.41 s               |
-| `uv sync --locked` (nlp, lm, align, tts) | exit 0 — 89 resolved, 87 checked, no lockfile diff                     |
-| `uv run ruff check .`                    | exit 0 — `All checks passed!`                                          |
-| `uv run pytest`                          | exit 0 — **934 passed, 8 skipped** of 942 collected, 40.62 s           |
-| `uv run coursekit validate es`           | **5/17 green, 0 unregistered, 0 skipped, 33 blocking. Nothing ships.** |
+| Command                                  | Result                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`         | exit 0, no lockfile diff                                                   |
+| `pnpm lint`                              | exit 0                                                                     |
+| `pnpm typecheck`                         | exit 0                                                                     |
+| `pnpm format:check`                      | exit 0 — the merge queue's format debt is paid                             |
+| `pnpm invariants:check`                  | exit 0 — 424 ids, digest matches the corpus                                |
+| `pnpm test:coverage-map`                 | exit 0 — no unowned id, none claimed twice                                 |
+| `pnpm test:falsify`                      | exit 0 — 280 passed / 978 skipped                                          |
+| `pnpm test`                              | exit 0 — **114 files, 1,316 passed, 6 skipped**, 29.41 s                   |
+| `uv sync --locked` (nlp, lm, align, tts) | exit 0 — 89 resolved, 87 checked, no lockfile diff                         |
+| `uv run ruff check .`                    | exit 0 — `All checks passed!`                                              |
+| `uv run pytest`                          | exit 0 — **934 passed, 8 skipped** of 942 collected, 40.62 s; **3×** green |
+| `uv run coursekit validate es`           | **5/17 green, 0 unregistered, 0 skipped, 33 blocking. Nothing ships.**     |
 
-Four numbers were **re-derived from the committed files rather than carried from a lane's
-report**, because a lane reporting its own headline is the one measurement this phase has
-already been burned by:
+Five things were **re-derived from the committed files and from re-running the thing,
+rather than carried from a lane's report**, because a lane reporting its own headline is the
+one measurement this phase has already been burned by:
 
 - **The reviewer rate.** Recomputed from `docs/owned/p2r3-reviewer-sample.json`: 300 rows,
   `ok 220 / awkward 68 / wrong 12`, so **12/300 = 4.0000%** and 68/300 = 22.6667%,
@@ -940,6 +940,42 @@ already been burned by:
   `FREELINGO_REAL_PACK` unset, and **6 of 6 failed** with it set to `/nonexistent/pack.sqlite`,
   naming the path it wanted. So the gate's one interesting property holds; it has still
   never had a pack to open.
+
+And one lane claim was checked because it is the kind that is cheap to assert and easy to
+get wrong: `p2r3/lemma-reachability` reported the coursekit suite green on **three
+consecutive runs under `pytest-randomly`'s own ordering**, not just under `-p no:randomly`,
+which is what makes an order-dependent test visible. Re-run here on the merged tree, three
+times, random order each time:
+
+```
+934 passed, 8 skipped in 40.76s
+934 passed, 8 skipped in 40.29s
+934 passed, 8 skipped in 39.90s
+```
+
+The claim holds on the integrated tree and not only on the lane's, which is the version of
+it that matters — the suite grew from the lane's 861 to 934 as the other six branches
+landed, and a merge is exactly when a hidden ordering dependency between two lanes' fixtures
+would first be reachable.
+
+**One thing that batch turned up and nobody was looking for.** The suite was run about
+twenty times back to back on this Mac while waiting on CI, and **one** of those runs died
+before reporting, with a native crash rather than a test failure:
+
+```
+libc++abi: terminating due to uncaught exception of type
+std::__1::system_error: recursive_mutex lock failed: Invalid argument
+```
+
+Every other run, including the two immediately after it, was `934 passed, 8 skipped`. So it
+is **1 in ~20 on this Mac only, under back-to-back invocation, never seen in CI**, and it is
+recorded rather than acted on: it is not a blocker, it did not happen on any gate run, and a
+single unreproduced native crash is not enough to name a cause. It is written down because
+it is the same shape as B20 — a suite where nothing failed and the process still did not
+report a result — and because the next person to see it in CI should find it already
+described here with a denominator, rather than meeting it fresh. The `align` group's
+torch/transformers extension modules are the obvious place to look first; nothing here
+establishes that they are the cause.
 
 ### The third CI pass, on `42b0be3`
 
@@ -1128,6 +1164,29 @@ Each of the two e2e trees carries `runner.txt`, `report.xml`, `screenshots/` and
 the device logs. **No `es-pack-<sha>` and no `es-build-<sha>` exist on this run either**, for
 the same reason as the previous two: both are uploaded after G9, and the build exits 4 at
 G5. Three passes, three times no pack.
+
+#### The commit that carries this report, and where the regress stops
+
+A phase report is pushed, the push triggers CI, and quoting that CI needs another commit,
+which triggers CI again. Previous rounds left this implicit; it is written down once here so
+the numbers above can be read without wondering what is missing.
+
+**The gate verdict and every CI number in this file belong to `42b0be3`**, where all three
+workflows ran to completion over the full tree. The commits after it change only
+`docs/P2-REPORT.md` and `docs/P2-BLOCKERS.md` — **no stage, no validator, no TypeScript, no
+content** — so `pack-ci.yml` does not trigger on them at all (its paths filter is
+`content/**` and `tools/coursekit/**`) and `ci.yml` and `native-e2e.yml` re-run an identical
+code tree. Their results are recorded in the integration's own handover rather than quoted
+here, and the reason they cannot change the verdict is structural: the job that decides the
+gate is `build-es`, and a documentation commit cannot reach it.
+
+One observed consequence, since it is the same hazard §"The second CI pass" names:
+`native-e2e.yml` has no paths filter and `cancel-in-progress: true`, so each documentation
+push **kills the device jobs of the previous one**. This round's pushes were therefore
+spaced to let the running iOS job finish rather than cancelling it, which is why `42b0be3`
+has a complete four-job result to quote. A round that pushes its report the moment the
+merges land gets a cancelled iOS job and nothing to show, which is what happened to
+`86f2430`.
 
 ## Blockers
 
