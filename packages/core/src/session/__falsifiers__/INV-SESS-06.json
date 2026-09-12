@@ -1,0 +1,19 @@
+{
+  "id": "INV-SESS-06",
+  "case": "EC-SES-06: `deep/01` enumerates only five of the nine resume fields",
+  "kind": "resumeFields",
+  "input": {},
+  "expect": {
+    "fields": [
+      "queue",
+      "index",
+      "answers",
+      "hearts",
+      "combo",
+      "usedInterstitialKeys",
+      "inputMode",
+      "hardMode",
+      "optionSeeds"
+    ]
+  }
+}

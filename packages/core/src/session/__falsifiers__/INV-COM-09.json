@@ -1,0 +1,13 @@
+{
+  "id": "INV-COM-09",
+  "case": "EC-COM-12: at combo 9 a missing-accent soft-correct is also the tenth consecutive correct",
+  "kind": "combo",
+  "input": {
+    "verdicts": ["c", "c", "c", "c", "c", "c", "c", "c", "c", "s"]
+  },
+  "expect": {
+    "combo": 10,
+    "gold": true,
+    "label": true
+  }
+}

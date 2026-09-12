@@ -1,0 +1,14 @@
+{
+  "id": "INV-COM-08",
+  "case": "EC-COM-11: one answer drains the main queue, trips the step-up and reaches combo 5",
+  "kind": "interstitialOrder",
+  "input": {
+    "combo": 5,
+    "stepUpTripped": true,
+    "mistakesPending": 2,
+    "mainQueueDrained": true
+  },
+  "expect": {
+    "producers": ["combo", "stepUp", "mistakeReview"]
+  }
+}

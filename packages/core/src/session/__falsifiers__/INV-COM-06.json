@@ -1,0 +1,17 @@
+{
+  "id": "INV-COM-06",
+  "case": "EC-COM-07: a 12-exercise lesson with 2 mistakes gives 16 answerable items",
+  "kind": "progress",
+  "input": {
+    "length": 12,
+    "correctBefore": 10,
+    "wrong": 2,
+    "replays": 4
+  },
+  "expect": {
+    "denominator": 12,
+    "numeratorBeforeComplete": 10,
+    "numeratorAtComplete": 12,
+    "finalSegmentConsumedTwice": false
+  }
+}

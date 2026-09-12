@@ -1,0 +1,15 @@
+{
+  "id": "INV-MIS-01",
+  "case": "EC-MIS-01: two mistakes in one lesson",
+  "kind": "mistakeDrain",
+  "input": {
+    "count": 2,
+    "verdicts": [true]
+  },
+  "expect": {
+    "serves": 4,
+    "phases": ["midLesson", "midLesson", "end", "end"],
+    "pendingAtEnd": false,
+    "measureStrictlyDecreasing": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "INV-SESS-17",
+  "case": "EC-SES-22: a story parked at part 7, then a path lesson is opened",
+  "kind": "store",
+  "input": {
+    "rows": [
+      ["en-es", "story", "story-3"],
+      ["en-es", "radio", "ep-1"],
+      ["en-es", "graded", "node-1"]
+    ]
+  },
+  "expect": {
+    "rows": 3,
+    "refusals": 0
+  }
+}

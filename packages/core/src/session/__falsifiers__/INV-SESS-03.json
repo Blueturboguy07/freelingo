@@ -1,0 +1,17 @@
+{
+  "id": "INV-SESS-03",
+  "case": "EC-SES-03/EC-SCH-03: START OVER on a stale row with five answered items, one of them due",
+  "kind": "startOver",
+  "input": {
+    "queueLength": 12,
+    "index": 5,
+    "due": ["item-3"],
+    "mistakes": ["item-2"]
+  },
+  "expect": {
+    "excluded": ["item-1", "item-2", "item-4", "item-5"],
+    "dueExceptions": ["item-3"],
+    "handedOver": ["item-2"],
+    "newAttemptRows": 0
+  }
+}

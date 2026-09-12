@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-11",
+  "case": "EC-SES-13: `End session` after nine answers, three of them wrong",
+  "kind": "quitCommit",
+  "input": {
+    "verdicts": ["c", "w", "c", "w", "c", "c", "w", "c", "c"],
+    "route": "closeButton"
+  },
+  "expect": {
+    "attempts": 9,
+    "mistakes": 3,
+    "xp": 0,
+    "advancesNodeRing": false
+  }
+}

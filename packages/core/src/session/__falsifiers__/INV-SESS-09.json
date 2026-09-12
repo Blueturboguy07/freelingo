@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-09",
+  "case": "EC-SES-09: a second graded session is requested from the widget deep link",
+  "kind": "store",
+  "input": {
+    "rows": [
+      ["en-es", "graded", "node-1"],
+      ["en-fr", "graded", "node-9"]
+    ]
+  },
+  "expect": {
+    "rows": 1,
+    "refusals": 1
+  }
+}

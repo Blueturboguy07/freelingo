@@ -1,0 +1,14 @@
+{
+  "id": "INV-COM-03",
+  "case": "EC-COM-03: combo passes 90 in one Daily Refresh block",
+  "kind": "interstitials",
+  "input": {
+    "correctRun": 90,
+    "motivationalMessages": true
+  },
+  "expect": {
+    "copies": 7,
+    "distinct": 7,
+    "nonComboCopies": 0
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "INV-SESS-27",
+  "case": "EC-SES-32: the first foreground after a three-day gap",
+  "kind": "boot",
+  "input": {},
+  "expect": {
+    "order": ["rollover", "fsrsRecompute", "snapshotAndReload", "notificationRearm"],
+    "snapshots": ["post-rollover"],
+    "nudges": ["post-rollover"]
+  }
+}

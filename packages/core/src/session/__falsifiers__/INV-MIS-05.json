@@ -1,0 +1,13 @@
+{
+  "id": "INV-MIS-05",
+  "case": "EC-MIS-10: a missed Japanese answer whose surface splits into three ledger entries",
+  "kind": "queueMistake",
+  "input": {
+    "flavours": ["lesson", "lesson", "lesson"],
+    "type": "typedTranslate",
+    "repeat": 3
+  },
+  "expect": {
+    "queued": [1, 1, 1]
+  }
+}

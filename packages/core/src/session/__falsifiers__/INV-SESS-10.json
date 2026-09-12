@@ -1,0 +1,13 @@
+{
+  "id": "INV-SESS-10",
+  "case": "EC-SES-11/EC-SES-12: the clock is set back a day, then jumped a year forward",
+  "kind": "resumeAge",
+  "input": {
+    "checkpointMs": 10000000,
+    "probes": [-86400000, 0, 31536000000]
+  },
+  "expect": {
+    "offered": [false, false, true],
+    "clampedToZero": true
+  }
+}

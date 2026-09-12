@@ -1,0 +1,15 @@
+{
+  "id": "INV-COM-12",
+  "case": "EC-COM-15: a mixed lesson escalates difficulty twice",
+  "kind": "interstitialOrder",
+  "input": {
+    "combo": 5,
+    "stepUpTripped": true,
+    "stepUpAlreadyFired": true,
+    "mistakesPending": 0,
+    "mainQueueDrained": false
+  },
+  "expect": {
+    "producers": ["combo"]
+  }
+}

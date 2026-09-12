@@ -1,0 +1,20 @@
+{
+  "id": "INV-SESS-15",
+  "case": "EC-SES-20: an OEM task-killer destroys the process mid-typing, after stroke 4 of 8",
+  "kind": "inFlight",
+  "input": {
+    "text": "medi",
+    "caret": 4,
+    "partialState": {
+      "strokeIndex": 4,
+      "matched": ["a", "b"]
+    },
+    "gradeTwice": true
+  },
+  "expect": {
+    "restoredText": "medi",
+    "restoredCaret": 4,
+    "heartsChargedTwice": false,
+    "answers": 1
+  }
+}

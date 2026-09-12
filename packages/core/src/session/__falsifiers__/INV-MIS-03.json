@@ -1,0 +1,12 @@
+{
+  "id": "INV-MIS-03",
+  "case": "EC-MIS-03: a mistake in a section test",
+  "kind": "queueMistake",
+  "input": {
+    "flavours": ["jumpHere", "sectionTest", "placement"],
+    "type": "meaningSelect"
+  },
+  "expect": {
+    "queued": [0, 0, 0]
+  }
+}

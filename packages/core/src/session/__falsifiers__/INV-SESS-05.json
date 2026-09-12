@@ -1,0 +1,13 @@
+{
+  "id": "INV-SESS-05",
+  "case": "EC-SES-05/EC-SES-16: an item whose options were already rendered, resumed at index 3",
+  "kind": "seeds",
+  "input": {
+    "queueLength": 8,
+    "index": 3
+  },
+  "expect": {
+    "replayedVerbatim": 3,
+    "reRandomised": 5
+  }
+}

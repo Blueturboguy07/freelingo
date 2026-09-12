@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-23",
+  "case": "EC-SES-28: ten `Can't speak now` taps in a Perfect Pronunciation session",
+  "kind": "completion",
+  "input": {
+    "skips": 10,
+    "graded": 0
+  },
+  "expect": {
+    "sessionRows": 0,
+    "dayRewards": 0,
+    "attempts": 10,
+    "xp": 0
+  }
+}
