@@ -33,7 +33,9 @@ from coursekit.config.g7 import (
     FORBIDDEN_SHAPE_IDS,
     GAP_MARKER,
     GRAMMAR_FORM_PLAN,
+    LEXEME_FOCUS_MAX_DISPLAY_TOKENS,
     LEXEME_FORM_PLAN,
+    LEXEME_MATCH_SHAPE,
     MATCH_PAIR_SEPARATOR,
     MATCH_PAIRS_PER_EXERCISE,
     MIN_ENDING_STEM_CHARS,
@@ -61,7 +63,14 @@ from coursekit.exercises.wordbank import build_hints, build_word_bank, tile_coun
 from coursekit.inputs import group_is_installed
 from coursekit.runlog import RunLog, read_entries
 from coursekit.stages import STAGES
-from coursekit.stages.g7_expand import _display_split, _target_tokens, ending_split
+from coursekit.stages.g7_expand import (
+    MissingAnalysis,
+    ResolvedSlot,
+    StarvedSlot,
+    _display_split,
+    _target_tokens,
+    ending_split,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +100,57 @@ runner = CliRunner()
 
 FOCUSES = ("lexeme", "sentence", "grammar_concept", "script_unit")
 
+#: The adapter stamp G1 writes on an `analysed_sentence` and G5 writes on a
+#: `candidate.analysis`. ONE shape, which is the whole of B16 option 2: G7 reads the
+#: analysis and never has to know which stage produced it.
+_ADAPTER: dict[str, Any] = {
+    "name": "es_core_news_md",
+    "version": "3.8.0",
+    "model": "es_core_news_md",
+    "split_mode": None,
+}
+
+
+def _analysis(tokens: list[tuple[str, str, str]]) -> dict[str, Any]:
+    """A G1-shaped analysis from `(surface, lemma, pos)` triples."""
+    cursor = 0
+    rows = []
+    for surface, lemma, pos in tokens:
+        rows.append(
+            {
+                "surface": surface,
+                "lemma": lemma,
+                "pos": pos,
+                "morph": f"{pos}:{surface}",
+                "start": cursor,
+                "end": cursor + len(surface),
+            }
+        )
+        cursor += len(surface) + 1
+    return {
+        "analyser": _ADAPTER,
+        "tokens": rows,
+        "lemmas": [lemma for _surface, lemma, _pos in tokens],
+        "display_tokens": [surface for surface, _lemma, _pos in tokens],
+    }
+
+
+def _slot(
+    text: str,
+    translation: str,
+    *,
+    analysis: dict[str, Any] | None = None,
+    sid: str | None = None,
+    candidate_id: str | None = None,
+) -> ResolvedSlot:
+    return ResolvedSlot(
+        text=text,
+        translation=translation,
+        sid=sid,
+        analysis=analysis,
+        candidate_id=candidate_id,
+    )
+
 
 # ---------------------------------------------------------------------------
 # 1. The table
@@ -107,6 +167,34 @@ def test_the_product_maps_exercise_screens_are_all_covered() -> None:
     covered = {item.screen for item in SHAPES}
     assert {f"S{index:03d}" for index in range(32, 42)} <= covered
     assert "S042" in covered
+
+
+def test_the_table_declares_which_option_lists_are_rendered_in_english() -> None:
+    """`options_in_l1` is a declaration, and it used to be an inference that broke.
+
+    Two consumers read it: the decoy pool (an English bank takes English tiles) and
+    V5's POS clause (which compares course-language UD tags and must not be applied to
+    an English tile). Both used to work it out from a failed lookup — the tile had no
+    row in the Spanish ledger — and that stopped being true when V5's oracle grew to
+    include attested SURFACES: a Spanish corpus contains the odd English token, spaCy
+    tags it PROPN, and 84 tiles like `the`, `not` and `hello` were suddenly
+    POS-comparable against Spanish answers. Measured on the real course, 2026-09-12.
+    """
+    assert {item.id for item in SHAPES if item.options_in_l1} == {
+        "match_pairs",
+        "meaning_select",
+        "typed_translate_reverse",
+        "word_bank_reverse",
+    }
+    for item in SHAPES:
+        # Every reverse-direction shape answers in English, so every one of them is one.
+        if item.direction == "l2_to_l1":
+            assert item.options_in_l1, item.id
+        # And an English option list is never drawn from the course-language rule core:
+        # the two shapes that have distractors AND English options are the two the
+        # `L1DecoyPool` / gloss paths in `stages/g7_expand.py` handle.
+        if item.options_in_l1 and item.distractor_count:
+            assert item.id in {"meaning_select", "word_bank_reverse"}, item.id
 
 
 def test_instructions_are_unique_per_type_and_direction() -> None:
@@ -168,7 +256,13 @@ def test_every_form_plan_row_carries_two_punitive_shapes() -> None:
     """
     plans: list[tuple[str, tuple[str, ...]]] = [
         *((f"SENTENCE_FORM_PLAN[{index}]", row) for index, row in enumerate(SENTENCE_FORM_PLAN)),
-        ("LEXEME_FORM_PLAN", LEXEME_FORM_PLAN),
+        # A LEXEME item's authored forms are the plan PLUS its match row, and that is a
+        # pairing, not a plan row: S032 is gated to P3 (no illustration exists), so the
+        # plan alone is one punitive shape and `_lexeme_pass` is what makes the second
+        # one obligatory — it introduces a lemma only when a match can be cut over it.
+        # Read from the two constants rather than spelled here, so editing either one
+        # fails this test instead of quietly halving the forms.
+        ("LEXEME_FORM_PLAN + LEXEME_MATCH_SHAPE", (*LEXEME_FORM_PLAN, LEXEME_MATCH_SHAPE)),
         ("GRAMMAR_FORM_PLAN", GRAMMAR_FORM_PLAN),
     ]
     for name, row in plans:
@@ -180,7 +274,7 @@ def test_every_form_plan_shape_accepts_the_focus_it_is_planned_for() -> None:
     for row in SENTENCE_FORM_PLAN:
         for shape_id in row:
             assert route(shape_id, "sentence").id == shape_id
-    for shape_id in LEXEME_FORM_PLAN:
+    for shape_id in (*LEXEME_FORM_PLAN, LEXEME_MATCH_SHAPE):
         assert route(shape_id, "lexeme").id == shape_id
     for shape_id in GRAMMAR_FORM_PLAN:
         assert route(shape_id, "grammar_concept").id == shape_id
@@ -235,23 +329,56 @@ def test_INV_PACK_50_a_grammar_concept_cannot_wear_the_new_word_pill() -> None:
 
 
 def test_INV_PACK_50_only_a_lexeme_focus_can_wear_the_pill() -> None:
-    """[INV-PACK-50] even a pill-eligible shape refuses a non-lexeme item."""
+    """[INV-PACK-50] a pill-eligible shape carries the pill for a lexeme item.
+
+    The shape used to be `picture_select`, the first recognition of a new word. S032 is
+    gated to P3 for want of an illustration (config/g7.py::SHAPES), so the first
+    recognition — and therefore the pill — is `meaning_select`, which the table already
+    marks `new_word_eligible`. The subset relation the record-level check leans on is
+    unchanged: every pill-eligible shape still quotes a lexeme.
+    """
     draft = ExerciseDraft(
         lang="es",
         exercise_id="0" * 16,
         unit_index=1,
         lesson_index=1,
-        shape_id="picture_select",
+        shape_id="meaning_select",
         focus="lexeme",
         instruction_hint="perro",
         body="perro",
-        accepted_answers=("perro",),
-        distractors=("gato", "caballo"),
+        accepted_answers=("dog",),
+        distractors=("cat", "horse"),
         lemmas=("perro",),
         register="tu",
         new_word_pill=True,
     )
     assert draft.new_word_pill and draft.missable
+
+
+def test_S032_is_declared_and_unreachable_in_this_phase_by_name() -> None:
+    """Picture select is in the table, out of the phase, and refused with a reason.
+
+    A shape nobody emits because the code quietly stopped calling it is indistinguishable
+    from a shape nobody has written yet. `route()` raising `ShapeNotAvailable` is what
+    makes the absence a decision: S032's cards are "illustration + target label"
+    (`deep/01` §S1) and the prompt quotes the target word, so with no illustration the
+    only thing on the cards is the word the prompt already gave away. Nothing can supply
+    that art — `art/README.md`'s v1 inventory names S034's avatars and no per-lexeme
+    illustration, and the frozen `exercise` contract has no field to reference one, so
+    every pack row would carry `illustration_ref` NULL.
+    """
+    assert shape("picture_select").available_from == "P3"
+    with pytest.raises(ShapeNotAvailable, match="P3"):
+        route("picture_select", "lexeme", phase="P2")
+    # Still reachable the moment the art track's phase arrives, unchanged in every
+    # other respect: punitive, lexeme-focused, pill-eligible, two distractors.
+    later = route("picture_select", "lexeme", phase="P3")
+    assert (later.punitive, later.new_word_eligible, later.distractor_count) == (True, True, 2)
+    # And the lexeme shapes that CAN ship in this phase are the two the item plan uses.
+    assert {item.id for item in shapes_for_focus("lexeme", phase="P2")} == {
+        "meaning_select",
+        "match_pairs",
+    }
 
 
 def test_a_shape_from_a_later_phase_is_refused_not_silently_skipped() -> None:
@@ -645,7 +772,12 @@ def test_the_stage_runs_end_to_end_with_the_declared_fallback_aligner() -> None:
     # was missing from this assertion while the report claimed all three shipped, and
     # `match_pairs` in fact did not: a shape named in a report and absent from the
     # assertion set is a shape nobody is checking.
-    assert {"picture_select", "meaning_select", "match_pairs"} <= shapes
+    # The recognition row is `meaning_select` + `match_pairs`. `picture_select` is NOT
+    # here and its absence is asserted below by the set equality: S032 is gated to P3
+    # because its cards are an illustration nothing in this repository can produce
+    # (see `test_S032_is_declared_and_unreachable_in_this_phase_by_name`).
+    assert {"meaning_select", "match_pairs"} <= shapes
+    assert "picture_select" not in shapes
     assert {"word_bank_forward", "word_bank_reverse"} <= shapes
     assert {"typed_translate_forward", "typed_translate_reverse"} <= shapes
     assert {"tap_what_you_hear", "type_what_you_hear", "listen_for_the_missing_word"} <= shapes
@@ -718,6 +850,259 @@ def test_INV_PACK_08_the_written_packs_answers_are_all_in_the_declared_register(
     assert [f for f in check_v6(records, lang=LANG) if f.severity == "blocking"] == []
 
 
+# ---------------------------------------------------------------------------
+# 4b. The gap slots: B14, B16, and ruling B9(b)
+# ---------------------------------------------------------------------------
+
+
+def _write_gap_ledger(gaps: list[dict[str, Any]]) -> None:
+    """The fixture ledger plus extra GAP slots, each with its G5 candidate row.
+
+    `gaps` entries are `{slot_index, text, translation, analysis, new_lemmas, candidate}`;
+    a `candidate` of `False` writes the gap slot and NO candidate row, which is the
+    starved slot of B14. The g5/g6 runlog entries are written because `expand` requires
+    them the moment any selected item is a gap.
+    """
+    _write_ledger()
+    selected = [dict(record) for record in read_records("selected_item", lang=LANG)]
+    candidates: list[dict[str, Any]] = []
+    for gap in gaps:
+        selected.append(
+            {
+                "schema_version": 1,
+                "lang": LANG,
+                "unit_index": 1,
+                "lesson_index": 1,
+                "slot_index": gap["slot_index"],
+                "sentence_id": None,
+                "provenance": "llm",
+                "gap": True,
+                "new_lemmas": gap.get("new_lemmas", []),
+                "known_lemmas": ["el", "pan", "estar", "caliente"],
+                "grammar_concept": "present tense -er verbs",
+            }
+        )
+        if gap.get("candidate", True):
+            candidates.append(
+                {
+                    "schema_version": 1,
+                    "lang": LANG,
+                    "candidate_id": sentence_id(LANG, gap["text"]),
+                    "unit_index": 1,
+                    "lesson_index": 1,
+                    "slot_index": gap["slot_index"],
+                    "text": gap["text"],
+                    "translation": gap["translation"],
+                    "author": "test",
+                    "generated_at": "2026-09-12",
+                    "accepted": True,
+                    "reject_reason": None,
+                    "provenance": "llm",
+                    "analysis": gap.get("analysis"),
+                }
+            )
+    write_records("selected_item", selected, lang=LANG)
+    write_records("candidate", candidates, lang=LANG)
+    runlog = RunLog(LANG)
+    for stage_id in ("g5", "g6"):
+        with runlog.stage(stage_id, tool="coursekit", tool_version="test") as entry:
+            entry.written = len(candidates)
+
+
+def _build() -> Any:
+    return runner.invoke(
+        app, ["build", LANG, "--only", "g7", "--set", "align_engine=deterministic"]
+    )
+
+
+#: An authored sentence whose gap lands on an INFLECTED surface, which is the whole of
+#: B16: `libros` is in no lexicon, `libro` is a banded A1 noun in the fixture ledger.
+_AUTHORED = {
+    "slot_index": 8,  # 8 % 5 == 3 -> the fill_in_the_blank row of SENTENCE_FORM_PLAN
+    "text": "Los libros están sobre las mesas.",
+    "translation": "The books are on the tables.",
+    "new_lemmas": [],
+    "analysis": _analysis(
+        [
+            ("Los", "el", "DET"),
+            ("libros", "libro", "NOUN"),
+            ("están", "estar", "AUX"),
+            ("sobre", "sobre", "ADP"),
+            ("las", "el", "DET"),
+            ("mesas", "mesa", "NOUN"),
+        ]
+    ),
+}
+
+
+def test_B14_a_starved_gap_slot_is_a_stage_result_not_a_traceback() -> None:
+    """B14, and the message is the blockers file's, verbatim.
+
+    Measured before the fix: `KeyError: 'selected slot (1, 1, 8) is a gap and no
+    accepted candidate exists for it. …'` — raised out of pass 1, which is the one pass
+    that was outside the stage's `try`, so the dispatcher printed a Python traceback
+    where every other content failure prints one line and exits 4. Founder ruling B14:
+    `StageResult(ok=False)`, message verbatim.
+    """
+    # The type is part of the fix: `KeyError.__str__` renders the repr of its argument,
+    # so a KeyError carrying a sentence prints it wrapped in quotes.
+    assert issubclass(StarvedSlot, LookupError) and not issubclass(StarvedSlot, KeyError)
+
+    _write_gap_ledger([{**_AUTHORED, "candidate": False}])
+    result = _build()
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "Traceback" not in result.output, result.output
+    assert "KeyError" not in result.output, result.output
+    assert (
+        "is a gap and no accepted candidate exists for it. G5 over-generates and G6 "
+        "rejects; a slot with no survivor is a content failure, not something G7 may "
+        "fill."
+    ) in result.output.replace("\n", " ")
+
+
+def test_B16_an_authored_candidate_with_no_analysis_stops_the_stage_by_name() -> None:
+    """B16's coded rule: the field is nullable, so the refusal has to be in the stage.
+
+    `artifacts.CANDIDATE` cannot express "non-null exactly when G7 will read it" — a row
+    rejected before the analyser ran legitimately carries `null` — so an authored row
+    that REACHES expansion with `analysis: null` stops the stage naming its
+    `candidate_id`. The alternative is the bug the field was added to delete: fall back
+    to the casefolded surface and hand `libros` to a distractor core keyed by lemma.
+    """
+    assert issubclass(MissingAnalysis, ValueError)
+
+    _write_gap_ledger([{**_AUTHORED, "analysis": None}])
+    result = _build()
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "Traceback" not in result.output, result.output
+    assert sentence_id(LANG, _AUTHORED["text"]) in result.output
+    assert "analysis: null" in result.output
+    assert "B16" in result.output
+
+
+def test_B16_the_gap_distractors_come_from_the_analysis_lemma_not_the_surface() -> None:
+    """The read side of B16, on a real stage run over an authored candidate.
+
+    `Los libros están sobre las mesas.` gaps on `libros` (the longest token, ties to the
+    earliest). `libros` is a surface and is in no lexicon; `libro` is its lemma and a
+    banded A1 noun. Before the fix the rule core was asked for two same-POS same-band
+    lexemes for `libros`, found POS empty and band `unbanded`, and stopped the stage —
+    the measured failure was `needed 3 distractors for 'tardes' (POS , band unbanded)`.
+    """
+    _write_gap_ledger([_AUTHORED])
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+
+    records = [dict(record) for record in read_records("exercise", lang=LANG)]
+    clozes = [
+        record
+        for record in _of_shape(records, "fill_in_the_blank")
+        if record["source_sentence_id"] is None
+    ]
+    assert len(clozes) == 1, [record["prompt"] for record in clozes]
+    cloze = clozes[0]
+    assert cloze["accepted_answers"] == ["libros"]
+    assert GAP_MARKER in cloze["prompt"]
+    assert len(cloze["distractors"]) == shape("fill_in_the_blank").distractor_count
+    # Same POS as the ANSWER'S LEMMA, which is the guarantee the surface could not give.
+    pos_of = {row["lemma"]: row["pos"] for row in _banded()}
+    assert pos_of["libro"] == "NOUN"
+    assert all(pos_of.get(option) == "NOUN" for option in cloze["distractors"]), (
+        cloze["distractors"]
+    )
+    # And the item's lemma tags are the ANALYSIS's lemmas, not casefolded surfaces.
+    assert "libro" in cloze["item_tags"]["lemmas"]
+    assert "libros" not in cloze["item_tags"]["lemmas"]
+
+
+def test_INV_PACK_07_a_word_or_fixed_phrase_is_a_lexeme_item_not_a_sentence_one() -> None:
+    """[INV-PACK-07] ruling B9(b), end to end: a two-token slot ships no sentence shape.
+
+    Lesson 1 is words and fixed phrases. Every sentence shape degenerates on one or two
+    display tokens — a word bank whose answer is one tile among four, a cloze that
+    blanks the only word on screen — and every one of them degenerates into a VALID
+    record, so nothing downstream can catch it. `focus_for_item` keeps them out, the
+    lemma is taught by the lexeme pass instead, and INV-PACK-07 still holds over the
+    whole written pack.
+    """
+    from coursekit.validators.exercise import check_pack_07, item_keys
+
+    _write_gap_ledger(
+        [
+            {
+                "slot_index": 5,
+                "text": "La mesa.",
+                "translation": "The table.",
+                "new_lemmas": [],
+                "analysis": _analysis([("La", "el", "DET"), ("mesa", "mesa", "NOUN")]),
+            }
+        ]
+    )
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+
+    records = [dict(record) for record in read_records("exercise", lang=LANG)]
+    # Nothing renders the phrase as a sentence: no prompt quotes it, in either direction.
+    for record in records:
+        assert "La mesa." not in record["prompt"], record["prompt"]
+        assert "The table." not in record["prompt"], record["prompt"]
+    # It is counted rather than silently dropped.
+    entry = read_entries(LANG, stage="g7")[-1]
+    assert entry["notes"]["phrase_slots"] == 1
+    # And `mesa` is still taught, as a lexeme item with two punitive forms.
+    punitive: dict[str, set[str]] = {}
+    for record in records:
+        found = shape_of_record(record)
+        if not found.punitive:
+            continue
+        for key in item_keys(record):
+            punitive.setdefault(key, set()).add(found.id)
+    assert punitive["lexeme:mesa"] >= {LEXEME_FORM_PLAN[0], LEXEME_MATCH_SHAPE}
+    assert [f for f in check_pack_07(records) if f.severity == "blocking"] == []
+
+
+def test_a_word_or_fixed_phrase_never_reaches_a_sentence_shape_by_construction() -> None:
+    """The same rule as a unit, over the boundary rather than over one example."""
+    from coursekit.exercises.shapes import focus_for_item
+
+    assert LEXEME_FOCUS_MAX_DISPLAY_TOKENS == 2
+    for count in range(1, LEXEME_FOCUS_MAX_DISPLAY_TOKENS + 1):
+        assert focus_for_item(count) == "lexeme"
+        for item in shapes_for_focus(focus_for_item(count)):
+            assert item.focuses == ("lexeme",), item.id
+    assert focus_for_item(LEXEME_FOCUS_MAX_DISPLAY_TOKENS + 1) == "sentence"
+    with pytest.raises(RoutingError):
+        focus_for_item(0)
+
+
+def test_INV_PACK_51_no_two_tiles_in_one_item_share_a_rendered_label() -> None:
+    """[INV-PACK-51] over the written pack: options, match rows, word-bank tiles.
+
+    The ledger half of this id is `test_ledger_unit.py`'s; this is the EXERCISE half —
+    "no two tiles in one item share a rendered label" — checked on what G7 actually
+    wrote rather than on a hand-built record. Two identical labels in one option list is
+    an item with two right answers or two wrong ones, and the learner cannot tell which
+    tap was counted.
+    """
+    records = _built_records()
+    for record in records:
+        found = shape_of_record(record)
+        if found.id == "match_pairs":
+            rows = [row.partition(MATCH_PAIR_SEPARATOR) for row in record["accepted_answers"]]
+            assert len({left for left, _sep, _right in rows}) == len(rows), record["prompt"]
+            assert len({right for _left, _sep, right in rows}) == len(rows), record["prompt"]
+            continue
+        if not record["distractors"]:
+            continue
+        tiles = [*record["accepted_answers"], *record["distractors"]]
+        if found.id in {"word_bank_forward", "word_bank_reverse", "tap_what_you_hear"}:
+            # A word bank legitimately repeats a TOKEN of the answer (`el … el`), and the
+            # measured S035 mechanic gives each repeat its own tile. What may not repeat
+            # is a DECOY against the answer or against another decoy.
+            tiles = record["distractors"]
+        assert len(set(tiles)) == len(tiles), (found.id, tiles)
+
+
 def test_the_stage_is_byte_identical_across_two_runs() -> None:
     """A rebuild that changed nothing must change nothing: the FSRS item ids, the
     content-addressed audio and the player's saved tile indices all ride on it."""
@@ -767,15 +1152,27 @@ def test_S033_match_pairs_is_emitted_by_a_real_run_with_five_rows() -> None:
     """
     records = _built_records()
     matches = _of_shape(records, "match_pairs")
-    assert len(matches) == 1, [record["prompt"] for record in matches]
-    match = matches[0]
-    assert len(match["accepted_answers"]) == MATCH_PAIRS_PER_EXERCISE
-    assert len(match["item_tags"]["lemmas"]) == MATCH_PAIRS_PER_EXERCISE
-    for row in match["accepted_answers"]:
-        lemma, _separator, gloss = row.partition(MATCH_PAIR_SEPARATOR)
-        assert lemma in match["item_tags"]["lemmas"]
-        assert gloss and gloss != lemma
-    assert match["prompt"].startswith("Tap the matching pairs\n")
+    # TWO matches over seven eligible lemmas: one cut of five, then a final cut of the
+    # unit's LAST five, which picks up the two leftovers by re-using three lemmas that
+    # are already matched. A short final cut would leave those two with one punitive
+    # form each and fail INV-PACK-07, which is why the cut is five or nothing.
+    assert len(matches) == 2, [record["prompt"] for record in matches]
+    assert all(len(m["accepted_answers"]) == MATCH_PAIRS_PER_EXERCISE for m in matches)
+    for match in matches:
+        assert len(match["item_tags"]["lemmas"]) == MATCH_PAIRS_PER_EXERCISE
+        for row in match["accepted_answers"]:
+            lemma, _separator, gloss = row.partition(MATCH_PAIR_SEPARATOR)
+            assert lemma in match["item_tags"]["lemmas"]
+            assert gloss and gloss != lemma
+        assert match["prompt"].startswith("Tap the matching pairs\n")
+    # Every introduced lexeme is in at least one match: that is the second punitive form
+    # INV-PACK-07 needs, and the pass will not introduce a lemma it cannot match.
+    matched = {lemma for match in matches for lemma in match["item_tags"]["lemmas"]}
+    introduced = {
+        record["item_tags"]["lemmas"][0]
+        for record in _of_shape(records, LEXEME_FORM_PLAN[0])
+    }
+    assert introduced and introduced <= matched, introduced - matched
 
 
 def test_INV_PACK_07_a_match_is_only_built_over_lemmas_already_taught_twice() -> None:
@@ -797,9 +1194,17 @@ def test_INV_PACK_07_a_match_is_only_built_over_lemmas_already_taught_twice() ->
             continue
         for key in item_keys(record):
             punitive_by_key.setdefault(key, set()).add(found.id)
-    for lemma in match["item_tags"]["lemmas"]:
-        others = punitive_by_key[f"lexeme:{lemma}"] - {"match_pairs"}
-        assert len(others) >= MIN_FORMS_PER_MISSABLE_ITEM, (lemma, others)
+    for match in _of_shape(records, "match_pairs"):
+        for lemma in match["item_tags"]["lemmas"]:
+            others = punitive_by_key[f"lexeme:{lemma}"] - {"match_pairs"}
+            # AT LEAST ONE, not two, and the number is load-bearing rather than relaxed:
+            # a lexeme item's punitive forms are its `LEXEME_FORM_PLAN` drill plus the
+            # match, so the match is the SECOND form and `others` is the first. It was
+            # two while `picture_select` also shipped; S032 is gated to P3 for want of an
+            # illustration, and a match over a lemma with ZERO other punitive forms is
+            # still the bug this test is about.
+            assert len(others) >= 1, (lemma, others)
+            assert len(others) + 1 >= MIN_FORMS_PER_MISSABLE_ITEM, (lemma, others)
     assert [f for f in check_pack_07(records) if f.severity == "blocking"] == []
 
 
@@ -967,35 +1372,45 @@ def test_S039_the_written_ending_drill_reassembles_into_a_real_surface_form() ->
 def test_a_sentence_with_no_separable_ending_authors_no_ending_drill() -> None:
     """Dropped, never faked — and safe, because a grammar draft is filed under its
     sentence item, whose form-plan row already carries two punitive shapes."""
-    from coursekit.exercises.distractors import DistractorPool, L1DecoyPool
-    from coursekit.stages.g7_expand import ExpansionInputs, _ending_target
+    from coursekit.stages.g7_expand import _ending_target
 
-    sid = "aaaaaaaaaaaa0001"
-    inputs = ExpansionInputs(
-        lang=LANG,
-        analysed={
-            sid: {
-                "tokens": [
-                    {"surface": "El", "lemma": "el", "pos": "DET"},
-                    {"surface": "pan", "lemma": "pan", "pos": "NOUN"},
-                ],
-                "display_tokens": ["El", "pan"],
-                "lemmas": ["el", "pan"],
-            }
+    analysis = {
+        "analyser": _ADAPTER,
+        "tokens": [
+            {"surface": "El", "lemma": "el", "pos": "DET", "morph": "", "start": 0, "end": 2},
+            {"surface": "pan", "lemma": "pan", "pos": "NOUN", "morph": "", "start": 3, "end": 6},
+        ],
+        "display_tokens": ["El", "pan"],
+        "lemmas": ["el", "pan"],
+    }
+    slot = _slot("El pan", "The bread", analysis=analysis, sid="aaaaaaaaaaaa0001")
+    assert _ending_target(slot, ["El", "pan"], LANG) is None
+    # A sentence with NO analysis at all gets no drill either: a segmentation is a claim
+    # about a lemma and a POS, and there is no way to make one from a bare surface.
+    assert _ending_target(_slot("El pan", "The bread"), ["El", "pan"], LANG) is None
+    # An AUTHORED candidate is no longer in that category. It carries G5's analysis
+    # (B16), so its endings segment like any other sentence's — `corre` off `correr`.
+    authored = _slot(
+        "Ella corre",
+        "She runs",
+        analysis={
+            "analyser": _ADAPTER,
+            "tokens": [
+                {
+                    "surface": "Ella", "lemma": "ella", "pos": "PRON",
+                    "morph": "", "start": 0, "end": 4,
+                },
+                {
+                    "surface": "corre", "lemma": "correr", "pos": "VERB",
+                    "morph": "", "start": 5, "end": 10,
+                },
+            ],
+            "display_tokens": ["Ella", "corre"],
+            "lemmas": ["ella", "correr"],
         },
-        units={},
-        selected=[],
-        candidates={},
-        translations={},
-        texts={},
-        pool=DistractorPool(),
-        l1_pool=L1DecoyPool(),
-        pos_of={},
-        band_of={},
+        candidate_id="b" * 16,
     )
-    assert _ending_target(inputs, sid, ["El", "pan"]) is None
-    # An authored G5 candidate has never been through G1, so it gets no drill either.
-    assert _ending_target(inputs, None, ["El", "pan"]) is None
+    assert _ending_target(authored, ["Ella", "corre"], LANG) == (1, "corr", "e")
 
 
 def test_the_alignment_pairs_ride_on_the_records_that_need_them() -> None:
@@ -1088,16 +1503,10 @@ def test_INV_PACK_40_an_authored_candidates_tiles_carry_no_punctuation() -> None
     assert _display_split("Hola, buenas noches.") == ["Hola", "buenas", "noches"]
     assert _display_split("¿Qué tal, señor?") == ["Qué", "tal", "señor"]
     assert _display_split("Sí, por favor.") == ["Sí", "por", "favor"]
-    # An authored candidate is `sid=None`, which is the branch that used to leak.
-    tokens = _target_tokens(_EMPTY_INPUTS, None, "Perdón, mi teléfono no responde.")
+    # The fallback branch: a slot with no analysis at all. It is now reachable only for
+    # a corpus sentence G1 never analysed — an AUTHORED slot with no analysis is refused
+    # by name (B16) rather than split here — and it still must not make tiles out of
+    # punctuation.
+    tokens = _target_tokens(_slot("Perdón, mi teléfono no responde.", "Sorry, my phone is dead."))
     assert tokens == ["Perdón", "mi", "teléfono", "no", "responde"]
     assert not any(token.strip(".,¿?¡!") != token for token in tokens)
-
-
-class _EmptyInputs:
-    """Just enough of `ExpansionInputs` for the `sid is None` branch."""
-
-    analysed: dict[str, Any] = {}
-
-
-_EMPTY_INPUTS: Any = _EmptyInputs()

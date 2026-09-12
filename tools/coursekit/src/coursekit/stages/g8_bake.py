@@ -47,7 +47,6 @@ from ..config import (
     ARTIFACT_SCHEMA_VERSION,
     AUDIO_BUDGET_MB,
     AUDIO_PIPELINES,
-    LOCALE_BY_LANGUAGE,
     OPUS_BITRATE_KBPS,
 )
 from ..config.g8 import (
@@ -361,7 +360,11 @@ def build_manifest(cast: Cast, entries: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "schema_version": AUDIO_MANIFEST_VERSION,
         "language": cast.language,
-        "locale": LOCALE_BY_LANGUAGE[cast.language],
+        # Ruling B6. This field used to be `locale: es-ES`, read from
+        # LOCALE_BY_LANGUAGE — a regional claim that was vendor-backed under Azure and
+        # unfalsifiable under Kokoro. The manifest now says the language and how much is
+        # known about the accent, and F2 refuses a manifest that still carries a locale.
+        "accent_claim": cast.accent_claim,
         "engine": cast.engine,
         "engine_pin": cast.engine_pin,
         "engine_licence": cast.engine_licence,

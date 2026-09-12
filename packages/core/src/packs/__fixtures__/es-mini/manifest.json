@@ -38,6 +38,7 @@
     }
   ],
   "audio": {
+    "accentClaim": "unverified",
     "bitrateKbps": 20,
     "budgetMb": 120,
     "bytes": 399,
@@ -50,7 +51,7 @@
     "codec": "opus"
   },
   "audioBytes": 399,
-  "builtAt": "2026-09-12T08:17:20+00:00",
+  "builtAt": "2026-09-12T14:05:14+00:00",
   "cefrChecked": true,
   "cefrClaim": "A1 · CEFR-checked",
   "courseId": "en-es",

@@ -28,8 +28,10 @@ from typing import Any
 
 from ..config import AUDIO_BUDGET_MB, AUDIO_PIPELINES, OPUS_BITRATE_KBPS
 from ..config.g8 import (
+    ACCENT_CLAIMS,
     AUDIO_BUDGET_BYTES,
     BYTES_PER_MB,
+    CAST_FORBIDDEN_KEYS,
     LOUDNESS_TOLERANCE_LU,
     MAX_CLIP_MS,
     MIN_CLIP_MS,
@@ -193,6 +195,48 @@ def audio_budget(ctx: ValidatorContext) -> list[Finding]:
         return [_no_manifest("F2", ctx.lang)]
 
     findings: list[Finding] = []
+
+    # -- ruling B6: language plus an accent claim, and no locale ------------
+    # The cast loader refuses a cast that still carries `locale:`, but a MANIFEST is a
+    # committed file that outlives the run that wrote it and is what the pack manifest,
+    # S002 and S133 are built from. A manifest still carrying a regional tag is the
+    # claim B6 deleted, sitting in the artefact that travels.
+    if manifest.get("language") != ctx.lang:
+        findings.append(
+            Finding(
+                validator_id="F2",
+                severity="blocking",
+                message=(
+                    f"manifest declares language {manifest.get('language')!r}, validated "
+                    f"as {ctx.lang!r}"
+                ),
+                subject=ctx.lang,
+            )
+        )
+    for key, ruling in CAST_FORBIDDEN_KEYS.items():
+        if key in manifest:
+            findings.append(
+                Finding(
+                    validator_id="F2",
+                    severity="blocking",
+                    message=f"manifest still carries `{key}`: {ruling}",
+                    subject=ctx.lang,
+                )
+            )
+    if manifest.get("accent_claim") not in ACCENT_CLAIMS:
+        findings.append(
+            Finding(
+                validator_id="F2",
+                severity="blocking",
+                message=(
+                    f"manifest accent_claim is {manifest.get('accent_claim')!r}, not one "
+                    f"of {', '.join(ACCENT_CLAIMS)} (ruling B6). The bank is baked on an "
+                    f"engine that publishes no locale sub-tag, so the only evidence that "
+                    f"could raise this claim is the 300-item native-reviewer sample."
+                ),
+                subject=ctx.lang,
+            )
+        )
 
     # -- the three fields the invariant names -------------------------------
     if manifest.get("codec") != "opus":
@@ -378,6 +422,7 @@ def audio_budget(ctx: ValidatorContext) -> list[Finding]:
     ctx.entry.note(
         codec=manifest.get("codec"),
         bitrate_kbps=manifest.get("bitrate_kbps"),
+        accent_claim=manifest.get("accent_claim"),
         declared_bytes=declared,
         budget_bytes=AUDIO_BUDGET_BYTES,
         pipelines=sorted(pipelines),

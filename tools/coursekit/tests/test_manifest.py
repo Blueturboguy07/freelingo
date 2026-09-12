@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from coursekit.config import AUDIO_BUDGET_MB
 from coursekit.config.g9 import MANIFEST_REQUIRED_FIELDS, PACK_DB_FILENAME
 from coursekit.packbuild.manifest import (
+    accent_claim_for,
     build_manifest,
     ledger_unit_declarations,
     licence_rows,
@@ -197,6 +199,73 @@ def test_the_audio_budget_covers_all_three_pipelines(tmp_path: Path) -> None:
 
     partial = {**manifest, "audio": {**manifest["audio"], "bytesByPipeline": {"lesson": 1}}}
     assert any("story, radio" in line for line in manifest_violations(partial))
+
+
+def test_the_audio_block_declares_an_accent_claim_and_no_locale(tmp_path: Path) -> None:
+    """Founder ruling B6, carried into the artefact a device actually reads.
+
+    The bank is baked on Kokoro, which publishes no locale sub-tag for its Spanish
+    voices, so `es-ES` was a claim nothing in the toolchain could falsify. What the pack
+    says instead is its language plus how much is known about the accent — and the gate
+    refuses the two ways that can go wrong: a claim nobody has evidence for, and no
+    claim at all.
+
+    It rides inside the existing `audio` block rather than as a new top-level field
+    because `install.ts::parsePackManifest` reads a fixed list of top-level fields and
+    tolerates every other key, so no schema bump and no pack-state change is involved.
+    """
+    manifest = _built(tmp_path)
+    assert manifest["audio"]["accentClaim"] == "unverified"
+    assert "locale" not in manifest
+    assert manifest_violations(manifest) == []
+
+    for bad in ("peninsular", "", None):
+        broken = {**manifest, "audio": {**manifest["audio"], "accentClaim": bad}}
+        assert any("accentClaim" in line for line in manifest_violations(broken)), bad
+    missing = {**manifest, "audio": {
+        key: value for key, value in manifest["audio"].items() if key != "accentClaim"
+    }}
+    assert any("accentClaim" in line for line in manifest_violations(missing))
+
+    # The claim is read from the cast, which is where the decision lives, and a pack
+    # with no cast to read gets the WEAKEST claim rather than a stronger one.
+    assert accent_claim_for("es") == "unverified"
+    assert accent_claim_for("xx") == "unverified"
+
+
+def test_INV_PACK_02_item_ids_are_content_hashes_of_the_semantic_fields(
+    tmp_path: Path,
+) -> None:
+    """[INV-PACK-02] additive-only within a major version, because ids are content.
+
+    "Item ids are content-hashed and additive-only within a major version." The quarantine
+    half is `packages/core`'s; the PACK half is this: an id is a hash of the item's
+    semantic fields, so a rebuild that changes nothing produces the same id set, and a
+    rebuild that adds an exercise ADDS an id and moves none of the others. A positional
+    id would remap a learner's FSRS history onto a different sentence on any rebuild that
+    reordered the file — which is the same failure INV-PACK-41 describes for a
+    presentation-only edit, one layer up.
+    """
+    first = _built(tmp_path)
+    second = _built(tmp_path / "again")
+    assert first["itemIds"] == second["itemIds"]
+    assert first["itemIds"] and all(
+        re.fullmatch(r"i_[0-9a-f]{16}", item) for item in first["itemIds"]
+    )
+    assert len(set(first["itemIds"])) == len(first["itemIds"])
+
+    # Additive: one more exercise, one more id, and every existing id untouched.
+    inputs = fixture_inputs()
+    extra = dict(inputs.exercises[0])
+    extra["exercise_id"] = "f" * 16
+    extra["prompt"] = "Translate this sentence\nThe bread is cold."
+    extra["accepted_answers"] = ["El pan está frío."]
+    grown = replace(inputs, exercises=(*inputs.exercises, extra))
+    database = write_pack(tmp_path / "grown" / PACK_DB_FILENAME, build_rows(grown))
+    audio = repo_root() / "packages/core/src/packs/__fixtures__/es-mini/audio"
+    after = build_manifest(grown, database, audio_dir=audio)
+    assert set(first["itemIds"]) < set(after["itemIds"])
+    assert len(after["itemIds"]) == len(first["itemIds"]) + 1
 
 
 def test_the_codec_and_bitrate_are_declared(tmp_path: Path) -> None:

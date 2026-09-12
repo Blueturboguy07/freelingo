@@ -36,6 +36,7 @@ from ..config import (
     OPUS_BITRATE_KBPS,
     REVIEWER_SAMPLE_ITEMS,
 )
+from ..config.g8 import ACCENT_CLAIMS
 from ..config.g9 import (
     ITEM_ID_HEX_LENGTH,
     ITEM_ID_PREFIX,
@@ -50,6 +51,7 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle avoidance only
     from .sqlite import PackInputs
 
 __all__ = [
+    "accent_claim_for",
     "audio_bytes_on_disk",
     "build_manifest",
     "ledger_unit_declarations",
@@ -142,6 +144,25 @@ def audio_bytes_on_disk(audio_dir: Path) -> tuple[int, int]:
     return (sum(path.stat().st_size for path in files), len(files))
 
 
+def accent_claim_for(lang: str) -> str:
+    """What this pack claims about its voices' accent. Ruling B6.
+
+    Read from the cast, which is the file the decision lives in, and defaulted to
+    `DEFAULT_ACCENT_CLAIM` when there is no cast to read (a pack assembled from a seed
+    fixture, or a language whose bake has not been set up). The default is the WEAKEST
+    member of `ACCENT_CLAIMS`, which is what makes it safe: an absent cast can never
+    produce a stronger claim than a present one, so nothing can acquire a verified
+    accent by having no cast file.
+    """
+    from ..config.g8 import DEFAULT_ACCENT_CLAIM
+    from ..tts.cast import CastError, load_cast
+
+    try:
+        return load_cast(lang).accent_claim
+    except (CastError, FileNotFoundError, KeyError):
+        return DEFAULT_ACCENT_CLAIM
+
+
 def _item_ids(database: Path) -> list[str]:
     import sqlite3
 
@@ -214,6 +235,13 @@ def build_manifest(inputs: PackInputs, database: Path, *, audio_dir: Path) -> di
             "clips": clip_count,
             "budgetMb": AUDIO_BUDGET_MB,
             "bytesByPipeline": by_pipeline,
+            # Ruling B6, carried through to the artefact a device reads. The bank is
+            # baked on an engine that publishes no locale sub-tag, so the pack says the
+            # language and how much is known about the accent, and never a region.
+            # `install.ts::parsePackManifest` reads a fixed list of top-level fields and
+            # tolerates everything else, so this rides inside the existing `audio`
+            # block without a schema bump.
+            "accentClaim": accent_claim_for(inputs.lang),
         },
         "validatorReport": dict(inputs.validator_report),
         "licences": licence_rows(inputs),
@@ -294,6 +322,12 @@ def manifest_violations(manifest: Mapping[str, Any]) -> list[str]:
             )
         if audio.get("codec") != "opus":
             violations.append(f"audio codec is {audio.get('codec')}, not opus")
+        if audio.get("accentClaim") not in ACCENT_CLAIMS:
+            violations.append(
+                f"audio.accentClaim is {audio.get('accentClaim')!r}, not one of "
+                f"{', '.join(ACCENT_CLAIMS)} (ruling B6: a pack declares its language "
+                f"and how much is known about its voices' accent, never a region)"
+            )
         missing = [p for p in AUDIO_PIPELINES if p not in audio.get("bytesByPipeline", {})]
         if missing:
             violations.append(

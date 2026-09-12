@@ -240,6 +240,100 @@ def test_V5_a_sibling_exercises_accepted_answer_is_a_valid_alternative() -> None
     assert any("valid alternative translation" in finding.message for finding in findings)
 
 
+def test_V5_the_pos_clause_reads_every_attested_tag_not_the_first_one() -> None:
+    """The oracle is a SET per string, and over real content that is the difference
+    between a gate and a wall.
+
+    Measured on the real Spanish course (2026-09-12, `coursekit build es --only g7`):
+    **249 blocking POS findings**, every one of them a distractor the rule core had
+    already drawn from the answer's own POS bucket. Two causes, one shape:
+
+    * `{row["lemma"]: row["pos"]}` keeps the FIRST row for a lemma with several
+      (`prima` is a NOUN and a form of `primar`; `frío` is ADJ and NOUN), and
+      `DistractorPool` refuses to decide POS agreement from that map for exactly this
+      reason;
+    * a `wrong_form` distractor is an attested SURFACE, and looking a surface up in a
+      lemma table answers a different question — `viajas` came back PROPN.
+
+    With every attested tag in play the homograph passes and a real cross-POS tile still
+    fails, which is what the clause is for.
+    """
+    from coursekit.validators.exercise import pos_sets
+
+    banded = [
+        {"lemma": "prima", "pos": "NOUN", "band": "A1"},
+        {"lemma": "prima", "pos": "VERB", "band": "A1"},
+        {"lemma": "viajas", "pos": "PROPN", "band": "A1"},
+        {"lemma": "perro", "pos": "NOUN", "band": "A1"},
+        {"lemma": "correr", "pos": "VERB", "band": "A1"},
+    ]
+    analysed = [
+        {
+            "tokens": [
+                {"surface": "viajas", "lemma": "viajar", "pos": "VERB"},
+                {"surface": "prima", "lemma": "primar", "pos": "VERB"},
+                {"surface": "corres", "lemma": "correr", "pos": "VERB"},
+            ]
+        }
+    ]
+    attested = pos_sets(banded, analysed)
+    assert attested["prima"] == {"NOUN", "VERB"}
+    assert attested["viajas"] == {"PROPN", "VERB"}
+
+    # The one-tag map keeps ONE row per lemma and which one is an accident of how it was
+    # built: `{row["lemma"]: row["pos"]}` keeps the last, `setdefault` keeps the first.
+    # Either way it is a single answer to a question that has two.
+    single = {row["lemma"]: row["pos"] for row in banded} | {"corres": "VERB"}
+    assert single["prima"] == "VERB" and single["viajas"] == "PROPN"
+
+    verb_answer = {
+        **_option_record(["viajas", "prima"], ["corres"]),
+        "item_tags": {"lemmas": ["correr"], "grammar_concepts": []},
+        "prompt": "Fill in the blank\nTú ____ mucho.",
+        "type": "cloze",
+    }
+    validate_record("exercise", verb_answer)
+    # The old oracle blocks `viajas` (PROPN in the ledger, VERB everywhere it is used).
+    old = blocking(check_v5([verb_answer], pos_of=single))
+    assert [f for f in old if "viajas" in f.message], [f.message for f in old]
+    # Every attested tag: the mis-tagged lemma and the homograph both pass.
+    assert blocking(check_v5([verb_answer], pos_of=single, attested_pos=attested)) == []
+
+    # And a tile whose tags are disjoint from the answer's is still blocked.
+    noun_tile = {**verb_answer, "distractors": ["perro", "prima"]}
+    validate_record("exercise", noun_tile)
+    findings = blocking(check_v5([noun_tile], pos_of=single, attested_pos=attested))
+    assert [f for f in findings if "perro" in f.message], [f.message for f in findings]
+
+
+def test_V5_the_pos_clause_does_not_apply_to_an_english_option_list() -> None:
+    """An English tile has no honest UD tag in a Spanish ledger, and now says so.
+
+    The tiles here are the ones the real course produced — `the`, `not`, `hello` — and
+    the Spanish corpus really does contain them: spaCy meets an English word in a
+    Spanish sentence and tags it PROPN. Comparing that against a Spanish answer's tag is
+    a category error, and it blocked 84 records before the shape table declared which
+    option lists are rendered in English.
+    """
+    from coursekit.validators.exercise import pos_sets
+
+    reverse = {
+        **_option_record(["the", "not", "hello"], ["the bread is warm"]),
+        "type": "word_bank",
+        "prompt": "Write this in English\nEl pan está caliente.",
+        "item_tags": {"lemmas": ["pan"], "grammar_concepts": []},
+    }
+    validate_record("exercise", reverse)
+    attested = pos_sets(
+        [{"lemma": "pan", "pos": "NOUN", "band": "A1"}],
+        [{"tokens": [{"surface": "the", "lemma": "the", "pos": "PROPN"}]}],
+    )
+    findings = check_v5([reverse], pos_of={"pan": "NOUN"}, attested_pos=attested)
+    assert blocking(findings) == [], [f.message for f in findings]
+    info = [f for f in findings if f.severity == "info"]
+    assert info and info[0].detail["l1_options"] == 3
+
+
 def test_V5_clean_options_pass() -> None:
     assert blocking(check_v5([_option_record(["gato", "caballo"], ["perro"])], pos_of=POS)) == []
 
@@ -250,6 +344,10 @@ def test_V5_an_uncheckable_pos_is_reported_not_swallowed() -> None:
     Reported as `info` with a count rather than silently skipped: this project's
     recurring failure is a validator that could not look reporting the same green as
     one that looked and found nothing.
+
+    S034's options are glosses, so they are counted under `l1_options` — the shape
+    DECLARES that its options are English (`options_in_l1`) rather than the clause
+    inferring it from a failed lookup, which is the distinction the real course forced.
     """
     record = _option_record([], ["perro"])
     record = {
@@ -262,7 +360,19 @@ def test_V5_an_uncheckable_pos_is_reported_not_swallowed() -> None:
     findings = check_v5([record], pos_of=POS)
     assert blocking(findings) == []
     info = [finding for finding in findings if finding.severity == "info"]
+    assert info and info[0].detail["l1_options"] == 2
+    assert info[0].detail["unchecked_distractors"] == 0
+
+    # A COURSE-LANGUAGE option list whose strings are in no ledger is the other case,
+    # and it is still counted rather than passed: nothing declared these English, the
+    # oracle simply has no entry for them.
+    unknown = {**_option_record(["xxzz", "yyww"], ["perro"]), "prompt": "Fill in the blank\n____"}
+    unknown["type"] = "cloze"
+    validate_record("exercise", unknown)
+    findings = check_v5([unknown], pos_of=POS)
+    info = [finding for finding in findings if finding.severity == "info"]
     assert info and info[0].detail["unchecked_distractors"] == 2
+    assert info[0].detail["l1_options"] == 0
 
 
 # ---------------------------------------------------------------------------

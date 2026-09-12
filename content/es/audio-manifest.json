@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "language": "es",
-  "locale": "es-ES",
+  "accent_claim": "unverified",
   "engine": "kokoro",
   "engine_pin": "model-files-v1.0",
   "engine_licence": "Apache-2.0",

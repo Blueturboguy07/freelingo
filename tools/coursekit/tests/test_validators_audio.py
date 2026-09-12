@@ -81,7 +81,9 @@ def _manifest(clips: list[dict[str, Any]] | None = None, **overrides: Any) -> di
     manifest = {
         "schema_version": AUDIO_MANIFEST_VERSION,
         "language": "es",
-        "locale": "es-ES",
+        # Ruling B6: the language, plus how much is known about the accent. This was
+        # `"locale": "es-ES"`, and F2 now treats that key as a blocking finding.
+        "accent_claim": "unverified",
         "engine": "kokoro",
         "engine_pin": "model-files-v1.0",
         "engine_licence": "Apache-2.0",
@@ -154,6 +156,40 @@ def test_a_clean_manifest_passes_f2(plant) -> None:
     """The gate has to be able to say yes, or every other test here is vacuous."""
     plant(_manifest())
     assert _blocking(audio_budget(_context())) == []
+
+
+def test_a_manifest_that_still_declares_a_locale_is_blocking(plant) -> None:
+    """Ruling B6, on the artefact that travels.
+
+    The cast loader refuses a cast with a `locale:`, but the MANIFEST is the committed
+    file the pack manifest, S002 and S133 are built from, and it outlives the run that
+    wrote it. A regional claim sitting in it is the claim the ruling deleted, in the one
+    place a reader would believe it.
+    """
+    plant(_manifest(locale="es-ES"))
+    findings = _blocking(audio_budget(_context()))
+    assert any("locale" in message and "B6" in message for message in findings), findings
+
+
+def test_a_manifest_with_no_accent_claim_is_blocking(plant) -> None:
+    """An absent claim is not a pass; the field is what a reader is told."""
+    manifest = _manifest()
+    del manifest["accent_claim"]
+    plant(manifest)
+    assert any("accent_claim" in message for message in _blocking(audio_budget(_context())))
+
+
+def test_a_manifest_claiming_a_verified_accent_is_blocking(plant) -> None:
+    """Nothing in this toolchain can produce that claim, so nothing may declare it.
+
+    Kokoro publishes no locale sub-tag and its Spanish G2P is generic espeak-ng; the
+    only falsifier is the 300-item native-reviewer sample (B3), and until it is scored
+    `ACCENT_CLAIMS` has one member.
+    """
+    plant(_manifest(accent_claim="peninsular_verified"))
+    assert any(
+        "native-reviewer sample" in message for message in _blocking(audio_budget(_context()))
+    )
 
 
 def test_inv_pack_15_a_lessons_only_manifest_is_blocking(plant) -> None:

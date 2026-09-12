@@ -51,7 +51,7 @@ would make the exercise artefact mutable, and every id downstream of it with it.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Final
 
 from .. import __version__
@@ -59,19 +59,23 @@ from ..artifacts import read_records, sentence_id, write_records
 from ..config import EXERCISE_TYPES, TOOL_NAME
 from ..config.g7 import (
     CHAT_TURN_SEPARATOR,
+    CURRENT_PHASE,
     DEFAULT_REGISTER_BY_SLOT,
     ENDING_POS_PREFERENCE,
     ENDING_SEGMENTATION_LANGUAGES,
     GAP_MARKER,
     GRAMMAR_FORM_PLAN,
     LEXEME_FORM_PLAN,
+    LEXEME_MATCH_SHAPE,
     MATCH_PAIR_SEPARATOR,
     MATCH_PAIRS_PER_EXERCISE,
     MAX_ENDING_CHARS,
     MIN_ENDING_STEM_CHARS,
     MIN_FORMS_PER_MISSABLE_ITEM,
+    PHASE_ORDER,
     REGISTERS,
     SENTENCE_FORM_PLAN,
+    SHAPES,
     SPANISH_INFINITIVE_ENDINGS,
     VERB_POS,
 )
@@ -81,16 +85,50 @@ from ..exercises.distractors import (
     DistractorPool,
     L1DecoyPool,
     NotEnoughDistractors,
+    normalise,
     rule_core_distractors,
 )
-from ..exercises.shapes import ExerciseDraft, shape
+from ..exercises.shapes import ExerciseDraft, focus_for_item, shape
 from ..exercises.wordbank import Hint, build_hints, build_word_bank
 from ..ledger import surface_tokens
 from ..runlog import require_successful
-from ..validators.exercise import check_pack_07, check_pack_50, check_v5
+from ..validators.exercise import check_pack_07, check_pack_50, check_v5, pos_sets
 from . import StageContext, StageResult, register_stage
 
-__all__ = ["ExpansionInputs", "ending_split", "expand", "expand_item"]
+__all__ = [
+    "ExpansionInputs",
+    "MissingAnalysis",
+    "ResolvedSlot",
+    "StarvedSlot",
+    "ending_split",
+    "expand",
+    "expand_item",
+]
+
+
+class StarvedSlot(LookupError):
+    """A gap slot G6 left with no accepted candidate.
+
+    B14: the message was always right and the type was always wrong. Every other stage
+    reports a content failure as `StageResult(ok=False, ...)` and the dispatcher exits 4
+    with one line; this one raised a bare `KeyError` out of pass 1, which is outside the
+    `try` the other failures are caught in, so it printed a Python traceback. A
+    `LookupError` rather than a `KeyError` because `KeyError.__str__` wraps the message in
+    the repr of its argument, and the message is meant to be read by a person.
+    """
+
+
+class MissingAnalysis(ValueError):
+    """An authored candidate G7 must expand whose `analysis` is `null`.
+
+    The coded half of the B16 contract, and the whole reason `candidate.analysis` was
+    added to the frozen record. `artifacts.CANDIDATE`'s docstring states the rule: "an
+    authored row G7 is asked to expand and whose `analysis` is null stops the stage naming
+    the candidate_id, rather than silently falling back to the surface, which is the bug
+    this field exists to delete." No schema keyword can say "non-null exactly when G7 will
+    read it" (a row rejected on an axis evaluated before the analyser runs legitimately
+    carries `null`), so the check lives here.
+    """
 
 
 @dataclass(slots=True)
@@ -111,6 +149,11 @@ class ExpansionInputs:
     l1_pool: L1DecoyPool
     pos_of: dict[str, str]
     band_of: dict[str, str]
+    #: `string -> every UD tag the course attests for it`, from the banded ledger and
+    #: every token G1 tagged. The V5 gate compares SETS: a `wrong_form` distractor is an
+    #: attested surface, and looking a surface up in a lemma table answers a different
+    #: question — see `validators/exercise.py::pos_sets`.
+    pos_sets: dict[str, set[str]] = field(default_factory=dict)
 
 
 def _load(lang: str) -> ExpansionInputs:
@@ -141,30 +184,83 @@ def _load(lang: str) -> ExpansionInputs:
         ),
         pos_of={row["lemma"]: row["pos"] for row in banded},
         band_of={row["lemma"]: row["band"] for row in banded},
+        pos_sets=pos_sets(banded, analysed.values()),
     )
 
 
-def _resolve_text(inputs: ExpansionInputs, item: Mapping[str, Any]) -> tuple[str, str, str | None]:
-    """`(target text, English translation, source_sentence_id or None)` for one slot.
+@dataclass(frozen=True, slots=True)
+class ResolvedSlot:
+    """One selected slot, resolved: its text, its translation, and its ANALYSIS.
 
-    A gap slot resolves to its accepted G5 candidate and carries `source_sentence_id:
-    null`, which is how the pack records "this sentence was authored, not selected" —
-    the provenance percentage in the manifest is computed from exactly this.
+    The analysis is the point. A corpus slot gets G1's `analysed_sentence` row; an
+    authored slot gets the `analysis` G5 wrote onto its `candidate` record (B16, option
+    2), which is the same four fields in the same shape from the same pinned adapter. So
+    every reader below — the word-bank tiles, the cloze lemma, the ending segmentation —
+    treats a corpus row and an authored row identically instead of having a second,
+    worse code path for authored text. That second path is where B15 and B16 both lived:
+    a bare whitespace split made `Hola,` a tile, and a casefolded surface made `tardes`
+    the lemma handed to the distractor core, which has no row for it.
+    """
+
+    text: str
+    translation: str
+    #: `None` for an authored slot. It is also what the pack records as
+    #: `source_sentence_id`, which is how the manifest's provenance split is computed.
+    sid: str | None
+    #: G1's row or G5's `candidate.analysis`, in G1's shape. `None` only for a corpus
+    #: sentence G1 never analysed.
+    analysis: Mapping[str, Any] | None
+    #: The authored row this slot came from, for the message an error has to name.
+    candidate_id: str | None
+
+
+def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
+    """Resolve one slot, or fail by name. Never returns a slot G7 has to guess about.
+
+    Two named failures, and both used to be something worse:
+
+    * a **starved** gap slot raised a bare `KeyError` out of a pass the stage does not
+      catch, so it printed a traceback where every other stage prints a line (B14);
+    * an authored row with **no analysis** silently fell back to the surface at the gap
+      index, and the surface of an inflected form is in no lexicon (B16).
     """
     if item["gap"]:
         key = (item["unit_index"], item["lesson_index"], item["slot_index"])
         candidate = inputs.candidates.get(key)
         if candidate is None:
-            raise KeyError(
+            raise StarvedSlot(
                 f"selected slot {key} is a gap and no accepted candidate exists for it. "
                 "G5 over-generates and G6 rejects; a slot with no survivor is a content "
                 "failure, not something G7 may fill."
             )
-        return candidate["text"], candidate["translation"], None
+        analysis = candidate.get("analysis")
+        if analysis is None:
+            raise MissingAnalysis(
+                f"candidate {candidate['candidate_id']} (slot {key}, "
+                f"{candidate['text']!r}) carries analysis: null and G7 is being asked to "
+                "expand it. G5 writes its own adapter pass onto every row it analysed; a "
+                "null there means this row was rejected before the analyser ran, so it "
+                "cannot be an accepted candidate. G7 will not fall back to the surface: "
+                "that fallback handed 'tardes' to the distractor core where 'tarde' "
+                "belongs, and it is the bug candidate.analysis exists to delete (B16)."
+            )
+        return ResolvedSlot(
+            text=candidate["text"],
+            translation=candidate["translation"],
+            sid=None,
+            analysis=analysis,
+            candidate_id=str(candidate["candidate_id"]),
+        )
     sid = item["sentence_id"]
     if sid not in inputs.texts:
-        raise KeyError(f"selected item names sentence {sid} which G0 never ingested")
-    return inputs.texts[sid], inputs.translations[sid], sid
+        raise StarvedSlot(f"selected item names sentence {sid} which G0 never ingested")
+    return ResolvedSlot(
+        text=inputs.texts[sid],
+        translation=inputs.translations[sid],
+        sid=sid,
+        analysis=inputs.analysed.get(sid),
+        candidate_id=None,
+    )
 
 
 #: The characters a whitespace split leaves glued to a word. G1's `display_tokens` are
@@ -201,17 +297,34 @@ def _display_split(text: str) -> list[str]:
     ]
 
 
-def _target_tokens(inputs: ExpansionInputs, sid: str | None, text: str) -> list[str]:
-    """G1's `display_tokens` where the sentence was analysed, else a stripped split."""
-    if sid is not None and sid in inputs.analysed:
-        return list(inputs.analysed[sid]["display_tokens"])
-    return _display_split(text)
+def _target_tokens(slot: ResolvedSlot) -> list[str]:
+    """The analysis's `display_tokens`, whoever analysed it. Else a stripped split.
+
+    The fallback is now reachable for ONE case only: a corpus sentence G0 ingested and G1
+    never analysed. An authored slot cannot reach it — `_resolve` refuses a `null`
+    analysis by name — which is what makes the tiles and the lemmas below the same list
+    for authored and corpus text alike.
+    """
+    if slot.analysis is not None:
+        return list(slot.analysis["display_tokens"])
+    return _display_split(slot.text)
 
 
-def _lemmas_for(inputs: ExpansionInputs, sid: str | None, text: str) -> list[str]:
-    if sid is not None and sid in inputs.analysed:
-        return list(inputs.analysed[sid]["lemmas"])
-    return [token.casefold() for token in _display_split(text)]
+def _lemmas_for(slot: ResolvedSlot) -> list[str]:
+    """The analysis's `lemmas`, index-aligned with `_target_tokens`.
+
+    THE CASEFOLDED SURFACE IS GONE, and it is what B16 was about. This used to return
+    `[token.casefold() for token in _display_split(text)]` for every authored slot, so
+    `_anchor_lemma` handed the distractor core `tardes` (a surface) where `tarde` (a
+    lemma) belongs: `pos_of`/`band_of` are keyed by lemma because `banded_lemma` is, the
+    lookup missed, POS came out empty and the band `unbanded`, and the rule core found
+    zero candidates and stopped the stage. Every authored item whose gap lands on an
+    inflected or capitalised form was exposed, which over 490 authored slots is most of
+    them.
+    """
+    if slot.analysis is not None:
+        return list(slot.analysis["lemmas"])
+    return [token.casefold() for token in _display_split(slot.text)]
 
 
 def ending_split(surface: str, lemma: str, pos: str, lang: str) -> tuple[str, str] | None:
@@ -287,17 +400,24 @@ def expand_item(
     inputs: ExpansionInputs,
     item: Mapping[str, Any],
     *,
+    slot: ResolvedSlot,
     alignment: Sequence[tuple[int, int]],
     register: str,
     alternatives: AlternativesIndex,
-    glosses: Mapping[str, str],
 ) -> list[ExerciseDraft]:
-    """Every draft for one selected slot: its sentence forms, its new lexemes, its concept.
+    """Every SENTENCE and GRAMMAR draft for one selected slot. Nothing lexeme-focused.
 
-    The shape list per focus comes from the form plan in `config/g7.py`, rotated by
-    `slot_index` so a lesson does not render one sentence thirteen ways. Every row of
-    every plan carries two punitive shapes, which is where INV-PACK-07 is actually
-    satisfied — the validator that follows is there to catch a plan somebody edits.
+    The shape list comes from `SENTENCE_FORM_PLAN`, rotated by `slot_index` so a lesson
+    does not render one sentence thirteen ways. Every row of that plan carries two
+    punitive shapes, which is where INV-PACK-07 is satisfied for a sentence item — the
+    validator that follows is there to catch a plan somebody edits.
+
+    **A word or a fixed phrase is not a sentence item and gets nothing here.** Ruling
+    B9(b) makes lesson 1 words and fixed phrases, and `focus_for_item` is what keeps them
+    out of the sentence shapes: a one-token `word_bank_forward` is a bank whose answer is
+    one tile among four and a one-token `fill_in_the_blank` blanks the only word on
+    screen. Both are well-formed records, so nothing downstream can catch them. Their
+    lemmas are introduced by `_lexeme_pass` instead, which is S032/S033/S034's job.
 
     `alignment` is the pass-1 word alignment for this slot, and it is written ONTO the
     drafts whose shape declares `needs_alignment`. It is the only learner-visible use
@@ -306,15 +426,18 @@ def expand_item(
     dotted underlines from these pairs with the rule in `exercises/wordbank.py`.
     """
     lang = inputs.lang
-    text, translation, sid = _resolve_text(inputs, item)
+    text, translation, sid = slot.text, slot.translation, slot.sid
     unit = item["unit_index"]
     lesson = item["lesson_index"]
     concept = item["grammar_concept"]
-    target_tokens = _target_tokens(inputs, sid, text)
+    target_tokens = _target_tokens(slot)
     source_tokens = list(surface_tokens(translation))
-    lemmas = _lemmas_for(inputs, sid, text)
+    lemmas = _lemmas_for(slot)
     audio = sentence_id(lang, text)
     pairs = tuple(sorted({(int(a), int(b)) for a, b in alignment}))
+
+    if focus_for_item(len(target_tokens)) != "sentence":
+        return []
 
     drafts: list[ExerciseDraft] = []
     plan = SENTENCE_FORM_PLAN[item["slot_index"] % len(SENTENCE_FORM_PLAN)]
@@ -339,19 +462,6 @@ def expand_item(
             )
         )
 
-    for lemma in item["new_lemmas"]:
-        drafts.extend(
-            _lexeme_drafts(
-                inputs,
-                lemma=lemma,
-                unit=unit,
-                lesson=lesson,
-                register=register,
-                alternatives=alternatives,
-                glosses=glosses,
-            )
-        )
-
     if item["slot_index"] == 0:
         for shape_id in GRAMMAR_FORM_PLAN:
             draft = _grammar_draft(
@@ -360,10 +470,10 @@ def expand_item(
                 unit=unit,
                 lesson=lesson,
                 concept=concept,
+                slot=slot,
                 target_tokens=target_tokens,
                 lemmas=lemmas,
                 register=register,
-                sid=sid,
                 alternatives=alternatives,
             )
             if draft is not None:
@@ -393,6 +503,9 @@ def _sentence_draft(
     chosen = shape(shape_id)
     lang = inputs.lang
     key = f"sentence:{sid}" if sid else f"authored:{unit}:{lesson}:{text}"
+    # What `item_keys` will file the record under. For a corpus sentence that is `key`;
+    # for an authored one it is the concept, which is why the two are separate names.
+    item_key = f"sentence:{sid}" if sid else f"concept:{concept}"
     reverse = chosen.direction == "l2_to_l1"
     body = translation if chosen.direction == "l1_to_l2" else text
     accepted: tuple[str, ...] = (text,) if not reverse else (translation,)
@@ -414,6 +527,7 @@ def _sentence_draft(
             # `está` was a word of the Spanish sentence displayed above the bank.
             l1_side=reverse,
             prompt_tokens=list(surface_tokens(body)),
+            item_key=item_key,
         )
         bank = build_word_bank(answer_tokens, decoys, key=f"{key}:{chosen.id}")
         distractors = bank.extra_tiles
@@ -430,6 +544,7 @@ def _sentence_draft(
             accepted=list(accepted),
             alternatives=alternatives,
             prompt_tokens=list(surface_tokens(body)),
+            item_key=item_key,
         )
     elif chosen.id == "complete_the_translation":
         gap_index = _gap_index(target_tokens)
@@ -511,6 +626,7 @@ def _decoys(
     alternatives: AlternativesIndex,
     l1_side: bool = False,
     prompt_tokens: Sequence[str] = (),
+    item_key: str | None = None,
 ) -> tuple[str, ...]:
     """`count` distractors for one slot, drawn from the pool the DIRECTION selects.
 
@@ -538,7 +654,30 @@ def _decoys(
     anchor = max(lemmas, key=len) if lemmas else accepted[0]
     pos = inputs.pos_of.get(anchor, "")
     band = inputs.band_of.get(anchor, "unbanded")
+    # ONE ORACLE, and this line is the last place the two disagreed. `pos_of` keeps one
+    # row per lemma, and V5 checks the tags attested for the ANSWER — so when the
+    # anchor's remembered tag is not one of the answer's, every candidate drawn for it
+    # is a finding by construction. Measured on the real course: four records whose
+    # anchor lemma is tagged PROPN (`henderson` and `stein` are PROPN lemmas in band A1
+    # of a course whose ledger declares no proper nouns at all) while the answer surface
+    # is attested only as NOUN. The answer's tag wins, and only when the pool has a
+    # bucket for it — never a silent widening of the band.
+    answer_tags = inputs.pos_sets.get(normalise(accepted[0]), set()) if accepted else set()
+    if answer_tags and pos not in answer_tags:
+        for attested in sorted(answer_tags):
+            if (attested, band) in inputs.pool.by_pos_band:
+                pos = attested
+                break
     forbidden_prompt = [token.strip(".,¿?¡!") for token in prompt_tokens]
+    # `item_key` is the key `validators.exercise.item_keys` will file this record under,
+    # and it is NOT always this call's `key`. An AUTHORED sentence has no
+    # `source_sentence_id`, so `item_keys` files it under its grammar concept and every
+    # authored sentence in that concept is one item — while the rule core's own
+    # exclusion set is per-slot. The gap is not theoretical: over the real Spanish course
+    # V5 reported `distractor 'hermanos' is an accepted answer of another exercise over
+    # the same item` twice. Excluding the item's whole accepted set here is what makes
+    # the generator and the validator agree by construction rather than by luck.
+    forbidden_item = sorted(alternatives.forbidden_for(item_key)) if item_key else []
     return rule_core_distractors(
         pool=inputs.pool,
         alternatives=alternatives,
@@ -547,7 +686,11 @@ def _decoys(
         answer_lemma=anchor,
         pos=pos,
         band=band,
-        accepted_answers=[*accepted, *(token for token in forbidden_prompt if token)],
+        accepted_answers=[
+            *accepted,
+            *(token for token in forbidden_prompt if token),
+            *forbidden_item,
+        ],
         count=count,
     )
 
@@ -592,48 +735,31 @@ def _lexeme_drafts(
     alternatives: AlternativesIndex,
     glosses: Mapping[str, str],
 ) -> list[ExerciseDraft]:
-    """Both recognition forms for a newly introduced lexeme, plus the NEW WORD pill.
+    """Every lexeme-focus recognition form for one newly introduced lexeme.
 
-    The pill rides on `picture_select` only — the first recognition of the word — and
+    `LEXEME_FORM_PLAN` is one shape now — `meaning_select` — because S032 needs an
+    illustration nothing in this repository can supply and is gated to P3 (see the
+    SHAPES comment in `config/g7.py`). The second punitive form every lexeme item needs
+    for INV-PACK-07 is its `match_pairs` row, and `_lexeme_pass` is what guarantees one
+    exists before this function is ever called.
+
+    The NEW WORD pill rides on the FIRST shape of the plan — the first recognition of
+    the word, which used to be picture-select and is now meaning-select — and
     `ExerciseDraft` refuses it on any shape that is not `new_word_eligible`.
+
+    Returns `[]` when the item cannot be authored: no gloss, or not enough sibling
+    glosses to fill the option list. The word is then still taught inside the sentence
+    exercises, which is what already happened to an unglossed lemma. A HALF-authored
+    introduction is the thing that must not happen: one punitive form fails INV-PACK-07.
     """
     lang = inputs.lang
-    key = f"lexeme:{lemma}"
-    pos = inputs.pos_of.get(lemma, "")
-    band = inputs.band_of.get(lemma, "unbanded")
     drafts: list[ExerciseDraft] = []
     for shape_id in LEXEME_FORM_PLAN:
         chosen = shape(shape_id)
-        if shape_id == "meaning_select":
-            gloss = glosses.get(lemma)
-            if gloss is None:
-                # No alignment reached this lemma, so there is no gloss to offer and no
-                # meaning-select. The whole introduction is then dropped rather than
-                # half-authored: a lexeme item with ONE punitive form fails INV-PACK-07,
-                # and the word is still taught inside the sentence exercises.
-                return []
-            accepted = (gloss,)
-            options = [
-                glosses[other]
-                for other in _same_pos_band_lemmas(inputs, lemma, pos, band)
-                if other in glosses and glosses[other] != gloss
-            ]
-            if len(options) < chosen.distractor_count:
-                return []
-            distractors = tuple(options[: chosen.distractor_count])
-        else:
-            accepted = (lemma,)
-            distractors = rule_core_distractors(
-                pool=inputs.pool,
-                alternatives=alternatives,
-                key=key,
-                answer_surface=lemma,
-                answer_lemma=lemma,
-                pos=pos,
-                band=band,
-                accepted_answers=list(accepted),
-                count=chosen.distractor_count,
-            )
+        gloss = glosses.get(lemma)
+        options = _meaning_options(inputs, lemma, glosses, count=chosen.distractor_count)
+        if gloss is None or options is None:
+            return []
         drafts.append(
             ExerciseDraft(
                 lang=lang,
@@ -644,17 +770,46 @@ def _lexeme_drafts(
                 focus="lexeme",
                 instruction_hint=lemma,
                 body=lemma,
-                accepted_answers=accepted,
-                distractors=distractors,
+                accepted_answers=(gloss,),
+                distractors=options,
                 lemmas=(lemma,),
                 grammar_concepts=(),
                 audio_ref=None,
                 register=register,
                 source_sentence_id=None,
-                new_word_pill=shape_id == "picture_select",
+                new_word_pill=shape_id == LEXEME_FORM_PLAN[0],
             )
         )
     return drafts
+
+
+def _meaning_options(
+    inputs: ExpansionInputs,
+    lemma: str,
+    glosses: Mapping[str, str],
+    *,
+    count: int,
+) -> tuple[str, ...] | None:
+    """S034's wrong meanings: glosses of same-POS same-band siblings. `None` = too few.
+
+    One function for both the eligibility test and the draft, so "this lexeme can be
+    introduced" and "this is its option list" can never disagree — `_lexeme_pass` asks
+    this before it commits to introducing a lemma, and `_lexeme_drafts` asks it again to
+    build the record.
+    """
+    gloss = glosses.get(lemma)
+    if gloss is None:
+        return None
+    pos = inputs.pos_of.get(lemma, "")
+    band = inputs.band_of.get(lemma, "unbanded")
+    options = [
+        glosses[other]
+        for other in _same_pos_band_lemmas(inputs, lemma, pos, band)
+        if other in glosses and glosses[other] != gloss
+    ]
+    if len(options) < count:
+        return None
+    return tuple(options[:count])
 
 
 def _same_pos_band_lemmas(
@@ -670,10 +825,10 @@ def _grammar_draft(
     unit: int,
     lesson: int,
     concept: str,
+    slot: ResolvedSlot,
     target_tokens: Sequence[str],
     lemmas: Sequence[str],
     register: str,
-    sid: str | None,
     alternatives: AlternativesIndex,
 ) -> ExerciseDraft | None:
     """A grammar concept drilled, never quoted. INV-PACK-50's positive case.
@@ -684,16 +839,18 @@ def _grammar_draft(
     Returns `None` when the shape cannot be authored honestly. That happens for exactly
     one shape and one reason: `type_the_word_ending` needs a surface form with a
     separable morphological ending (`ending_split`), and a sentence whose every token is
-    a stem-changing verb, a citation-form adjective or an unanalysed authored candidate
-    has none. Dropping the drill is safe for INV-PACK-07 — a grammar draft carries
+    a stem-changing verb or a citation-form adjective has none. An AUTHORED sentence is
+    no longer in that list — it carries G5's analysis now, so its endings segment like
+    any other. Dropping the drill is safe for INV-PACK-07 — a grammar draft carries
     `source_sentence_id`, so `validators.exercise.item_keys` files it under the sentence
     item, whose `SENTENCE_FORM_PLAN` row already carries two punitive forms — and the
     stage records the skip on the runlog rather than swallowing it.
     """
     lang = inputs.lang
+    sid = slot.sid
     key = f"sentence:{sid}" if sid else f"concept:{concept}"
     if shape_id == "type_the_word_ending":
-        segmented = _ending_target(inputs, sid, target_tokens)
+        segmented = _ending_target(slot, target_tokens, lang)
         if segmented is None:
             return None
         gap_index, stem, ending = segmented
@@ -715,6 +872,7 @@ def _grammar_draft(
             accepted=list(accepted),
             alternatives=alternatives,
             prompt_tokens=list(surface_tokens(body)),
+            item_key=key,
         )
     return ExerciseDraft(
         lang=lang,
@@ -736,30 +894,32 @@ def _grammar_draft(
 
 
 def _ending_target(
-    inputs: ExpansionInputs, sid: str | None, target_tokens: Sequence[str]
+    slot: ResolvedSlot, target_tokens: Sequence[str], lang: str
 ) -> tuple[int, str, str] | None:
     """`(token index, stem, ending)` of the best token to drill, or `None`.
 
-    Needs G1's analysis, because a segmentation is a claim about a lemma and a POS and
-    there is no way to make it from a bare surface string. An AUTHORED candidate (a G5
-    gap slot) has not been through G1, so it gets no ending drill at all — inventing a
-    lemma here would put a second analyser into the pipeline, which is the thing
-    `_target_tokens` already refuses to do.
+    Needs an analysis, because a segmentation is a claim about a lemma and a POS and
+    there is no way to make one from a bare surface string. It no longer needs a CORPUS
+    analysis: an authored slot carries G5's pass in the same shape from the same pinned
+    adapter (B16), so an authored sentence gets its ending drills like any other. A
+    sentence with no analysis at all — a corpus row G1 never saw — still gets none, and
+    inventing a lemma here would put a second analyser into the pipeline, which is the
+    thing `_display_split` refuses to do.
 
     Preference order is `ENDING_POS_PREFERENCE`: a verb before an adjective before a
     noun plural, because the concept rows this stage builds are verb-conjugation
     concepts. Ties break on the earliest token, so the choice is deterministic.
     """
-    if sid is None or sid not in inputs.analysed:
+    if slot.analysis is None:
         return None
-    tokens = inputs.analysed[sid]["tokens"]
+    tokens = slot.analysis["tokens"]
     best: tuple[int, int, str, str] | None = None
     for index, token in enumerate(tokens):
         if index >= len(target_tokens) or token["surface"] != target_tokens[index]:
             # display_tokens and tokens are the same list in G1's contract; if a pack
             # ever disagrees, refuse rather than drill the wrong word.
             continue
-        split = ending_split(token["surface"], token["lemma"], token["pos"], inputs.lang)
+        split = ending_split(token["surface"], token["lemma"], token["pos"], lang)
         if split is None:
             continue
         rank = (
@@ -791,13 +951,13 @@ def build_match_pairs(
     form of EACH of them: "the left-hand lexeme is the queued mistake" (S033), so a
     match is five items' second form and never one item's only form.
 
-    THAT IS A CONSTRAINT ON THE CALLER, and it is now enforced there rather than assumed
-    here. `lemmas` must be lemmas that ALREADY carry `MIN_FORMS_PER_MISSABLE_ITEM`
-    punitive lexeme-keyed drafts in this lesson (`_match_eligible_lemmas`). Feeding this
-    function every glossed lemma in the lesson — the obvious fix for "S033 never ships" —
-    builds a match over words that have no other lexeme form, and `item_keys` then files
-    each of them as a SINGLE-FORM MISSABLE ITEM: INV-PACK-07 fails, in the exact way the
-    ruling above says it must not.
+    THAT IS A CONSTRAINT ON THE CALLER, and `_lexeme_pass` is where it is enforced:
+    every row of every match is a lemma that pass is also introducing with its
+    `LEXEME_FORM_PLAN` drill, so the match is that lemma's SECOND punitive form and
+    never its only one. Feeding this function every glossed lemma in the lesson — the
+    obvious fix for "S033 never ships" — builds a match over words that have no other
+    lexeme form, and `item_keys` then files each of them as a SINGLE-FORM MISSABLE ITEM:
+    INV-PACK-07 fails, in the exact way the ruling above says it must not.
     """
     glossed = [lemma for lemma in lemmas if lemma in glosses]
     if len(glossed) < MATCH_PAIRS_PER_EXERCISE:
@@ -823,30 +983,140 @@ def build_match_pairs(
     )
 
 
-def _match_eligible_lemmas(drafts: Sequence[ExerciseDraft]) -> dict[tuple[int, int], list[str]]:
-    """`(unit, lesson) -> lemmas that already carry two punitive lexeme forms.`
+def _lexeme_pass(
+    inputs: ExpansionInputs,
+    *,
+    glosses: Mapping[str, str],
+    register: str,
+    alternatives: AlternativesIndex,
+) -> tuple[list[ExerciseDraft], dict[str, int]]:
+    """Introduce the lexemes that can carry BOTH punitive forms, and build the matches.
 
-    Read off the drafts that exist, not off `selected_item.new_lemmas`: a lemma whose
-    `meaning_select` was dropped for want of a gloss has ONE punitive form, and putting
-    it in a match would make the match its second — which reads fine until you notice
-    the match is also the second form of four other words and none of them can recycle
-    a mistake on this one.
+    This is where INV-PACK-07 is held for every lexeme item, by construction rather than
+    by a validator's mercy. `validators.exercise.item_keys` files a lexeme drill and a
+    match under `lexeme:<lemma>`, so a lexeme item's punitive forms are exactly its
+    `meaning_select` plus the matches it appears in. Two rules make that always two or
+    more:
+
+    1. **A lemma is introduced only if it is also matchable.** Eligibility is one gloss
+       for the lemma and `distractor_count` sibling glosses for the option list
+       (`_meaning_options`, the same function that builds the record). An ineligible
+       lemma gets NO lexeme item and is taught inside the sentence exercises — the
+       pre-existing behaviour for an unglossed lemma.
+    2. **Every eligible lemma lands in a match.** Matches are cut from the unit's
+       eligible lemmas in course order, five to a match (`MATCH_PAIRS_PER_EXERCISE`),
+       and the last cut is the unit's LAST FIVE rather than a short tail — so a unit
+       ending with two leftover lemmas re-uses three already-matched ones and the two
+       still get their second form. A unit with fewer than five eligible lemmas can
+       build no match at all, so it introduces no lexeme items; the count is on the
+       runlog rather than silent.
+
+    `MATCH_LEMMA_SCOPE` is the unit and not the lesson, which is both what `deep/01` §S20
+    describes and what makes rule 2 reachable: a real lesson introduces one to three
+    lemmas, so a lesson-scoped five-row match shipped in exactly one place in this
+    repository (the fixture) and nowhere in a real course.
+
+    A match is filed in the lesson of its LAST row, so it never tests a word the learner
+    has not reached yet.
     """
-    punitive: dict[tuple[int, int], dict[str, set[str]]] = {}
-    for draft in drafts:
-        if draft.focus != "lexeme" or not draft.missable:
-            continue
-        bucket = punitive.setdefault((draft.unit_index, draft.lesson_index), {})
-        for lemma in draft.lemmas:
-            bucket.setdefault(lemma, set()).add(draft.shape_id)
-    return {
-        lesson: sorted(
-            lemma
-            for lemma, shapes in lemmas.items()
-            if len(shapes) >= MIN_FORMS_PER_MISSABLE_ITEM
+    # The construction this whole function rests on, re-checked on every build rather
+    # than argued in a comment: the plan plus the match shape really are two punitive
+    # lexeme forms. `assert_pill_shapes_quote_lexemes` is the same idea one file over.
+    forms = (*LEXEME_FORM_PLAN, LEXEME_MATCH_SHAPE)
+    punitive_forms = {shape_id for shape_id in forms if shape(shape_id).punitive}
+    if len(punitive_forms) < MIN_FORMS_PER_MISSABLE_ITEM:
+        raise ValueError(
+            f"INV-PACK-07: a lexeme item's authored forms are {forms} and only "
+            f"{sorted(punitive_forms)} of them are punitive; "
+            f"{MIN_FORMS_PER_MISSABLE_ITEM} are required (EC-MIS-04). Editing "
+            "LEXEME_FORM_PLAN or LEXEME_MATCH_SHAPE without editing this pass is how a "
+            "single-form missable item gets built."
         )
-        for lesson, lemmas in sorted(punitive.items())
+
+    new_by_lesson: dict[tuple[int, int], list[str]] = {}
+    for item in inputs.selected:
+        bucket = new_by_lesson.setdefault((item["unit_index"], item["lesson_index"]), [])
+        for lemma in item["new_lemmas"]:
+            if lemma not in bucket:
+                bucket.append(lemma)
+
+    counts = {
+        "lexemes_introduced": 0,
+        "lexemes_without_gloss_or_options": 0,
+        "lexemes_in_a_unit_too_small_to_match": 0,
+        "matches": 0,
     }
+
+    # One entry per eligible lemma, in course order: (unit, lesson, lemma).
+    options_needed = shape(LEXEME_FORM_PLAN[0]).distractor_count
+    eligible: dict[int, list[tuple[int, int, str]]] = {}
+    for (unit, lesson), lemmas in sorted(new_by_lesson.items()):
+        for lemma in lemmas:
+            if _meaning_options(inputs, lemma, glosses, count=options_needed) is None:
+                counts["lexemes_without_gloss_or_options"] += 1
+                continue
+            bucket = eligible.setdefault(unit, [])
+            if any(lemma == seen for _u, _l, seen in bucket):
+                continue
+            bucket.append((unit, lesson, lemma))
+
+    drafts: list[ExerciseDraft] = []
+    for unit, entries in sorted(eligible.items()):
+        if len(entries) < MATCH_PAIRS_PER_EXERCISE:
+            # No match is possible, so no lemma here can reach two punitive forms.
+            counts["lexemes_in_a_unit_too_small_to_match"] += len(entries)
+            continue
+        for _unit, lesson, lemma in entries:
+            introduction = _lexeme_drafts(
+                inputs,
+                lemma=lemma,
+                unit=unit,
+                lesson=lesson,
+                register=register,
+                alternatives=alternatives,
+                glosses=glosses,
+            )
+            if not introduction:  # pragma: no cover - eligibility already decided this
+                counts["lexemes_without_gloss_or_options"] += 1
+                continue
+            drafts.extend(introduction)
+            counts["lexemes_introduced"] += 1
+        for lesson, rows in _match_cuts(entries):
+            match = build_match_pairs(
+                inputs,
+                unit=unit,
+                lesson=lesson,
+                lemmas=rows,
+                glosses=glosses,
+                register=register,
+            )
+            if match is not None:
+                drafts.append(match)
+                counts["matches"] += 1
+    return drafts, counts
+
+
+def _match_cuts(
+    entries: Sequence[tuple[int, int, str]],
+) -> list[tuple[int, list[str]]]:
+    """`(lesson, five lemmas)` per match, covering every entry at least once.
+
+    Full cuts of five in course order, then — if anything is left over — one final cut of
+    the LAST five entries, which picks the leftovers up and re-uses however many earlier
+    lemmas it needs to make five. Re-use is harmless: an already-matched lemma gains a
+    third punitive form. A short final cut is not harmless, and neither is dropping the
+    tail: either leaves a lemma with one form and fails INV-PACK-07.
+    """
+    cuts: list[tuple[int, list[str]]] = []
+    size = MATCH_PAIRS_PER_EXERCISE
+    full = len(entries) // size
+    for index in range(full):
+        chunk = list(entries[index * size : (index + 1) * size])
+        cuts.append((chunk[-1][1], [lemma for _u, _l, lemma in chunk]))
+    if len(entries) % size:
+        chunk = list(entries[-size:])
+        cuts.append((chunk[-1][1], [lemma for _u, _l, lemma in chunk]))
+    return cuts
 
 
 # ---------------------------------------------------------------------------
@@ -856,23 +1126,31 @@ def _match_eligible_lemmas(drafts: Sequence[ExerciseDraft]) -> dict[tuple[int, i
 
 def build_glosses(
     inputs: ExpansionInputs,
-    alignments: Mapping[str, Sequence[tuple[int, int]]],
+    aligned: Sequence[tuple[ResolvedSlot, Sequence[tuple[int, int]]]],
 ) -> dict[str, str]:
     """`lemma -> English gloss`, taken from the alignment and nothing else.
 
     This is the one place the word alignment becomes learner-visible content rather
     than a hint, so its quality note travels with it on the runlog. A lemma with no
-    alignment gets NO gloss and its meaning-select is simply not authored — the item
-    still has `picture_select` plus whatever match it lands in, so INV-PACK-07 holds
-    without inventing a translation.
+    alignment gets NO gloss, so it gets no `meaning_select` and no match row — and
+    `_lexeme_pass` then does not introduce it as a lexeme item at all, rather than
+    introducing it with one punitive form. The word is still taught inside the sentence
+    exercises; nothing invents a translation.
+
+    IT READS AUTHORED SLOTS TOO, and that is new. It used to be keyed by
+    `sentence_id`, so an authored slot — which has none — could never contribute a
+    gloss, and unit 1 of a course whose first lesson is entirely authored words and
+    fixed phrases (ruling B9(b)) therefore had no glosses, no `meaning_select`, no
+    match and no lexeme items: the lesson that exists to teach five words taught none of
+    them by name. An authored slot now carries G5's analysis (B16) and its own
+    translation, which is all this function ever needed.
     """
     votes: dict[str, dict[str, int]] = {}
-    for sid, pairs in alignments.items():
-        row = inputs.analysed.get(sid)
-        if row is None:
+    for slot, pairs in aligned:
+        if slot.analysis is None:
             continue
-        translation = list(surface_tokens(inputs.translations.get(sid, "")))
-        tokens = row["tokens"]
+        translation = list(surface_tokens(slot.translation))
+        tokens = slot.analysis["tokens"]
         for source_index, target_index in pairs:
             if not (0 <= source_index < len(translation) and 0 <= target_index < len(tokens)):
                 continue
@@ -932,58 +1210,73 @@ def expand(ctx: StageContext) -> StageResult:
             message=f"register {register!r} is not one of {', '.join(REGISTERS)}",
         )
 
-    # Pass 1: align every selected sentence, so glosses and the alternatives index are
-    # complete before any distractor is drawn. A distractor chosen against a half-built
-    # index is a valid alternative nobody noticed.
-    alignments: dict[str, list[tuple[int, int]]] = {}
-    alternatives = AlternativesIndex()
-    for item in inputs.selected:
-        text, translation, sid = _resolve_text(inputs, item)
-        pairs = aligner.align(list(surface_tokens(translation)), _target_tokens(inputs, sid, text))
-        alternatives.add(_alt_key(item, sid, text), [text, translation])
-        if sid is not None:
-            alignments[sid] = list(pairs)
-
-    glosses = build_glosses(inputs, alignments)
-    for lemma, gloss in glosses.items():
-        alternatives.add(f"lexeme:{lemma}", [lemma, gloss])
-
-    # Pass 2: expand.
+    # EVERY PASS IS INSIDE THE TRY, and pass 1 not being is what B14 was. A starved gap
+    # slot is resolved in pass 1, it raised there, and pass 1 used to sit outside this
+    # block — so the one content failure that is most likely on a real course printed a
+    # Python traceback where every other stage prints one line and exits 4.
     drafts: list[ExerciseDraft] = []
     hints_written = 0
     hinted_lemmas: set[str] = set()
+    lexeme_counts: dict[str, int] = {}
+    phrase_slots = 0
     try:
+        # Pass 1: resolve and align every selected slot, so the glosses and the
+        # alternatives index are complete before any distractor is drawn. A distractor
+        # chosen against a half-built index is a valid alternative nobody noticed.
+        resolved: list[tuple[Mapping[str, Any], ResolvedSlot, list[tuple[int, int]]]] = []
+        alternatives = AlternativesIndex()
         for item in inputs.selected:
-            _text, _translation, sid = _resolve_text(inputs, item)
-            drafts.extend(
-                expand_item(
-                    inputs,
-                    item,
-                    alignment=alignments.get(sid or "", []),
-                    register=register,
-                    alternatives=alternatives,
-                    glosses=glosses,
-                )
+            slot = _resolve(inputs, item)
+            tokens = _target_tokens(slot)
+            pairs = aligner.align(list(surface_tokens(slot.translation)), tokens)
+            # The sentence, its translation, AND the token a cloze over it will accept.
+            # The gap index is content-free (`_gap_index`), so it is knowable here, before
+            # any distractor is drawn — which is the only order that works: a distractor
+            # is chosen against this index, so anything missing from it can be chosen.
+            accepted_here = [slot.text, slot.translation]
+            if tokens:
+                accepted_here.append(tokens[_gap_index(tokens)])
+            alternatives.add(_alt_key(item, slot), accepted_here)
+            # And again under the key `item_keys` will file the records under, which for
+            # an authored slot is the CONCEPT and not the slot. See `_decoys`.
+            alternatives.add(_item_key(item, slot), accepted_here)
+            resolved.append((item, slot, list(pairs)))
+
+        glosses = build_glosses(inputs, [(slot, pairs) for _item, slot, pairs in resolved])
+        for lemma, gloss in glosses.items():
+            alternatives.add(f"lexeme:{lemma}", [lemma, gloss])
+
+        # Pass 2: the sentence and grammar drafts. A word or a fixed phrase produces
+        # none — it is a lexeme-focus item and pass 3 is where it is taught.
+        for item, slot, pairs in resolved:
+            item_drafts = expand_item(
+                inputs,
+                item,
+                slot=slot,
+                alignment=pairs,
+                register=register,
+                alternatives=alternatives,
             )
-            hints = _hints_for(inputs, item, alignments.get(sid or "", []))
+            if not item_drafts:
+                phrase_slots += 1
+            drafts.extend(item_drafts)
+            hints = _hints_for(inputs, item, slot, pairs)
             hints_written += len(hints)
             hinted_lemmas.update(hint.gloss for hint in hints)
 
-        # Pass 3: matches, over the lemmas that are ALREADY taught twice. A match is a
-        # second form, never a first: `item_keys` files it under one key per tagged
-        # lemma, so a match over an untaught lemma makes that lemma a single-form
-        # missable item and INV-PACK-07 fails.
-        for (unit, lesson), lemmas in _match_eligible_lemmas(drafts).items():
-            match = build_match_pairs(
-                inputs,
-                unit=unit,
-                lesson=lesson,
-                lemmas=lemmas,
-                glosses=glosses,
-                register=register,
-            )
-            if match is not None:
-                drafts.append(match)
+        # Pass 3: the lexeme items and their matches, together, because neither may
+        # exist without the other (INV-PACK-07 — see `_lexeme_pass`).
+        lexeme_drafts, lexeme_counts = _lexeme_pass(
+            inputs,
+            glosses=glosses,
+            register=register,
+            alternatives=alternatives,
+        )
+        drafts.extend(lexeme_drafts)
+    except (StarvedSlot, MissingAnalysis) as exc:
+        # B14 and B16: a named content failure, reported verbatim with no exception type
+        # in front of it. The dispatcher exits 4 and prints this line.
+        return StageResult(ok=False, message=str(exc))
     except (NotEnoughDistractors, KeyError, ValueError) as exc:
         return StageResult(ok=False, message=f"{type(exc).__name__}: {exc}")
 
@@ -995,7 +1288,7 @@ def expand(ctx: StageContext) -> StageResult:
         for finding in (
             *check_pack_07(records),
             *check_pack_50(records),
-            *check_v5(records, pos_of=inputs.pos_of),
+            *check_v5(records, pos_of=inputs.pos_of, attested_pos=inputs.pos_sets),
         )
         if finding.severity == "blocking"
     ]
@@ -1040,21 +1333,53 @@ def expand(ctx: StageContext) -> StageResult:
         ending_drills_written=sum(
             1 for draft in drafts if draft.shape_id == "type_the_word_ending"
         ),
+        # Ruling B9(b)'s counters. `phrase_slots` is how many selected slots are a word
+        # or a fixed phrase and therefore produced NO sentence draft; the four
+        # `lexemes_*` numbers say what happened to every new lemma: introduced with both
+        # punitive forms, or refused for want of a gloss / an option list / a unit big
+        # enough to cut a match from. A lesson of phrases whose lemmas are all refused
+        # is a lesson with no exercises, which is a content failure that must be visible
+        # as a number rather than as an empty screen at P3.
+        phrase_slots=phrase_slots,
+        **lexeme_counts,
+        # S032 is declared, punitive, lexeme-focused — and gated to P3 because it needs
+        # an illustration that does not exist (config/g7.py::SHAPES). Recorded on every
+        # run so a reader of the log does not have to know the table to know that a
+        # shape the product map lists is not in this pack.
+        shapes_not_available_in_phase=sorted(
+            item.id
+            for item in SHAPES
+            if PHASE_ORDER.index(item.available_from) > PHASE_ORDER.index(CURRENT_PHASE)
+        ),
         tool=f"{TOOL_NAME} {__version__}",
     )
     return StageResult(ok=True, message=f"{written} exercises", detail={"written": written})
 
 
-def _alt_key(item: Mapping[str, Any], sid: str | None, text: str) -> str:
+def _alt_key(item: Mapping[str, Any], slot: ResolvedSlot) -> str:
     """The alternatives-index key for one slot. Must match `_sentence_draft`'s."""
-    if sid:
-        return f"sentence:{sid}"
-    return f"authored:{item['unit_index']}:{item['lesson_index']}:{text}"
+    if slot.sid:
+        return f"sentence:{slot.sid}"
+    return f"authored:{item['unit_index']}:{item['lesson_index']}:{slot.text}"
+
+
+def _item_key(item: Mapping[str, Any], slot: ResolvedSlot) -> str:
+    """The key `validators.exercise.item_keys` will file this slot's records under.
+
+    One function, because the generator and the validator disagreeing about what an
+    ITEM is was a measured defect: an authored slot has no `source_sentence_id`, so
+    `item_keys` files it under its grammar concept, and a per-slot exclusion set let a
+    distractor be a sibling authored sentence's accepted answer.
+    """
+    if slot.sid:
+        return f"sentence:{slot.sid}"
+    return f"concept:{item['grammar_concept']}"
 
 
 def _hints_for(
     inputs: ExpansionInputs,
     item: Mapping[str, Any],
+    slot: ResolvedSlot,
     alignment: Sequence[tuple[int, int]],
 ) -> tuple[Hint, ...]:
     """The dotted underlines this slot's word banks will be able to render.
@@ -1068,12 +1393,11 @@ def _hints_for(
     a pack whose aligner produced no hintable token says so in a number instead of
     shipping a feature that silently renders nothing.
     """
-    text, translation, sid = _resolve_text(inputs, item)
-    if sid is None or sid not in inputs.analysed:
+    if slot.analysis is None:
         return ()
-    source_tokens = list(surface_tokens(translation))
-    target_tokens = _target_tokens(inputs, sid, text)
-    tokens = inputs.analysed[sid]["tokens"]
+    source_tokens = list(surface_tokens(slot.translation))
+    target_tokens = _target_tokens(slot)
+    tokens = slot.analysis["tokens"]
     lemma_of_source: list[str] = []
     by_source: dict[int, list[int]] = {}
     for source_index, target_index in alignment:

@@ -19,10 +19,12 @@ than described somewhere:
   into space Stories and Radio have already been promised, and the overrun would be
   discovered at P6.
 - **R15** — the cast mixes accents inside one course and never says so. Its Polly
-  version was forced by the roster; the Kokoro version is worse and is recorded in
-  `content/es/cast.yaml`: Kokoro publishes no locale sub-tag for its Spanish voices at
-  all, so `es-ES` (the EC-PACK-17 one-locale-per-course ruling) is a claim the COURSE
-  makes and the voice vendor does not.
+  version was forced by the roster; the Kokoro version is worse: Kokoro publishes no
+  locale sub-tag for its Spanish voices at all, so nothing in this toolchain can
+  falsify a regional claim. **Founder ruling B6, 2026-09-12, settles what the files
+  say about it**: a cast and a manifest carry `language` plus `accent_claim`, and the
+  `locale:` key is gone. `ACCENT_CLAIMS` below is the whole permitted vocabulary and it
+  has one member.
 
 Owner: p2-g8-bake
 """
@@ -41,6 +43,43 @@ from .base import AUDIO_BUDGET_MB, OPUS_BITRATE_KBPS
 #: `narrator` is the parrot: the mascot's voice and the default drill voice, the one a
 #: listening exercise (S038) plays when no character is speaking.
 CAST_ROLES: Final[tuple[str, ...]] = ("narrator", "adult_male", "adult_female", "young")
+
+#: Every accent claim a cast or a manifest may make. Exactly one, and that is the point.
+#:
+#: Founder ruling B6: "Manifests replace `locale: es-ES` with `language: es` +
+#: `accent_claim: unverified`; the reviewer rubric checks accent consistency". Azure
+#: Neural published a locale sub-tag per voice, so `es-ES` was vendor-backed and
+#: machine-checkable; Kokoro publishes none and its Spanish G2P is generic espeak-ng
+#: `es`, so after the vendor swap NOTHING in this toolchain could contradict the string.
+#: A claim with no possible falsifier is not a claim, so the string is gone and what is
+#: left says how much is known.
+#:
+#: There is no `verified` member yet ON PURPOSE. The only thing that can produce one is
+#: the 300-item native-reviewer sample (B3), and its accent question has not been
+#: answered by anyone; a second member would exist so that somebody could write it in a
+#: YAML file. When the sample comes back, the member and the evidence arrive together.
+ACCENT_CLAIMS: Final[tuple[str, ...]] = ("unverified",)
+
+#: What a file that declares nothing is taken to claim. The weakest member, which is
+#: what makes the default safe: an absent declaration can never read as a stronger claim
+#: than a present one.
+DEFAULT_ACCENT_CLAIM: Final[str] = "unverified"
+
+#: Keys a cast file may not carry, and the ruling that removed each one. `load_cast`
+#: refuses the FILE rather than ignoring the key: a `locale:` still sitting in a cast
+#: that the loader has stopped reading is a course claim nothing enforces, which is
+#: exactly the state B6 exists to end.
+CAST_FORBIDDEN_KEYS: Final[dict[str, str]] = {
+    "locale": (
+        "founder ruling B6 (2026-09-12) replaced `locale:` with `language:` + "
+        "`accent_claim:`. Kokoro publishes no locale sub-tag for its Spanish voices and "
+        "its Spanish G2P is generic espeak-ng, so a regional tag here was a claim no "
+        "part of this toolchain could falsify — only the 300-item native-reviewer "
+        "sample can, and it checks accent consistency rather than a tag. Delete the key "
+        "and declare `accent_claim: unverified`; LOCALE_BY_LANGUAGE survives in "
+        "`config/base.py` for URL templates (packbuild/attribution.py) and nowhere else."
+    ),
+}
 
 #: Which synthesis engine bakes which language.
 #:
