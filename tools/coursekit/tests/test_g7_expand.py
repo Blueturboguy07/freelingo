@@ -1697,3 +1697,61 @@ def test_INV_PACK_40_an_authored_candidates_tiles_carry_no_punctuation() -> None
     tokens = _target_tokens(_slot("Perdón, mi teléfono no responde.", "Sorry, my phone is dead."))
     assert tokens == ["Perdón", "mi", "teléfono", "no", "responde"]
     assert not any(token.strip(".,¿?¡!") != token for token in tokens)
+
+
+def test_the_slot_is_expanded_from_the_candidate_G5_filled_it_with_not_the_last_one() -> None:
+    """Two accepted rows for one slot: G7 expands the FIRST, because G5's fill is first.
+
+    G5 marks every authored row that survives its five axes `accepted` and fills the slot
+    with the FIRST of them (`stages/g5_gapfill.py`, `if not slot_filled`). `_load` built
+    its map with `candidates[key] = row`, which is last-wins, so the sentence G5's runlog
+    reported and the sentence the learner met were different rows and neither stage said
+    so.
+
+    Found at the P2 round-3 integration, not by this test: founder ruling B9(a)'s
+    lemma-normalisation table brought three more rows of `content/es/candidates/
+    u01-l01.jsonl` into `u1/l1`'s five-lemma window, G5 accepted four at `s0`, reported
+    `Hola.`, and G7 expanded `Buenos días, buenas tardes.` The other eight slots agreed
+    only because the `duplicate` axis had already eaten those three by the time the
+    second slot was measured — ordering luck, not a property.
+    """
+    _write_gap_ledger([_AUTHORED])
+    candidates = [dict(record) for record in read_records("candidate", lang=LANG)]
+    assert len(candidates) == 1, candidates
+    second_text = "El pan está caliente sobre las mesas."
+    candidates.append(
+        {
+            **candidates[0],
+            "candidate_id": sentence_id(LANG, second_text),
+            "text": second_text,
+            "translation": "The bread is hot on the tables.",
+            "analysis": _analysis(
+                [
+                    ("El", "el", "DET"),
+                    ("pan", "pan", "NOUN"),
+                    ("está", "estar", "AUX"),
+                    ("caliente", "caliente", "ADJ"),
+                    ("sobre", "sobre", "ADP"),
+                    ("las", "el", "DET"),
+                    ("mesas", "mesa", "NOUN"),
+                ]
+            ),
+        }
+    )
+    write_records("candidate", candidates, lang=LANG)
+
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+
+    records = [dict(record) for record in read_records("exercise", lang=LANG)]
+    clozes = [
+        record
+        for record in _of_shape(records, "fill_in_the_blank")
+        if record["source_sentence_id"] is None
+    ]
+    assert len(clozes) == 1, [record["prompt"] for record in clozes]
+    assert clozes[0]["accepted_answers"] == ["libros"], (
+        "G7 expanded the second accepted row; G5 filled the slot with the first "
+        f"({clozes[0]['prompt']!r})"
+    )
+    assert "caliente" not in clozes[0]["prompt"], clozes[0]["prompt"]

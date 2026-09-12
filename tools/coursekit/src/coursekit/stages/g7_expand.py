@@ -201,11 +201,36 @@ def _load(lang: str) -> ExpansionInputs:
     selected = list(read_records("selected_item", lang=lang))
     ingested = list(read_records("ingested_sentence", lang=lang))
 
+    # FIRST accepted row per slot, and `setdefault` is the whole of that — it used to be
+    # `candidates[key] = row`, which is LAST-wins.
+    #
+    # G5 does not accept one row per slot. It measures every authored row against the
+    # five reject axes and marks each `accepted` independently; `slot_filled` only
+    # records that the slot HAS a fill, and the fill is the FIRST accepted row in shard
+    # order (`stages/g5_gapfill.py`, `if not slot_filled`). So a slot whose window admits
+    # two authored texts emits two accepted rows, G5's runlog names the first, and
+    # last-wins here made the learner meet the second. Nothing in either stage said so.
+    #
+    # Measured at the P2 round-3 integration, on `u1/l1/s0`: B9(a)'s lemma-normalisation
+    # table brought three more of that shard's twenty rows into the five-lemma window, so
+    # G5 accepted four (`Hola.`, `Buenas noches.`, `¡Buenas tardes!`,
+    # `Buenos días, buenas tardes.`), reported `Hola.` as the fill, and G7 expanded
+    # `Buenos días, buenas tardes.` — a word list where the course teaches `hola`. The
+    # other eight slots have one accepted row each only because G5's `duplicate` axis
+    # rejects those same three texts once the unit has seen them, which is luck about
+    # ordering rather than a property.
+    #
+    # First-wins makes the two stages name the same sentence by construction. It needs no
+    # new field on the frozen CANDIDATE contract (the deps lane owns that), and it holds
+    # for whatever G5 accepts, because `write_records`/`read_records` preserve the order
+    # G5 appended in.
     candidates: dict[tuple[int, int, int], Mapping[str, Any]] = {}
     if any(item["gap"] for item in selected):
         for row in read_records("candidate", lang=lang):
             if row["accepted"]:
-                candidates[(row["unit_index"], row["lesson_index"], row["slot_index"])] = row
+                candidates.setdefault(
+                    (row["unit_index"], row["lesson_index"], row["slot_index"]), row
+                )
 
     return ExpansionInputs(
         lang=lang,

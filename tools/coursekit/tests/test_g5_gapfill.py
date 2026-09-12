@@ -1239,24 +1239,20 @@ LESSON_ONE_WINDOW = frozenset({"bueno", "día", "hola", "noche", "tarde"})
 #: The nine slots this lane authored.
 LESSON_ONE_SLOTS = frozenset(Slot(1, 1, index) for index in range(9))
 
-#: Founder ruling B9(a)'s normalisation table, as a lookup, so this file can state what
-#: "in vocabulary" means for lesson 1 without waiting on the adapter that will absorb it.
-#:
-#: `es_core_news_md` 3.8.0 lemmatises every prenominal form of `bueno` to something that
-#: is not `bueno` — and which of the four it gives depends on the POSITION and the
-#: punctuation, which is why the table is four entries and not one. Measured here,
-#: 2026-09-12, on the pinned model:
-#:
-#:     'Buenos días.'          -> ['buenos', 'día']        Buenos is PROPN, sentence-initial
-#:     'Hola, buenos días.'    -> ['hola', 'buen', 'día']  buenos is ADJ mid-sentence
-#:     'Hola, buenas tardes.'  -> ['hola', 'buena', 'tarde']
-#:     'Buenas.'               -> ['buenas']
-PRENOMINAL_BUENO = {"buen": "bueno", "buena": "bueno", "buenos": "bueno", "buenas": "bueno"}
-
-
 def _ledger_lemmas(analysis: dict[str, Any]) -> list[str]:
-    """The analysis's lemmas with B9(a)'s prenominal table applied."""
-    return [PRENOMINAL_BUENO.get(lemma, lemma) for lemma in analysis["lemmas"]]
+    """The analysis's lemmas, and nothing on top of them any more.
+
+    This used to apply a local copy of founder ruling B9(a)'s prenominal table
+    (`PRENOMINAL_BUENO = {buen, buena, buenos, buenas} -> bueno`) because the ruling was
+    landing in another lane's files (`adapters/spacy_es.py`,
+    `config/g1.LEMMA_NORMALISATION_ES`) and this one needed to say what "in vocabulary"
+    would mean once it had. It landed at the P2 round-3 integration, the adapter now
+    normalises both traps this file had measured, and a second copy of a normalisation
+    table in a test is a second source of truth for the thing INV-PACK-40 is about — so
+    the table is gone and the helper is the identity on `lemmas`, kept because thirty
+    call sites read it and because the name says which field is the ledger's.
+    """
+    return list(analysis["lemmas"])
 
 
 def authored_shard(path: Path) -> list[dict[str, Any]]:
@@ -1697,37 +1693,63 @@ def test_INV_PACK_06_exactly_one_candidate_per_lesson_one_slot_is_inside_its_win
 ) -> None:
     """[INV-PACK-06] V1/V2 from the authoring side, over this lane's nine ship texts.
 
-    Two claims, and the second one is the one that stops a latent defect.
+    The claim is about the row G5 FILLS EACH SLOT WITH, because that is the row the
+    learner meets: every lemma of it is inside `known | new`, and it carries the lemma G4
+    reserved for that slot. Measured with the pinned `es_core_news_md`, per row, here —
+    not asserted from the authoring notes.
 
-    **V1.** Each slot has exactly one candidate every lemma of which is inside
-    `known | new` under B9(a)'s prenominal table, and that candidate carries the lemma
-    the slot is reserved to teach. Measured with the pinned `es_core_news_md`, per row,
-    here — not asserted from the authoring notes.
+    **This test used to say "exactly one in-window candidate per slot", and the
+    integration that landed B9(a) is what changed it.** The reasoning then: G5 fills a
+    slot with the FIRST accepted candidate, `g7_expand.py::_load` built its map with
+    `candidates[key] = row` over every accepted row and so expanded the LAST, and content
+    that accepts once per slot is content for which the two agree. B9(a)'s
+    lemma-normalisation table then brought three more of this shard's rows into the window
+    (`Buenas noches.`, `¡Buenas tardes!`, `Buenos días, buenas tardes.` — all previously
+    out-of-vocabulary rejects), `s0` accepted four, and G7 expanded a word list where the
+    course teaches `hola`. The fix is in the stage, not in the content:
+    `_load` is `setdefault` now, pinned by
+    `test_the_slot_is_expanded_from_the_candidate_G5_filled_it_with_not_the_last_one`
+    with its falsifier. So this test asserts the property that survives — the fill is the
+    first in-window row and it is the intended one — and no longer a count that a lemma
+    table can move.
 
-    **Exactly one, not at least one.** G5 fills a slot with the FIRST accepted candidate;
-    `g7_expand.py` builds its `candidates` map with `candidates[key] = row` over every
-    accepted row, so G7 expands the LAST one. Two accepted candidates for one slot means
-    the sentence G5 reports and the sentence the learner sees are different rows, and
-    nothing in either stage says so. Until that is reconciled (recorded in
-    `docs/owned/p2r3-gapfill-lesson1.json`; `docs/P2-BLOCKERS.md` is another lane's file),
-    content that accepts once per slot is content for which the two agree.
+    The walk is G5's own: slots in order, rows in shard order, a text already accepted
+    earlier in the unit is a `duplicate` reject and cannot fill a later slot. That is why
+    `s1 … s8` see one accepted row each and `s0` sees four.
     """
     analyser = _spacy_analyser()
     reserved = {index: brief_by_slot()[Slot(1, 1, index)]["new_lemmas"] for index in range(9)}
-    in_window: dict[int, list[str]] = {index: [] for index in range(9)}
-
+    rows_by_slot: dict[int, list[dict[str, Any]]] = {index: [] for index in range(9)}
     for row in authored_shard(LESSON_ONE_SHARD):
-        slot = Slot.of(row["slot"])
-        lemmas = _ledger_lemmas(analyser.analyse(sentence_id="0" * 16, text=row["text"]))
-        if set(lemmas) <= LESSON_ONE_WINDOW:
-            in_window[slot.slot_index].append(row["text"])
+        rows_by_slot[Slot.of(row["slot"]).slot_index].append(row)
 
-    for index, texts in in_window.items():
-        assert len(texts) == 1, (f"u1/l1/s{index}", texts)
-        lemmas = _ledger_lemmas(analyser.analyse(sentence_id="0" * 16, text=texts[0]))
+    seen: set[str] = set()
+    fills: dict[int, str] = {}
+    in_window_counts: dict[int, int] = {}
+    for index in range(9):
+        in_window = [
+            row["text"]
+            for row in rows_by_slot[index]
+            if set(_ledger_lemmas(analyser.analyse(sentence_id="0" * 16, text=row["text"])))
+            <= LESSON_ONE_WINDOW
+        ]
+        in_window_counts[index] = len(in_window)
+        fresh = [text for text in in_window if text not in seen]
+        assert fresh, (
+            f"u1/l1/s{index} has no in-window candidate the unit has not already "
+            f"accepted, so G5 leaves it unfilled: {in_window}"
+        )
+        fills[index] = fresh[0]
+        seen.update(in_window)
+
+    assert in_window_counts == dict.fromkeys(range(9), 4), in_window_counts
+
+    for index, text in fills.items():
+        lemmas = _ledger_lemmas(analyser.analyse(sentence_id="0" * 16, text=text))
+        assert set(lemmas) <= LESSON_ONE_WINDOW, (index, text, lemmas)
         assert set(reserved[index]) <= set(lemmas), (
-            f"u1/l1/s{index} is reserved to teach {reserved[index]} and its only "
-            f"in-window candidate {texts[0]!r} does not contain it"
+            f"u1/l1/s{index} is reserved to teach {reserved[index]} and the candidate "
+            f"G5 fills it with, {text!r}, does not contain it"
         )
         assert len(set(lemmas) & set(reserved[index])) <= MAX_NEW_LEMMAS_PER_ITEM
 
@@ -1760,10 +1782,18 @@ def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
     B9(b) makes one-token sentences reachable for the first time. `config/g7.py`
     SENTENCE_FORM_PLAN row 3 is (`fill_in_the_blank`, `complete_the_translation`,
     `listen_for_the_missing_word`) and a sentence item takes row `slot_index % 5`;
-    `g7_expand.py` builds the body as `_gapped(tokens, _gap_index(tokens))`, which over a
-    SINGLE token returns the gap marker and nothing else. A prompt that is one blank is
-    the same unanswerable class the code already refuses for endings via
-    `MIN_ENDING_STEM_CHARS` — so the guard exists in one place and not the other.
+    `g7_expand.py` builds the body as `_gapped(slot, tokens, _gap_index(tokens))`, which
+    over a SINGLE token returns the gap marker and the sentence's punctuation and nothing
+    else. A prompt that is one blank is the same unanswerable class the code already
+    refuses for endings via `MIN_ENDING_STEM_CHARS` — so the guard exists in one place
+    and not the other.
+
+    `_gapped` grew its `slot` parameter in `p2r3/expand-bake-package`, which cuts the gap
+    out of the ORIGINAL text using the analysis offsets rather than re-joining tokens, so
+    the hazard renders `____.` where it used to render `____`. That is the same
+    unanswerable prompt with the full stop kept, which is why this test strips punctuation
+    instead of comparing to the bare marker: the assertion is about what is left to
+    answer, not about the spelling of the body.
 
     This lane's nine ship texts escape it BY CONTENT LUCK AND NOT BY A GUARD, and that is
     the fact worth pinning: the two one-token texts are at s0 and s5, and
@@ -1776,7 +1806,7 @@ def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
     Nothing in `g7_expand.py` or `config/g7.py` is changed here: they are read as data.
     """
     from coursekit.config.g7 import GAP_MARKER, SENTENCE_FORM_PLAN
-    from coursekit.stages.g7_expand import _gap_index, _gapped
+    from coursekit.stages.g7_expand import ResolvedSlot, _gap_index, _gapped
 
     cloze_forms = {"fill_in_the_blank", "listen_for_the_missing_word", "complete_the_translation"}
     cloze_rows = {
@@ -1786,12 +1816,31 @@ def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
     }
     assert cloze_rows, "no plan row carries a cloze shape; this test is reading the wrong table"
 
-    # The hazard itself, demonstrated rather than described.
-    for text in ("Hola.", "Buenas.", "Sí."):
-        tokens = [text]
-        assert _gapped(tokens, _gap_index(tokens)) == GAP_MARKER, text
-    two = ["Buenas", "tardes."]
-    assert _gapped(two, _gap_index(two)) != GAP_MARKER, "a two-token cloze still has a stem"
+    # The hazard itself, demonstrated rather than described, through the real analysis
+    # path (offsets into the original text) rather than the join fallback.
+    def body(text: str, tokens: list[str]) -> str:
+        cursor = 0
+        rows = []
+        for token in tokens:
+            start = text.index(token, cursor)
+            rows.append({"surface": token, "start": start, "end": start + len(token)})
+            cursor = start + len(token)
+        slot = ResolvedSlot(
+            text=text,
+            translation="",
+            sid=None,
+            analysis={"analyser": "test", "tokens": rows, "lemmas": tokens,
+                      "display_tokens": tokens},
+            candidate_id=None,
+        )
+        return _gapped(slot, tokens, _gap_index(tokens))
+
+    for text, tokens in (("Hola.", ["Hola"]), ("Buenas.", ["Buenas"]), ("Sí.", ["Sí"])):
+        rendered = body(text, tokens)
+        assert rendered.strip(".,¿?¡!") == GAP_MARKER, (text, rendered)
+    assert body("Buenas tardes.", ["Buenas", "tardes"]).strip(".,¿?¡!") != GAP_MARKER, (
+        "a two-token cloze still has a stem"
+    )
 
     # And the claim about THIS lane's content: no one-token ship text draws a cloze row.
     analyser = _spacy_analyser()
@@ -1945,29 +1994,38 @@ def test_the_lesson_one_shard_ships_none_of_the_eleven_word_lists() -> None:
     )
 
 
-def test_the_pinned_lemmatiser_still_has_not_absorbed_the_prenominal_table() -> None:
-    """B9(a) IS NOT LANDED, and this is what says so out loud rather than in a comment.
+def test_the_registered_adapter_has_absorbed_the_prenominal_table_and_the_propn_plural() -> None:
+    """B9(a) IS LANDED, and both traps this lane measured are closed. Same four strings.
 
-    The nine ship texts above are in vocabulary under `PRENOMINAL_BUENO`. They are NOT in
-    vocabulary under the registered adapter today: `es_core_news_md` 3.8.0 lemmatises
-    `Buenos` to `buenos`, `buenos` to `buen` and `buenas` to `buena`/`buenas`, none of
-    which is a ledger lemma, so `Buenos días.` is out of vocabulary in the lesson that
-    teaches both `bueno` and `día`. Founder ruling B9 bundles three changes and (a) — the
-    adapter's lemma-normalisation table — is owned by another lane.
+    This test's previous form asserted the opposite and said so in its name: it pinned
+    the broken state (`Buenos días.` -> `['buenos', 'día']`, out of vocabulary in the
+    lesson that teaches both `bueno` and `día`) and its failure message said "delete
+    `PRENOMINAL_BUENO` and this test", not "the adapter regressed". It failed at the P2
+    round-3 integration, the day `p2r3/lemma-reachability` landed founder ruling B9(a) —
+    which is exactly what it was for. Rewritten rather than deleted, because these four
+    strings decided all nine ship texts and the one thing that could still break them
+    silently is the adapter dropping the table again.
 
-    **The day that lane lands, this test fails**, which is the point: it is the only place
-    that will notice, and its failure means "delete `PRENOMINAL_BUENO` from this file and
-    the B9(a) paragraphs from `docs/P2-BLOCKERS.md`", not "the adapter regressed". Same
-    mechanism as `test_the_invocation_build_es_uses_today_leaves_v8_with_nothing`: a
-    blocker with a test attached is a blocker somebody has to close on purpose.
+    Measured here after the merge, 2026-09-12, on the pinned `es_core_news_md` 3.8.0
+    through the registered adapter:
 
-    It also pins the SECOND trap, which B9 as written does not mention and which the
-    prenominal table alone does not fix: sentence-initial `Buenas noches.` comes out as
-    `['buenas', 'noches']` — `noches` is tagged `PROPN` and is not lemmatised to `noche`
-    at all — so `Buenas noches.` stays out of vocabulary even with the table, and the
-    only surface that reaches the lemma `noche` in this window is the mid-sentence one
-    (`Hola, buenas noches.` -> `['hola', 'buena', 'noche']`). That is why `s4` ships the
-    three-token form.
+    * **the prenominal trap** (`config/g1.LEMMA_NORMALISATION_ES`): `buen`, `buena`,
+      `buenos` and `buenas` all reach `bueno`, in every position the raw model
+      distinguishes — sentence-initial PROPN, mid-sentence ADJ, and bare.
+    * **the PROPN-plural trap**, which B9 as written does not mention and which this lane
+      raised against the other one: sentence-initial `Buenas noches.` used to come out
+      `['buenas', 'noches']`, the plural noun tagged `PROPN` and never lemmatised, so the
+      canonical greeting stayed out of vocabulary even WITH the prenominal table. It now
+      reaches `['bueno', 'noche']`.
+
+    The consequence is content rather than code, and it is recorded where it landed: the
+    three greetings that used to be rejects (`Buenas noches.`, `¡Buenas tardes!`,
+    `Buenos días, buenas tardes.`) are now in vocabulary, so every slot of `u1/l1` has
+    four in-window candidates rather than one — see
+    `test_INV_PACK_06_exactly_one_candidate_per_lesson_one_slot_is_inside_its_window`
+    and, for the stage defect that turned that into a shipped word list,
+    `test_the_slot_is_expanded_from_the_candidate_G5_filled_it_with_not_the_last_one`
+    in `test_g7_expand.py`.
     """
     analyser = _spacy_analyser()
     measured = {
@@ -1975,18 +2033,17 @@ def test_the_pinned_lemmatiser_still_has_not_absorbed_the_prenominal_table() -> 
         for text in ("Buenos días.", "Buenas.", "Hola, buenas tardes.", "Buenas noches.")
     }
     assert measured == {
-        "Buenos días.": ["buenos", "día"],
-        "Buenas.": ["buenas"],
-        "Hola, buenas tardes.": ["hola", "buena", "tarde"],
-        "Buenas noches.": ["buenas", "noches"],
+        "Buenos días.": ["bueno", "día"],
+        "Buenas.": ["bueno"],
+        "Hola, buenas tardes.": ["hola", "bueno", "tarde"],
+        "Buenas noches.": ["bueno", "noche"],
     }, measured
-    assert not set(measured["Buenos días."]) <= LESSON_ONE_WINDOW, (
-        "the adapter now produces `bueno` for a prenominal form: B9(a) has landed. Delete "
-        "PRENOMINAL_BUENO and this test."
-    )
-    assert "noches" in measured["Buenas noches."], (
-        "`noches` now lemmatises to `noche`: the PROPN-plural half of the trap is gone too"
-    )
+    for text, lemmas in measured.items():
+        assert set(lemmas) <= LESSON_ONE_WINDOW, (
+            f"{text!r} is out of the lesson-1 window again ({lemmas}): the adapter's "
+            f"lemma-normalisation table (founder ruling B9(a)) has been dropped or "
+            f"narrowed, and eight of the nine ship texts go out of vocabulary with it"
+        )
 
 
 def test_analysis_is_null_on_exactly_the_rows_the_analyser_never_ran_on(
