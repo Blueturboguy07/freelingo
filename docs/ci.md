@@ -47,6 +47,13 @@ So the bank travels in `es-build-<sha>`, and the manifest F2 validates travels i
 then is one that runs the upstream stages itself, not one that hopes an artefact is still
 around.
 
+One thing this deletion does **not** fix, said plainly: `es-build-<sha>` keeps
+`retention-days: 1`, so a bank is downloadable for a day after the run that made it and
+then only re-derivable by re-running `build-es`. That is a real limit and it is the same
+limit as before — a workflow that never produced a bank did not give anyone a longer
+window. Raise the retention, or add a bank to `es-pack-<sha>`, if a bank ever needs to
+outlive its run.
+
 ## `pack-ci.yml` and the job that was green because it never ran
 
 ```
