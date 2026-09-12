@@ -472,12 +472,12 @@ lane that wrote this file, the manifest part landed with `p2r3/expand-bake-packa
 the `REVIEW_DIMENSIONS` constant landed at the integration itself. The table below is
 the authority.
 
-| Part of the ruling                                        | State          | Where / who                                                                           |
-| --------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------- |
-| Kokoro is the engine for es (fr/ja at P7)                 | **built**      | `content/es/cast.yaml` `D-CAST-ES-00`, `config/g8.py`                                 |
-| the two blended roles stay, declared in `cast.yaml`       | **built**      | `D-CAST-ES-02`: Rosa and Nico, with weights and rates                                 |
-| the reviewer rubric checks accent consistency             | **built here** | `content/es/review/RUBRIC.md` §`accent_consistency`                                   |
-| `accent_consistency` **declared** in code                 | **built**      | `REVIEW_DIMENSIONS`, `config/sample.py` — landed at the round-3 integration           |
+| Part of the ruling                                        | State          | Where / who                                                                            |
+| --------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------- |
+| Kokoro is the engine for es (fr/ja at P7)                 | **built**      | `content/es/cast.yaml` `D-CAST-ES-00`, `config/g8.py`                                  |
+| the two blended roles stay, declared in `cast.yaml`       | **built**      | `D-CAST-ES-02`: Rosa and Nico, with weights and rates                                  |
+| the reviewer rubric checks accent consistency             | **built here** | `content/es/review/RUBRIC.md` §`accent_consistency`                                    |
+| `accent_consistency` **declared** in code                 | **built**      | `REVIEW_DIMENSIONS`, `config/sample.py` — landed at the round-3 integration            |
 | manifests carry `language` + `accent_claim`, not `locale` | **built**      | `cast.yaml` (no `locale:` key), `config/g8.py::ACCENT_CLAIMS`, `packbuild/manifest.py` |
 
 Three notes, kept because each of these parts failed in a way that was not obvious, and

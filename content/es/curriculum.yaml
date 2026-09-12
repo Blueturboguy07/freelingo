@@ -435,7 +435,6 @@ sections:
             y,
           ]
 
-
       - title: Count the people and things around you
         function: counting and stating quantity
         grammar_concept: numbers_quantity
@@ -558,7 +557,6 @@ sections:
             techo,
             cajón,
           ]
-
 
       - title: Introduce the people in your family
         function: talking about family

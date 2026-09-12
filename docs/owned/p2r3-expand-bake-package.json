@@ -3,14 +3,7 @@
   "task": "p2r3-expand-bake-package",
   "module": "tools/coursekit/src/coursekit (stages/g7_expand.py, stages/g8_bake.py, exercises/, tts/cast.py, packbuild/manifest.py, validators/exercise.py, validators/audio.py, config/g7.py, config/g8.py, config/base.py)",
   "phase": "P2",
-  "screens": [
-    "S032",
-    "S033",
-    "S034",
-    "S035",
-    "S036",
-    "S037"
-  ],
+  "screens": ["S032", "S033", "S034", "S035", "S036", "S037"],
   "owned": [],
   "ownedByPytest": [
     "INV-PACK-02",

@@ -8,11 +8,7 @@
   "$ownedIsEmpty": "Deliberately empty, and not because this task covers nothing. `owned` is EXCLUSIVE: scripts/coverage-map.ts unions the ownership files and fails on any id claimed by two, and packages/core/src/journey/phase-roster.test.ts asserts the same. All three ids this task was told to turn green already have an owner — INV-PACK-06 in docs/owned/p2-g3-g4.json, INV-PACK-12 in docs/owned/p2-g0-ingest.json, INV-PACK-40 in docs/owned/p2-g1-g2.json — so claiming them here would turn the gate red rather than green. What this task adds is listed under `strengthens`, and every test there carries its id in the name, so `test:coverage-map` counts them against the owning file.",
   "strengthens": {
     "$comment": "Tests this task adds to invariants owned by another P2 file. Same ids, new coverage.",
-    "ids": [
-      "INV-PACK-06",
-      "INV-PACK-12",
-      "INV-PACK-40"
-    ],
+    "ids": ["INV-PACK-06", "INV-PACK-12", "INV-PACK-40"],
     "tests": {
       "INV-PACK-06": [
         "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_06_every_declared_surface_really_produces_its_raw_lemma",

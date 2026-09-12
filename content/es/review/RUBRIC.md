@@ -93,7 +93,7 @@ something, filed in `docs/owned/p2r3-provenance-docs.json` with its exact spelli
 because the lane that wrote this file could not edit `config/sample.py`. The integrator
 landed it. Read the constant before scoring a sheet anyway — §"If the constant does not
 carry it yet" below is kept for a tree where it has been reverted or renamed — and note
-that the dimension being *declared* is not the same as its being *scoreable*: the sheet
+that the dimension being _declared_ is not the same as its being _scoreable_: the sheet
 still carries no clip reference and no voice role (B18), so on a sheet drawn today the
 honest value is `null`.
 

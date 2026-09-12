@@ -184,11 +184,11 @@ that disagree do not produce a wrong rate, they produce **no rate**.
 `coursekit` produces provenance for four surfaces, and the reason each figure exists is
 that something renders it. `docs/pack-provenance.md` is the full account; this is the map.
 
-| Screen   | Reads                                                                                                                                        |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **S001** | course-picker card: `A1 · CEFR-aligned` / `Beginner · frequency-ordered`, `{{n}}% machine-authored`, `measured wrong-item rate {{n}}%`, size |
-| **S002** | pack detail: sample sentence + speaker, item count, size, the **validator-report summary** (`validators/report.py::summarise()`)             |
-| **S137** | About: licences, content provenance, measured defect rate, version, and `Content credits` into S152                                          |
+| Screen   | Reads                                                                                                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S001** | course-picker card: `A1 · CEFR-aligned` / `Beginner · frequency-ordered`, `{{n}}% machine-authored`, `measured wrong-item rate {{n}}%`, size                            |
+| **S002** | pack detail: sample sentence + speaker, item count, size, the **validator-report summary** (`validators/report.py::summarise()`)                                        |
+| **S137** | About: licences, content provenance, measured defect rate, version, and `Content credits` into S152                                                                     |
 | **S152** | Credits: per row the **sentence text** then `Source: {{source}}` · `Licence: {{licence}}` · `By {{owner}}`; the derived-list and voice declarations; the pack's licence |
 
 S152 is the surface INV-PACK-17 and validator **F3** enforce: every sentence, voice and
