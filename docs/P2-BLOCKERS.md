@@ -9,16 +9,18 @@ with the one question each needs answered and nothing else: they are not answere
 file, and an agent answering them would be inventing the decision rather than recording
 it.
 
-| Id     | What                                                                        | Kind                     | Status                            |
-| ------ | --------------------------------------------------------------------------- | ------------------------ | --------------------------------- |
-| **B1** | 18,200 candidate sentences do not exist                                     | authoring                | **OPEN — the phase blocker**      |
-| **B2** | `pack-bake.yml` could not succeed on any dispatch                           | code                     | **RESOLVED 2026-09-12** — deleted |
-| **B3** | the wrong-item rate is `None`, not 2%                                       | **founder decision**     | **OPEN**                          |
-| **B4** | `coursekit sample es --n 300` is not a spelling the CLI has                 | docs                     | **RESOLVED 2026-09-12**           |
-| **B5** | S152 has a validator, F3, and no row in the product map                     | **founder decision**     | **OPEN**                          |
-| **B6** | Azure is dead; Spanish bakes on Kokoro                                      | **founder decision**     | **OPEN**                          |
-| **B7** | `mutation.yml` has never produced a score                                   | pre-existing, non-gating | **OPEN, measured**                |
-| **B8** | `build-es` names no language engine, so V8 will block even once B1 is fixed | code (CI)                | **OPEN — found 2026-09-12**       |
+| Id      | What                                                                                     | Kind                     | Status                            |
+| ------- | ---------------------------------------------------------------------------------------- | ------------------------ | --------------------------------- |
+| **B1**  | 18,200 candidate sentences do not exist                                                  | authoring                | **OPEN — the phase blocker**      |
+| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                     | **OPEN — measured 920/920**       |
+| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision          | **OPEN — found 2026-09-12**       |
+| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                     | **RESOLVED 2026-09-12** — deleted |
+| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision**     | **OPEN**                          |
+| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                     | **RESOLVED 2026-09-12**           |
+| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision**     | **OPEN**                          |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision**     | **OPEN**                          |
+| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing, non-gating | **OPEN, measured**                |
+| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)                | **OPEN — found 2026-09-12**       |
 
 ---
 
@@ -32,6 +34,24 @@ of them (8 × exactly 20), which is **0.9%**. The course needs 918 × 20 = **18,
 whole downstream half of P2 — `coursekit validate es`, V1–V4 at 100%, V5–V12, the V8
 engine record, the licence sweep, the 120 MB bank on real bytes, `coursekit sample es`,
 `coursekit sign es` — has **never run**.
+
+**Reproduced locally on this Mac, 2026-09-12**, so the numbers below are first-hand and
+not read off a CI summary. `coursekit build es --set max_pairs=200000` in this worktree,
+13 minutes, with the `nlp`, `lm` and `tts` groups and the hermitdave list fetched the way
+`build-es` fetches it:
+
+| Stage | What it reported                                                                    |
+| ----- | ----------------------------------------------------------------------------------- |
+| G0    | 276,203 ingested (tatoeba 180,862 + nllb 95,341), NFC, length window [3, 12]        |
+| G1    | `es_core_news_md-3.8.0`, adapter self-test ok, 3.93 mean content words per sentence |
+| G2    | ok                                                                                  |
+| G3    | ok, `cefr_checked: false`                                                           |
+| G4    | **1,584 slots, 664 filled, 920 gaps** (`gap_fraction` 0.5808), ledger yield 0.1452  |
+| G5    | **failed, exit 4** — "918 slot(s) authored below the over-generation floor of 20"   |
+
+Every slot G5 names carries `(0)`. The CI run at `281b623` reported 918 gaps and this one
+920, on an independently streamed corpus: the figure is curriculum-driven, not a fluke of
+one download.
 
 G5 is the only authoring stage and there is no hosted model in this environment, so the
 remaining ~18,200 sentences are agent-authoring work, not an integration fix. Four
@@ -57,9 +77,16 @@ declaring `allowed_lemmas: []`, and every such candidate fails `out_of_vocabular
 because every lexical lemma it contains is outside an empty set. A text with no lexical
 lemma is not a way out: the adapter raises on it.
 
-The shard measured **1,456 of 1,456** gap rows in a local build, and the branch is
-corpus-independent, so the **918** slots of the `281b623` CI run were unfillable for the
-same reason.
+The shard measured **1,456 of 1,456** gap rows in a local build. **Measured again here,
+on this lane's own build tree: 920 of 920.** Two independent builds, two corpora, the
+same 100%, which is what a corpus-independent branch looks like:
+
+```python
+>>> sum(1 for r in gap_rows if not r["known_lemmas"] and not r["new_lemmas"])
+920
+>>> len(gap_rows)
+920
+```
 
 **This changes what B1 is.** It is not "18,200 sentences nobody has written yet"; it is a
 G4 defect that makes the authoring work impossible to accept no matter how good the
@@ -67,6 +94,36 @@ sentences are. Authoring more shards against the current G4 would produce tens o
 thousands of rows that G5 must reject. `stages/g4_select.py` is not in the
 `p2fix-downstream` lane; it is the thing to fix before another authoring round is
 commissioned.
+
+### B1b — the committed candidates are keyed in a lesson numbering G4 does not use
+
+Found here, 2026-09-12, by joining `content/es/candidates.jsonl` against this build's
+`build/es/g4/selected.jsonl` rather than trusting either file's own description.
+
+The eight slots the 160 committed rows name are
+
+```
+(1,1,0) (1,2,2) (2,1,1) (2,3,0) (3,1,4) (3,2,1) (4,1,0) (4,2,3)
+```
+
+— `(unit_index, lesson_index, slot_index)` with **lesson numbered within its unit**. G4
+numbers lessons **across the course**: unit 1 owns lessons 1–6, unit 2 owns **7–12**,
+unit 3 owns 13–18, and so on (`selected.jsonl`, and G5's own error prints `u2/l7/s0`).
+
+So of the eight authored slots, **two are gaps in this build** — `(1,1,0)` and `(1,2,2)`,
+and only because unit 1's local and global numbering coincide. The other **six name
+(unit, lesson) pairs G4 never emits at all**: there is no lesson 1 in unit 2.
+
+That makes "160 rows covering 8 of 918 slots" optimistic, and it is worth saying where
+that 8 came from: it is 160 ÷ 20, read off the candidates file, not a join against G4's
+gap list. Joined, it is 40 rows against 2 real slots and 120 rows pointing at nothing — and it means the pilot bank the four authoring
+shards were told to imitate demonstrates a slot key that does not join. Fixing B1a without
+fixing this would produce a second round of rows that G5 silently has no slot for.
+
+**Which numbering is correct is a decision, not a bug report.** Per-unit lesson numbers
+are what a human author can hold in their head; course-global ones are what G4 emits. One
+of the two has to move, and whichever moves, `content/es/candidates.jsonl` and the gap
+brief have to move with it. Neither file is in this lane.
 
 ---
 

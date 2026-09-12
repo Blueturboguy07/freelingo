@@ -82,9 +82,21 @@
       "forWhom": "the integrator, or whoever owns pack-ci.yml"
     },
     {
-      "what": "B1a — G4 emits every gap slot with known_lemmas: [] and new_lemmas: [], so no authored candidate can ever pass G5",
-      "why": "raised by p2fix/author-u07-u14 at 8fe05ae (1,456 of 1,456 gap rows measured) and confirmed here by reading stages/g4_select.py's `if choice is None` branch. It means B1 is not an authoring backlog but a G4 defect that makes the authoring unacceptable however good it is. stages/g4_select.py is not in this lane.",
-      "forWhom": "whoever owns tools/coursekit/src/coursekit/stages/g4_select.py"
+      "what": "B1a/B1b — G4 emits every gap slot with empty known_lemmas/new_lemmas, and the committed candidates are keyed in a lesson numbering G4 does not use",
+      "why": [
+        "B1a: raised by p2fix/author-u07-u14 at 8fe05ae (1,456 of 1,456 gap rows) and measured again on THIS lane's own build tree, 920 of 920 — two builds, two corpora, the same 100%, which is what a corpus-independent branch looks like. It means B1 is not an authoring backlog but a G4 defect that makes the authoring unacceptable however good the sentences are. B1b: found here by joining content/es/candidates.jsonl against build/es/g4/selected.jsonl. The 160 committed rows name 8 slots keyed (unit, lesson-within-unit, slot); G4 numbers lessons across the course (unit 2 owns lessons 7-12), so only 2 of the 8 are real gaps and 6 name (unit, lesson) pairs G4 never emits. The '8 slots' figure is 160/20 read off the file, not a join. Which numbering is right is a decision, and whichever moves, the candidates file and the gap brief move with it. Neither file is in this lane."
+      ],
+      "forWhom": "whoever owns tools/coursekit/src/coursekit/stages/g4_select.py and content/es/candidates.jsonl"
     }
-  ]
+  ],
+  "localBuild": {
+    "$comment": "The full es build was run in this worktree rather than waiting on CI, because the brief asks for the downstream stages on real data and only a real corpus can produce that. It got as far as CI did and failed identically.",
+    "command": "uv run coursekit build es --set max_pairs=200000, with nlp+lm+tts synced and the hermitdave es_50k.txt fetched the way build-es fetches it",
+    "wallClock": "about 13 minutes, 2026-09-12",
+    "g0": "276,203 ingested (tatoeba 180,862 + nllb 95,341), NFC, length window [3, 12]",
+    "g1": "es_core_news_md-3.8.0, adapter self-test ok, 3.93 mean content words/sentence",
+    "g4": "1,584 slots, 664 filled, 920 gaps (gap_fraction 0.5808), ledger_yield 0.1452",
+    "g5": "FAILED exit 4 — 918 slot(s) authored below the over-generation floor of 20, every one at (0)",
+    "consequence": "G6, G7, G8, G9, validate, sample and sign STILL have never executed on real data. Nothing downstream of G5 is proven by this run; what it proves is that the CI failure reproduces off CI, and B1a and B1b."
+  }
 }
