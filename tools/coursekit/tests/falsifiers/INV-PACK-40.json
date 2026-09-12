@@ -1,0 +1,56 @@
+{
+  "invariant": "INV-PACK-40",
+  "$comment": "The committed falsifying inputs for INV-PACK-40. The invariant text names three distinct ways to break it, and each one gets a case here, because they fail in different files and a test that only covers the first would pass while the other two shipped. Consumed by tests/test_ledger_unit.py.",
+  "statement": "Every pack declares `ledger_unit` (Mode-A morpheme for `ja`, lemma otherwise) exactly once in its manifest, and every token-counting consumer reads it - `length_filter`, the new-item budget, V1/V2 and the stored speaking tokens. Each pack also declares its own window and budget, and the validator reports mean content-words-per-sentence per pack.",
+  "cases": [
+    {
+      "id": "no-ledger-unit-in-the-manifest",
+      "why": "A manifest with no `ledger_unit` leaves every downstream consumer to guess, and each one guesses differently. The declaration is what makes V1 lemma-level rather than surface-level.",
+      "manifest": {
+        "lang": "es",
+        "recycling_window_lessons": 6,
+        "recycling_min_occurrences": 3,
+        "new_items_per_lesson": 7,
+        "mean_content_words_per_sentence": 3.4
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "ledger-unit-declared-twice-with-different-values",
+      "why": "Declared 'exactly once' is the operative word. Two declarations is worse than none: every reader finds one of them and none of them disagree loudly.",
+      "manifest": {
+        "lang": "es",
+        "ledger_unit": "lemma",
+        "ledger_unit_v2": "surface",
+        "recycling_window_lessons": 6,
+        "recycling_min_occurrences": 3,
+        "new_items_per_lesson": 7,
+        "mean_content_words_per_sentence": 3.4
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "a-consumer-with-its-own-inlined-notion-of-a-token",
+      "why": "This is the case that cannot be caught by inspecting a manifest, because the manifest is correct. A consumer that whitespace-splits or word-class-regexes its own tokens agrees with the ledger for Spanish function words and silently disagrees for every Spanish clitic and every Japanese compound - and V1 then passes over a ledger that means nothing. The gate is a grep over the tree, so the falsifier is source text.",
+      "planted_source": "def length_filter(text: str) -> bool:\n    return 3 <= len(text.split()) <= 12\n",
+      "planted_at": "src/coursekit/stages/g0_ingest.py",
+      "expect": "refused"
+    },
+    {
+      "id": "a-word-class-regex-standing-in-for-the-adapter",
+      "why": "The second shape of the same bug, and the one that looks most like care: a Unicode-aware word regex is right for Spanish often enough to pass review and is meaningless for Japanese, which has no whitespace and whose ledger unit is a Mode-A morpheme.",
+      "planted_source": "import re\n\n_WORD = re.compile(r'[^\\W\\d_]+', re.UNICODE)\n\n\ndef new_items(text):\n    return set(_WORD.findall(text.lower()))\n",
+      "planted_at": "src/coursekit/validators/v2_new_items.py",
+      "expect": "refused"
+    },
+    {
+      "id": "one-shared-window-starves-a-japanese-lesson",
+      "why": "The invariant's own falsifier, verbatim: 'one shared window yielding a `ja` lesson that teaches three content words inside its budget'. A Mode-A morpheme is a smaller unit than a lemma, so a single global budget tuned on Spanish spends itself on Japanese bound morphemes and the lesson teaches almost nothing. Each pack declares its own.",
+      "shared_budget_new_items_per_lesson": 7,
+      "ja_lesson_units": ["国家", "公務", "員", "に", "なり", "たい", "です"],
+      "ja_content_units": ["国家", "公務", "員"],
+      "expect": "refused",
+      "expect_reason": "seven Mode-A morphemes inside the shared budget of 7 teach three content words"
+    }
+  ]
+}

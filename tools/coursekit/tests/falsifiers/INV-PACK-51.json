@@ -1,0 +1,87 @@
+{
+  "invariant": "INV-PACK-51",
+  "$comment": "The committed falsifying inputs for INV-PACK-51. Consumed by tests/test_g2_band.py and tests/test_ledger_unit.py. The registry's own example is Japanese (`辛い` karai/tsurai, and a two-`本` word bank); Spanish is the language P2 ships, so the primary case is a Spanish homograph pair that collapses the same way, and the Japanese pair is kept beside it so the key shape is not quietly tuned to one script.",
+  "statement": "No two distinct ledger items share a `(normalized_form, reading_form, POS)` key, and no two tiles in one item share a rendered label. Falsifier: `辛い` collapsing to one Words row, or a two-`本` bank with no disambiguating ruby.",
+  "reading_form_rule": {
+    "es": "the orthographic form - Spanish spelling determines pronunciation, so there is no separate reading to store and the key degenerates to (normalized_form, orthographic_form, POS)",
+    "ja": "SudachiPy `reading_form()` - katakana per Mode-A morpheme, which is the only thing that tells two identically written items apart"
+  },
+  "cases": [
+    {
+      "id": "es-homograph-pair-collapsing-to-one-words-row",
+      "why": "Two distinct A1 lexemes, identical spelling, identical UD POS, different gender and different meaning. They are two Words rows in the product and two FSRS items in the engine. Merging them teaches one and schedules the other's reviews against it.",
+      "lang": "es",
+      "items": [
+        {
+          "sense": "es-capital-money",
+          "lemma": "capital",
+          "pos": "NOUN",
+          "gloss": "capital (money)",
+          "morph": "Gender=Masc|Number=Sing"
+        },
+        {
+          "sense": "es-capital-city",
+          "lemma": "capital",
+          "pos": "NOUN",
+          "gloss": "capital city",
+          "morph": "Gender=Fem|Number=Sing"
+        }
+      ],
+      "collapsed_key": ["capital", "capital", "NOUN"],
+      "expect": "refused"
+    },
+    {
+      "id": "ja-karai-tsurai-collapsing-to-one-words-row",
+      "why": "The registry's own example. Same kanji, same POS, two readings and two meanings; only `reading_form` separates them, which is why it is in the key at all rather than being an es-shaped afterthought.",
+      "lang": "ja",
+      "items": [
+        {
+          "sense": "ja-karai",
+          "lemma": "辛い",
+          "pos": "ADJ",
+          "reading_form": "カライ",
+          "gloss": "spicy"
+        },
+        {
+          "sense": "ja-tsurai",
+          "lemma": "辛い",
+          "pos": "ADJ",
+          "reading_form": "ツライ",
+          "gloss": "painful"
+        }
+      ],
+      "collapsed_key": ["辛い", "辛い", "ADJ"],
+      "expect": "accepted_only_with_reading_form",
+      "expect_reason": "distinct once `reading_form` is the Sudachi reading; identical the moment a build drops it to the orthographic form the way Spanish does"
+    },
+    {
+      "id": "two-tiles-in-one-item-share-a-rendered-label",
+      "why": "The second half of the invariant. A word bank whose two tiles read the same is unanswerable: a learner who taps correctly cannot be told apart from one who did not, and the grader has no way to score it.",
+      "lang": "ja",
+      "item": "ja-two-hon-bank",
+      "tiles": ["本", "本", "を", "読む"],
+      "expect": "refused",
+      "expect_reason": "the counter 本 (-hon) and the noun 本 (book) need disambiguating ruby before either may be a tile"
+    },
+    {
+      "id": "same-item-seen-twice-is-not-a-collision",
+      "why": "The near-miss that would make the gate useless in the other direction. G2 aggregates many surface forms onto one lemma, so the same ledger item arrives repeatedly; that is a merge, not a collision. A gate that refused it would refuse every real run.",
+      "lang": "es",
+      "items": [
+        {
+          "sense": "es-casa-house",
+          "lemma": "casa",
+          "pos": "NOUN",
+          "gloss": "house"
+        },
+        {
+          "sense": "es-casa-house",
+          "lemma": "casa",
+          "pos": "NOUN",
+          "gloss": "house"
+        }
+      ],
+      "expect": "accepted"
+    }
+  ]
+}
