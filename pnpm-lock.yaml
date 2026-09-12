@@ -116,6 +116,10 @@ importers:
         version: 6.0.3
 
   packages/core:
+    dependencies:
+      ts-fsrs:
+        specifier: ^5.4.2
+        version: 5.4.2
     devDependencies:
       '@freelingo/testkit':
         specifier: workspace:*
@@ -129,6 +133,12 @@ importers:
       '@freelingo/core':
         specifier: workspace:*
         version: link:../core
+      '@noble/ed25519':
+        specifier: ^3.2.0
+        version: 3.2.0
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
     devDependencies:
       '@freelingo/testkit':
         specifier: workspace:*
@@ -1294,6 +1304,13 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+
+  '@noble/ed25519@3.2.0':
+    resolution: {integrity: sha512-criDgRlnUA09hchYrTy/JUWPIEap5rZxQe6wDWzRx51oWWpDRcUpuNzlgPxDJaOK6AsW9c0wKcj3rKRv6t+bPQ==}
+
+  '@noble/hashes@2.4.0':
+    resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
+    engines: {node: '>= 20.19.0'}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -3733,6 +3750,10 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4'
 
+  ts-fsrs@5.4.2:
+    resolution: {integrity: sha512-z4qop4pzTcyTzuJ566d9EaX/4bZZzhYfeaPImfVr+xcYT65c5oBgFDijUhCE/D+C78eaolHIhKRZ04/RwF+v2g==}
+    engines: {node: '>=20.0.0'}
+
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
@@ -5712,6 +5733,10 @@ snapshots:
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
+
+  '@noble/ed25519@3.2.0': {}
+
+  '@noble/hashes@2.4.0': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -8657,6 +8682,8 @@ snapshots:
   ts-api-utils@2.5.0(typescript@6.0.3):
     dependencies:
       typescript: 6.0.3
+
+  ts-fsrs@5.4.2: {}
 
   tslib@2.8.1: {}
 
