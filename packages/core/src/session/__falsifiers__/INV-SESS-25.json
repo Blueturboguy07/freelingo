@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-25",
+  "case": "EC-SES-30: the story player is closed at part 9 of 17 with three parts answered",
+  "kind": "quit",
+  "input": {
+    "answers": 3,
+    "route": "storyCloseControl"
+  },
+  "expect": {
+    "decision": "showQuitSheet",
+    "writes": 0,
+    "attemptsOnEnd": 3,
+    "xp": 0
+  }
+}

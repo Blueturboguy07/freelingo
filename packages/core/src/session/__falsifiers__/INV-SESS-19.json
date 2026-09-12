@@ -1,0 +1,13 @@
+{
+  "id": "INV-SESS-19",
+  "case": "EC-SES-24: a difficulty step-up fires in session 3 of 20 that day",
+  "kind": "hardMode",
+  "input": {
+    "stepUp": true
+  },
+  "expect": {
+    "hardModeAtStart": false,
+    "hardModeAfterStepUp": true,
+    "hardModeAtComplete": false
+  }
+}

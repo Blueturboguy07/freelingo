@@ -1,0 +1,13 @@
+{
+  "id": "INV-SESS-04",
+  "case": "EC-SES-04: the process dies between the verdict and CONTINUE",
+  "kind": "bannerKill",
+  "input": {
+    "verdict": "softCorrect"
+  },
+  "expect": {
+    "restoredState": "banner.softCorrect",
+    "writesAtBanner": 0,
+    "indexAfterContinue": 1
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "INV-COM-04",
+  "case": "EC-COM-04: the combo is broken at 7",
+  "kind": "combo",
+  "input": {
+    "verdicts": ["c", "c", "c", "c", "c", "c", "c", "w"]
+  },
+  "expect": {
+    "combo": 0,
+    "gold": false,
+    "label": false
+  }
+}

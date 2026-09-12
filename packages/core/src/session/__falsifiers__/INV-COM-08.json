@@ -1,0 +1,16 @@
+{
+  "id": "INV-COM-08",
+  "case": "EC-COM-11: one answer drains the main queue, trips the step-up and reaches combo 5 — one queue, three screens, canonical order",
+  "kind": "interstitialOrder",
+  "input": {
+    "combo": 5,
+    "stepUpTripped": true,
+    "mistakesPending": 2,
+    "mistakeReviewDue": true
+  },
+  "expect": {
+    "producers": ["combo", "stepUp", "mistakeReview"],
+    "canonicalOrder": true,
+    "copyKeys": ["combo.5_in_a_row", "stepup.production", "mistakeReview.many"]
+  }
+}

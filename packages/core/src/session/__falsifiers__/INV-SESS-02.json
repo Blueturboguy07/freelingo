@@ -1,0 +1,12 @@
+{
+  "id": "INV-SESS-02",
+  "case": "EC-SES-02: a session row exactly at, and just past, 24 h",
+  "kind": "resumeAge",
+  "input": {
+    "checkpointMs": 1000000,
+    "probes": [86399999, 86400000, 86400001]
+  },
+  "expect": {
+    "offered": [false, false, true]
+  }
+}

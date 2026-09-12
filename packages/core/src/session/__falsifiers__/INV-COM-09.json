@@ -1,0 +1,22 @@
+{
+  "id": "INV-COM-09",
+  "case": "EC-COM-12: at combo 9 a missing-accent soft-correct is also the tenth consecutive correct \u2014 the tier-2 note wins the banner headline AND the milestone still fires exactly once",
+  "kind": "softCorrectMilestone",
+  "input": {
+    "correctBefore": 9,
+    "note": "Pay attention to the accents."
+  },
+  "expect": {
+    "combo": 10,
+    "gold": true,
+    "label": true,
+    "shellStateAtBanner": "banner.softCorrect",
+    "bannerHeadline": "Pay attention to the accents.",
+    "headlineSurvivesKill": "Pay attention to the accents.",
+    "milestoneInterstitials": 1,
+    "milestoneCopyKey": "combo.10_in_a_row",
+    "comboBroken": false,
+    "milestonesInWholeRun": 2,
+    "distinctCopyInWholeRun": 2
+  }
+}

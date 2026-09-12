@@ -1,0 +1,23 @@
+{
+  "id": "INV-COM-12",
+  "case": "EC-COM-15: a mixed lesson escalates difficulty twice \u2014 and the less-sound copy can only come from an audio-only flavour",
+  "kind": "stepUpCopy",
+  "input": {
+    "combo": 5,
+    "stepUpTripped": true,
+    "stepUpAlreadyFired": true
+  },
+  "expect": {
+    "producersWhenAlreadyFired": [
+      "combo"
+    ],
+    "stepUpsWhenAlreadyFired": 0,
+    "stepUpsOnFirstTrip": 1,
+    "copyKeyPerStepUpKind": {
+      "production": "stepup.production",
+      "audio": "stepup.audio"
+    },
+    "shippedFlavoursDeclaringAudio": 0,
+    "audioCopyFromANonAudioConfig": 0
+  }
+}

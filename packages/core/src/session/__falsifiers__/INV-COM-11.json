@@ -1,0 +1,14 @@
+{
+  "id": "INV-COM-11",
+  "case": "EC-COM-14: combo 10 when the main queue drains, then a correct replay",
+  "kind": "combo",
+  "input": {
+    "verdicts": ["c", "c", "c", "c", "c", "c", "c", "c", "c", "c"],
+    "thenReplay": "c"
+  },
+  "expect": {
+    "combo": 11,
+    "gold": true,
+    "label": true
+  }
+}

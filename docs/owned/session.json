@@ -1,0 +1,153 @@
+{
+  "$comment": "Invariant ids owned by the P1 task `p1-session-runtime` (packages/core/src/session). The integrate task merges these into docs/invariants-owned.json, which is what `pnpm test:coverage-map` reads; this file is the per-task claim so two lanes cannot silently claim the same id or drop one between them. `resolutions` records where two registry rows disagree and which reading this lane implements \u2014 a refuter rejected an earlier cut for testing a weaker property than its own falsifier's case named, so the reading is written down rather than inferred from the test.",
+  "task": "p1-session-runtime",
+  "phase": "P1",
+  "module": "packages/core/src/session",
+  "screens": [
+    "S029",
+    "S030",
+    "S031",
+    "S032",
+    "S033",
+    "S034",
+    "S035",
+    "S036",
+    "S037",
+    "S038",
+    "S039",
+    "S040",
+    "S041",
+    "S042",
+    "S044",
+    "S047",
+    "S049",
+    "S050",
+    "S051",
+    "S052",
+    "S056",
+    "S057",
+    "S058",
+    "S059",
+    "S060",
+    "S061",
+    "S062",
+    "S063",
+    "S064",
+    "S065",
+    "S066"
+  ],
+  "owned": [
+    "INV-SESS-01",
+    "INV-SESS-02",
+    "INV-SESS-03",
+    "INV-SESS-04",
+    "INV-SESS-05",
+    "INV-SESS-06",
+    "INV-SESS-07",
+    "INV-SESS-08",
+    "INV-SESS-09",
+    "INV-SESS-10",
+    "INV-SESS-11",
+    "INV-SESS-12",
+    "INV-SESS-13",
+    "INV-SESS-14",
+    "INV-SESS-15",
+    "INV-SESS-16",
+    "INV-SESS-17",
+    "INV-SESS-18",
+    "INV-SESS-19",
+    "INV-SESS-20",
+    "INV-SESS-21",
+    "INV-SESS-22",
+    "INV-SESS-23",
+    "INV-SESS-24",
+    "INV-SESS-25",
+    "INV-SESS-26",
+    "INV-SESS-27",
+    "INV-COM-01",
+    "INV-COM-02",
+    "INV-COM-03",
+    "INV-COM-04",
+    "INV-COM-06",
+    "INV-COM-07",
+    "INV-COM-08",
+    "INV-COM-09",
+    "INV-COM-10",
+    "INV-COM-11",
+    "INV-COM-12",
+    "INV-MIS-01",
+    "INV-MIS-02",
+    "INV-MIS-03",
+    "INV-MIS-04",
+    "INV-MIS-05",
+    "INV-MIS-06",
+    "INV-MIS-07",
+    "INV-MIS-08",
+    "INV-AUD-01",
+    "INV-PACK-05",
+    "INV-PACK-19"
+  ],
+  "falsifiers": "packages/core/src/session/__falsifiers__/<id>.json, replayed by falsifiers.test.ts (pnpm test:falsify)",
+  "notOwned": {
+    "INV-COM-05": "the width/colour tween is a UI-layer S invariant (packages/ui, P3), not a runtime one",
+    "INV-SCH-06": "the scheduler lane owns the endgame generator; session/ only asserts the generation half"
+  },
+  "stubs": [
+    "GradingPort \u2014 implemented by packages/core/src/grading (other P1 lane); session/test-doubles.ts ships ScriptedGrading against the real interface.",
+    "SchedulerPort \u2014 implemented by packages/core/src/scheduler (other P1 lane); session/test-doubles.ts ships RecordingScheduler.",
+    "FlavourMatrixPort \u2014 the plan puts the flavour matrix in packages/core/src/economy; DEFAULT_FLAVOUR_MATRIX is the in-lane source until that lands.",
+    "SessionStore \u2014 the SQLite table and migration belong to packages/schema; InMemorySessionStore is the reference implementation the properties run against."
+  ],
+  "resolutions": [
+    {
+      "id": "INV-SESS-07",
+      "supersededBy": "INV-SESS-17",
+      "case": "EC-SES-22",
+      "ruling": "EC-SES-22 explicitly WIDENS INV-SESS-07's one-row-per-course_id key to (course_id, session_kind, node_ref) and replaces 'one graded session per course' with 'only one graded session is ever IN FLIGHT'. The resolved property this lane tests is therefore: any number of graded rows may be STORED (one per key) because that is what parking is (EC-SES-07 'two courses each hold a suspended session', EC-SES-10 'the other course's session is parked, not discarded'), and at most one is ACTIVE globally. InMemorySessionStore.put never refuses and never evicts; store.activate() is what enforces the one-in-flight bound, and requestStart() opens the guard sheet. The earlier cut read 'in flight' as 'stored', threw on the second graded row, and made EC-SES-10 unreachable for a lesson \u2014 and its own committed falsifier dodged that by using story rows.",
+      "owningTests": [
+        "store.test.ts [INV-SESS-07] two courses each hold a parked GRADED session\u2026",
+        "store.test.ts [INV-SESS-07] for any interleaving of two courses\u2026",
+        "__falsifiers__/INV-SESS-07.json (kind: parkedCourses, graded rows)"
+      ]
+    },
+    {
+      "id": "INV-MIS-01",
+      "case": "S049 / deep-01 \u00a7S16",
+      "ruling": "'Recycled twice \u2014 mid-lesson in a different format, at the end in the original' is a claim about POSITION, not only format. `RecyclePhase` is computed from whether the main queue has drained, and the mid-lesson replay is inserted after `midLessonRecycleGap` (= 2, MID_LESSON_RECYCLE_GAP in flavours.ts) further MAIN-queue answers, with main items still to come. The product map calls the different-format mid-lesson replay 'best-effort': when a miss lands with fewer than `gap` main items remaining there is no mid-lesson slot, and BOTH recycles are served at the end in the original format. The COUNT is exactly two in every case.",
+      "owningTests": [
+        "machine.test.ts [INV-MIS-01] the FIRST recycle is served MID-LESSON\u2026",
+        "machine.test.ts [INV-MIS-01] for any miss position in any lesson length\u2026",
+        "machine.test.ts [INV-MIS-01] a miss with no mid-lesson slot left\u2026",
+        "__falsifiers__/INV-MIS-01.json (kind: serveTrace, full MAIN/REPLAY order)"
+      ]
+    },
+    {
+      "id": "INV-COM-08",
+      "case": "EC-COM-11",
+      "ruling": "All three producers emit into ONE queue (`emitInterstitials`), and `route()` no longer filters the mistake-review producer out. The queue is rendered a screen at a time; the combo and step-up screens render as the `interstitial` shell state and the mistake-review screen as the `mistakeReview` shell state S029 declares in its own right, carrying S049's plural-aware copy key on `state.mistakeReviewCopyKey` (MISTAKE_REVIEW_COPY_ONE / _MANY) so the copy slot has a source the UI can read.",
+      "owningTests": [
+        "machine.test.ts [INV-COM-08] driven through step(), the boundary that trips all three producers\u2026",
+        "interstitials.test.ts [INV-COM-08] \u2026",
+        "__falsifiers__/INV-COM-08.json"
+      ]
+    },
+    {
+      "id": "INV-COM-09",
+      "case": "EC-COM-12",
+      "ruling": "The tier-2 note is carried on `Answer.note` AND on the persisted `SessionState.lastVerdict`, so a restored `banner.softCorrect` restores WITH its headline (INV-SESS-04). Previously `grade()` read `verdict.kind` and discarded `verdict.note`, so S044's soft-note pool had no carrier in the runtime and only the combo half of this invariant was tested.",
+      "owningTests": [
+        "machine.test.ts [INV-COM-09] a soft-correct crossing a milestone renders the tier-2 note as the banner headline\u2026",
+        "__falsifiers__/INV-COM-09.json (kind: softCorrectMilestone)"
+      ]
+    },
+    {
+      "id": "INV-COM-12",
+      "case": "EC-COM-15",
+      "ruling": "The step-up copy key is READ FROM `config.stepUp`, so 'the less-sound copy never appears outside an audio-only flavour' is a property of the code and is tested over BOTH StepUpKind values with a synthetic config. Recorded honestly: no row of DEFAULT_FLAVOUR_MATRIX declares `stepUp: 'audio'` today \u2014 the audio-only hub flavours are P4 \u2014 so an assertion over the ten shipped rows alone would be vacuous, which is what it was before.",
+      "owningTests": [
+        "flavours.test.ts [INV-COM-12] the step-up copy is READ FROM the flavour config\u2026",
+        "__falsifiers__/INV-COM-12.json (kind: stepUpCopy)"
+      ]
+    }
+  ]
+}

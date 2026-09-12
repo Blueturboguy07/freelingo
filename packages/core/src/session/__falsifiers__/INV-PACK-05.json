@@ -1,0 +1,18 @@
+{
+  "id": "INV-PACK-05",
+  "case": "EC-SES-18/EC-PACK-02: iOS purged four pack assets while the app was backgrounded",
+  "kind": "generate",
+  "input": {
+    "distinctItems": 14,
+    "candidateCount": 14,
+    "flavour": "lesson",
+    "duePool": 0,
+    "missingAssets": ["item-2", "item-5", "item-7", "item-9"]
+  },
+  "expect": {
+    "offered": true,
+    "adjacentRepeats": 0,
+    "paddedFromElsewhere": 0,
+    "aborted": false
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "INV-MIS-08",
+  "case": "EC-MIS-13: eleven rejected strokes on 学, then the character completes",
+  "kind": "weakItem",
+  "input": {
+    "type": "characterTrace",
+    "rejections": 11
+  },
+  "expect": {
+    "weakItem": true,
+    "mistakeQueued": 0
+  }
+}

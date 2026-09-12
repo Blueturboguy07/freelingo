@@ -1,0 +1,14 @@
+{
+  "id": "INV-MIS-06",
+  "case": "EC-MIS-11: a kana character-select missed with speaking suspended and listening off",
+  "kind": "recycle",
+  "input": {
+    "original": "characterSelect",
+    "eligible": []
+  },
+  "expect": {
+    "midType": "characterSelect",
+    "midDegraded": true,
+    "endType": "characterSelect"
+  }
+}

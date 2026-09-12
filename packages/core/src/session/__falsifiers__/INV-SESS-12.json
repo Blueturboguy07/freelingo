@@ -1,0 +1,13 @@
+{
+  "id": "INV-SESS-12",
+  "case": "EC-SES-14: X on the first unanswered exercise",
+  "kind": "quit",
+  "input": {
+    "answers": 0,
+    "route": "closeButton"
+  },
+  "expect": {
+    "decision": "exitImmediately",
+    "writes": 0
+  }
+}

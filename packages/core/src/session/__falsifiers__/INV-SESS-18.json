@@ -1,0 +1,13 @@
+{
+  "id": "INV-SESS-18",
+  "case": "EC-SES-23: the hub retires both parked mistakes before RESUME is tapped",
+  "kind": "refilter",
+  "input": {
+    "queued": ["a", "b"],
+    "live": []
+  },
+  "expect": {
+    "remaining": [],
+    "pending": false
+  }
+}

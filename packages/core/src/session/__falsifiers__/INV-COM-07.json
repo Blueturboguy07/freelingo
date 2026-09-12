@@ -1,0 +1,16 @@
+{
+  "id": "INV-COM-07",
+  "case": "EC-COM-10: `Motivational messages` OFF, combo reaches 5, then the step-up fires",
+  "kind": "interstitials",
+  "input": {
+    "correctRun": 20,
+    "motivationalMessages": false,
+    "stepUpAt": 5
+  },
+  "expect": {
+    "copies": 0,
+    "distinct": 0,
+    "nonComboCopies": 0,
+    "stepUps": 1
+  }
+}

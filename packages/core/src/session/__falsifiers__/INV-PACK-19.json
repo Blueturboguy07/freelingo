@@ -1,0 +1,10 @@
+{
+  "id": "INV-PACK-19",
+  "case": "EC-GRD-41: `Build the character` reaches generation with no radical-decomposition source declared",
+  "kind": "registry",
+  "input": {},
+  "expect": {
+    "undeclared": 0,
+    "tracesAsRecycleTarget": 0
+  }
+}

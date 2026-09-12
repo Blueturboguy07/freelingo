@@ -1,0 +1,17 @@
+{
+  "id": "INV-SESS-09",
+  "case": "EC-SES-09: a second graded session is requested from the widget deep link while another is in flight",
+  "kind": "store",
+  "input": {
+    "rows": [
+      ["en-es", "graded", "node-1"],
+      ["en-fr", "graded", "node-9"]
+    ]
+  },
+  "expect": {
+    "rows": 1,
+    "guardSheets": 1,
+    "activeGradedKeys": 1,
+    "activationRefusals": 1
+  }
+}

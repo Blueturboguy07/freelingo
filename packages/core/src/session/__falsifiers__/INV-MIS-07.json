@@ -1,0 +1,14 @@
+{
+  "id": "INV-MIS-07",
+  "case": "EC-MIS-12: the scheduler must choose a different mid-lesson format for `Select the character for か`",
+  "kind": "recycle",
+  "input": {
+    "original": "characterSelect",
+    "eligible": ["gapFillTyped", "characterTrace"]
+  },
+  "expect": {
+    "midType": "gapFillTyped",
+    "midDegraded": false,
+    "endType": "characterSelect"
+  }
+}

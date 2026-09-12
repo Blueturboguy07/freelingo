@@ -1,0 +1,12 @@
+{
+  "id": "INV-SESS-01",
+  "case": "EC-SES-01/EC-SES-17: the process is killed at every instant of a six-item session",
+  "kind": "killAndRestore",
+  "input": {
+    "queueLength": 6,
+    "maxSteps": 18
+  },
+  "expect": {
+    "byteIdenticalAtEveryKillPoint": true
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "INV-SESS-07",
+  "case": "EC-SES-07/EC-SES-10: two courses each hold a suspended GRADED session (a lesson, which is what both cases are about), then one is re-entered; EC-SES-22 widens the key and makes only the IN-FLIGHT one exclusive",
+  "kind": "parkedCourses",
+  "input": {
+    "rows": [
+      ["en-es", "graded", "node-1"],
+      ["en-fr", "graded", "node-1"],
+      ["en-es", "graded", "node-1"]
+    ],
+    "thenActivate": ["en-fr", "graded", "node-1"]
+  },
+  "expect": {
+    "rows": 2,
+    "gradedRows": 2,
+    "rowsForCourseA": 1,
+    "rowsForCourseB": 1,
+    "deletedRows": 0,
+    "activeGradedAfterSwitch": "en-fr/graded/node-1",
+    "courseAStillParked": true
+  }
+}

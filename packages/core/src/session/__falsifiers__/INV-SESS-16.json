@@ -1,0 +1,19 @@
+{
+  "id": "INV-SESS-16",
+  "case": "EC-SES-21: listening switched off with listening items in the candidate set",
+  "kind": "generate",
+  "input": {
+    "distinctItems": 16,
+    "candidateCount": 16,
+    "flavour": "lesson",
+    "duePool": 0,
+    "audioEvery": 3,
+    "gated": ["listening"]
+  },
+  "expect": {
+    "offered": true,
+    "adjacentRepeats": 0,
+    "paddedFromElsewhere": 0,
+    "gatedQueued": 0
+  }
+}

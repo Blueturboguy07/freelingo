@@ -1,0 +1,19 @@
+{
+  "id": "INV-AUD-01",
+  "case": "EC-MOD-10: every baked clip for the listening items is gone at generation time",
+  "kind": "generate",
+  "input": {
+    "distinctItems": 18,
+    "candidateCount": 18,
+    "flavour": "lesson",
+    "duePool": 0,
+    "audioEvery": 2,
+    "audioMissingAll": true
+  },
+  "expect": {
+    "offered": true,
+    "adjacentRepeats": 0,
+    "paddedFromElsewhere": 0,
+    "unplayableQueued": 0
+  }
+}

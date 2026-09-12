@@ -1,0 +1,13 @@
+{
+  "id": "INV-COM-01",
+  "case": "EC-COM-01: a clean five-pair match landed from combo 2",
+  "kind": "combo",
+  "input": {
+    "verdicts": ["c", "c", "match5"]
+  },
+  "expect": {
+    "combo": 3,
+    "gold": false,
+    "label": true
+  }
+}

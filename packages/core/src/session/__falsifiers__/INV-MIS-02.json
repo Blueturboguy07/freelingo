@@ -1,0 +1,14 @@
+{
+  "id": "INV-MIS-02",
+  "case": "EC-MIS-02: every replay answered wrong, forever",
+  "kind": "mistakeDrain",
+  "input": {
+    "count": 3,
+    "verdicts": [false]
+  },
+  "expect": {
+    "serves": 12,
+    "pendingAtEnd": false,
+    "measureStrictlyDecreasing": true
+  }
+}

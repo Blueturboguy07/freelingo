@@ -1,0 +1,16 @@
+{
+  "id": "INV-MIS-04",
+  "case": "EC-MIS-09: one miss recycled twice inside its own lesson and answered correctly both times",
+  "kind": "retire",
+  "input": {
+    "encounters": [
+      ["S1", true],
+      ["S1", true],
+      ["S2", true]
+    ]
+  },
+  "expect": {
+    "retired": false,
+    "reviewStreak": 1
+  }
+}

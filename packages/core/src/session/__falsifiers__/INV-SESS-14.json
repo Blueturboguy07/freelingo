@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-14",
+  "case": "EC-SES-19: the Android system-back gesture at exercise 7 of 12",
+  "kind": "quit",
+  "input": {
+    "answers": 7,
+    "route": "androidSystemBack"
+  },
+  "expect": {
+    "decision": "showQuitSheet",
+    "writes": 0,
+    "attemptsOnEnd": 7,
+    "xp": 0
+  }
+}

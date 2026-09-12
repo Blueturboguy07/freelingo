@@ -1,0 +1,17 @@
+{
+  "id": "INV-SESS-21",
+  "case": "EC-SES-26: a pack update dissolves the node under a parked queue",
+  "kind": "revalidate",
+  "input": {
+    "queue": 4,
+    "index": 1,
+    "unresolved": ["item-3"],
+    "gated": [],
+    "substitutes": 0
+  },
+  "expect": {
+    "resumable": false,
+    "removed": ["slot-3"],
+    "length": 3
+  }
+}

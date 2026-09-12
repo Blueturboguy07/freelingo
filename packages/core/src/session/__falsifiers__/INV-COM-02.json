@@ -1,0 +1,14 @@
+{
+  "id": "INV-COM-02",
+  "case": "EC-COM-02: lesson 7 ends at combo 14 and lesson 8 starts",
+  "kind": "combo",
+  "input": {
+    "verdicts": [],
+    "startOfSession": true
+  },
+  "expect": {
+    "combo": 0,
+    "gold": false,
+    "label": false
+  }
+}

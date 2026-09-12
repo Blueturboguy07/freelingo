@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-08",
+  "case": "EC-SES-08: a cold relaunch where the persisted active course is not the session's course",
+  "kind": "coldStart",
+  "input": {
+    "persistedActiveCourse": "en-es",
+    "sessionCourse": "en-fr",
+    "nodeRef": "node-4"
+  },
+  "expect": {
+    "activeCourseId": "en-fr",
+    "nodeRef": "node-4",
+    "resolvedFrom": "session"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "INV-SESS-20",
+  "case": "EC-SES-25: `Use word bank` tapped at exercise 3, a HARD EXERCISE item at exercise 7",
+  "kind": "inputMode",
+  "input": {
+    "explicit": "bank",
+    "hard": true,
+    "nonLatin": false
+  },
+  "expect": {
+    "effective": "bank",
+    "storedUnchanged": true
+  }
+}

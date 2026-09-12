@@ -1,0 +1,16 @@
+{
+  "id": "INV-SESS-26",
+  "case": "EC-SES-31: session 18 of the day at the frontier assembles only four exercises",
+  "kind": "generate",
+  "input": {
+    "distinctItems": 4,
+    "candidateCount": 4,
+    "flavour": "lesson",
+    "duePool": 0
+  },
+  "expect": {
+    "offered": false,
+    "adjacentRepeats": 0,
+    "paddedFromElsewhere": 0
+  }
+}

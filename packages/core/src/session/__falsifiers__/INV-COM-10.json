@@ -1,0 +1,13 @@
+{
+  "id": "INV-COM-10",
+  "case": "EC-COM-13: `Can't speak now` tapped at exercise 5 of 11",
+  "kind": "combo",
+  "input": {
+    "verdicts": ["c", "c", "c", "c", "skip"]
+  },
+  "expect": {
+    "combo": 4,
+    "gold": false,
+    "label": true
+  }
+}

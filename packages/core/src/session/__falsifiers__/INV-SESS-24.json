@@ -1,0 +1,15 @@
+{
+  "id": "INV-SESS-24",
+  "case": "EC-SES-29: a call interrupts `Type what you hear` with the clip half-played and text typed",
+  "kind": "audioInterrupt",
+  "input": {
+    "text": "el gato",
+    "caret": 7
+  },
+  "expect": {
+    "armedBeforeInterrupt": true,
+    "stateAfterInterrupt": "challenge.idle",
+    "textPreserved": true,
+    "checkReachable": false
+  }
+}

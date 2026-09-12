@@ -1,0 +1,11 @@
+{
+  "id": "INV-SESS-22",
+  "case": "EC-SES-27: X from the tips state of a grammar unit",
+  "kind": "quitFromTips",
+  "input": {},
+  "expect": {
+    "decision": "exitImmediately",
+    "writes": 0,
+    "undeclaredStates": 0
+  }
+}

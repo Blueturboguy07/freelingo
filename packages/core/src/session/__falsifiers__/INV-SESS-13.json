@@ -1,0 +1,16 @@
+{
+  "id": "INV-SESS-13",
+  "case": "EC-SES-15: a short queue padded from the due pool, with only three distinct item ids so an adjacent repeat is reachable",
+  "kind": "generate",
+  "input": {
+    "distinctItems": 3,
+    "candidateCount": 18,
+    "flavour": "lesson",
+    "duePool": 0
+  },
+  "expect": {
+    "offered": true,
+    "adjacentRepeats": 0,
+    "paddedFromElsewhere": 0
+  }
+}
