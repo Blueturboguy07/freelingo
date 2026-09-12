@@ -1,0 +1,50 @@
+{
+  "$comment": "Invariant ids owned by the P2 round-3 task `p2r3/deps-contract`. The list is EMPTY, and that is the correct state: this lane changes one inter-stage schema and installs nothing new. Every invariant the content pipeline owns is a property of a produced pack, and this lane produces no pack. The work it does own has no invariant id and is listed under `heldWithoutAnInvariantId`.",
+  "phase": "P2",
+  "task": "p2r3-deps-contract",
+  "module": "tools/coursekit",
+  "owned": [],
+  "willBeOwnedAt": {
+    "P2": ["INV-PACK-13", "INV-PACK-15", "INV-PACK-17"],
+    "P7": ["INV-PACK-16"]
+  },
+  "heldWithoutAnInvariantId": [
+    "The `candidate` record now carries `analysis`, required and nullable, in G1's shape: {analyser, tokens, lemmas, display_tokens}. It is founder ruling B16 option 2 — carry G1's analysis across the G5 -> G7 boundary — and it exists because G7 resolved a gap by the SURFACE at the gap index ('needed 3 distractors for tardes (POS , band unbanded)'; `tardes` is a surface, `tarde` is the lemma). The alternative was a second analyser pass inside G7, which would make G7 depend on the `nlp` group as well as `align`.",
+    "`Token` and `Adapter` are now ONE object each, shared by `analysed_sentence` and `candidate.analysis`, rather than two copies that agree today. The expand lane reads one function over a corpus row and an authored row, so a field added to one copy and not the other is a crash in the lane that did nothing wrong. `test_the_analysis_is_the_g1_shape_and_cannot_drift_from_it` asserts object equality, not field names. Factoring them out is byte-identical to the previous schema set: the digest was still 3e2f6a68… after the refactor and changed only when `analysis` was added.",
+    "Closedness is now asserted over the WHOLE schema tree, not only the nine top-level records. `test_every_record_is_closed` never read `analysed_sentence.adapter`, `exercise.item_tags` or anything nested, so an open sub-object was the one hole the 'additionalProperties: false' property did not cover. The walk is counted (>= 14 objects) so it cannot pass by walking nothing, and `test_the_open_payload_is_the_only_object_the_contract_leaves_open` pins `pack_row.payload` as the single deliberate exemption so a second one cannot appear as 'the existing pattern'.",
+    "`validate_record` now picks its error with `jsonschema.exceptions.best_match` instead of `validate()`. A nullable sub-object is a `oneOf`, and the plain report for one is 'analysis: {the whole object, inlined} is not valid under any of the given schemas' — no field named, one token bundle per word printed, for a stage streaming hundreds of rows. With best_match the same record reports `analysis/tokens/0: 'start' is a required property`. Pinned by `test_a_token_missing_its_offsets_is_refused_and_the_message_names_the_token`, which also asserts the combinator message is NOT what comes out.",
+    "`analysis: null` is legal and `analysis` is still required: nullable is not optional. A candidate rejected on `stale_ledger` is rejected before the analyser is reached, and those rows are written because the reject rate is the number that says the ledger window is too tight. 'Non-null exactly when G7 will read it' is not expressible as a schema keyword, so the rule is a coded one in the expand lane and it must fail BY NAME on a null analysis for a row it is asked to expand."
+  ],
+  "handoff": {
+    "$comment": "This branch adds a REQUIRED key to `candidate`, so every existing writer of that record is now invalid. That is the contract mechanism working (a schema edit with a failing test attached), not a defect, but it means 60 coursekit tests are red on this branch and every lane that merges it inherits them. The fix is mechanical and the work is owned elsewhere. Measured: with the four edits below applied, `uv run pytest` is 835 collected, exit 0 — so nothing in this change is semantic.",
+    "writeTheRealAnalysis": {
+      "file": "tools/coursekit/src/coursekit/stages/g5_gapfill.py",
+      "owner": "the gapfill lane",
+      "what": "the record dict in `gapfill()` (around the `\"provenance\": AUTHORED_PROVENANCE,` line) must carry `analysis`. G5 already runs the pinned adapter over exactly this text in `_lemmas()`; that call returns the whole analysis dict and the function currently throws away everything but `lemmas` and `len(display_tokens)`. Return the analysis and put {analyser, tokens, lemmas, display_tokens} on the row. A row rejected before the analyser runs (`stale_ledger`) carries null."
+    },
+    "nullIsEnoughForTheseThree": [
+      {
+        "file": "tools/coursekit/tests/conftest.py",
+        "line": "the candidate dict in the shared build fixture (after `\"provenance\": \"llm\",`)",
+        "edit": "\"analysis\": None,"
+      },
+      {
+        "file": "tools/coursekit/tests/test_g6_validate_language.py",
+        "line": "the candidate dict in the local writer helper (after `\"provenance\": \"llm\",`)",
+        "edit": "\"analysis\": None,"
+      },
+      {
+        "file": "packages/core/src/packs/__fixtures__/es-mini/seed.json",
+        "line": "every row of `candidates`",
+        "edit": "\"analysis\": null — this is G9's replay seed, written through `write_records`, which is why a JSON fixture is in a Python failure list. NOTE: this path is excluded from the prettier sweep on purpose, so reformat nothing else in it."
+      }
+    ],
+    "failureShape": "coursekit.artifacts.ArtifactError: candidate in candidates.jsonl line 1: <root>: 'analysis' is a required property — 148 occurrences across 59 failures and 15 collection errors in test_validators_pack.py, test_g6_validate_language.py, test_sample.py, test_g9_package.py, test_g5_gapfill.py and test_validators_freelingo.py. Every one of them is this message; there is no second cause."
+  },
+  "dependencies": {
+    "$comment": "Round 3 needed no new package. Both installs were run to prove that, and neither lockfile changed.",
+    "pnpm install --frozen-lockfile": "exit 0, 'Done in 3.7s', pnpm 11.25.0; `git status` clean for pnpm-lock.yaml, package.json, pnpm-workspace.yaml and every workspace package.json",
+    "uv sync --locked --group nlp --group lm --group align --group tts": "exit 0, 'Resolved 89 packages in 624ms / Installed 26 packages in 544ms' (torch 2.14.0, transformers 5.17.0, simalign 0.4, kokoro/onnxruntime and the rest of align+tts); uv.lock unchanged",
+    "formattingDebt": "P1's 35-file `pnpm format:check` debt was already discharged before this branch: `9693032 P2 fix integrate: pnpm format over the three files the fix round left red` and the P2 integrations before it. Measured on origin/main at 8085b7d: `prettier --check .` prints 'All matched files use Prettier code style!'. The prettier sweep this task was given is therefore a no-op and no file was reformatted by it. Separately, `uv run ruff format --check` would reformat 33 of 127 coursekit files — that debt is real, is NOT a CI gate (pack-ci.yml runs `ruff check` only), and is untouched here except that both files this lane edited are ruff-format clean."
+  }
+}
