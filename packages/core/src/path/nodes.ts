@@ -124,8 +124,13 @@ export function popupFor(node: PathNode, unlocked: boolean, ctx: PopupContext): 
       nodeType: node.type,
       title,
       subtitle: null,
-      buttons: launch === undefined ? [] : [{ label: 'START', flavour: launch, gold: false }],
-      subLessonCounter: `Lesson ${node.subLessonsDone + 1} of ${node.subLessonsTotal}`,
+      buttons:
+        launch === undefined ? [] : [{ label: spec.startLabel, flavour: launch, gold: false }],
+      // A chest has one tap, not sub-lessons; `Lesson 1 of 3` on a chest is a counter for a
+      // quantity that does not exist (S016).
+      subLessonCounter: spec.showsSubLessonCounter
+        ? `Lesson ${node.subLessonsDone + 1} of ${node.subLessonsTotal}`
+        : null,
       hasStart: launch !== undefined,
     };
   }

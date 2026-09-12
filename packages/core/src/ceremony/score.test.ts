@@ -118,7 +118,24 @@ describe('exposure and mastery', () => {
     );
   });
 
-  it('[INV-CER-11] exposure strictly increases with graded items; mastery never decreases', () => {
+  it('[INV-CER-11] a pack update that LOWERS the ceiling cannot lower a standing Score', () => {
+    // The single case the refuter named, spelled out beside the property that now covers it.
+    const earned = advanceScore(
+      { ...fresh(129), masteryScore: 0 },
+      { gradedItems: 10, exposureDelta: 0.1, masteryDelta: 80 },
+      bandIndexOf,
+    ).state;
+    expect(earned.masteryScore).toBe(80);
+    const narrowedPack = { ...earned, ceiling: 29 };
+    const after = advanceScore(
+      narrowedPack,
+      { gradedItems: 10, exposureDelta: 0.1, masteryDelta: 5 },
+      bandIndexOf,
+    );
+    expect(after.state.masteryScore).toBe(80);
+  });
+
+  it('[INV-CER-11] exposure strictly increases with graded items; mastery never decreases, even under a SHRINKING ceiling', () => {
     fc.assert(
       fc.property(
         fc.array(
@@ -130,12 +147,18 @@ describe('exposure and mastery', () => {
               noNaN: true,
             }),
             masteryDelta: fc.integer({ min: -10, max: 10 }),
+            // The ceiling is PACK data (`manifest.scoreCeiling`), so it moves between
+            // sessions - and it can move DOWN when a beta pack narrows its scope or a
+            // manifest is re-baked. The old property pinned it at 129 forever, which is
+            // exactly why `Math.min(ceiling, ...)` lowering a standing Score survived.
+            ceiling: fc.integer({ min: 0, max: 160 }),
           }),
           { minLength: 1, maxLength: 25 },
         ),
         (inputs) => {
           let state = fresh(129);
           for (const input of inputs) {
+            state = { ...state, ceiling: input.ceiling };
             const advance = advanceScore(state, input, bandIndexOf);
             if (input.gradedItems > 0 && state.exposureFraction < 1) {
               expect(advance.state.exposureFraction).toBeGreaterThan(state.exposureFraction);
@@ -143,7 +166,10 @@ describe('exposure and mastery', () => {
               expect(advance.state.exposureFraction).toBe(state.exposureFraction);
             }
             expect(advance.state.masteryScore).toBeGreaterThanOrEqual(state.masteryScore);
-            expect(advance.state.masteryScore).toBeLessThanOrEqual(129);
+            // The ceiling clamps the GAIN, never the standing number.
+            expect(advance.state.masteryScore).toBeLessThanOrEqual(
+              Math.max(state.masteryScore, input.ceiling),
+            );
             state = advance.state;
           }
         },

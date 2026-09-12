@@ -22,11 +22,13 @@
   ],
   "notOwnedHere": {
     "INV-CER-12": "E - back press on every ceremony screen. Maestro, P4.",
-    "INV-CER-16": "S - the macaw token on every Score-chain CTA. packages/ui, P3."
+    "INV-CER-16": "S - the macaw token on every Score-chain CTA. packages/ui, P3.",
+    "INV-CER-15": "PARTIAL. The registry half (exactly two resolved tiles; no CeremonyTile variant declares a time or COMMITTED slot) is owned here by ceremony/tiles.test.ts. The `at every supported width and font scale` half is a RENDER property and cannot be asserted by a headless engine test: it belongs to the P3 typography matrix ({3 font scales} x {3 widths} x {light,dark}) in e2e/ per the plan's pixel-parity method. Listed here so the id is not silently claimed as fully green."
   },
   "note": "INV-CER-01 was already owned at P0. This task fixed its two properties: they drew session ids from fc.string(), so the ledger-collision branch was unreachable in 20,000 cases. Ids now come from an eight-value pool and a new test asserts the branch is actually hit.",
   "rulings": {
-    "EC-CER-14": "After 5 consecutive goal-met days S078 + S080 collapse into a row on S067 ONLY when the bundle is gems-only; any freeze, boost or tier grant keeps its full screen. Implemented in bundle.ts:collapseGoalChain, falsified in __falsifiers__/EC-CER-14.json."
+    "EC-CER-14": "After 5 consecutive goal-met days S078 + S080 collapse into a row on S067 ONLY when the bundle is gems-only; any freeze, boost or tier grant keeps its full screen. Implemented in bundle.ts:collapseGoalChain, falsified in __falsifiers__/EC-CER-14.json.",
+    "EC-CER-22 vs the INV-CER-14 registry line": "CONFLICT, resolved in favour of EC-CER-22. The registry summarises INV-CER-14 as `renders the picker at most once per streak run`; EC-CER-22 (dated, cited R3L1-02 and R4L1-02) says `re-show S5 at most once more, then write a DECLINED sentinel` AND `re-render S5 once on the first session of the new run`. Those cannot both hold: the day-1 defer and its single re-show happen inside one streak run (on day 1 there is no streak at all), so the opening ladder is two presentations in one run. EC-CER-22 wins because it is the grounded ruling and the registry line is its summary. What ships, in streakGoal.ts: (1) at most MAX_UNPICKED_PRESENTATIONS = 2 CONSECUTIVE un-picked presentations ever, the second writing the permanent DECLINED sentinel; (2) a pick resets that counter; (3) a break after a pick re-arms the picker for exactly RENDERS_GRANTED_AFTER_A_BREAK = 1 render in the new run, while a break part-way through the opening ladder grants nothing. Properties in streakGoal.test.ts assert clauses (1) and (3) by name."
   },
   "falsifiers": "packages/core/src/ceremony/__falsifiers__/*.json, consumed by the tests whose names contain `falsifier` (pnpm test:falsify)."
 }

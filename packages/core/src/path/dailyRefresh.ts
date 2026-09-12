@@ -19,7 +19,18 @@ export function courseComplete(model: PathModel): boolean {
   return units.length > 0 && units.every(unitCompleted);
 }
 
-/** Locked iff the course is incomplete. Exactly the invariant, with no second clause. */
+/**
+ * Locked iff the course is incomplete. Exactly the invariant, with no second clause.
+ *
+ * **The `dailyRefreshUnlocked` latch is deliberately NOT read here**, and the two halves of
+ * INV-PATH-08 are why. "Locked iff the course is incomplete" is a biconditional over the
+ * *current* model, so a pack update that adds a unit re-locks the section - the learner has
+ * not finished the course any more, and offering a finished-course surface would be a lie.
+ * "Unlocks exactly once" is about the *ceremony*: `unlockDailyRefresh` fires the screen on
+ * the first incomplete->complete transition and never again, whatever the pack does later.
+ * Folding the latch into this predicate would collapse the two clauses into one and lose
+ * the re-lock. `dailyRefresh.test.ts` owns both directions.
+ */
 export function dailyRefreshLocked(model: PathModel): boolean {
   return !courseComplete(model);
 }

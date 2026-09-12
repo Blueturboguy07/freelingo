@@ -8,6 +8,7 @@
 export * from './types.js';
 export * from './registry.js';
 export * from './nodes.js';
+export * from './chest.js';
 export * from './unlock.js';
 export * from './legendary.js';
 export * from './score.js';

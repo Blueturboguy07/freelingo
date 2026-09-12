@@ -17,6 +17,7 @@ import {
 import { LAUNCH_FLAVOURS, NODE_TYPES, SESSION_FLAVOURS } from './types.js';
 import type { PackManifest, PathModel } from './types.js';
 import { specFor } from './registry.js';
+import { bandRange, displayedScore, sectionScore } from './score.js';
 import {
   buildModel,
   FULL_MANIFEST,
@@ -168,6 +169,66 @@ describe('the section list and completion copy', () => {
       }),
       { numRuns: PROPERTY_RUNS },
     );
+  });
+
+  it('[INV-PATH-22] every RENDERED section card clamps the course Score into its OWN band', () => {
+    // The refutation this test exists for: `sectionScore` was correct and tested, but dead
+    // on the render path - `sectionCards` wrote `sectionScore: score`, the course Score
+    // clamped into the FRONTIER section's band. A learner standing in Section 1 opening the
+    // section list saw the same `very early A1` number on the Section 5 card. S023 renders
+    // this field, so the property has to run over the card, not over the bare function.
+    fc.assert(
+      fc.property(linearModelArb, ({ model }) => {
+        const cards = sectionCards(model);
+        const course = displayedScore(model);
+        for (let i = 0; i < cards.length; i += 1) {
+          const card = cards[i];
+          const band = model.sections[i]?.band;
+          if (card === undefined || band === undefined) continue;
+          const range = bandRange(band);
+          expect(card.sectionScore).toBeGreaterThanOrEqual(range.min);
+          expect(card.sectionScore).toBeLessThanOrEqual(range.max);
+          expect(card.sectionScore).toBe(sectionScore(course, model.sections[i]!));
+        }
+      }),
+      { numRuns: PROPERTY_RUNS },
+    );
+  });
+
+  it('[INV-PATH-22] a card number is non-decreasing in the course Score', () => {
+    fc.assert(
+      fc.property(linearModelArb, fc.nat({ max: 200 }), fc.nat({ max: 200 }), ({ model }, a, b) => {
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        const low = sectionCards({ ...model, scoreEarned: lo, scoreFloor: lo });
+        const high = sectionCards({ ...model, scoreEarned: hi, scoreFloor: hi });
+        for (let i = 0; i < low.length; i += 1) {
+          expect(high[i]!.sectionScore).toBeGreaterThanOrEqual(low[i]!.sectionScore);
+        }
+      }),
+      { numRuns: PROPERTY_RUNS },
+    );
+  });
+
+  it('[INV-PATH-22] a far-off section card does not read the frontier section`s number', () => {
+    const model = buildModel(
+      [[['lesson', 'unitReview']], [['lesson', 'unitReview']], [['lesson', 'unitReview']]],
+      0,
+      { ...FULL_MANIFEST, scoreCeiling: 129 },
+    );
+    const cards = sectionCards({ ...model, scoreEarned: 5, scoreFloor: 0 });
+    // Section 1 is `very early A1` (0-9), Section 2 `early A1` (10-19), Section 3 `high A1`.
+    expect(cards.map((c) => c.sectionScore)).toEqual([5, 10, 20]);
+  });
+
+  it('[EC-PTH-26] the section action follows reachability, not a completed-unit count', () => {
+    // The frontier section a learner is standing in, with no unit yet fully complete, must
+    // not offer to `JUMP HERE` to where they already are.
+    const model = buildModel([[['lesson', 'unitReview']], [['lesson', 'unitReview']]], 0);
+    const cards = sectionCards(model);
+    expect(cards[0]?.percent).toBe(0);
+    expect(cards[0]?.action).toBe('Go to current unit');
+    expect(cards[1]?.action).toBe('JUMP HERE');
   });
 
   it('[INV-PACK-56] the CEFR chip reads `CEFR-checked` only where the pack says so', () => {

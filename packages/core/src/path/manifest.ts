@@ -13,9 +13,10 @@
 import type { LaunchFlavour, NodeType, PackManifest, PathModel } from './types.js';
 import { LAUNCH_FLAVOURS } from './types.js';
 import { specFor } from './registry.js';
-import { bandOfScore, displayedScore } from './score.js';
+import { bandOfScore, displayedScore, sectionScore } from './score.js';
 import { sectionProgress } from './progress.js';
 import { courseComplete } from './dailyRefresh.js';
+import { unitUnlocked } from './unlock.js';
 
 /* --------------------------------------------------------------- section list */
 
@@ -41,9 +42,15 @@ export interface SectionCard {
 export function sectionCards(model: PathModel): readonly SectionCard[] {
   const manifest = model.manifest;
   const score = displayedScore(model);
+  let firstUnitOfSection = 0;
   return model.sections.map((section) => {
     const progress = sectionProgress(section, manifest);
-    const unlockedByProgress = progress.fraction > 0;
+    // EC-PTH-26 ties the swap to the target becoming REACHABLE, not to a completed-unit
+    // count. Reading `fraction > 0` made the frontier section a learner is standing in -
+    // with no unit yet fully complete - read `JUMP HERE`, offering to skip to where they
+    // already are.
+    const reachable = unitUnlocked(model, firstUnitOfSection);
+    firstUnitOfSection += section.units.length;
     return {
       index: section.index,
       title: section.title,
@@ -56,8 +63,12 @@ export function sectionCards(model: PathModel): readonly SectionCard[] {
           ? null
           : `${progress.storiesCompleted ?? 0}/${progress.storiesTotal} Stories`,
       percent: Math.round(progress.fraction * 100),
-      sectionScore: score,
-      action: unlockedByProgress ? 'Go to current unit' : 'JUMP HERE',
+      // INV-PATH-22 / EC-PTH-40: the card's number is the ONE course Score clamped into
+      // THIS card's band - not the course Score clamped into the frontier's band, which is
+      // what `sectionScore: score` rendered: a learner in Section 1 opening the section
+      // list saw the same `very early A1` number on the Section 5 card.
+      sectionScore: sectionScore(score, section),
+      action: reachable ? 'Go to current unit' : 'JUMP HERE',
     };
   });
 }

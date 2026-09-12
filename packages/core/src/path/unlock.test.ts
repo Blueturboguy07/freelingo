@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 import {
   applyJump,
+  frontierUnitIndex,
   jumpHereOverlays,
   lettersNodesReachable,
   nodeUnlocked,
@@ -144,27 +145,85 @@ describe('the jump-here overlay', () => {
     expect(jumpHereOverlays(advanced)).toEqual([]);
   });
 
-  it('[INV-PATH-13] an overlay exists for exactly the locked units, over generated paths', () => {
+  it('[INV-PATH-13] a 9-unit course at unit 0 renders three offers, not eight', () => {
+    // The previous implementation emitted one overlay per locked unit, so this canvas
+    // carried eight `Jump here?` nodes. S010/S019 show the offer at the frontier and at a
+    // section boundary; the doc comment always said so, the code did not.
+    const shape = [
+      [
+        ['lesson', 'unitReview'],
+        ['lesson', 'unitReview'],
+        ['lesson', 'unitReview'],
+      ],
+      [
+        ['lesson', 'unitReview'],
+        ['lesson', 'unitReview'],
+        ['lesson', 'unitReview'],
+      ],
+      [
+        ['lesson', 'unitReview'],
+        ['lesson', 'unitReview'],
+        ['lesson', 'unitReview'],
+      ],
+    ] as readonly (readonly (readonly NodeType[])[])[];
+    const model = buildModel(shape, 0);
+    const overlays = jumpHereOverlays(model);
+    // Unit 1 (next locked after the frontier) + the two section heads, units 3 and 6.
+    expect(overlays.map((o) => o.targetUnitIndex)).toEqual([1, 3, 6]);
+    expect(overlays.filter((o) => o.kind === 'section').map((o) => o.flavour)).toEqual([
+      'sectionTest',
+      'sectionTest',
+    ]);
+  });
+
+  it('[INV-PATH-13] an overlay exists only for a locked unit that heads a section or follows the frontier', () => {
     fc.assert(
       fc.property(linearModelArb, ({ model }) => {
         const overlaid = new Set(jumpHereOverlays(model).map((o) => o.targetUnitIndex));
         const units = allUnits(model);
-        for (let u = 1; u < units.length; u += 1) {
-          expect(overlaid.has(u)).toBe(!unitUnlocked(model, u));
+        const frontier = frontierUnitIndex(model);
+        let nextLocked = -1;
+        for (let u = frontier + 1; u < units.length; u += 1) {
+          if (!unitUnlocked(model, u)) {
+            nextLocked = u;
+            break;
+          }
         }
+        const sectionHeads = new Set<number>();
+        let absolute = 0;
+        for (const s of model.sections) {
+          sectionHeads.add(absolute);
+          absolute += s.units.length;
+        }
+        for (let u = 1; u < units.length; u += 1) {
+          const locked = !unitUnlocked(model, u);
+          const expected = locked && (sectionHeads.has(u) || u === nextLocked);
+          expect(overlaid.has(u)).toBe(expected);
+        }
+        // Never on an unlocked unit (EC-PTH-26), and never on the first unit of a course.
+        for (const target of overlaid) expect(unitUnlocked(model, target)).toBe(false);
         expect(overlaid.has(0)).toBe(false);
       }),
       { numRuns: PROPERTY_RUNS },
     );
   });
 
-  it('[INV-PATH-13] removing the overlay changes no rendered offset below it', () => {
+  it('[INV-PATH-13] splicing an overlay into the list leaves every placed offset byte-identical', () => {
     fc.assert(
-      fc.property(linearModelArb, ({ model }) => {
+      fc.property(linearModelArb, fc.nat({ max: 8 }), ({ model }, splicePoint) => {
         for (const unitOf of allUnits(model)) {
-          const withOverlay = serpentineOffsets(unitOf.nodes);
-          const withoutOverlay = serpentineOffsets(unitOf.nodes);
-          expect(JSON.stringify(withOverlay)).toBe(JSON.stringify(withoutOverlay));
+          const placed = unitOf.nodes;
+          const before = serpentineOffsets(placed);
+          // Build the SAME unit with a `Jump here?` overlay spliced in, the way a naive
+          // renderer that stores the overlay as a real node would hand it over.
+          const at = splicePoint % (placed.length + 1);
+          const overlay = node(`${unitOf.index}-overlay`, 'jumpHere', unitOf.index);
+          const spliced = [...placed.slice(0, at), overlay, ...placed.slice(at)];
+          const after = serpentineOffsets(spliced);
+          // Byte-identical, not merely equal in length: the exact {nodeId,x,y} triples.
+          expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+          // ...and the overlay itself never gets an offset of its own.
+          expect(after.map((o) => o.nodeId)).not.toContain(overlay.id);
         }
       }),
       { numRuns: PROPERTY_RUNS },
@@ -174,9 +233,11 @@ describe('the jump-here overlay', () => {
   it('[INV-PATH-13] the offsets are a function of the placed index, so an overlay cannot re-flow them', () => {
     const nodes = [node('a', 'lesson', 0), node('b', 'lesson', 0), node('c', 'unitReview', 0)];
     const before = serpentineOffsets(nodes);
-    // The overlay is never a stored node, so the placed list is the same list.
-    expect(serpentineOffsets(nodes)).toEqual(before);
     expect(before.map((o) => o.x)).toEqual([0, -45, -70]);
+    expect(before.map((o) => o.y)).toEqual([0, 94, 188]);
+    // An overlay at the very top - the worst case, since it would shift every node below.
+    const withOverlay = serpentineOffsets([node('j', 'jumpHere', 0), ...nodes]);
+    expect(withOverlay).toEqual(before);
   });
 
   it('[INV-PATH-17] a section-head overlay launches the section test, not its own node type', () => {

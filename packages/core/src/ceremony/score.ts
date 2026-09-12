@@ -60,10 +60,16 @@ export function advanceScore(
       )
     : state.exposureFraction;
   const exposureFraction = Math.min(1, rawFraction);
-  // Non-decreasing forever: a negative mastery delta is dropped, never applied.
-  const masteryScore = Math.min(
-    state.ceiling,
-    Math.max(state.masteryScore, state.masteryScore + Math.max(0, input.masteryDelta)),
+  // Non-decreasing forever, and the ceiling clamps the GAIN, never the standing number.
+  //
+  // `Math.min(ceiling, ...)` on the outside was wrong in exactly one way that matters: the
+  // ceiling is pack data (`manifest.scoreCeiling`), so a pack update that ships a lower
+  // ceiling - a beta pack narrowing its scope, a re-baked manifest - would have *lowered*
+  // a learner's Score, which is the one thing INV-CER-11 forbids. A negative mastery delta
+  // is dropped, and so is a shrinking ceiling.
+  const masteryScore = Math.max(
+    state.masteryScore,
+    Math.min(state.ceiling, state.masteryScore + Math.max(0, input.masteryDelta)),
   );
   const reachedCeiling = masteryScore >= state.ceiling && !state.ceilingBeatShown;
   return {

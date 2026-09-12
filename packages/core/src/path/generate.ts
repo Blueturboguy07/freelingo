@@ -40,6 +40,16 @@ export interface GenerationResult {
   }[];
 }
 
+/**
+ * The type this slot actually becomes, or null when nothing the pack declares can be
+ * finished here.
+ *
+ * `canComplete` now refuses a type that declares no launchable flavour as well as one the
+ * device cannot serve, so **a declared type with an empty `launchable` is never placed** -
+ * it is rebalanced into something the learner can finish, exactly like a Roleplay slot on a
+ * device with no model. That is the second half of INV-PATH-19: a node with no completion
+ * path is as fatal to a linear chain as a node the device cannot run.
+ */
 function resolveType(
   type: NodeType,
   manifest: PackManifest,
@@ -86,7 +96,10 @@ export function generateUnitNodes(
   return { nodes, rebalanced };
 }
 
-/** Node ids this device cannot finish. INV-PATH-19 asserts this is always empty. */
+/**
+ * Node ids with no completion path here: the device lacks the capability, **or** the type
+ * declares no launchable flavour. INV-PATH-19 asserts this is always empty.
+ */
 export function uncompletableNodes(
   nodes: readonly PathNode[],
   caps: DeviceCapabilities,

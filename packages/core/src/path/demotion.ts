@@ -13,7 +13,11 @@ import type { PathModel } from './types.js';
 export const DEMOTION = {
   /** Consecutive sessions on the SAME node below the accuracy floor. */
   consecutiveFailures: 3,
-  /** Accuracy at or below which a session counts as a failure. */
+  /**
+   * Accuracy **strictly below** which a session counts as a failure: `evaluateDemotion`
+   * uses `<`, so a session that lands exactly on 0.6 passes. The boundary belongs to the
+   * learner.
+   */
   accuracyFloor: 0.6,
   /** Minimum local days between two offers, whatever the node. */
   cooldownDays: 7,

@@ -95,15 +95,42 @@ export interface JumpHereOverlay {
 }
 
 /**
+ * The highest unit index the learner can already open. -1 for an empty course.
+ *
+ * "Frontier" here is the furthest *unlocked* unit, not the furthest completed one: a
+ * jump-unlocked unit the learner has not touched is still past the frontier's gate.
+ */
+export function frontierUnitIndex(model: PathModel): number {
+  const units = allUnits(model);
+  let frontier = -1;
+  for (let u = 0; u < units.length; u += 1) if (unitUnlocked(model, u)) frontier = u;
+  return frontier;
+}
+
+/**
  * The jump-here overlays for a model.
  *
  * Existence rule (INV-PATH-13): one overlay per locked unit that heads a section, or that
  * is the next locked unit after the frontier. EC-PTH-26: the overlay disappears the
  * instant its target unlocks by progression - which falls out of "iff its target unit is
  * locked".
+ *
+ * The earlier version emitted an overlay for **every** locked unit, so a 3-section,
+ * 9-unit course with the learner at unit 0 drew eight `Jump here?` nodes down the canvas.
+ * The capture (S010, S019) shows one offer at the frontier and one at a section boundary;
+ * the doc comment above was already the rule, and the code now matches it. The narrower
+ * rule is a strict subset of "locked", so EC-PTH-26 still holds: an overlay can never
+ * outlive its target's unlock.
  */
 export function jumpHereOverlays(model: PathModel): readonly JumpHereOverlay[] {
   const units = allUnits(model);
+  const frontier = frontierUnitIndex(model);
+  const nextLockedAfterFrontier = (() => {
+    for (let u = frontier + 1; u < units.length; u += 1) {
+      if (!unitUnlocked(model, u)) return u;
+    }
+    return -1;
+  })();
   const out: JumpHereOverlay[] = [];
   let absolute = 0;
   for (const section of model.sections) {
@@ -112,6 +139,7 @@ export function jumpHereOverlays(model: PathModel): readonly JumpHereOverlay[] {
       if (index === 0) continue;
       if (unitUnlocked(model, index)) continue;
       const isSectionHead = u === 0;
+      if (!isSectionHead && index !== nextLockedAfterFrontier) continue;
       const unit = units[index];
       if (unit === undefined) continue;
       out.push({
@@ -144,12 +172,22 @@ export interface PlacedOffset {
   readonly y: number;
 }
 
+/**
+ * The layout folds over **placed** nodes only: a never-placed type handed to it (an
+ * overlay someone spliced into the list) is dropped before the index is taken, so adding
+ * or removing a `Jump here?` cannot shift a single node below it by a pixel. That is the
+ * half of INV-PATH-13 the falsifier is about, and the filter is what makes the
+ * before/after test in `unlock.test.ts` bite: delete it and the spliced-overlay case
+ * re-flows the whole unit.
+ */
 export function serpentineOffsets(nodes: readonly PathNode[]): readonly PlacedOffset[] {
-  return nodes.map((node, i) => ({
-    nodeId: node.id,
-    x: SERPENTINE_OFFSETS[i % SERPENTINE_OFFSETS.length] ?? 0,
-    y: i * NODE_PITCH_CSS_PX,
-  }));
+  return nodes
+    .filter((node) => !NEVER_PLACED.includes(node.type))
+    .map((node, i) => ({
+      nodeId: node.id,
+      x: SERPENTINE_OFFSETS[i % SERPENTINE_OFFSETS.length] ?? 0,
+      y: i * NODE_PITCH_CSS_PX,
+    }));
 }
 
 /* --------------------------------------------------------- placement integrity */

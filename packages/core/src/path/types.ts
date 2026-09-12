@@ -72,6 +72,9 @@ export const LAUNCH_FLAVOURS = [
   'speaking',
   'roleplay',
   'letters',
+  // S016. Not a session: one tap, no exercises, no failure - but it IS a completion path,
+  // and a node type without one deadlocks the linear chain (INV-PATH-19).
+  'chest',
 ] as const;
 export type LaunchFlavour = (typeof LAUNCH_FLAVOURS)[number];
 
