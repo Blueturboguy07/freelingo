@@ -28,10 +28,10 @@
   },
   "mustNotBe": "the re-baked clip keeping the old clip id, so its file name, its manifest row and its sha256 all still look current while the audio behind them is a different synthesiser; or a bake reporting green for a clip measured outside the declared tolerance; or a bank whose loudness was asserted on the PCM that went into the encoder rather than on the decoded Opus file that shipped",
   "usedBy": [
-    "tests/test_cast.py::test_the_rebake_key_includes_the_engine",
-    "tests/test_cast.py::test_the_rebake_key_includes_the_engine_pin",
-    "tests/test_validators_audio.py::test_a_drifted_clip_is_blocking",
-    "tests/test_g8_bake.py::test_loudness_is_measured_on_the_decoded_file"
+    "tests/test_cast.py::test_inv_aud_08_the_rebake_key_includes_the_engine",
+    "tests/test_cast.py::test_inv_aud_08_the_rebake_key_includes_the_engine_pin",
+    "tests/test_validators_audio.py::test_inv_aud_08_a_drifted_clip_is_blocking",
+    "tests/test_g8_bake.py::test_inv_aud_08_loudness_is_measured_on_the_decoded_file"
   ],
   "addedBy": "p2-g8-bake"
 }

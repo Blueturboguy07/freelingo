@@ -173,8 +173,21 @@ describe.skipIf(UNDER_STRYKER)('falsifier corpus', () => {
      */
     const pinned = [...script.matchAll(/--project\s+(\S+)/g)].map((m) => m[1] as string);
     if (pinned.length > 0) {
+      /*
+       * Only the corpora vitest can run. `tools/coursekit/tests/falsifiers` is a pytest
+       * corpus: it is executed by `uv run pytest` in pack-ci.yml, and `--project coursekit`
+       * is not a thing that exists. Deriving a vitest project name from it would demand a
+       * pin that cannot be satisfied, so the derivation is scoped to the packages the
+       * vitest workspace actually defines. The Python corpus is still held by the two
+       * clauses above (it parses and names its invariant; it is read by a test in its own
+       * module whose name a `-k falsifier` run selects).
+       */
       const needed = [
-        ...new Set(corpusDirectories(corpus).map((dir) => dir.split('/')[1] as string)),
+        ...new Set(
+          corpusDirectories(corpus)
+            .filter((dir) => dir.startsWith('packages/'))
+            .map((dir) => dir.split('/')[1] as string),
+        ),
       ].sort();
       const unreachable = needed.filter((project) => !pinned.includes(project));
       expect(

@@ -65,10 +65,37 @@ export const P1_FAMILIES: readonly string[] = [
 /** Ids P1 owns that are not a whole family: the two engine-side §19 ids. */
 export const P1_EXTRA_IDS: readonly string[] = ['INV-SEC-01', 'INV-SEC-02'];
 
-/** Test roots the owning-test scan walks. */
-const TEST_ROOTS = ['packages', 'apps', 'e2e'];
-const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$/;
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', 'artifacts', '.stryker-tmp']);
+/**
+ * Test roots the owning-test scan walks.
+ *
+ * `tools` joined the list at P2. The content pipeline is Python, its tests are the only
+ * thing that can hold INV-PACK-15 and INV-AUD-08 (both are properties of a produced pack,
+ * not of the engine), and while this array said `['packages', 'apps', 'e2e']` a lane could
+ * own those ids, write real tests for them, and be told by two separate gates that the ids
+ * had no owning test at all.
+ */
+const TEST_ROOTS = ['packages', 'apps', 'e2e', 'tools'];
+/** Vitest (`*.test.ts`), Maestro (`*.yaml`) and pytest (`test_*.py`) files. */
+const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$|^test_[A-Za-z0-9_]+\.py$/;
+/**
+ * Directory names the walk never enters, wherever they appear.
+ *
+ * The four Python entries are not cosmetic now that `tools` is walked: `tools/coursekit/
+ * .venv` contains thousands of installed `test_*.py` files, so without `.venv` this scan
+ * would take minutes and a third-party wheel's test suite could supply "coverage" for an
+ * id this repo never tested.
+ */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'coverage',
+  'artifacts',
+  '.stryker-tmp',
+  '.venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.ruff_cache',
+]);
 /**
  * Generated native trees, skipped by PATH and not by the names `ios`/`android`.
  * `expo prebuild` fills them with vendored `.yaml`, and a gitignored generated tree must
@@ -106,9 +133,21 @@ export function sortIds(ids: Iterable<string>): string[] {
 
 /* ------------------------------------------------------------------ ownership */
 
+/**
+ * The phase an ownership file belongs to.
+ *
+ * Declared by the file itself (`"phase": "P2"`), which is a field the P2 lanes were
+ * already writing before anything read it. Absent means `P1`: every file that existed
+ * when this roster was written is a P1 file, and defaulting the other way would have
+ * emptied the P1 gate on the commit that introduced the field.
+ */
+export const DEFAULT_PHASE = 'P1';
+
 export interface OwnershipFile {
   readonly path: string;
   readonly ids: readonly string[];
+  /** `P0`, `P1`, `P2`, … — see `DEFAULT_PHASE`. */
+  readonly phase: string;
 }
 
 /** The journey file carries the phase declarations the roster needs. */
@@ -126,12 +165,13 @@ export interface JourneyOwnership {
 
 /** Every ownership file: the phase baseline plus one file per task. */
 export function ownershipFiles(root = repoRoot()): OwnershipFile[] {
-  const read = (relativePath: string): OwnershipFile => ({
-    path: relativePath,
-    ids:
-      (JSON.parse(readFileSync(join(root, relativePath), 'utf8')) as { owned?: string[] }).owned ??
-      [],
-  });
+  const read = (relativePath: string): OwnershipFile => {
+    const raw = JSON.parse(readFileSync(join(root, relativePath), 'utf8')) as {
+      owned?: string[];
+      phase?: string;
+    };
+    return { path: relativePath, ids: raw.owned ?? [], phase: raw.phase ?? DEFAULT_PHASE };
+  };
   const files = [read(BASELINE_OWNED_PATH)];
   let entries: string[] = [];
   try {
@@ -170,6 +210,38 @@ export function unionOwnership(files: readonly OwnershipFile[]): Union {
     duplicates: new Map([...claims].filter(([, where]) => where.length > 1)),
   };
 }
+
+/**
+ * The ownership files belonging to one phase.
+ *
+ * The P1 roster is an equality — `union(P1 ownership files) === expected` — and an
+ * equality over "every file on disk" stops being a P1 statement the moment P2 lands its
+ * first claim. It went red exactly that way: `docs/owned/p2-g8.json` owns INV-PACK-15 and
+ * INV-AUD-08, both P2 pack gates by the plan's coverage table, and three P1 assertions
+ * called them UNDECLARED. The fix is not to drop the claim (rule 4: an invariant owned by
+ * nobody is worse than a failing one) and not to widen the roster to swallow PACK/AUD
+ * wholesale; it is to compare the P1 gate against the P1 files. The checks that are not
+ * about the roster — no duplicates, every id in the registry, every id has an owning test
+ * — still run over every file, whatever phase wrote it.
+ */
+export function filesInPhases(
+  files: readonly OwnershipFile[],
+  phases: readonly string[],
+): readonly OwnershipFile[] {
+  const wanted = new Set(phases);
+  return files.filter((file) => wanted.has(file.phase));
+}
+
+/**
+ * The phases whose ownership files the P1 roster equality is judged over.
+ *
+ * Two, not one: `roster.expected` is `required + the P0 BASELINE + engine parts −
+ * deferrals`, and `docs/invariants-owned.json` declares `"phase": "P0"` while holding the
+ * five ids P0 landed (INV-DAY-01/05, INV-PER-06, INV-PLAT-01/02). Scoping to `P1` alone
+ * put those five on the wrong side of the comparison and made the gate red in the
+ * opposite direction — measured, not reasoned about.
+ */
+export const ROSTER_PHASES: readonly string[] = ['P0', 'P1'];
 
 /* --------------------------------------------------------------- the roster */
 
@@ -219,27 +291,71 @@ function walkTests(dir: string, root: string, out: string[]): string[] {
 }
 
 /**
- * id -> the test names that carry it in brackets.
+ * The claim form a **pytest** test name uses: `def test_inv_aud_08_…`.
  *
- * Bracketed on purpose: `it('[INV-DAY-01] …')` is a claim, and a test that merely
- * mentions an id in prose is not. `docs/README.md` §Adding coverage states the bracket
- * form, and this is what makes it the contract rather than a suggestion.
+ * A Python function name cannot contain `[`, `-` or an uppercase-preserving separator, so
+ * `it('[INV-AUD-08] …')` has no Python spelling. The lowercase snake form is the one thing
+ * that IS a name — pytest prints `test_inv_aud_08_the_rebake_key_includes_the_engine` in
+ * its node id and `pytest -k inv_aud_08` selects it — and the digits are read verbatim, so
+ * `inv_aud_08` is `INV-AUD-08` and never `INV-AUD-8`.
+ *
+ * Anchored on `_` or start-of-name, NOT on `\b`: the character before `inv` in
+ * `test_inv_aud_08_…` is an underscore, which is itself a word character, so `\binv_`
+ * matches nothing at all. The first version of this scanner used `\b` and reported both
+ * ids as unowned while looking exactly right.
+ *
+ * A docstring will not do, and that is the point of doing this at all: a docstring-only id
+ * is invisible to every gate in this repo, so two invariants can look owned in review and
+ * be owned by nobody according to the arbiter.
+ */
+export const PYTHON_CLAIM = /(?:^|_)inv_([a-z0-9]+)_(\d+)(?=_|$)/g;
+
+/** `inv_aud_08` -> `INV-AUD-08`. */
+export function idFromPythonName(family: string, number: string): string {
+  return `INV-${family.toUpperCase()}-${number}`;
+}
+
+/**
+ * id -> the test names that carry it.
+ *
+ * TypeScript: bracketed, on purpose. `it('[INV-DAY-01] …')` is a claim, and a test that
+ * merely mentions an id in prose is not. `docs/README.md` §Adding coverage states the
+ * bracket form, and this is what makes it the contract rather than a suggestion.
+ *
+ * Python: the snake form above, in the `def test_…` identifier, for the reason `PYTHON_CLAIM`
+ * gives. Both are the NAME the runner prints; neither is a comment or a docstring.
  */
 export function owningTests(root = repoRoot()): Map<string, string[]> {
   const files = TEST_ROOTS.flatMap((r) => walkTests(join(root, r), root, []));
   const owners = new Map<string, string[]>();
   const testName = /\b(?:it|test)(?:\.\w+)*\s*\(\s*(['"`])([\s\S]*?)\1/g;
+  const pythonDef = /^\s*(?:async\s+)?def\s+(test_[A-Za-z0-9_]*)\s*\(/gm;
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
+    const record = (id: string, name: string): void => {
+      const where = owners.get(id) ?? [];
+      where.push(`${relative(root, file)} :: ${name}`);
+      owners.set(id, where);
+    };
+
+    if (file.endsWith('.py')) {
+      pythonDef.lastIndex = 0;
+      let pyMatch: RegExpExecArray | null;
+      while ((pyMatch = pythonDef.exec(source)) !== null) {
+        const name = pyMatch[1] ?? '';
+        for (const claim of name.matchAll(PYTHON_CLAIM)) {
+          record(idFromPythonName(claim[1]!, claim[2]!), name);
+        }
+      }
+      continue;
+    }
+
     testName.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = testName.exec(source)) !== null) {
       const name = match[2] ?? '';
       for (const bracketed of name.matchAll(/\[(INV-[A-Z0-9]+-\d+)\]/g)) {
-        const id = bracketed[1]!;
-        const where = owners.get(id) ?? [];
-        where.push(`${relative(root, file)} :: ${name}`);
-        owners.set(id, where);
+        record(bracketed[1]!, name);
       }
     }
   }

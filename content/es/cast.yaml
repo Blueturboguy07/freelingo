@@ -28,6 +28,38 @@ engine_note: >-
 # ---------------------------------------------------------------------------
 
 decisions:
+  - id: D-CAST-ES-00
+    title: Kokoro supersedes Azure as the voice vendor
+    supersedes: >-
+      The approved plan, §Approval: "Approving this plan accepts the rulings tables, the
+      phase order with a founder checkpoint between phases, AZURE AS THE VOICE VENDOR,
+      and the 120 MB per-language audio budget." And §Content pipeline: "Audio: Azure
+      Neural, one locale per course, four voices, baked once".
+    finding: >-
+      No Azure, Polly, OpenAI or Anthropic credential exists in this environment, and
+      the build rule is that anything needing a hosted model must have a local path.
+      Kokoro is that path: Apache-2.0 for BOTH the code and the weights (kokoro-onnx,
+      lang_code `e`), so it can bake a CC BY-NC-SA pack without a licence question.
+      Piper stays a build-time-only tool held for German at P7, and its single Japanese
+      voice is ruled out as CC BY-NC-SA — review R7, enforced in tts/piper.py, not in a
+      comment.
+    decision: >-
+      Spanish is baked on Kokoro. This is a founder-visible override of an approved plan
+      line, not an implementation detail, and it must reach the P2 checkpoint as one:
+      the plan's Azure row is dead for every language, and EC-PACK-17's "cast breadth
+      from Azure Neural within the locale" is satisfied by declared blends instead
+      (D-CAST-ES-02).
+    consequence: >-
+      D-CAST-ES-01 is the cost. Azure Neural publishes a locale sub-tag per voice, so
+      `locale: es-ES` would have been vendor-backed; Kokoro publishes none, so the tag
+      becomes a claim the course makes and the ONLY thing that can falsify it is the
+      300-item paid native-reviewer sample at the end of P2. That sample's brief must
+      therefore include accent, not only correctness.
+    reversible: >-
+      Yes, and cheaply in code: `engine` is a field on this file, the re-bake key
+      includes it (D-CAST-ES-03), and a vendor swap re-bakes the bank rather than
+      silently reusing it. What it costs is a cloud key and the bake spend.
+
   - id: D-CAST-ES-01
     title: The declared locale is the course's claim, not the vendor's
     review: R15

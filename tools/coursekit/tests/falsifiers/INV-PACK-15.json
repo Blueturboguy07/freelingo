@@ -38,10 +38,10 @@
   },
   "mustNotBe": "a manifest passing the budget gate while the story or radio pipeline is absent (an implicit zero the lesson bank then grows into); a declared_bytes that is not the sum of max(baked, reserved) over all three pipelines; a manifest with no codec or no bitrate; or a total over the declared budget reported as green",
   "usedBy": [
-    "tests/test_validators_audio.py::test_a_lessons_only_manifest_is_blocking",
-    "tests/test_validators_audio.py::test_over_budget_is_blocking",
-    "tests/test_validators_audio.py::test_a_manifest_with_no_codec_row_is_blocking",
-    "tests/test_g8_bake.py::test_the_manifest_charges_every_pipeline"
+    "tests/test_validators_audio.py::test_inv_pack_15_a_lessons_only_manifest_is_blocking",
+    "tests/test_validators_audio.py::test_inv_pack_15_over_budget_is_blocking",
+    "tests/test_validators_audio.py::test_inv_pack_15_a_manifest_with_no_codec_row_is_blocking",
+    "tests/test_g8_bake.py::test_inv_pack_15_the_manifest_charges_every_pipeline"
   ],
   "addedBy": "p2-g8-bake"
 }

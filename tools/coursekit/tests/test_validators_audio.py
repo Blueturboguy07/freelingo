@@ -156,7 +156,7 @@ def test_a_clean_manifest_passes_f2(plant) -> None:
     assert _blocking(audio_budget(_context())) == []
 
 
-def test_a_lessons_only_manifest_is_blocking(plant) -> None:
+def test_inv_pack_15_a_lessons_only_manifest_is_blocking(plant) -> None:
     """[INV-PACK-15] the named falsifier: 50 MB against 120 MB, two pipelines missing.
 
     Review R14. The number is comfortable; the denominator is wrong. A gate that only
@@ -176,7 +176,7 @@ def test_a_lessons_only_manifest_is_blocking(plant) -> None:
     assert any("R14" in message for message in findings)
 
 
-def test_over_budget_is_blocking(plant) -> None:
+def test_inv_pack_15_over_budget_is_blocking(plant) -> None:
     """[INV-PACK-15] a lesson bank that outgrew its reservation is charged what it costs."""
     over = PACK15["overBudget"]["pipelines"]["lesson"]["baked_bytes"]
     manifest = _manifest([_clip(bytes=over)])
@@ -185,7 +185,7 @@ def test_over_budget_is_blocking(plant) -> None:
     assert any("against a 120 MB budget" in message for message in findings)
 
 
-def test_a_manifest_with_no_codec_row_is_blocking(plant) -> None:
+def test_inv_pack_15_a_manifest_with_no_codec_row_is_blocking(plant) -> None:
     """[INV-PACK-15] R13's finding: a budget with no codec and no bitrate beside it
     cannot be argued with, which is how 35-40 MB for 8,000 utterances survived."""
     plant(_manifest(codec=None, bitrate_kbps=None))
@@ -228,7 +228,7 @@ def test_a_missing_manifest_is_blocking_not_a_pass(tmp_path, monkeypatch) -> Non
 # ---------------------------------------------------------------------------
 
 
-def test_a_drifted_clip_is_blocking(plant) -> None:
+def test_inv_aud_08_a_drifted_clip_is_blocking(plant) -> None:
     """[INV-AUD-08] the falsifier's `driftedClip`: -19.6 LUFS against a -16 target.
 
     EC-PACK-52's measured number, and a perfectly valid file in every other respect.
@@ -247,7 +247,7 @@ def test_a_clip_with_no_measured_loudness_is_blocking(plant) -> None:
     assert any("no measured loudness" in m for m in _blocking(audio_budget(_context())))
 
 
-def test_a_clip_baked_by_another_engine_is_blocking(plant) -> None:
+def test_inv_aud_08_a_clip_baked_by_another_engine_is_blocking(plant) -> None:
     """[INV-AUD-08] a bank baked by two engines under one declaration is EC-PACK-52."""
     case = AUD08["sameVoiceDifferentEngine"]
     plant(_manifest([_clip(engine=case["engineAfter"])]))

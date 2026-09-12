@@ -389,6 +389,21 @@ def build_manifest(cast: Cast, entries: list[dict[str, Any]]) -> dict[str, Any]:
             "bytes": total_bytes,
             "seconds": round(total_seconds, 3),
             "megabytes": round(total_bytes / BYTES_PER_MB, 3),
+            # S002 ("sample sentence + speaker" download state) and S133 ("38 MB audio")
+            # render ONE number, and this manifest offers two candidates: what the bank
+            # costs (`totals.megabytes`) and what the budget reserves for three pipelines
+            # two of which do not exist yet (`budget.declared_mb`, 98.0). A download
+            # screen that quoted 98 MB for a 0.145 MB file would be lying to the learner
+            # in the direction that loses the install, so the field is named here rather
+            # than chosen by whoever builds the screen. INV-PACK-55 owns the rendering at
+            # P4; this is the contract it renders against.
+            "learner_facing_field": "totals.megabytes",
+            "learner_facing_note": (
+                "S002 and S133 show the size of the bank that will actually be "
+                "downloaded (totals.megabytes, decimal MB). budget.declared_mb is the "
+                "INV-PACK-15 reservation across all three pipelines and is never shown "
+                "to a learner."
+            ),
         },
         "budget": {
             "budget_mb": AUDIO_BUDGET_MB,

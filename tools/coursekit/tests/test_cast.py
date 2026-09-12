@@ -1,6 +1,6 @@
 """The cast contract and the re-bake key.
 
-`test_the_rebake_key_includes_the_engine` is the load-bearing one. It is INV-AUD-08's
+`test_inv_aud_08_the_rebake_key_includes_the_engine` is the load-bearing one. It is INV-AUD-08's
 second clause and the committed falsifier is `falsifiers/INV-AUD-08.json`: a clip
 identical in character, voice, line and bitrate, re-baked by a different synthesiser.
 If that reuses the old hash then every file name, every manifest row and every sha256
@@ -73,6 +73,25 @@ def test_every_role_has_a_sample_line() -> None:
     assert all(text.strip() for text in CAST_SAMPLE_TEXT.values())
 
 
+def test_the_cast_records_the_azure_override_as_a_founder_decision() -> None:
+    """The plan's "Azure as the voice vendor" line is superseded, and it says so.
+
+    Plan §Approval lists Azure among the things approving the plan accepted, so baking
+    on Kokoro is a founder-visible override of an approved line and not an
+    implementation detail. The previous round recorded the CONSEQUENCE (D-CAST-ES-01,
+    the locale claim) without recording the OVERRIDE, so a reader of this file could not
+    tell that a plan line had died. D-CAST-ES-00 is that record; this keeps it.
+    """
+    raw = _raw()
+    decisions = {entry["id"]: entry for entry in raw["decisions"]}
+    override = decisions["D-CAST-ES-00"]
+    assert "Azure" in override["supersedes"], "the superseded plan line must be quoted"
+    assert "Kokoro" in override["decision"]
+    # And the engine the file actually declares is the one the decision names.
+    assert raw["engine"] == "kokoro"
+    assert load_cast("es").engine == "kokoro"
+
+
 def test_the_cast_records_r15_as_a_decision_not_a_table_cell() -> None:
     """R15: a mixed-accent cast inside one course is a founder-visible choice.
 
@@ -136,7 +155,7 @@ def test_the_committed_falsifier_for_this_invariant_names_itself() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_rebake_key_includes_the_engine() -> None:
+def test_inv_aud_08_the_rebake_key_includes_the_engine() -> None:
     """[INV-AUD-08] a voice-identical clip on a different engine is a different clip.
 
     The committed falsifier (`falsifiers/INV-AUD-08.json`, `sameVoiceDifferentEngine`):
@@ -158,7 +177,7 @@ def test_the_rebake_key_includes_the_engine() -> None:
     )
 
 
-def test_the_rebake_key_includes_the_engine_pin() -> None:
+def test_inv_aud_08_the_rebake_key_includes_the_engine_pin() -> None:
     """[INV-AUD-08] a weights release moves every style vector; the voice id does not."""
     from dataclasses import replace
 
@@ -168,7 +187,7 @@ def test_the_rebake_key_includes_the_engine_pin() -> None:
     assert rebake_key(before, "narrator", "Hola") != rebake_key(after, "narrator", "Hola")
 
 
-def test_the_rebake_key_changes_with_voice_rate_text_and_loudness() -> None:
+def test_inv_aud_08_the_rebake_key_changes_with_voice_rate_text_and_loudness() -> None:
     """[INV-AUD-08] every input to the audio is in the key, and nothing else is."""
     from dataclasses import replace
 

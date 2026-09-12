@@ -11,7 +11,7 @@ is the property under test, not "the total is small enough".
 The stage's rendering half is not unit-tested with a mock engine. Mocking Kokoro would
 test the mock: the properties that matter — that the shipped Opus file measures within
 tolerance of the target, that `opusenc` accepts what the levelling produces — are only
-true of real audio, and `test_a_real_clip_survives_the_whole_chain` runs the real one
+true of real audio, and `test_inv_aud_08_a_real_clip_survives_the_whole_chain` runs the real one
 when the weights are on the machine.
 """
 
@@ -165,7 +165,7 @@ def test_the_committed_falsifier_for_this_invariant_names_itself() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_manifest_charges_every_pipeline() -> None:
+def test_inv_pack_15_the_manifest_charges_every_pipeline() -> None:
     """[INV-PACK-15] all three pipelines, each sized, summed against the budget.
 
     The falsifier is `lessonsOnly`: 50 MB against 120 MB looks comfortable and is the
@@ -208,7 +208,7 @@ def test_the_three_reservations_fit_inside_the_budget() -> None:
     assert AUDIO_BUDGET_MB * BYTES_PER_MB == AUDIO_BUDGET_BYTES
 
 
-def test_the_budget_has_a_bitrate_beside_it() -> None:
+def test_inv_pack_15_the_budget_has_a_bitrate_beside_it() -> None:
     """[INV-PACK-15] R13's finding: 8,000 utterances inside 35-40 MB is 4.4 KB each.
 
     The refutation only exists because the figure can be divided by something. The
@@ -222,13 +222,35 @@ def test_the_budget_has_a_bitrate_beside_it() -> None:
     )
 
 
-def test_the_manifest_carries_codec_bitrate_and_total_bytes() -> None:
+def test_inv_pack_15_the_manifest_carries_codec_bitrate_and_total_bytes() -> None:
     """[INV-PACK-15] the three fields the invariant names, by name."""
     cast = load_cast("es")
     manifest = build_manifest(cast, [_entry("lesson", 4_321, "c" * 16)])
     assert manifest["codec"] == "opus"
     assert manifest["bitrate_kbps"] == 20
     assert manifest["totals"]["bytes"] == 4_321
+
+
+def test_inv_pack_15_the_manifest_names_the_number_s002_and_s133_render() -> None:
+    """[INV-PACK-15] the manifest says WHICH size is the learner-facing one.
+
+    The invariant puts two sizes in one file: what the bank costs to download
+    (`totals.megabytes`) and what the budget reserves across three pipelines, two of
+    which do not exist yet (`budget.declared_mb`, 98.0 today against 0.145 baked). The
+    product map has S133 rendering "38 MB audio" and S002 a download state, and nothing
+    in either says which number that is. A screen that quoted the reservation would tell
+    a learner a 0.145 MB download costs 98 MB — wrong by 675x, in the direction that
+    loses the install. INV-PACK-55 renders it at P4; this is the field it renders.
+    """
+    cast = load_cast("es")
+    manifest = build_manifest(cast, [_entry("lesson", 4_321, "d" * 16)])
+    totals = manifest["totals"]
+
+    assert totals["learner_facing_field"] == "totals.megabytes"
+    # The named field resolves, and it is the baked size rather than the reservation.
+    assert totals["megabytes"] == round(4_321 / BYTES_PER_MB, 3)
+    assert totals["megabytes"] != manifest["budget"]["declared_mb"]
+    assert "budget.declared_mb" in totals["learner_facing_note"]
 
 
 def test_the_manifest_records_the_cast_and_the_engine_pin() -> None:
@@ -246,7 +268,7 @@ def test_the_manifest_records_the_cast_and_the_engine_pin() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_real_clip_survives_the_whole_chain() -> None:
+def test_inv_aud_08_a_real_clip_survives_the_whole_chain() -> None:
     """[INV-AUD-08] synthesise -> master -> encode -> DECODE -> measure, within tolerance.
 
     The measurement is taken on the decoded Opus file. Measuring the encoder's input
@@ -302,7 +324,7 @@ def test_a_real_clip_survives_the_whole_chain() -> None:
     assert 12 <= implied_kbps <= 34, implied_kbps
 
 
-def test_loudness_is_measured_on_the_decoded_file() -> None:
+def test_inv_aud_08_loudness_is_measured_on_the_decoded_file() -> None:
     """[INV-AUD-08] the falsifier's `driftedClip`, as an assertion about the chain.
 
     A clip whose PCM was normalised to -16 and whose decoded Opus measures -19.6 is
@@ -319,3 +341,205 @@ def test_loudness_is_measured_on_the_decoded_file() -> None:
         "the gate must not read the synthesiser's output; that is the assumption "
         "INV-AUD-08 forbids"
     )
+
+
+# ---------------------------------------------------------------------------
+# INV-AUD-08 clause 1, in a job with no weights: a real encode/decode round trip
+# ---------------------------------------------------------------------------
+#
+# `test_inv_aud_08_a_real_clip_survives_the_whole_chain` above is the honest end-to-end
+# proof and it needs the `tts` group plus 354 MB of Kokoro weights, neither of which
+# `pack-ci.yml` installs (pyproject's `[tool.uv] default-groups` deliberately excludes
+# `tts`). The test directly above it is a SOURCE-TEXT test: it reads `g8_bake.py` as a
+# string. A refuter's finding, in full: that would pass a rewrite that measured the
+# pre-encode PCM under a different variable name, so in CI the only thing standing behind
+# "every packed clip MEASURES within tolerance" was a string search.
+#
+# This closes that. It needs numpy (which arrives with the `nlp` group spaCy pulls, so CI
+# has it) and opus-tools (one apt line, already in `pack-bake.yml`) and nothing else: the
+# synthesiser is replaced by a synthetic voiced signal, and everything after it —
+# `master` -> `encode` -> `decode` -> `measure_lufs` -> tolerance — is the shipping chain,
+# unmocked.
+#
+# It also pins the two halves apart, which is the clause the source test was standing in
+# for. Two alignment-free facts do that: the file on disk carries ~18 kbps for 3.4 s
+# (7.7 KB where the PCM was 163 KB), and the samples that came back differ from the ones
+# that went in by a peak of ~0.09 — a 20 kbps encode of speech is not a copy. A reading
+# taken off that array cannot have come from the encoder's input.
+#
+# (`opusdec` returns the ORIGINAL rate, not 48 kHz: the codec runs at 48 kHz internally
+# and opusenc records the input rate in the Ogg header, which opusdec resamples back to
+# unless `--rate` overrides it. Measured here, 24 kHz in gives 24 kHz out.)
+
+#: Set in pack-ci.yml. Without it a machine with no opus-tools skips; with it, a job whose
+#: `apt-get install opus-tools` silently failed goes RED instead of green-with-a-skip —
+#: the whole point of this test is to be the guard that CI actually runs.
+REQUIRE_OPUS_TOOLS = "COURSEKIT_REQUIRE_OPUS_TOOLS"
+
+
+def _voiced_signal(rate: int, seconds: float, *, syllables_per_second: float = 4.0) -> Any:
+    """A speech-shaped test signal: a 120 Hz glottal-ish stack under a syllable envelope.
+
+    Not a sine. A pure tone is the one signal a 20 kbps Opus encoder reproduces almost
+    perfectly, so a round trip on one would pass whatever the encoder did to speech. Five
+    harmonics with a 1/k roll-off and a 4 Hz envelope give the encoder a real crest factor
+    and a real spectrum to spend its bits on, and the trailing silence gives BS.1770's
+    relative gate something to exclude.
+    """
+    import numpy as np
+
+    t = np.arange(int(rate * seconds), dtype=np.float64) / rate
+    carrier = sum(np.sin(2.0 * np.pi * 120.0 * k * t) / k for k in (1, 2, 3, 4, 5))
+    envelope = (0.5 * (1.0 - np.cos(2.0 * np.pi * syllables_per_second * t))) ** 1.5
+    signal = carrier * envelope
+    signal = signal / float(np.max(np.abs(signal))) * 0.5
+    return np.concatenate([signal, np.zeros(int(rate * 0.4))])
+
+
+def _round_trip(samples: Any, rate: int, clip_id: str, tmp_path: Path) -> tuple[Any, int, int]:
+    """encode -> decode. Returns the decoded samples, their rate, and the file's bytes."""
+    from coursekit.tts.transcode import decode, encode
+
+    clip = encode(samples, rate, clip_id, tmp_path)
+    decoded, decoded_rate = decode(clip.path)
+    return decoded, decoded_rate, clip.bytes
+
+
+def _skip_without_opus_tools() -> None:
+    import os
+    import shutil
+
+    missing = [tool for tool in ("opusenc", "opusdec") if shutil.which(tool) is None]
+    if not missing:
+        return
+    if os.environ.get(REQUIRE_OPUS_TOOLS):
+        pytest.fail(
+            f"{', '.join(missing)} not on PATH and {REQUIRE_OPUS_TOOLS} is set. "
+            f"pack-ci.yml installs opus-tools so this guard RUNS; a skip here would put "
+            f"INV-AUD-08 clause 1 back behind a string search."
+        )
+    pytest.skip(f"opus-tools is not on PATH ({', '.join(missing)})")
+
+
+def test_inv_aud_08_a_synthetic_clip_measures_on_the_decoded_file(tmp_path: Path) -> None:
+    """[INV-AUD-08] master -> encode -> DECODE -> measure lands inside the declared tolerance.
+
+    The behavioural half of clause 1, runnable in a job with no Kokoro weights. Real
+    `opusenc`, real `opusdec`, the real meter, the cast's own target and tolerance.
+    """
+    _skip_without_opus_tools()
+    from coursekit.tts.loudness import master, measure_lufs, peak_dbfs
+
+    cast = load_cast("es")
+    rate = 24_000  # Kokoro's output rate, so the 24 -> 48 kHz assertion below is the real one
+    levelled, reduction = master(
+        _voiced_signal(rate, 3.0),
+        rate,
+        cast.target_lufs,
+        ceiling_dbfs=PEAK_CEILING_DBFS,
+        tolerance_lu=cast.tolerance_lu,
+        max_passes=MASTER_MAX_PASSES,
+    )
+    assert peak_dbfs(levelled) <= PEAK_CEILING_DBFS + 1e-6
+    assert reduction >= 0.0
+
+    import numpy as np
+
+    decoded, decoded_rate, size = _round_trip(levelled, rate, "synthetic-on-target", tmp_path)
+
+    # The measurement came from the SHIPPED file, not from what went into the encoder.
+    # Two facts, neither of which needs the two arrays to be sample-aligned:
+    #   1. the bytes on disk are a 20 kbps Opus stream, not the 163 KB of PCM that went in;
+    #   2. the samples that came back are materially different from the ones that went in,
+    #      which is what a lossy encode at this rate does and what a pass-through does not.
+    seconds = len(decoded) / decoded_rate
+    implied_kbps = size * 8 / seconds / 1000
+    assert 12 <= implied_kbps <= 34, implied_kbps
+    assert size < levelled.size * 2 / 8, "that is PCM-sized, not a 20 kbps Opus file"
+    overlap = min(len(decoded), len(levelled))
+    assert float(np.max(np.abs(decoded[:overlap] - levelled[:overlap]))) > 1e-3, (
+        "the decoded samples are identical to the encoder's input, so nothing was "
+        "actually encoded and this measurement is of the PCM"
+    )
+
+    measured = measure_lufs(decoded, decoded_rate)
+    assert measured.gated, "a 3.4 s clip must be measured by the gated algorithm"
+    drift = abs(measured.lufs - cast.target_lufs)
+    assert drift <= cast.tolerance_lu, (
+        f"the decoded 20 kbps file measured {measured.lufs:.3f} LUFS, {drift:.3f} LU from "
+        f"the declared {cast.target_lufs} (tolerance {cast.tolerance_lu} LU)"
+    )
+
+
+def test_inv_pack_15_the_same_input_encodes_to_the_same_bytes(tmp_path: Path) -> None:
+    """[INV-PACK-15] the manifest describes bytes, so a no-op rebuild must reproduce them.
+
+    Found by re-running the bake on an unchanged tree: all 23 committed `sha256` values
+    moved while every `bytes`, `duration_ms` and `loudness_lufs` stayed identical to the
+    last decimal. The cause is opusenc's default RANDOM Ogg stream serial, and the
+    consequence is that the manifest's own promise — "everything needed to say whether a
+    rebuild produced the same bank" — was false: a reproducibility check would have
+    reported the whole bank changed on every run, which is the same as reporting nothing.
+    `--serial` (see `OPUS_SERIAL_MASK`) fixes it; this is what keeps it fixed.
+    """
+    _skip_without_opus_tools()
+    import hashlib
+
+    from coursekit.tts.transcode import ogg_serial
+
+    signal = _voiced_signal(24_000, 1.0)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    clip_a = _round_trip_file(signal, 24_000, "repro", first)
+    clip_b = _round_trip_file(signal, 24_000, "repro", second)
+
+    digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()  # noqa: E731
+    assert digest(clip_a) == digest(clip_b), (
+        "two encodes of identical PCM produced different bytes; the manifest's sha256 "
+        "column cannot detect a real drift if it changes on every no-op rebuild"
+    )
+    # And the serial really is derived from the clip id, so two different clips do not
+    # collide on one stream serial.
+    assert ogg_serial("repro") != ogg_serial("repro-other")
+    assert 0 < ogg_serial("repro") <= 0x7FFFFFFF
+
+
+def _round_trip_file(samples: Any, rate: int, clip_id: str, directory: Path) -> Path:
+    from coursekit.tts.transcode import encode
+
+    return encode(samples, rate, clip_id, directory).path
+
+
+def test_inv_aud_08_a_mislevelled_clip_fails_the_same_measurement(tmp_path: Path) -> None:
+    """[INV-AUD-08] the falsifier's `driftedClip`, driven through real audio.
+
+    The test above proves the chain accepts an on-target clip. On its own that is a test
+    an always-true assertion would also pass, so this is the other side: a clip mastered
+    4 LU low — EC-PACK-52's shape, a bank that is quietly quiet — must come back OUTSIDE
+    the tolerance from the same decode-and-measure the stage runs.
+    """
+    _skip_without_opus_tools()
+    from coursekit.tts.loudness import master, measure_lufs
+
+    cast = load_cast("es")
+    rate = 24_000
+    wrong_target = cast.target_lufs - 4.0
+    levelled, _ = master(
+        _voiced_signal(rate, 3.0),
+        rate,
+        wrong_target,
+        ceiling_dbfs=PEAK_CEILING_DBFS,
+        tolerance_lu=cast.tolerance_lu,
+        max_passes=MASTER_MAX_PASSES,
+    )
+    decoded, decoded_rate, _ = _round_trip(levelled, rate, "synthetic-four-lu-low", tmp_path)
+    measured = measure_lufs(decoded, decoded_rate)
+
+    assert abs(measured.lufs - cast.target_lufs) > cast.tolerance_lu, (
+        f"a clip mastered {wrong_target} LUFS measured {measured.lufs:.3f} against a "
+        f"{cast.target_lufs} target and was NOT refused — the tolerance "
+        f"({cast.tolerance_lu} LU) is not gating anything"
+    )
+    # ... and it is the level that is wrong, not the meter: the clip landed where it was
+    # asked to land, which is what makes the failure above attributable.
+    assert abs(measured.lufs - wrong_target) <= cast.tolerance_lu

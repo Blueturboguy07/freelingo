@@ -30,10 +30,35 @@ const REGISTRY_PATH = 'docs/invariants.md';
 const OWNED_PATH = 'docs/invariants-owned.json';
 /** One file per task, unioned with OWNED_PATH. See the header. */
 const OWNED_DIR = 'docs/owned';
-const TEST_ROOTS = ['packages', 'apps', 'e2e'];
-const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$/;
-/** Directory names the walk never enters, wherever they appear. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'artifacts']);
+/**
+ * Roots the test scan walks.
+ *
+ * `tools` is here because the content pipeline is Python and two invariants live only
+ * there: INV-PACK-15 and INV-AUD-08 are properties of a produced audio bank, so their
+ * owning tests are pytest tests under `tools/coursekit/tests/`. While this array was
+ * TypeScript-only, a lane could write those tests, own the ids, and be told by this gate
+ * that they had no owning test — which is how P2's first coursekit claim turned the gate
+ * red on a branch whose tests were all green.
+ */
+const TEST_ROOTS = ['packages', 'apps', 'e2e', 'tools'];
+/** Vitest (`*.test.ts`), Maestro (`*.yaml`) and pytest (`test_*.py`) files. */
+const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$|^test_[A-Za-z0-9_]+\.py$/;
+/**
+ * Directory names the walk never enters, wherever they appear.
+ *
+ * `.venv` is load-bearing, not tidiness: `tools/coursekit/.venv` holds thousands of
+ * installed `test_*.py` files, and a wheel's own suite must never be able to supply
+ * coverage for an id this repo never tested.
+ */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'artifacts',
+  '.venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.ruff_cache',
+]);
 /**
  * The generated native trees (INV-PLAT-02), skipped by PATH rather than by name.
  *
@@ -76,6 +101,49 @@ function claimedIdsIn(source: string): Map<string, string[]> {
   while ((match = testName.exec(source)) !== null) {
     const name = match[2] ?? '';
     for (const id of name.match(INVARIANT_ID) ?? []) {
+      const list = claims.get(id) ?? [];
+      list.push(name);
+      claims.set(id, list);
+    }
+  }
+  return claims;
+}
+
+/**
+ * `test_inv_aud_08_…` -> the pair `('aud', '08')`.
+ *
+ * Anchored on `_` or start-of-name rather than on `\b`: in `test_inv_aud_08_…` the
+ * character before `inv` is an underscore, which IS a word character, so `\binv_` matches
+ * nothing at all. The first version of this scanner used `\b`, walked all seven Python
+ * files, found zero claims and reported both invariants unowned — a gate that looks right
+ * and answers "no" to everything. `--self-test` pins it.
+ */
+const PYTHON_CLAIM = /(?:^|_)inv_([a-z0-9]+)_(\d+)(?=_|$)/g;
+
+/**
+ * Ids as they appear in a **pytest** test NAME, e.g. `def test_inv_aud_08_…`.
+ *
+ * A Python identifier cannot hold `[`, `-` or mixed case that survives a linter, so
+ * `INV-AUD-08` has no literal spelling in a `def`. The lowercase snake form is the one
+ * that is genuinely a NAME: pytest prints
+ * `tests/test_cast.py::test_inv_aud_08_the_rebake_key_includes_the_engine` and
+ * `pytest -k inv_aud_08` selects it.
+ *
+ * The digits are read verbatim, so `inv_aud_08` is `INV-AUD-08`, never `INV-AUD-8` — a
+ * zero dropped here would become an id the registry does not carry, which this gate
+ * reports as a typo rather than as coverage.
+ *
+ * A docstring is NOT a claim, here or anywhere. `docs/README.md` §Adding coverage is the
+ * contract and this function is what makes it one for Python.
+ */
+function claimedIdsInPython(source: string): Map<string, string[]> {
+  const claims = new Map<string, string[]>();
+  const pythonDef = /^\s*(?:async\s+)?def\s+(test_[A-Za-z0-9_]*)\s*\(/gm;
+  let match: RegExpExecArray | null;
+  while ((match = pythonDef.exec(source)) !== null) {
+    const name = match[1] ?? '';
+    for (const claim of name.matchAll(PYTHON_CLAIM)) {
+      const id = `INV-${claim[1]!.toUpperCase()}-${claim[2]!}`;
       const list = claims.get(id) ?? [];
       list.push(name);
       claims.set(id, list);
@@ -171,7 +239,8 @@ const testFiles = TEST_ROOTS.flatMap((r) => walk(join(ROOT, r)));
 const ownerOf = new Map<string, string[]>();
 for (const file of testFiles) {
   const source = readFileSync(file, 'utf8');
-  for (const [id, names] of claimedIdsIn(source)) {
+  const claims = file.endsWith('.py') ? claimedIdsInPython(source) : claimedIdsIn(source);
+  for (const [id, names] of claims) {
     const where = ownerOf.get(id) ?? [];
     for (const name of names) where.push(`${relative(ROOT, file)} :: ${name}`);
     ownerOf.set(id, where);
@@ -251,6 +320,32 @@ function selfTest(): void {
   const unknown = unionOwnership([{ path: 'a.json', ids: ['INV-ECO-99'] }], registryFixture);
   if (!unknown.errors.some((e) => e.includes('is not in'))) {
     failures.push('an id absent from the registry must fail');
+  }
+
+  /*
+   * The Python scanner, against the exact failure it shipped with once.
+   *
+   * `\binv_` matches nothing in `test_inv_aud_08_…` (the preceding `_` is a word
+   * character), so the scan walked every pytest file and returned an empty map — and an
+   * empty map is indistinguishable, in the printed report, from "nobody wrote the test".
+   * These four lines are the difference between a scanner that works and one that agrees
+   * with itself.
+   */
+  const pythonSource = [
+    'def test_inv_aud_08_the_rebake_key_includes_the_engine() -> None:',
+    '    """[INV-PACK-15] a docstring is prose, not a claim."""',
+    'async def test_inv_a11y_04_every_type_answers_in_the_tree():',
+    '    pass',
+    '# def test_inv_day_01_commented_out():',
+    'def helper_inv_sch_09_not_a_test():',
+  ].join('\n');
+  const pythonClaims = claimedIdsInPython(pythonSource);
+  const pythonIds = [...pythonClaims.keys()].sort().join(',');
+  if (pythonIds !== 'INV-A11Y-04,INV-AUD-08') {
+    failures.push(`python claim scan: expected INV-A11Y-04,INV-AUD-08, got "${pythonIds}"`);
+  }
+  if (claimedIdsInPython('"""[INV-DAY-01] in a docstring only."""').size !== 0) {
+    failures.push('a docstring must not count as a Python claim');
   }
 
   if (failures.length > 0) {

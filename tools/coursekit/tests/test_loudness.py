@@ -64,7 +64,7 @@ def test_the_published_48k_coefficients_are_reproduced() -> None:
     assert [round(v, 11) for v in hp_a] == [1.0, -1.99004745483, 0.99007225037]
 
 
-def test_the_meter_hits_the_bs1770_calibration_point() -> None:
+def test_inv_aud_08_the_meter_hits_the_bs1770_calibration_point() -> None:
     """[INV-AUD-08] a 1 kHz sine at -20 dBFS RMS reads -20 LUFS, within 0.1 LU."""
     measured = measure_lufs(_sine(3.0, -20.0), RATE)
     assert measured.gated is True
@@ -132,7 +132,7 @@ def test_an_empty_signal_is_not_a_crash() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_normalising_lands_on_the_declared_target() -> None:
+def test_inv_aud_08_normalising_lands_on_the_declared_target() -> None:
     """[INV-AUD-08] the level the bake asks for is the level it gets, pre-encode."""
     for start in (-30.0, -24.0, -12.0):
         levelled = normalise_to(

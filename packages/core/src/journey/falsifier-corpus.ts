@@ -65,12 +65,50 @@ import { repoRoot } from './repo-paths.js';
 
 /* --------------------------------------------------------------- named config */
 
-/** Package source roots the walk enters. Nothing generated, nothing installed. */
-export const CORPUS_ROOTS: readonly string[] = ['packages'];
-/** The directory name that holds committed falsifying inputs. */
+/**
+ * Source roots the walk enters. Nothing generated, nothing installed.
+ *
+ * `tools` is here because the content pipeline is Python and its invariants are real:
+ * `tools/coursekit/tests/falsifiers/` holds INV-PACK-15 and INV-AUD-08. Before P2 this
+ * root was absent, so those two ids were owned by an ownership file, had passing tests,
+ * and had a committed corpus that **this gate could not see** — which is precisely the
+ * "committed but never executed" failure the header is about, one directory further out.
+ */
+export const CORPUS_ROOTS: readonly string[] = ['packages', 'tools'];
+/**
+ * The directory name that holds committed falsifying inputs.
+ *
+ * Kept as the singular export because six lane test files import a constant of this name,
+ * and because it is still the name every TypeScript lane uses.
+ */
 export const FALSIFIER_DIR = '__falsifiers__';
-/** Directory names the walk never enters, wherever they appear. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.stryker-tmp']);
+/**
+ * Every accepted name for a corpus directory.
+ *
+ * Two, not one. `__falsifiers__` is the TypeScript lanes' name; the Python lane files its
+ * corpus as `tools/coursekit/tests/falsifiers/`, because a leading-and-trailing
+ * double-underscore directory is dunder-shaped in Python and reads as a package
+ * protocol rather than as a folder of fixtures. Rejecting it would have been a house-style
+ * rule enforced by a correctness gate.
+ */
+export const FALSIFIER_DIRS: ReadonlySet<string> = new Set([FALSIFIER_DIR, 'falsifiers']);
+/**
+ * Directory names the walk never enters, wherever they appear.
+ *
+ * The Python entries are load-bearing now that `tools` is a corpus root: `.venv` holds
+ * thousands of installed `test_*.py` files, and walking it would both cost minutes and let
+ * a third-party package's fixtures count as this repo's coverage.
+ */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'coverage',
+  '.stryker-tmp',
+  '.venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.ruff_cache',
+]);
 /**
  * An invariant id, as the registry writes it.
  *
@@ -141,7 +179,7 @@ function walk(dir: string, out: string[]): string[] {
     if (SKIP_DIRS.has(entry)) continue;
     const full = join(dir, entry);
     if (!statSync(full).isDirectory()) continue;
-    if (entry === FALSIFIER_DIR) {
+    if (FALSIFIER_DIRS.has(entry)) {
       for (const file of readdirSync(full).sort()) {
         if (file.endsWith('.json')) out.push(join(full, file));
       }
@@ -342,17 +380,35 @@ function testFilesUnder(dir: string, out: string[] = []): string[] {
     if (SKIP_DIRS.has(entry)) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) testFilesUnder(full, out);
-    else if (/\.test\.tsx?$/.test(entry)) out.push(full);
+    else if (TEST_FILE_NAME.test(entry)) out.push(full);
   }
   return out;
 }
 
-/** Every test name in a source: `it('…')`, `test('…')`, `describe('…')`. */
+/**
+ * A test file, in either language this repo tests in.
+ *
+ * Vitest collects `*.test.ts(x)`; pytest collects `test_*.py` (`[tool.pytest.ini_options]
+ * testpaths = ["tests"]`). Both halves matter: a Python corpus read only by Python tests
+ * had no consumer at all while this pattern was TypeScript-only.
+ */
+const TEST_FILE_NAME = /\.test\.tsx?$|^test_[A-Za-z0-9_]+\.py$/;
+
+/**
+ * Every test name in a source.
+ *
+ * TypeScript: the string handed to `it(…)`, `test(…)`, `describe(…)`.
+ * Python: the identifier after `def test_…`, which is what pytest prints as the test's
+ * name and what `pytest -k <term>` filters on — the same relationship `-t <term>` has to a
+ * vitest name. A name is a name whichever runner reads it; a comment is still not one.
+ */
 export function testNamesIn(source: string): string[] {
   const names: string[] = [];
   const pattern = /\b(?:it|test|describe)(?:\.\w+)*\s*\(\s*(['"`])([\s\S]*?)\1/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(source)) !== null) names.push(match[2] ?? '');
+  const pythonDef = /^\s*(?:async\s+)?def\s+(test_[A-Za-z0-9_]*)\s*\(/gm;
+  while ((match = pythonDef.exec(source)) !== null) names.push(match[1] ?? '');
   return names;
 }
 
@@ -395,6 +451,13 @@ export function moduleRootFor(directory: string, root = repoRoot()): string {
  * and neither is the second half: `pnpm test:falsify` filters by test NAME, so a consumer
  * whose test names do not carry the filter term is never run by that script and the corpus
  * it reads is executed only by chance, under `pnpm test`.
+ *
+ * The Python lane is held to the same clause by the same mechanism: `pytest -k falsifier`
+ * filters on the `def test_…` identifier exactly as `vitest -t falsifier` filters on the
+ * string, so `testNamesIn` reads both and the term must appear in one of them. What
+ * `pnpm test:falsify` cannot do is EXECUTE a pytest corpus — that is `pack-ci.yml`'s
+ * `uv run pytest` — so this check is "a name-filtered run of the owning runner selects
+ * it", which is what the clause was always about.
  */
 export function consumersFor(
   directories: readonly string[],
@@ -405,6 +468,9 @@ export function consumersFor(
   const sourceCache = new Map<string, string>();
   for (const directory of directories) {
     const moduleRoot = moduleRootFor(directory, root);
+    // The name THIS corpus is filed under, not "either accepted name": a module that
+    // mentions the word in prose must not read as a consumer of a directory it never opens.
+    const dirName = directory.split('/').pop() ?? FALSIFIER_DIR;
     const consumers: string[] = [];
     const selectable: string[] = [];
     for (const file of testFilesUnder(moduleRoot)) {
@@ -414,7 +480,7 @@ export function consumersFor(
         source = readFileSync(file, 'utf8');
         sourceCache.set(file, source);
       }
-      if (!source.includes(FALSIFIER_DIR)) continue;
+      if (!source.includes(dirName)) continue;
       const relativePath = relative(root, file);
       consumers.push(relativePath);
       if (testNamesIn(source).some((name) => name.includes(filterTerm))) {

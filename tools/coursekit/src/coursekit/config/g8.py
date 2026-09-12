@@ -261,6 +261,16 @@ OPUS_ENCODER: Final[str] = "opusenc"
 #: `--comp 10` is the slowest, smallest setting, which is free at build time;
 #: `--downmix-mono` because every voice line is mono and a stereo stream at 20 kbps
 #: spends half its bits on silence.
+#:
+#: `--serial` is the one that is not a quality setting. Without it opusenc picks a
+#: RANDOM Ogg stream serial per invocation, so two encodes of identical PCM produce
+#: different bytes and a different sha256. Measured on this machine: a re-bake of the
+#: unchanged Spanish bank moved all 23 committed digests while every `bytes`,
+#: `duration_ms` and `loudness_lufs` stayed identical to the last decimal. The manifest
+#: claims to be "everything needed to say whether a rebuild produced the same bank",
+#: and without a fixed serial that claim was false — a reproducibility check would have
+#: reported 23 changed clips on a no-op rebuild, every time, and the signal would have
+#: been useless exactly when a real drift appeared.
 OPUS_ENCODER_ARGS: Final[tuple[str, ...]] = (
     "--quiet",
     "--speech",
@@ -273,7 +283,15 @@ OPUS_ENCODER_ARGS: Final[tuple[str, ...]] = (
     "--downmix-mono",
     "--discard-comments",
     "--discard-pictures",
+    "--serial",
+    "{serial}",
 )
+
+#: The Ogg stream serial is derived from the clip id rather than fixed at a constant:
+#: each clip is its own physical stream, so any value is legal, but a per-clip serial
+#: keeps the streams distinguishable if a bank is ever chained or concatenated. The
+#: mask keeps it inside a positive 32-bit integer, which is what `--serial` parses.
+OPUS_SERIAL_MASK: Final[int] = 0x7FFFFFFF
 
 #: The decoder used to MEASURE what was shipped. Measuring the encoder's input would
 #: prove nothing about the file in the pack.

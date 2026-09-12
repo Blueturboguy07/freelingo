@@ -34,10 +34,11 @@ from ..config.g8 import (
     OPUS_DECODER_ARGS,
     OPUS_ENCODER,
     OPUS_ENCODER_ARGS,
+    OPUS_SERIAL_MASK,
 )
 from ..inputs import MissingInput
 
-__all__ = ["EncodedClip", "clip_filename", "decode", "encode", "require_tools"]
+__all__ = ["EncodedClip", "clip_filename", "decode", "encode", "ogg_serial", "require_tools"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,21 @@ class EncodedClip:
 
 def clip_filename(clip_id: str) -> str:
     return CLIP_FILENAME.format(clip_id=clip_id)
+
+
+def ogg_serial(clip_id: str) -> int:
+    """A deterministic Ogg stream serial for a clip, so the encode is reproducible.
+
+    opusenc's default is a random serial, which makes two encodes of identical PCM
+    differ in bytes and therefore in sha256 — see `OPUS_SERIAL_MASK`. Derived from the
+    clip id (itself the hash of every input to the audio) rather than fixed, so the
+    streams stay distinguishable; from a stable hash of the STRING rather than
+    `hash()`, whose per-process salt would put the non-determinism straight back.
+    """
+    import hashlib
+
+    digest = hashlib.sha256(clip_id.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") & OPUS_SERIAL_MASK
 
 
 def require_tools() -> None:
@@ -91,7 +107,10 @@ def encode(samples: Any, rate: int, clip_id: str, directory: Path) -> EncodedCli
         handle.setframerate(rate)
         handle.writeframes(pcm.tobytes())
 
-    args = [arg.format(bitrate=OPUS_BITRATE_KBPS) for arg in OPUS_ENCODER_ARGS]
+    args = [
+        arg.format(bitrate=OPUS_BITRATE_KBPS, serial=ogg_serial(clip_id))
+        for arg in OPUS_ENCODER_ARGS
+    ]
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
         [OPUS_ENCODER, *args, str(source), str(target)],
         capture_output=True,
@@ -111,9 +130,13 @@ def decode(path: Path) -> tuple[Any, int]:
     """Decode a packed clip back to float samples, for measurement.
 
     `opusdec` writes a WAV to stdout when handed `-`; it is read with the stdlib for
-    the same reason `encode` writes with it. Opus always decodes at 48 kHz, which is
-    the rate the measurement is taken at and the rate the manifest records the
-    duration from.
+    the same reason `encode` writes with it.
+
+    The rate comes from the WAV header rather than being assumed. Opus runs at 48 kHz
+    internally, but `opusenc` records the INPUT rate in the Ogg header and `opusdec`
+    resamples back to it unless `--rate` overrides — so a 24 kHz Kokoro render decodes
+    at 24 kHz, measured. The returned rate is the one the measurement is taken at and
+    the one the manifest records the duration from; nothing here hard-codes 48 kHz.
     """
     import numpy as np  # noqa: PLC0415 - rides with the tts group
 

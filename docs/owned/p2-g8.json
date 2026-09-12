@@ -7,22 +7,27 @@
   "owned": ["INV-PACK-15", "INV-AUD-08"],
   "owningTests": {
     "INV-PACK-15": [
-      "tools/coursekit/tests/test_g8_bake.py::test_the_manifest_charges_every_pipeline",
-      "tools/coursekit/tests/test_g8_bake.py::test_the_manifest_carries_codec_bitrate_and_total_bytes",
-      "tools/coursekit/tests/test_g8_bake.py::test_the_budget_has_a_bitrate_beside_it",
-      "tools/coursekit/tests/test_validators_audio.py::test_a_lessons_only_manifest_is_blocking",
-      "tools/coursekit/tests/test_validators_audio.py::test_over_budget_is_blocking",
-      "tools/coursekit/tests/test_validators_audio.py::test_a_manifest_with_no_codec_row_is_blocking"
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_pack_15_the_manifest_charges_every_pipeline",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_pack_15_the_manifest_carries_codec_bitrate_and_total_bytes",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_pack_15_the_budget_has_a_bitrate_beside_it",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_pack_15_the_manifest_names_the_number_s002_and_s133_render",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_pack_15_the_same_input_encodes_to_the_same_bytes",
+      "tools/coursekit/tests/test_validators_audio.py::test_inv_pack_15_a_lessons_only_manifest_is_blocking",
+      "tools/coursekit/tests/test_validators_audio.py::test_inv_pack_15_over_budget_is_blocking",
+      "tools/coursekit/tests/test_validators_audio.py::test_inv_pack_15_a_manifest_with_no_codec_row_is_blocking"
     ],
     "INV-AUD-08": [
-      "tools/coursekit/tests/test_cast.py::test_the_rebake_key_includes_the_engine",
-      "tools/coursekit/tests/test_cast.py::test_the_rebake_key_includes_the_engine_pin",
-      "tools/coursekit/tests/test_cast.py::test_the_rebake_key_changes_with_voice_rate_text_and_loudness",
-      "tools/coursekit/tests/test_g8_bake.py::test_a_real_clip_survives_the_whole_chain",
-      "tools/coursekit/tests/test_g8_bake.py::test_loudness_is_measured_on_the_decoded_file",
-      "tools/coursekit/tests/test_validators_audio.py::test_a_drifted_clip_is_blocking",
-      "tools/coursekit/tests/test_validators_audio.py::test_a_clip_baked_by_another_engine_is_blocking",
-      "tools/coursekit/tests/test_loudness.py::test_the_meter_hits_the_bs1770_calibration_point"
+      "tools/coursekit/tests/test_cast.py::test_inv_aud_08_the_rebake_key_includes_the_engine",
+      "tools/coursekit/tests/test_cast.py::test_inv_aud_08_the_rebake_key_includes_the_engine_pin",
+      "tools/coursekit/tests/test_cast.py::test_inv_aud_08_the_rebake_key_changes_with_voice_rate_text_and_loudness",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_aud_08_a_real_clip_survives_the_whole_chain",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_aud_08_a_synthetic_clip_measures_on_the_decoded_file",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_aud_08_a_mislevelled_clip_fails_the_same_measurement",
+      "tools/coursekit/tests/test_g8_bake.py::test_inv_aud_08_loudness_is_measured_on_the_decoded_file",
+      "tools/coursekit/tests/test_validators_audio.py::test_inv_aud_08_a_drifted_clip_is_blocking",
+      "tools/coursekit/tests/test_validators_audio.py::test_inv_aud_08_a_clip_baked_by_another_engine_is_blocking",
+      "tools/coursekit/tests/test_loudness.py::test_inv_aud_08_the_meter_hits_the_bs1770_calibration_point",
+      "tools/coursekit/tests/test_loudness.py::test_inv_aud_08_normalising_lands_on_the_declared_target"
     ]
   },
   "falsifiers": [
@@ -46,5 +51,36 @@
     "INV-AUD-03/04/07": "story karaoke alignment and keypoints — P6",
     "INV-PACK-17": "the credits surface S152 — P4",
     "INV-PACK-55": "the pack detail screen rendering the engine fields — P4 UI, though the manifest fields it renders are written here"
+  },
+  "claimForm": "The ids are in the pytest DEF NAMES (`def test_inv_aud_08_...`), not only in docstrings. A docstring-only id is invisible to `pnpm test:coverage-map` and to the phase-roster gate, so on the first attempt both invariants read as owned in review and as owned by nobody to the arbiter. docs/README.md documents the Python form.",
+  "founderCheckpointItems": [
+    {
+      "id": "OVERRIDE-VOICE-VENDOR",
+      "what": "The approved plan's Azure line is DEAD. Plan §Approval: \"Approving this plan accepts ... Azure as the voice vendor\"; plan §Content pipeline: \"Audio: Azure Neural, one locale per course, four voices\". Spanish is baked on KOKORO (Apache-2.0 code and weights, kokoro-onnx, lang_code 'e'), because no cloud credentials exist in this environment and the task brief directs the local path. Piper stays a build-time-only tool reserved for German at P7; its single Japanese voice is ruled out as CC BY-NC-SA (R7).",
+      "consequence": "D-CAST-ES-01 downgrades `locale: es-ES` from a vendor-backed accent to a COURSE CLAIM. Azure Neural publishes a locale sub-tag per voice; Kokoro does not - its Spanish voices carry no declared regional accent - so nothing in the toolchain can falsify the es-ES claim. The only falsifier that remains is the 300-item paid native-reviewer sample at the end of P2, which must therefore be briefed to check ACCENT CONSISTENCY and not only correctness.",
+      "alsoAffected": "EC-PACK-17's remedy said 'cast breadth from Azure Neural within the locale'. Kokoro ships three Spanish voices, not four, so two of the four roles are deterministic weighted BLENDS of stock voices (see D-CAST-ES-02 in content/es/cast.yaml). Blends are the substitute for vendor breadth and are a founder-visible choice.",
+      "decisionNeeded": "Accept Kokoro as the voice engine for es (and by extension fr/ja), or restore Azure and supply credentials. This cannot be settled in a table cell: it changes what `locale: es-ES` means in a shipped manifest."
+    },
+    {
+      "id": "RELOCATION-TRANSCODE-G8",
+      "what": "The Opus 20 kbps transcode lives in G8, not G9. Plan §Content pipeline says 'transcoded to Opus 20 kbps in G9' and EC-PACK-15's remedy says 'a G9 transcode step'.",
+      "why": "INV-AUD-08 requires the loudness of the SHIPPED file to be measured, and the shipped file only exists after the encode. Splitting synthesis from encode across two stages would mean G8 emits PCM it cannot gate and G9 gates audio it did not level. scope2/00-FRAMEWORK-ANSWER.md line 116 already defines G8 as 'Pre-render every unique utterance ... content-addressed filenames', which cannot be done before the encode either, since the file is what is addressed.",
+      "whoNeedsToKnow": "p2-g9-package-loader, which will look for a transcode step that is not there. G9 consumes content/es/audio-manifest.json plus build/es/g8/bank/ and packages them."
+    },
+    {
+      "id": "REPRODUCIBILITY-FIX",
+      "what": "Re-running `coursekit bake es` on an unchanged tree moved all 23 committed sha256 digests while every bytes/duration_ms/loudness_lufs stayed identical. Cause: opusenc picks a RANDOM Ogg stream serial per invocation. Fixed by deriving `--serial` from the clip id (config/g8.py OPUS_SERIAL_MASK, tts/transcode.py ogg_serial), pinned by test_inv_pack_15_the_same_input_encodes_to_the_same_bytes.",
+      "whyItMatters": "The manifest's stated purpose is 'everything needed to say whether a rebuild produced the same bank'. Before this fix that column reported the whole bank changed on every no-op rebuild, which is the same as reporting nothing, and it would have masked a real drift."
+    }
+  ],
+  "laneDeviations": {
+    "$comment": "Files changed OUTSIDE this task's declared file lane, each because the refuter's findings could not be closed inside it. Flagged here so the integrate task reviews them as cross-lane edits rather than merging them blind. None of them changes engine behaviour; all of them are gate plumbing.",
+    "scripts/coverage-map.ts": "TEST_ROOTS += 'tools'; TEST_FILE_PATTERN += test_*.py; SKIP_DIRS += .venv/__pycache__/.pytest_cache/.ruff_cache; new claimedIdsInPython() reading `def test_inv_aud_08_...`. Without this the gate exits 1 on any coursekit-owned id. No P2 task appears to own scripts/.",
+    "packages/core/src/journey/ownership.ts": "same three scanner changes; new DEFAULT_PHASE + OwnershipFile.phase (a field the P2 ownership files were ALREADY writing) and filesInPhase(), so the P1 roster equality is judged over P1 files.",
+    "packages/core/src/journey/phase-roster.test.ts": "roster equality and the counted assertion scoped to P1 files; two new clauses - every file declares a parseable phase, and a later-phase file may not claim an id the P1 roster owes (which closes the escape hatch the scoping opens).",
+    "packages/core/src/journey/falsifier-corpus.ts": "CORPUS_ROOTS += 'tools'; FALSIFIER_DIRS accepts 'falsifiers' beside '__falsifiers__'; SKIP_DIRS += the Python caches; testFilesUnder and testNamesIn learn test_*.py and `def test_...`; the consumer scan now matches THIS corpus's own directory name rather than either accepted name, which is tighter than before.",
+    "packages/core/src/journey/falsifier-corpus.test.ts": "the derived --project list is scoped to packages/, because `--project coursekit` is not a vitest project and a pytest corpus is executed by pack-ci.yml's `uv run pytest`.",
+    ".github/workflows/pack-ci.yml": "installs opus-tools and sets COURSEKIT_REQUIRE_OPUS_TOOLS=1, so INV-AUD-08 clause 1 has a behavioural guard in the job that gates the pack instead of only a grep over g8_bake.py.",
+    "docs/README.md": "documents the Python claim form, since the bracket form has no Python spelling."
   }
 }
