@@ -1,0 +1,100 @@
+{
+  "invariant": "INV-GRD-25",
+  "why": "an intra-language orthography match advances the READING row only, never the meaning row",
+  "kind": "match",
+  "cases": [
+    {
+      "note": "学校 / がっこう is a reading pair: the meaning item id never appears in the targets",
+      "item": {
+        "itemId": "ja-match",
+        "family": "match",
+        "accepted": [],
+        "pairs": [
+          {
+            "leftLexemeId": "gakkou-reading",
+            "rightLexemeId": "gakkou-kana",
+            "left": "学校",
+            "right": "がっこう",
+            "facet": "reading"
+          }
+        ]
+      },
+      "taps": [
+        {
+          "leftLexemeId": "gakkou-reading",
+          "rightLexemeId": "gakkou-kana"
+        }
+      ],
+      "expect": {
+        "schedulerTargets": [
+          {
+            "itemId": "gakkou-reading",
+            "facet": "reading"
+          }
+        ],
+        "wrong": false
+      }
+    },
+    {
+      "note": "a cross-language pair advances the meaning row, so the facet is read from the pack and not assumed",
+      "item": {
+        "itemId": "m1",
+        "family": "match",
+        "accepted": [],
+        "pairs": [
+          {
+            "leftLexemeId": "l1",
+            "rightLexemeId": "r1",
+            "left": "gato",
+            "right": "cat",
+            "facet": "meaning"
+          },
+          {
+            "leftLexemeId": "l2",
+            "rightLexemeId": "r2",
+            "left": "casa",
+            "right": "house",
+            "facet": "meaning"
+          },
+          {
+            "leftLexemeId": "l3",
+            "rightLexemeId": "r3",
+            "left": "carta",
+            "right": "letter",
+            "facet": "meaning"
+          }
+        ]
+      },
+      "taps": [
+        {
+          "leftLexemeId": "l1",
+          "rightLexemeId": "r1"
+        },
+        {
+          "leftLexemeId": "l2",
+          "rightLexemeId": "r2"
+        },
+        {
+          "leftLexemeId": "l3",
+          "rightLexemeId": "r3"
+        }
+      ],
+      "expect": {
+        "schedulerTargets": [
+          {
+            "itemId": "l1",
+            "facet": "meaning"
+          },
+          {
+            "itemId": "l2",
+            "facet": "meaning"
+          },
+          {
+            "itemId": "l3",
+            "facet": "meaning"
+          }
+        ]
+      }
+    }
+  ]
+}

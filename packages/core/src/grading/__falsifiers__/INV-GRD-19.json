@@ -1,0 +1,63 @@
+{
+  "invariant": "INV-GRD-19",
+  "why": "ja tier-1 normalisation is one pure idempotent function with a named dash-fold set",
+  "kind": "ja-normalise",
+  "cases": [
+    {
+      "note": "halfwidth, U+2015 and the real chōonpu all collapse to one string; 珈琲 does not",
+      "inputs": ["ｺｰﾋｰ", "コ―ヒ―", "コーヒー", "コ-ヒ-"],
+      "expect": {
+        "collapseToOne": true,
+        "distinctFrom": "珈琲",
+        "idempotent": true
+      }
+    },
+    {
+      "note": "mora, not characters: がっこう is four — the sokuon IS a mora",
+      "inputs": ["がっこう"],
+      "expect": {
+        "idempotent": true,
+        "mora": 4
+      }
+    },
+    {
+      "note": "small ya/yu/yo ride the preceding mora: きょう is two",
+      "inputs": ["きょう"],
+      "expect": {
+        "idempotent": true,
+        "mora": 2
+      }
+    },
+    {
+      "note": "iteration marks expand, and expanding twice changes nothing",
+      "inputs": ["人々"],
+      "expect": {
+        "idempotent": true
+      }
+    },
+    {
+      "note": "REGRESSION 2026-09-11 (normalise.test.ts): a single pass folded the leading dash, then met 一 whose LEFT was already ー but whose RIGHT was still an unfolded -, so 一 survived and the answer came out ー一ー; normalising that again gave ーーー. The fold now runs to a fixed point.",
+      "inputs": ["-一-"],
+      "expect": {
+        "idempotent": true,
+        "equalsAll": "ーーー"
+      }
+    },
+    {
+      "note": "REGRESSION 2026-09-11 (normalise.test.ts): the mirror case — fold 一 first and it survives, because its left is the hiragana iteration mark; expand the mark and the left becomes ア, so the next pass folds it after all. Neither ordering is stable; the fixed point is.",
+      "inputs": ["アゝ一ア"],
+      "expect": {
+        "idempotent": true,
+        "equalsAll": "アアーア"
+      }
+    },
+    {
+      "note": "REGRESSION 2026-09-11 (normalise.test.ts): tier 1 in the ja pack stripped whitespace AFTER the ja fold, so ヾ saw a space on its left, did not expand, and only repeated the が once the space was gone on a second pass. NFKC can itself create whitespace (U+309B, U+309C among 52 code points), so reordering cannot fix it — tier1Normalise runs to a fixed point too.",
+      "inputs": ["が　ヾ"],
+      "expect": {
+        "tier1IdempotentInJaPack": true,
+        "tier1EqualsAll": "がが"
+      }
+    }
+  ]
+}

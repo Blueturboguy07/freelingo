@@ -1,0 +1,146 @@
+{
+  "invariant": "INV-GRD-24",
+  "why": "the multi-character select is order-sensitive and CHECK-gated, costing at most one heart and never on an intermediate tap",
+  "kind": "select",
+  "cases": [
+    {
+      "note": "the right characters in the right order",
+      "item": {
+        "itemId": "ja-sel",
+        "family": "character-select",
+        "targetLexemeId": "kyo",
+        "accepted": [],
+        "orderedTileIds": ["ki", "small-yo"],
+        "tiles": [
+          {
+            "tileId": "ki",
+            "text": "き"
+          },
+          {
+            "tileId": "small-yo",
+            "text": "ょ"
+          },
+          {
+            "tileId": "ko",
+            "text": "こ"
+          },
+          {
+            "tileId": "yo",
+            "text": "よ"
+          }
+        ]
+      },
+      "taps": ["ki", "small-yo"],
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "the right characters in the WRONG order: one heart, one mistake row, charged at CHECK",
+      "item": {
+        "itemId": "ja-sel",
+        "family": "character-select",
+        "targetLexemeId": "kyo",
+        "accepted": [],
+        "orderedTileIds": ["ki", "small-yo"],
+        "tiles": [
+          {
+            "tileId": "ki",
+            "text": "き"
+          },
+          {
+            "tileId": "small-yo",
+            "text": "ょ"
+          },
+          {
+            "tileId": "ko",
+            "text": "こ"
+          },
+          {
+            "tileId": "yo",
+            "text": "よ"
+          }
+        ]
+      },
+      "taps": ["small-yo", "ki"],
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1,
+        "mistakeLexemeIds": ["kyo"]
+      }
+    },
+    {
+      "note": "a wrong character",
+      "item": {
+        "itemId": "ja-sel",
+        "family": "character-select",
+        "targetLexemeId": "kyo",
+        "accepted": [],
+        "orderedTileIds": ["ki", "small-yo"],
+        "tiles": [
+          {
+            "tileId": "ki",
+            "text": "き"
+          },
+          {
+            "tileId": "small-yo",
+            "text": "ょ"
+          },
+          {
+            "tileId": "ko",
+            "text": "こ"
+          },
+          {
+            "tileId": "yo",
+            "text": "よ"
+          }
+        ]
+      },
+      "taps": ["ki", "yo"],
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1,
+        "mistakeLexemeIds": ["kyo"]
+      }
+    },
+    {
+      "note": "too many taps: still one heart, never an auto-advance at N",
+      "item": {
+        "itemId": "ja-sel",
+        "family": "character-select",
+        "targetLexemeId": "kyo",
+        "accepted": [],
+        "orderedTileIds": ["ki", "small-yo"],
+        "tiles": [
+          {
+            "tileId": "ki",
+            "text": "き"
+          },
+          {
+            "tileId": "small-yo",
+            "text": "ょ"
+          },
+          {
+            "tileId": "ko",
+            "text": "こ"
+          },
+          {
+            "tileId": "yo",
+            "text": "よ"
+          }
+        ]
+      },
+      "taps": ["ki", "small-yo", "ko"],
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "invariant": "INV-GRD-16",
+  "why": "in a spaceless pack a whitespace-only difference is tier 1 with NO note, and the whitespace channels are unreachable",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "bunsetsu spaces accepted silently",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-sent",
+        "family": "typed-translate",
+        "targetLexemeId": "gakusei",
+        "accepted": [
+          {
+            "surface": "わたしはがくせいです",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "わたし は がくせい です",
+      "expect": {
+        "tier": 1,
+        "channel": null,
+        "note": null,
+        "softCorrected": false,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "U+3000 too",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-sent",
+        "family": "typed-translate",
+        "targetLexemeId": "gakusei",
+        "accepted": [
+          {
+            "surface": "わたしはがくせいです",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "わたし　は　がくせい　です",
+      "expect": {
+        "tier": 1,
+        "note": null,
+        "softCorrected": false
+      }
+    }
+  ]
+}

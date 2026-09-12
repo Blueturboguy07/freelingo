@@ -1,0 +1,122 @@
+{
+  "invariant": "INV-GRD-11",
+  "why": "every verdict class carries a non-empty headline in both Motivational messages states; the toggle gates encouragement only",
+  "kind": "banner",
+  "cases": [
+    {
+      "note": "correct, toggle ON",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "el gato",
+      "motivationalMessages": true,
+      "expect": {
+        "tone": "green",
+        "consolation": null
+      }
+    },
+    {
+      "note": "correct, toggle OFF — the headline survives",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "el gato",
+      "motivationalMessages": false,
+      "expect": {
+        "tone": "green",
+        "consolation": null
+      }
+    },
+    {
+      "note": "the SILENT soft-correct class still gets a headline from the verdict pool",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "El gato",
+      "motivationalMessages": false,
+      "expect": {
+        "tone": "green",
+        "note": null
+      }
+    },
+    {
+      "note": "wrong, toggle ON: consolation copy renders",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "perro",
+      "motivationalMessages": true,
+      "expect": {
+        "tone": "red",
+        "consolation": "Don't worry! Mistakes help you learn."
+      }
+    },
+    {
+      "note": "wrong, toggle OFF: consolation suppressed, verdict copy untouched",
+      "pack": "es",
+      "item": {
+        "itemId": "es-1",
+        "family": "typed-translate",
+        "targetLexemeId": "gato",
+        "targetLexemeSurface": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "perro",
+      "motivationalMessages": false,
+      "expect": {
+        "tone": "red",
+        "consolation": null
+      }
+    }
+  ]
+}

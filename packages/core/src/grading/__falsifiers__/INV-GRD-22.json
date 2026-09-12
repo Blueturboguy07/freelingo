@@ -1,0 +1,46 @@
+{
+  "invariant": "INV-GRD-22",
+  "why": "the keyword gate accepts every taught inflection — 行きました satisfies a 行く requirement",
+  "kind": "open-response",
+  "cases": [
+    {
+      "note": "the inflected surface the unit taught passes the 行く gate on the fallback path",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-rr2",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "きのうどこへいきましたか",
+        "requiredLexemeIds": ["いく"]
+      },
+      "reply": "きのうとしょかんへ行きました",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 1,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "a reply with no taught inflection of the required lexeme is re-prompted, not punished",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-rr2",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "きのうどこへいきましたか",
+        "requiredLexemeIds": ["いく"]
+      },
+      "reply": "すしをたくさん食べました",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 0,
+        "wrong": false,
+        "heartCost": 0,
+        "writesAttemptRow": false
+      }
+    }
+  ]
+}

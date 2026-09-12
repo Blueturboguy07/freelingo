@@ -1,0 +1,18 @@
+{
+  "invariant": "INV-GRD-12",
+  "why": "a snoozed item is suppressed for the rest of that local day, idempotently, and for that day only",
+  "kind": "snooze",
+  "cases": [
+    {
+      "note": "snoozing twice writes one row; tomorrow is unaffected",
+      "itemId": "i1",
+      "day": "2026-09-11",
+      "otherDay": "2026-09-12",
+      "expect": {
+        "rowCount": 1,
+        "snoozedToday": true,
+        "snoozedOtherDay": false
+      }
+    }
+  ]
+}

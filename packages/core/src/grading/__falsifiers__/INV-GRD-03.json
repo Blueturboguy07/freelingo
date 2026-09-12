@@ -1,0 +1,96 @@
+{
+  "invariant": "INV-GRD-03",
+  "why": "a non-preferred AUTHORED alternate is correct and names the preferred rendering; nothing is generated at runtime",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "the kana alternate matches; the kanji outranks it and has been introduced",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "ねこ",
+      "introducedSurfaceIds": ["kana", "kanji"],
+      "expect": {
+        "tier": 1,
+        "matchedSurfaceId": "kana",
+        "wrong": false,
+        "alternateSolution": {
+          "label": "Another correct solution:",
+          "rendering": "猫"
+        }
+      }
+    },
+    {
+      "note": "matching the top-ranked surface emits no note: nothing outranks it",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "猫",
+      "introducedSurfaceIds": ["kana", "kanji"],
+      "expect": {
+        "tier": 1,
+        "matchedSurfaceId": "kanji",
+        "alternateSolution": null
+      }
+    },
+    {
+      "note": "an answer outside the authored set is tier 3 — the accepted set is the whole tolerance budget",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-neko",
+        "family": "typed-translate",
+        "targetLexemeId": "neko",
+        "accepted": [
+          {
+            "surface": "ねこ",
+            "rank": 1,
+            "surfaceId": "kana"
+          },
+          {
+            "surface": "猫",
+            "rank": 2,
+            "surfaceId": "kanji"
+          }
+        ]
+      },
+      "answer": "ネコ",
+      "expect": {
+        "tier": 3,
+        "matchedSurfaceId": null
+      }
+    }
+  ]
+}

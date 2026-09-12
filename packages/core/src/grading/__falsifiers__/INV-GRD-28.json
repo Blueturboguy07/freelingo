@@ -1,0 +1,62 @@
+{
+  "invariant": "INV-GRD-28",
+  "why": "for a no_word_boundaries pack no highlight range partially overlaps a ruby span",
+  "kind": "highlight",
+  "cases": [
+    {
+      "note": "the differing run falls outside every ruby span and is left alone",
+      "pack": "ja",
+      "answer": "わたしはがくせいです",
+      "target": "わたしはがくせいでした",
+      "rubySpans": [
+        {
+          "start": 4,
+          "end": 8
+        }
+      ],
+      "expect": {
+        "ranges": [
+          {
+            "start": 9,
+            "end": 10
+          }
+        ]
+      }
+    },
+    {
+      "note": "a run whose edges land inside a ruby span is snapped OUTWARD to its boundaries",
+      "pack": "ja",
+      "answer": "わたしはがくせいです",
+      "target": "わたしはがくせいでした",
+      "rubySpans": [
+        {
+          "start": 8,
+          "end": 11
+        }
+      ],
+      "expect": {
+        "ranges": [
+          {
+            "start": 8,
+            "end": 11
+          }
+        ]
+      }
+    },
+    {
+      "note": "an identical answer highlights nothing",
+      "pack": "ja",
+      "answer": "わたしはがくせいです",
+      "target": "わたしはがくせいです",
+      "rubySpans": [
+        {
+          "start": 4,
+          "end": 8
+        }
+      ],
+      "expect": {
+        "ranges": []
+      }
+    }
+  ]
+}

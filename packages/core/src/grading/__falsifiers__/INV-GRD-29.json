@@ -1,0 +1,80 @@
+{
+  "invariant": "INV-GRD-29",
+  "why": "the punctuation-equivalence class is a UNIT declaration: the same brackets fold in one unit and are graded in the next",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "in a quotation-teaching unit the corner brackets are graded content — tier 3",
+      "pack": "ja",
+      "unit": "ja-quote",
+      "item": {
+        "itemId": "ja-quote",
+        "family": "typed-translate",
+        "targetLexemeId": "iu",
+        "accepted": [
+          {
+            "surface": "「はい」と言いました",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "はいと言いました",
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1
+      }
+    },
+    {
+      "note": "one unit over, the same pack folds them silently",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-quote",
+        "family": "typed-translate",
+        "targetLexemeId": "iu",
+        "accepted": [
+          {
+            "surface": "「はい」と言いました",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "はいと言いました",
+      "expect": {
+        "tier": 2,
+        "channel": "capitalisation",
+        "note": null,
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0
+      }
+    },
+    {
+      "note": "terminal 。 is inside the class in both units",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-sent",
+        "family": "typed-translate",
+        "targetLexemeId": "gakusei",
+        "accepted": [
+          {
+            "surface": "わたしはがくせいです",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "わたしはがくせいです。",
+      "expect": {
+        "tier": 2,
+        "channel": "capitalisation",
+        "note": null,
+        "wrong": false
+      }
+    }
+  ]
+}

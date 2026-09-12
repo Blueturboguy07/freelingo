@@ -1,0 +1,179 @@
+{
+  "invariant": "INV-GRD-02",
+  "why": "the three typo guards are named config, and flipping one changes the verdict on the two recorded failures",
+  "kind": "guards",
+  "cases": [
+    {
+      "note": "caso/casa, shipped config: all three guards refuse",
+      "pack": "es",
+      "mistypedWord": "caso",
+      "targetWord": "casa",
+      "targetString": "casa",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "casa",
+      "guards": {},
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["real-target-word", "edit-on-target-lexeme", "minimum-length"]
+      }
+    },
+    {
+      "note": "caso/casa with every guard off: the recorded failure becomes a soft correct",
+      "pack": "es",
+      "mistypedWord": "caso",
+      "targetWord": "casa",
+      "targetString": "casa",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "casa",
+      "guards": {
+        "rejectRealTargetWord": false,
+        "rejectEditOnTargetLexeme": false,
+        "minimumLength": 0
+      },
+      "expect": {
+        "forgiven": true,
+        "rejectedBy": []
+      }
+    },
+    {
+      "note": "caso/casa, guard 1 alone: 'caso' IS Spanish, so it alone reproduces the failure",
+      "pack": "es",
+      "mistypedWord": "caso",
+      "targetWord": "casa",
+      "targetString": "casa",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "casa",
+      "guards": {
+        "rejectRealTargetWord": true,
+        "rejectEditOnTargetLexeme": false,
+        "minimumLength": 0
+      },
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["real-target-word"]
+      }
+    },
+    {
+      "note": "caso/casa, guard 2 alone: the edit is on the taught lexeme",
+      "pack": "es",
+      "mistypedWord": "caso",
+      "targetWord": "casa",
+      "targetString": "casa",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "casa",
+      "guards": {
+        "rejectRealTargetWord": false,
+        "rejectEditOnTargetLexeme": true,
+        "minimumLength": 0
+      },
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["edit-on-target-lexeme"]
+      }
+    },
+    {
+      "note": "caso/casa, guard 3 alone: 'casa' is four characters",
+      "pack": "es",
+      "mistypedWord": "caso",
+      "targetWord": "casa",
+      "targetString": "casa",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "casa",
+      "guards": {
+        "rejectRealTargetWord": false,
+        "rejectEditOnTargetLexeme": false,
+        "minimumLength": 5
+      },
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["minimum-length"]
+      }
+    },
+    {
+      "note": "gatto/gato, shipped config: guards 2 and 3 refuse",
+      "pack": "es",
+      "mistypedWord": "gatto",
+      "targetWord": "gato",
+      "targetString": "gato",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "gato",
+      "guards": {},
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["edit-on-target-lexeme", "minimum-length"]
+      }
+    },
+    {
+      "note": "gatto/gato with every guard off: a soft correct",
+      "pack": "es",
+      "mistypedWord": "gatto",
+      "targetWord": "gato",
+      "targetString": "gato",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "gato",
+      "guards": {
+        "rejectRealTargetWord": false,
+        "rejectEditOnTargetLexeme": false,
+        "minimumLength": 0
+      },
+      "expect": {
+        "forgiven": true,
+        "rejectedBy": []
+      }
+    },
+    {
+      "note": "gatto/gato, guard 1 alone: 'gatto' is Italian, so guard 1 does NOT explain this failure",
+      "pack": "es",
+      "mistypedWord": "gatto",
+      "targetWord": "gato",
+      "targetString": "gato",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "gato",
+      "guards": {
+        "rejectRealTargetWord": true,
+        "rejectEditOnTargetLexeme": false,
+        "minimumLength": 0
+      },
+      "expect": {
+        "forgiven": true,
+        "rejectedBy": []
+      }
+    },
+    {
+      "note": "gatto/gato, guard 2 alone: reproduces it",
+      "pack": "es",
+      "mistypedWord": "gatto",
+      "targetWord": "gato",
+      "targetString": "gato",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "gato",
+      "guards": {
+        "rejectRealTargetWord": false,
+        "rejectEditOnTargetLexeme": true,
+        "minimumLength": 0
+      },
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["edit-on-target-lexeme"]
+      }
+    },
+    {
+      "note": "gatto/gato, guard 3 alone: reproduces it",
+      "pack": "es",
+      "mistypedWord": "gatto",
+      "targetWord": "gato",
+      "targetString": "gato",
+      "editOffsetInTarget": 3,
+      "targetLexemeSurface": "gato",
+      "guards": {
+        "rejectRealTargetWord": false,
+        "rejectEditOnTargetLexeme": false,
+        "minimumLength": 5
+      },
+      "expect": {
+        "forgiven": false,
+        "rejectedBy": ["minimum-length"]
+      }
+    }
+  ]
+}

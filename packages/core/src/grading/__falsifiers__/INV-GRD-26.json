@@ -1,0 +1,127 @@
+{
+  "invariant": "INV-GRD-26",
+  "why": "listening in a no_word_delimiter pack is graded on baked readings, and a build gate refuses two same-reading taught lexemes",
+  "kind": "listening",
+  "cases": [
+    {
+      "note": "the intended orthography is tier 1",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-listen",
+        "family": "listening",
+        "targetLexemeId": "hashi",
+        "readingSurfaceNote": "正しい漢字は「橋」です。",
+        "accepted": [
+          {
+            "surface": "橋を渡る",
+            "rank": 1,
+            "surfaceId": "s1",
+            "reading": "はしをわたる"
+          }
+        ],
+        "sameReadingSurfaces": ["箸を渡る"]
+      },
+      "answer": "橋を渡る",
+      "expect": {
+        "tier": 1,
+        "wrong": false
+      }
+    },
+    {
+      "note": "the same reading with another real kanji is tier 2, showing the intended orthography",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-listen",
+        "family": "listening",
+        "targetLexemeId": "hashi",
+        "readingSurfaceNote": "正しい漢字は「橋」です。",
+        "accepted": [
+          {
+            "surface": "橋を渡る",
+            "rank": 1,
+            "surfaceId": "s1",
+            "reading": "はしをわたる"
+          }
+        ],
+        "sameReadingSurfaces": ["箸を渡る"]
+      },
+      "answer": "箸を渡る",
+      "expect": {
+        "tier": 2,
+        "channel": "reading-surface",
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "a reading mismatch is tier 3",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-listen",
+        "family": "listening",
+        "targetLexemeId": "hashi",
+        "readingSurfaceNote": "正しい漢字は「橋」です。",
+        "accepted": [
+          {
+            "surface": "橋を渡る",
+            "rank": 1,
+            "surfaceId": "s1",
+            "reading": "はしをわたる"
+          }
+        ],
+        "sameReadingSurfaces": ["箸を渡る"]
+      },
+      "answer": "はしをわたるよ",
+      "expect": {
+        "tier": 3,
+        "wrong": true,
+        "heartCost": 1
+      }
+    },
+    {
+      "note": "the build gate: 橋 and 箸 taught in one unit is a pack error, not a learner error",
+      "taught": [
+        {
+          "lexemeId": "hashi-bridge",
+          "surface": "橋",
+          "reading": "はし"
+        },
+        {
+          "lexemeId": "hashi-chopsticks",
+          "surface": "箸",
+          "reading": "はし"
+        },
+        {
+          "lexemeId": "neko",
+          "surface": "猫",
+          "reading": "ねこ"
+        }
+      ],
+      "expect": {
+        "collisionCount": 1
+      }
+    },
+    {
+      "note": "a clean unit passes the gate",
+      "taught": [
+        {
+          "lexemeId": "hashi-bridge",
+          "surface": "橋",
+          "reading": "はし"
+        },
+        {
+          "lexemeId": "neko",
+          "surface": "猫",
+          "reading": "ねこ"
+        }
+      ],
+      "expect": {
+        "collisionCount": 0
+      }
+    }
+  ]
+}

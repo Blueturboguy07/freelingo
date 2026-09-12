@@ -1,0 +1,54 @@
+{
+  "invariant": "INV-GRD-20",
+  "why": "right lexemes in the wrong register get verdict class `register`, never the wrong-word headline",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "plain form in a masu-form unit: tier-3 cost under its OWN class",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-reg",
+        "family": "typed-translate",
+        "targetLexemeId": "taberu",
+        "accepted": [
+          {
+            "surface": "すしを食べます",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "すしを食べる",
+      "expect": {
+        "verdictClass": "register",
+        "wrong": true,
+        "heartCost": 1,
+        "mistakeLexemeIds": ["taberu"]
+      }
+    },
+    {
+      "note": "the polite form is simply correct",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-reg",
+        "family": "typed-translate",
+        "targetLexemeId": "taberu",
+        "accepted": [
+          {
+            "surface": "すしを食べます",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ]
+      },
+      "answer": "すしを食べます",
+      "expect": {
+        "tier": 1,
+        "verdictClass": "correct",
+        "wrong": false
+      }
+    }
+  ]
+}

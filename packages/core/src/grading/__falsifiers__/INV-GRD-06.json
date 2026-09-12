@@ -1,0 +1,147 @@
+{
+  "invariant": "INV-GRD-06",
+  "why": "accuracy = correctFirstTry / scorable, and scorable = 0 makes accuracy UNDEFINED and omits the tile — never 0%",
+  "kind": "accuracy",
+  "cases": [
+    {
+      "note": "skips and traces leave BOTH numerator and denominator",
+      "attempts": [
+        {
+          "itemId": "i1",
+          "family": "typed-translate",
+          "outcome": "graded",
+          "wrong": false,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i2",
+          "family": "typed-translate",
+          "outcome": "graded",
+          "wrong": false,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i3",
+          "family": "typed-translate",
+          "outcome": "graded",
+          "wrong": true,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i4",
+          "family": "speaking",
+          "outcome": "skipped-speaking",
+          "wrong": false,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i5",
+          "family": "character-trace",
+          "outcome": "trace-completed",
+          "wrong": false,
+          "softCorrected": false
+        }
+      ],
+      "expect": {
+        "scorable": 3,
+        "correctFirstTry": 2,
+        "accuracy": 0.6666666666666666,
+        "renderTile": true,
+        "perfectLesson": false
+      }
+    },
+    {
+      "note": "an all-speaking session: undefined, NOT zero, and the tile is omitted",
+      "attempts": [
+        {
+          "itemId": "i1",
+          "family": "speaking",
+          "outcome": "skipped-speaking",
+          "wrong": false,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i2",
+          "family": "speaking",
+          "outcome": "failed-speak",
+          "wrong": false,
+          "softCorrected": false
+        }
+      ],
+      "expect": {
+        "scorable": 0,
+        "correctFirstTry": 0,
+        "accuracy": null,
+        "renderTile": false,
+        "perfectLesson": true
+      }
+    },
+    {
+      "note": "a session of skips plus correct answers IS a Perfect lesson (EC-GRD-10)",
+      "attempts": [
+        {
+          "itemId": "i1",
+          "family": "typed-translate",
+          "outcome": "graded",
+          "wrong": false,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i2",
+          "family": "listening",
+          "outcome": "skipped-listening",
+          "wrong": false,
+          "softCorrected": false
+        }
+      ],
+      "expect": {
+        "scorable": 1,
+        "correctFirstTry": 1,
+        "accuracy": 1,
+        "perfectLesson": true
+      }
+    },
+    {
+      "note": "the end-of-lesson replay does not get a second vote (EC-GRD-12)",
+      "attempts": [
+        {
+          "itemId": "i1",
+          "family": "typed-translate",
+          "outcome": "graded",
+          "wrong": true,
+          "softCorrected": false
+        },
+        {
+          "itemId": "i1",
+          "family": "typed-translate",
+          "outcome": "graded",
+          "wrong": false,
+          "softCorrected": false
+        }
+      ],
+      "expect": {
+        "scorable": 1,
+        "correctFirstTry": 0,
+        "accuracy": 0,
+        "perfectLesson": false
+      }
+    },
+    {
+      "note": "read-and-respond never scores",
+      "attempts": [
+        {
+          "itemId": "i1",
+          "family": "read-and-respond",
+          "outcome": "graded",
+          "wrong": false,
+          "softCorrected": false
+        }
+      ],
+      "expect": {
+        "scorable": 0,
+        "accuracy": null,
+        "renderTile": false
+      }
+    }
+  ]
+}

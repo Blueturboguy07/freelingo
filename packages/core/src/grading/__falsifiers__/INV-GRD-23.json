@@ -1,0 +1,122 @@
+{
+  "invariant": "INV-GRD-23",
+  "why": "word-bank grading is a function of tapped tile ids alone, joined with the pack's delimiter",
+  "kind": "word-bank",
+  "cases": [
+    {
+      "note": "ja joins with the empty string: no U+0020 ever enters the answer",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-bank",
+        "family": "word-bank",
+        "targetLexemeId": "nomu",
+        "accepted": [
+          {
+            "surface": "まいにちコーヒーをのみます",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ],
+        "tiles": [
+          {
+            "tileId": "t1",
+            "text": "まいにち"
+          },
+          {
+            "tileId": "t2",
+            "text": "コーヒー"
+          },
+          {
+            "tileId": "t3",
+            "text": "を"
+          },
+          {
+            "tileId": "t4",
+            "text": "のみます"
+          }
+        ]
+      },
+      "tappedTileIds": ["t1", "t2", "t3", "t4"],
+      "expect": {
+        "answerString": "まいにちコーヒーをのみます",
+        "containsSpace": false,
+        "tier": 1,
+        "wrong": false
+      }
+    },
+    {
+      "note": "tap order, not tile order, decides",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-bank",
+        "family": "word-bank",
+        "targetLexemeId": "nomu",
+        "accepted": [
+          {
+            "surface": "まいにちコーヒーをのみます",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ],
+        "tiles": [
+          {
+            "tileId": "t1",
+            "text": "まいにち"
+          },
+          {
+            "tileId": "t2",
+            "text": "コーヒー"
+          },
+          {
+            "tileId": "t3",
+            "text": "を"
+          },
+          {
+            "tileId": "t4",
+            "text": "のみます"
+          }
+        ]
+      },
+      "tappedTileIds": ["t2", "t1", "t3", "t4"],
+      "expect": {
+        "containsSpace": false,
+        "tier": 3,
+        "wrong": true
+      }
+    },
+    {
+      "note": "es joins with a space",
+      "pack": "es",
+      "item": {
+        "itemId": "es-bank",
+        "family": "word-bank",
+        "targetLexemeId": "gato",
+        "accepted": [
+          {
+            "surface": "el gato",
+            "rank": 1,
+            "surfaceId": "s1"
+          }
+        ],
+        "tiles": [
+          {
+            "tileId": "t1",
+            "text": "el"
+          },
+          {
+            "tileId": "t2",
+            "text": "gato"
+          }
+        ]
+      },
+      "tappedTileIds": ["t1", "t2"],
+      "expect": {
+        "answerString": "el gato",
+        "containsSpace": true,
+        "tier": 1
+      }
+    }
+  ]
+}

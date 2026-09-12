@@ -1,0 +1,83 @@
+{
+  "$comment": "Invariant ids the P1 `p1-grading` task owns. The integrate task merges this into docs/invariants-owned.json, which is what `pnpm test:coverage-map` reads. Split per task so two implementers cannot collide on one file. INV-GRD-09 is deliberately absent: it is a rendered-input contract (autocorrect off, spellcheck off, smart punctuation off) and belongs to the player, not to packages/core.",
+  "task": "p1-grading",
+  "module": "packages/core/src/grading",
+  "integrate": {
+    "$comment": "Work the integrate task must do that is OUTSIDE this task's file lane (packages/core/src/grading/**, docs/owned/grading.json). Recorded here because a green run cannot see any of it.",
+    "required_edits": [
+      {
+        "file": "packages/core/src/index.ts",
+        "add": "export * from './grading/index.js';",
+        "why": "packages/core/src/index.ts exports day/civil, day/streak, ceremony/commit and db/index only. Without this line the grader is unreachable from @freelingo/core: nothing outside packages/core can import it, and every test in this task passes anyway because they all import by relative path."
+      },
+      {
+        "file": "docs/invariants-owned.json",
+        "add": "the 28 ids of `owned` below",
+        "why": "`pnpm test:coverage-map` reads invariants-owned.json, not this file."
+      }
+    ],
+    "decisions": [
+      {
+        "subject": "packages/core/src/grading/packs/** (the es/ja/de grading FIXTURES)",
+        "decision": "kept OFF the engine's public surface",
+        "detail": "grading/index.ts no longer re-exports './packs/index.js'. The packs are fixtures (packs/index.ts says so itself); on the public surface they would ship in the app bundle and be importable, which is how a fixture becomes what an app reads when the real pack is late. They follow the convention testing/arbitraries.ts already sets: imported by relative path from a .test.ts, in no barrel. grade.test.ts fails if the export returns."
+      }
+    ],
+    "open_gate_with_no_owner": [
+      {
+        "subject": "INV-GRD-28's no-Japanese-tokenizer grep",
+        "detail": "highlight.test.ts:109 scans packages/core/package.json and packages/core/src/grading/** only — correct for this file lane. The invariant says 'no Japanese tokenizer is linked into the app', so apps/mobile, packages/ui and the root lockfile need the same grep from a task whose lane reaches them."
+      }
+    ]
+  },
+  "owned": [
+    "INV-GRD-01",
+    "INV-GRD-02",
+    "INV-GRD-03",
+    "INV-GRD-04",
+    "INV-GRD-05",
+    "INV-GRD-06",
+    "INV-GRD-07",
+    "INV-GRD-08",
+    "INV-GRD-10",
+    "INV-GRD-11",
+    "INV-GRD-12",
+    "INV-GRD-13",
+    "INV-GRD-14",
+    "INV-GRD-15",
+    "INV-GRD-16",
+    "INV-GRD-17",
+    "INV-GRD-18",
+    "INV-GRD-19",
+    "INV-GRD-20",
+    "INV-GRD-21",
+    "INV-GRD-22",
+    "INV-GRD-23",
+    "INV-GRD-24",
+    "INV-GRD-25",
+    "INV-GRD-26",
+    "INV-GRD-27",
+    "INV-GRD-28",
+    "INV-GRD-29"
+  ],
+  "defects_found_by_the_promised_test": [
+    {
+      "where": "packages/core/src/grading/normalise.ts :: trivialNormalise",
+      "found_by": "normalise.test.ts, written because normalise.ts:10 claimed a test that did not exist",
+      "defect": "NFC ran BEFORE format characters were stripped, so stripping one could join a base and a combining mark the format character had kept apart: 'a' + U+200D + U+0301 normalised once to the two-code-point 'á' and twice to the precomposed 'á'.",
+      "fix": "NFC runs last."
+    },
+    {
+      "where": "packages/core/src/grading/ja.ts :: normaliseJa",
+      "found_by": "normalise.test.ts, [INV-GRD-19] idempotence property",
+      "defect": "One pass read the LEFT neighbour from the output being built and the RIGHT neighbour from the input being read. '-一-' came out 'ー一ー' and normalised again to 'ーーー'. Reordering does not fix it: 'アゝ一ア' fails the mirror way round.",
+      "fix": "The three rewrite rules run to a bounded fixed point; the bound is 2 * length + 2 and the convergence argument is in the function's comment."
+    },
+    {
+      "where": "packages/core/src/grading/normalise.ts :: tier1Normalise",
+      "found_by": "normalise.test.ts, idempotence of tier1Normalise for the ja fixture pack",
+      "defect": "Whitespace was stripped AFTER the ja fold, so an iteration mark separated from its kana by a space did not expand until a second pass: 'が　ヾ' → 'がヾ' → 'がが'. Reordering does not fix it either — NFKC itself creates whitespace for 52 code points, U+309B and U+309C among them.",
+      "fix": "The four tier-1 stages run to a bounded fixed point, the same pattern as normaliseJa."
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "invariant": "INV-GRD-10",
+  "why": "an answer equal to, or a subsequence of, the prompt never passes, and the rejection costs nothing",
+  "kind": "open-response",
+  "cases": [
+    {
+      "note": "the prompt pasted back verbatim",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "que hace ella en la casa",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 0,
+        "wrong": false,
+        "heartCost": 0,
+        "comboReset": false,
+        "mistakeLexemeIds": [],
+        "writesAttemptRow": false,
+        "notArmedReason": "try it in your own words"
+      }
+    },
+    {
+      "note": "a subsequence of the prompt, whatever its length",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "que ella la casa",
+      "path": "keyword-length",
+      "expect": {
+        "tier": 0,
+        "writesAttemptRow": false,
+        "notArmedReason": "try it in your own words"
+      }
+    },
+    {
+      "note": "the guard runs BEFORE the model, so the accept-all fallback cannot launder a paste",
+      "pack": "es",
+      "item": {
+        "itemId": "rr1",
+        "family": "read-and-respond",
+        "accepted": [],
+        "prompt": "que hace ella en la casa",
+        "requiredLexemeIds": ["escribir"]
+      },
+      "reply": "que hace ella en la casa",
+      "path": "accept-all",
+      "expect": {
+        "tier": 0,
+        "writesAttemptRow": false,
+        "heartCost": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "invariant": "INV-GRD-18",
+  "why": "for a pack declaring contrastive diacritics the tier-2 diacritic class is empty and unreachable through any normalisation path",
+  "kind": "tier2",
+  "cases": [
+    {
+      "note": "かっこう for がっこう is mechanically a dropped Spanish acute — and is tier 3 here",
+      "pack": "ja",
+      "unit": "ja",
+      "answer": "かっこう",
+      "target": "がっこう",
+      "expect": {
+        "tier2Class": null
+      }
+    },
+    {
+      "note": "a non-word with the same shape: still not the diacritic class",
+      "pack": "ja",
+      "unit": "ja",
+      "answer": "ばっこう",
+      "target": "がっこう",
+      "targetLexemeSurface": "がっこう",
+      "expect": {
+        "tier2Class": null
+      }
+    },
+    {
+      "note": "the same shape in es, where diacritics are NOT wholesale contrastive, does reach the class",
+      "pack": "es",
+      "unit": "es",
+      "answer": "ella esta",
+      "target": "ella está",
+      "expect": {
+        "tier2Class": "diacritic"
+      }
+    }
+  ]
+}

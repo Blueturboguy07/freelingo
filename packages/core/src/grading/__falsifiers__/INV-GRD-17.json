@@ -1,0 +1,101 @@
+{
+  "invariant": "INV-GRD-17",
+  "why": "a right reading with a wrong surface is tier 2 on EVERY occurrence, with zero mistake rows and no escalation",
+  "kind": "typed",
+  "cases": [
+    {
+      "note": "the IME committed the homophone 変える",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-kaeru",
+        "family": "typed-translate",
+        "targetLexemeId": "kaeru",
+        "readingSurfaceNote": "正しい漢字は「帰る」です。",
+        "accepted": [
+          {
+            "surface": "帰る",
+            "rank": 2,
+            "surfaceId": "kanji"
+          },
+          {
+            "surface": "かえる",
+            "rank": 1,
+            "surfaceId": "kana"
+          }
+        ]
+      },
+      "answer": "変える",
+      "expect": {
+        "tier": 2,
+        "channel": "reading-surface",
+        "note": "正しい漢字は「帰る」です。",
+        "softCorrected": true,
+        "wrong": false,
+        "heartCost": 0,
+        "comboReset": false,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "the same answer a second time: identical verdict, no per-lexeme escalation",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-kaeru",
+        "family": "typed-translate",
+        "targetLexemeId": "kaeru",
+        "readingSurfaceNote": "正しい漢字は「帰る」です。",
+        "accepted": [
+          {
+            "surface": "帰る",
+            "rank": 2,
+            "surfaceId": "kanji"
+          },
+          {
+            "surface": "かえる",
+            "rank": 1,
+            "surfaceId": "kana"
+          }
+        ]
+      },
+      "answer": "変える",
+      "expect": {
+        "tier": 2,
+        "channel": "reading-surface",
+        "wrong": false,
+        "heartCost": 0,
+        "mistakeLexemeIds": []
+      }
+    },
+    {
+      "note": "a third time",
+      "pack": "ja",
+      "unit": "ja",
+      "item": {
+        "itemId": "ja-kaeru",
+        "family": "typed-translate",
+        "targetLexemeId": "kaeru",
+        "readingSurfaceNote": "正しい漢字は「帰る」です。",
+        "accepted": [
+          {
+            "surface": "帰る",
+            "rank": 2,
+            "surfaceId": "kanji"
+          },
+          {
+            "surface": "かえる",
+            "rank": 1,
+            "surfaceId": "kana"
+          }
+        ]
+      },
+      "answer": "変える",
+      "expect": {
+        "tier": 2,
+        "channel": "reading-surface",
+        "wrong": false
+      }
+    }
+  ]
+}
