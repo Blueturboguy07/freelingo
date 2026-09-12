@@ -1,0 +1,36 @@
+// STILL EMPTY OF SCORED ROWS, 2026-09-12, and this is a measurement rather than an omission.
+// `read_scores` skips `//` lines and blank lines, so these comments leave the file's answer
+// exactly what it was before: no rows, `wrong_item_rate: None`, `gate_passed(): false`.
+// `None` is not 0%. See `README.md` beside this file and `scores-method.md` for the run.
+//
+// WHY THERE ARE NO ROWS. A row here needs an `exercise_id`, and an exercise_id only exists
+// in `build/es/g7/exercises.jsonl`, which `coursekit sample es` draws from. G7 has never
+// produced that artefact on a real course. On the P2 round-3 tree (origin/main b9a68eb plus
+// the deps-contract, lemma-reachability, gapfill-lesson1, expand-bake-package,
+// validators-ci-loader and provenance-docs lanes) `coursekit build es` exits 4 at G5:
+//
+//   g5 failed: 18 authored slot(s) are not in G4's gap list: u1/l4/s3, ... u25/l144/s4.
+//   sample failed: no exercise artefact at build/es/g7/exercises.jsonl
+//
+// and the deeper number behind that is the ledger: G5 accepts 12 of 9,449 authored
+// candidates and fills 9 of 494 gap slots, because 9,269 rows carry a `ledger_digest`
+// written against a curriculum the lemma-reachability lane has since changed.
+// `docs/owned/p2r3-reviewer-sample.json` -> `blockersForTheIntegrator` carries the full
+// measurement as the proposed B19; `scores-method.md` has the run log.
+//
+// THE REVIEW ITSELF WAS DONE, over the content those exercises would be built from, and it
+// is NOT in this file because its rows are keyed by `candidate_id` and `sentence_id`, not by
+// `exercise_id`. Writing those ids into an `exercise_id` field would put a number in the
+// manifest that belongs to no population — the exact failure `review_summary`'s `joined`
+// denominator exists to prevent. The 300 scored rows are in
+// `docs/owned/p2r3-reviewer-sample.json` under `contentReviewSample`.
+//
+// WHAT IT MEASURED: wrong-item rate 4.00% (12/300), awkward rate 22.67% (68/300).
+// ABOVE the 2% gate. Six of the twelve come from three reusable patterns; fixing those
+// three lands the rate at 2.0%. Named in `scores-method.md` §"The twelve wrong items".
+//
+// TO FILL THIS FILE: get one green `coursekit build es` (re-key the candidate bank against
+// the merged ledger and author the 22 empty slots), run `uv run coursekit sample es`, and
+// re-key the verdicts in `docs/owned/p2r3-reviewer-sample.json` onto the drawn sheet's
+// exercise_ids by `text` — the join is 1:1 through the exercise row's `source_sentence_id`.
+// Do not copy a verdict onto an exercise whose text changed.
