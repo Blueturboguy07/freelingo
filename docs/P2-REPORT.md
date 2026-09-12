@@ -100,6 +100,15 @@ by provenance     corpus  n=54  wrong 3.7%  awkward 3.7%
 accent_consistency scored on 0 of 300 rows — G8 never ran, so there is no clip to hear
 ```
 
+**Recomputed from the file rather than quoted from the lane's summary**: 300 rows are
+present, the verdicts are `ok 220 / awkward 68 / wrong 12`, 12/300 = 0.04 and 68/300 =
+0.2267 exactly, the provenance split is 246 llm / 54 corpus, the wrong rows' failing
+dimensions are `answer_set 5 · grammar 4 · meaning 3`, and **0 of 300 rows carry an
+`accent_consistency` key** — consistent with the lane's note that G8 never ran, so there
+was nothing to listen to. Every row carries a `note`; the first wrong one reads
+_"`¿Son cuarenta, señor?` is glossed 'Are there forty, sir?'; `son` is not existential"_,
+which is a reviewer's finding and not a template.
+
 Two things in that table matter more than the headline. **Six of the twelve wrong items
 are three reusable patterns**, not six independent mistakes — the `Continúa …` / "You
 carry on" gloss, the `hay {weather}` / "There is clouds" gloss, and _ser_ + _limpio_ for a
