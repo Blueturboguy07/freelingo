@@ -80,10 +80,24 @@ describe.skipIf(UNDER_STRYKER)('falsifier corpus', () => {
   it('every owned invariant id has a committed falsifier input', () => {
     const covered = coveredInvariants(corpus);
     const missing = sortIds(owned.filter((id) => !covered.has(id)));
+    const example = missing[0] ?? 'INV-DAY-02';
     expect(
       missing,
-      `these owned invariants have no committed falsifying input. Add ` +
-        `packages/<pkg>/src/<module>/__falsifiers__/<id>.json next to the module that owns it.`,
+      [
+        'these owned invariants have no committed falsifying input (P1 gate: "committed',
+        'falsifier inputs per invariant"). One file per id, beside the module that owns it:',
+        '',
+        `  packages/core/src/<module>/__falsifiers__/${example}.json`,
+        '  {',
+        `    "invariant": "${example}",`,
+        '    "why": "the one input that would have caught the bug this rule is about",',
+        '    "check": { "module": "../<file>.js", "export": "<exportedFunction>" },',
+        '    "cases": [{ "name": "…", "args": [ … ], "expect": … }]',
+        '  }',
+        '',
+        'The runner IMPORTS that module and CALLS that function with each case, so a file',
+        'nobody runs cannot satisfy this. Format: packages/core/src/journey/README.md.',
+      ].join('\n'),
     ).toEqual([]);
   });
 

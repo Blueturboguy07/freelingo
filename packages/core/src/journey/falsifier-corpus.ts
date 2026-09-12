@@ -153,6 +153,21 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * A `{...}` object and nothing else.
+ *
+ * `isPlainObject` is not enough for the comparison below, and the difference is a real
+ * bug this gate's own self-test caught: a `Map` is `typeof "object"` and has no own
+ * enumerable keys, so `deepEqual(new Map([['a', 1]]), {})` returned **true** — a checker
+ * that returns a Map would have compared equal to an empty committed expectation and the
+ * falsifier would have passed for free. A prototype check is the whole fix.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  if (!isPlainObject(value)) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
  * Validate one parsed JSON body against the format. Returns the errors, never throws.
  *
  * `fileId` is the id in the file NAME; a file that says one invariant and is named for
@@ -269,8 +284,8 @@ export function deepEqual(actual: unknown, expected: unknown): boolean {
     if (!Array.isArray(actual) || actual.length !== expected.length) return false;
     return expected.every((value, index) => deepEqual(actual[index], value));
   }
-  if (isPlainObject(expected)) {
-    if (!isPlainObject(actual)) return false;
+  if (isRecord(expected)) {
+    if (!isRecord(actual)) return false;
     const actualKeys = Object.keys(actual).sort();
     const expectedKeys = Object.keys(expected).sort();
     if (actualKeys.length !== expectedKeys.length) return false;
