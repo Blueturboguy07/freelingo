@@ -1,6 +1,8 @@
 {
   "invariant": "INV-PACK-10",
   "statement": "Generated content that fails a filter axis is discarded and resampled, never patched. Gate: no repair path exists in the generator.",
+  "why": "Eight repair-shaped sources a scanner that owns this invariant must reject, five near-misses it must accept, and one behavioural input — a candidate one combining accent from a sentence the ledger already holds, which every repair path anyone would actually write fixes in place.",
+  "$why_note": "`why` is the one-sentence reason `packages/core/src/journey/falsifier-corpus.ts` requires of every corpus file (REASON_KEYS). It is here so these files satisfy that gate's format the moment its CORPUS_ROOTS learns about tools/ — see docs/owned/p2-g5-g6.json §gatesThisBranchTurnsRed.",
   "registry": "docs/invariants.md § 14 — Content packs",
   "covers": "EC-STO-18 — a generated radio script fails a filter axis -> discard and resample, never patch (D06-17)",
   "why_a_source_gate_and_not_an_output_gate": "A patched sentence is indistinguishable from a sentence that passed: same shape, same fields, inside the ledger, inside the length window. Nothing downstream can tell them apart, and the learner sees the difference as a sentence a native speaker would not have said. So the invariant is written about the generator's SOURCE, and the test that owns it parses coursekit/stages/g5_gapfill.py and coursekit/stages/g6_validate_language.py rather than reading their output.",

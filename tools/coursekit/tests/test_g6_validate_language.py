@@ -4,15 +4,24 @@
 `spellcheck_engine`) and degrades to the named fallback. A validator that reports
 '0 errors' when no engine ran fails this gate."
 
-Every case in `falsifiers/INV-PACK-14.json` produces the same headline number. Two of
-them are a clean course, four are a machine that checked nothing or checked half of it,
-and one is Japanese, where a missing spell checker is correct and expected. A V8 that
-returns an empty finding list for all seven is green in CI and ships a pack whose
-validator report is about nothing.
+Every case in `falsifiers/INV-PACK-14.json` produces zero errors on at least one axis.
+Three of them are a course that was really checked, six are a machine that checked
+nothing or half of it, one is a course whose validation run crashed halfway, and one is
+Japanese, where a missing spell checker is correct and expected. A V8 that returns an
+empty finding list for all of them is green in CI and ships a pack whose validator report
+is about nothing.
 
 So the falsifier corpus drives the test: each case is a G6 runlog entry, written into a
 real runlog, read back by the real validator, and checked against what the invariant says
 must happen to it.
+
+**Both degradation directions are in the corpus, and that is not symmetry for its own
+sake.** The first version of this file covered only "grammar engine missing" and the
+suite was green over nine cases while `_degraded_to` had no name at all for the inverse —
+a grammar engine up and no KenLM model, which is the likelier configuration at P2. V8
+then blocked that run and told the operator to name the fallback `perplexity_only`, after
+the engine that was missing. `test_INV_PACK_14_no_kenlm_model_degrades_to_grammar_only_
+and_is_not_blocked` runs it live rather than replaying the runlog.
 """
 
 from __future__ import annotations
@@ -37,11 +46,16 @@ from test_g5_gapfill import (
 from coursekit.artifacts import read_records, write_records
 from coursekit.config.g6 import (
     BACKTRANSLATION_MIN_SCORE,
+    DEGRADATION_COST,
+    DEGRADATION_NAMES,
+    DEGRADED_TO_GRAMMAR_ONLY,
     DEGRADED_TO_PERPLEXITY_ONLY,
     ENGINE_FIELDS,
     ENGINE_NONE,
     G6_REJECT_AXES,
     KENLM_BAND_FILENAME,
+    MOCK_ENGINE_IDS,
+    SPELLCHECK_PROBE,
 )
 from coursekit.engines.kenlm import band_from_scores
 from coursekit.engines.mock_lt import MockLanguageTool, mock_languagetool_server
@@ -182,8 +196,10 @@ def test_INV_PACK_14_v8_never_reports_a_pass_over_a_run_that_checked_nothing(
 ) -> None:
     """[INV-PACK-14] Each committed runlog shape gets the verdict the invariant demands.
 
-    Same headline number in every case — zero grammar errors. Only two of them are a
-    pass, and which two is decided by what the runlog says ran, never by the count.
+    Same headline number in every case — zero errors on at least one axis. Only three of
+    them are a pass, and which three is decided by what the runlog says ran, never by the
+    count. A case whose `expect` names a fallback also has to see that name in a finding:
+    "degrades to the NAMED fallback" is not satisfied by not blocking.
     """
     lang = "ja" if "Japanese" in case["name"] else "es"
     _minimal_candidates(lang, accepted=True)
@@ -195,20 +211,56 @@ def test_INV_PACK_14_v8_never_reports_a_pass_over_a_run_that_checked_nothing(
         assert blocking(findings), (
             f"{case['name']}: V8 reported no blocking finding. {case['because']}"
         )
-    else:
-        assert not blocking(findings), (
-            f"{case['name']}: V8 blocked a run it should have passed. {case['because']} "
-            f"Findings: {[f.message for f in findings]}"
-        )
+        return
+
+    assert not blocking(findings), (
+        f"{case['name']}: V8 blocked a run it should have passed. {case['because']} "
+        f"Findings: {[f.message for f in findings]}"
+    )
+    for name in DEGRADATION_NAMES.values():
+        if f"naming {name}" in case["expect"]:
+            assert any(
+                finding.severity == "warning" and name in finding.message for finding in findings
+            ), (
+                f"{case['name']}: V8 passed the run without naming the fallback {name!r}. "
+                f"Findings: {[(f.severity, f.message) for f in findings]}"
+            )
 
 
-def test_INV_PACK_14_the_corpus_covers_both_verdicts() -> None:
-    """[INV-PACK-14] A corpus of all-blocking cases is satisfied by a V8 that always blocks."""
+def test_INV_PACK_14_the_corpus_covers_both_verdicts_and_both_degradation_directions() -> None:
+    """[INV-PACK-14] A corpus of all-blocking cases is satisfied by a V8 that always blocks.
+
+    And a corpus that only ever loses the grammar engine is satisfied by a V8 that has no
+    name for losing the other one — which is exactly what happened: nine cases, a green
+    suite, and `_degraded_to` returning `''` for a grammar-only run. So the corpus must
+    carry each direction in both its named and its unnamed form, and this test is what
+    keeps that true when somebody trims the file.
+    """
     cases = falsifier_cases()
     verdicts = {case["expect"] for case in cases}
-    assert len(cases) >= 8
+    assert len(cases) >= 11
     assert any(verdict == "blocking" for verdict in verdicts)
     assert any(verdict.startswith("no blocking") for verdict in verdicts)
+
+    for missing, name in DEGRADATION_NAMES.items():
+        alive = [
+            case
+            for case in cases
+            if case.get("notes", {}).get(missing) == ENGINE_NONE
+            and case.get("g6_status") == "ok"
+            and all(
+                case["notes"].get(other) != ENGINE_NONE
+                for other in DEGRADATION_NAMES
+                if other != missing
+            )
+        ]
+        named = [case for case in alive if case["notes"].get("degraded_to") == name]
+        unnamed = [case for case in alive if case["notes"].get("degraded_to") == ""]
+        assert named, f"no case has {missing} absent and the fallback named {name!r}"
+        assert unnamed, f"no case has {missing} absent and the fallback left unnamed"
+        expected = f"no blocking finding, and a warning naming {name}"
+        assert {case["expect"] for case in named} == {expected}
+        assert {case["expect"] for case in unnamed} == {"blocking"}
 
 
 def test_INV_PACK_14_japanese_degrades_on_spellcheck_and_says_so() -> None:
@@ -280,6 +332,82 @@ def test_no_sidecar_degrades_to_the_named_fallback(
     assert any(DEGRADED_TO_PERPLEXITY_ONLY in finding.message for finding in findings)
 
 
+def test_INV_PACK_14_no_kenlm_model_degrades_to_grammar_only_and_is_not_blocked(
+    es_after_g5: list[dict[str, Any]], spanish_sidecar: str
+) -> None:
+    """[INV-PACK-14] The other direction, run live rather than replayed from the corpus.
+
+    This is the configuration an operator most likely has at P2: a LanguageTool sidecar
+    is one command, and a perplexity band needs a KenLM model trained over a corpus G0
+    has not produced yet. Before `grammar_only` had a name, this exact run produced
+    `degraded_to: ''` and V8 blocked it with *"perplexity_engine did not run and G6 named
+    the fallback as ''"* — a message asking for the name of the opposite degradation.
+
+    What must happen instead: G6 names the state, V8 warns rather than blocks, and the
+    warning carries what the pack lost and the command that gives it back.
+    """
+    result = run_g6({"grammar_engine": "mock_lt", "languagetool_url": spanish_sidecar})
+    assert result.ok, result.message
+    notes = read_entries("es", stage="g6")[-1]["notes"]
+    assert notes["grammar_engine"].startswith("mock_lt/")
+    assert notes["perplexity_engine"] == ENGINE_NONE
+    assert notes["degraded_to"] == DEGRADED_TO_GRAMMAR_ONLY
+
+    findings = run_v8()
+    assert not blocking(findings), [finding.message for finding in findings]
+    warned = [
+        finding
+        for finding in findings
+        if finding.severity == "warning" and DEGRADED_TO_GRAMMAR_ONLY in finding.message
+    ]
+    assert warned, [(finding.severity, finding.message) for finding in findings]
+    assert DEGRADATION_COST[DEGRADED_TO_GRAMMAR_ONLY] in warned[0].message
+    assert DEGRADED_TO_PERPLEXITY_ONLY not in warned[0].message, (
+        "the warning names the engine that was missing rather than the one that survived"
+    )
+    assert read_entries("es", stage="V8")[-1]["notes"]["degraded_to"] == DEGRADED_TO_GRAMMAR_ONLY
+
+
+def test_INV_PACK_14_every_degradation_direction_has_a_name_and_a_cost() -> None:
+    """[INV-PACK-14] Neither engine may go missing without the state having a name.
+
+    `scope2/00` §2.4 names `perplexity_only` and nothing else, and the first version of
+    this lane encoded exactly that: one constant, one comparison, and no name at all for
+    the inverse. The gate is therefore stated over the whole set of engines that can find
+    an error rather than over the one the spec happened to mention.
+    """
+    from coursekit.config.g6 import ENGINES_THAT_CAN_FIND_AN_ERROR
+
+    assert set(DEGRADATION_NAMES) == set(ENGINES_THAT_CAN_FIND_AN_ERROR)
+    assert len(set(DEGRADATION_NAMES.values())) == len(DEGRADATION_NAMES)
+    for name in DEGRADATION_NAMES.values():
+        assert DEGRADATION_COST[name].strip(), f"{name} has no stated cost"
+
+
+def test_INV_PACK_14_a_mock_engine_is_a_warning_and_never_a_silent_pass(
+    es_after_g5: list[dict[str, Any]], spanish_sidecar: str, kenlm_model: Path
+) -> None:
+    """[INV-PACK-14] The gate distinguishes a stand-in from the engine it imitates.
+
+    `mock_lt` counts as an engine that can find an error, which is what lets `pack-ci.yml`
+    exercise G6 with no JDK. Left there, a pack validated entirely against a forty-line
+    mock would pass V8 exactly as one validated against 1,644 XML rules. It may not block
+    — CI would then have no way to run G6 at all — so it is a named warning that reaches
+    the runlog, the manifest and INV-PACK-55's pack card.
+    """
+    run_g6(full_options(spanish_sidecar, kenlm_model))
+    findings = run_v8()
+    assert not blocking(findings)
+    mock_warnings = [
+        finding
+        for finding in findings
+        if finding.severity == "warning" and "stand-in" in finding.message
+    ]
+    assert mock_warnings, [(finding.severity, finding.message) for finding in findings]
+    assert any(engine in mock_warnings[0].message for engine in MOCK_ENGINE_IDS)
+    assert mock_warnings[0].detail["mock_engines"]
+
+
 def test_no_engine_at_all_is_a_blocking_v8_not_a_clean_one(
     es_after_g5: list[dict[str, Any]],
 ) -> None:
@@ -327,6 +455,62 @@ def test_g6_narrows_the_surviving_set_and_changes_no_text(
     after = {row["candidate_id"]: row["text"] for row in read_records("candidate", lang="es")}
     assert before == after
     assert read_entries("es", stage="g6")[-1]["notes"]["text_unchanged"] is True
+
+
+def test_INV_PACK_10_no_engine_is_handed_a_text_other_than_the_one_on_the_row(
+    es_after_g5: list[dict[str, Any]],
+    spanish_sidecar: str,
+    kenlm_model: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[INV-PACK-10] A repair that happens BEFORE the check leaves the output unchanged.
+
+    `test_g6_narrows_the_surviving_set_and_changes_no_text` proves nothing left G6
+    modified. It cannot see the other shape of the same bug: a helper that "cleans up" a
+    candidate on the way INTO the grammar engine, so a sentence one accent from correct
+    is checked as though it were correct and survives. The emitted text would still be
+    byte-identical and the pack would ship the bad sentence.
+
+    The adversarial pass noted that the source scanner covers two modules, so a repair
+    helper in `engines/` would be caught only if it reached emitted text. This is the
+    behavioural half for that: every string the three engines are handed has to be a
+    candidate text, verbatim.
+    """
+    from coursekit.engines.backtranslation import AgentRubricEngine
+    from coursekit.engines.kenlm import KenLMEngine
+    from coursekit.engines.languagetool import LanguageToolEngine
+
+    seen: dict[str, list[str]] = {"grammar": [], "perplexity": [], "backtranslation": []}
+
+    def record(name: str, original: Any, index: int) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            seen[name].append(args[index])
+            return original(*args, **kwargs)
+
+        return wrapper
+
+    # `index` counts from the bound-method argument list: check(self, lang, text) -> 1
+    # once `self` is supplied, in_band(self, text) -> 0, score(self, text) -> 0.
+    monkeypatch.setattr(LanguageToolEngine, "check", record("grammar", LanguageToolEngine.check, 2))
+    monkeypatch.setattr(KenLMEngine, "in_band", record("perplexity", KenLMEngine.in_band, 1))
+    monkeypatch.setattr(
+        AgentRubricEngine, "score", record("backtranslation", AgentRubricEngine.score, 1)
+    )
+
+    run_g6(full_options(spanish_sidecar, kenlm_model))
+
+    # The grammar engine's capability probe checks one nonce sentence of its own before
+    # any candidate — that is how the spell checker is detected rather than assumed — so
+    # it is the one string in this set that is legitimately not a candidate.
+    authored = {row["text"] for row in read_records("candidate", lang="es")}
+    authored.add(SPELLCHECK_PROBE["es"])
+    for name, texts in seen.items():
+        assert texts, f"the {name} engine was never called, so this test proved nothing"
+        strange = sorted(set(texts) - authored)
+        assert strange == [], (
+            f"the {name} engine was handed text that is on no candidate row: {strange}. "
+            f"Something rewrote a candidate on the way into the check."
+        )
 
 
 def test_a_candidate_below_the_rubric_minimum_is_narrowed_by_name(

@@ -11,21 +11,17 @@ columns are `Language | XML rules | Java rules | Spell check | Confusion pairs |
 the ✓ read as "grammar checks" is the **Spell check** column, and the quoted sentence is
 about **Norwegian**.
 
-Rather than copy the corrected row, this lane re-derived it against a local
-LanguageTool 6.6 server (`languagetool-server.jar`, Java 22, port 8081, 2026-09-12):
+Rather than copy the corrected row, this lane re-derived it against a real
+LanguageTool 6.6 server — `languagetool-server.jar` from the 6.6 zip (build `f3e8d91`,
+2025-03-27) under Java 22.0.1, port 8081, run 2026-09-12. `SPELLCHECK_PROBE` below
+carries the full measurement table.
 
-| Probe | Result |
-| ----- | ------ |
-| es `La casa es blanca y yo vivo con mi hermano.` | `matches: []` |
-| es `La casa es blanco.` | `CONCORDANCIAS_ATRIBUTO` / `inconsistency` / `AGREEMENT_VERBS` |
-| es `Yo xqzptv en la casa.` | `MORFOLOGIK_RULE_ES` / `misspelling` / `TYPOS` |
-| ja-JP `わたしは xqzptv にいます。` | `matches: []` — nothing for a nonce token |
-| `/v2/languages` | 60 entries; `es`, `es-ES`, `fr`, `de-DE`, `ja-JP` all present |
-
-So **Spanish has both**: 1,644 XML grammar rules AND its own Morfologik spell checker.
-For `es` V8 degrades to nothing at all — which is what "re-derive rather than copy"
-turns up, and is not what either the spec or its correction says on its own. Japanese
-degrades on exactly one axis, `spellcheck_engine: none`.
+So **Spanish has both**: 1,644 XML grammar rules AND its own Morfologik spell checker
+(`MORFOLOGIK_RULE_ES`, under `es` and `es-ES` alike). For `es` V8 degrades to nothing at
+all — which is what "re-derive rather than copy" turns up, and is not what either the
+spec or its correction says on its own. Japanese raises nothing for a nonce token across
+four differently-shaped probes, so it degrades on exactly one axis,
+`spellcheck_engine: none`.
 
 `SPELLCHECK_PROBE` is in this file because that inversion has now been got wrong once by
 reading a table: the capability is **probed at run time against the server that is
@@ -101,6 +97,33 @@ ENGINES_THAT_CAN_FIND_AN_ERROR: Final[tuple[str, ...]] = (
 #: S137 can say which of the two a pack got.
 DEGRADED_TO_PERPLEXITY_ONLY: Final[str] = "perplexity_only"
 
+#: The inverse, which `scope2/00` §2.4 does NOT name and which is the more likely of the
+#: two in practice: LanguageTool is a jar somebody can start in one command, while a
+#: KenLM band needs a trained model over a corpus G0 produces. The adversarial pass ran
+#: exactly this configuration — sidecar up, no `--set kenlm_model` — and V8 blocked it
+#: with a message naming `perplexity_only`, i.e. it asked the operator to name the
+#: fallback after the engine that was *missing*. A degradation with no name is the hole
+#: INV-PACK-14 is about, and "the spec only named one direction" is not a reason for the
+#: other direction to be nameless.
+DEGRADED_TO_GRAMMAR_ONLY: Final[str] = "grammar_only"
+
+#: missing engine field -> the name of the state it leaves the run in. Both directions
+#: are a **warning**, never a block: one engine that can find an error did run, the pack
+#: is weaker rather than unchecked, and the manifest carries which. Only the empty
+#: intersection (`ENGINES_THAT_CAN_FIND_AN_ERROR` all `none`) blocks.
+DEGRADATION_NAMES: Final[dict[str, str]] = {
+    "grammar_engine": DEGRADED_TO_PERPLEXITY_ONLY,
+    "perplexity_engine": DEGRADED_TO_GRAMMAR_ONLY,
+}
+
+#: Engine ids that are a stand-in rather than the engine they imitate. `mock_lt` is a
+#: real HTTP server speaking the LanguageTool API so `pack-ci.yml` needs no JDK; it is
+#: not LanguageTool, and a pack validated entirely against it has not met 1,644 XML
+#: rules. V8 may not block on it (CI would then have no way to exercise G6 at all) and
+#: must not stay silent about it either, so it is a named warning that reaches the
+#: manifest and INV-PACK-55's pack card.
+MOCK_ENGINE_IDS: Final[tuple[str, ...]] = ("mock_lt",)
+
 # ---------------------------------------------------------------------------
 # LanguageTool
 # ---------------------------------------------------------------------------
@@ -129,9 +152,35 @@ LANGUAGETOOL_XML_RULE_COUNTS: Final[dict[str, int]] = {
 #: answers with a misspelling match, this language has a spell checker; if it answers
 #: with nothing, it does not. That is the whole probe, and it is why `ja` is known to
 #: have no spell checker here without anybody reading a column heading.
+#:
+#: **Where the nonce sits in the sentence changes the answer**, which is the kind of
+#: thing only running the jar tells you. Measured against LanguageTool 6.6 on
+#: 2026-09-12 (`java -cp languagetool-server.jar org.languagetool.server.HTTPServer
+#: --port 8081`, build f3e8d91, `/v2/languages` -> 60 entries):
+#:
+#: | probe | matches |
+#: | ----- | ------- |
+#: | es `Yo xqzptv en la casa.` | `MORFOLOGIK_RULE_ES` / misspelling / TYPOS |
+#: | es-ES, same text | `MORFOLOGIK_RULE_ES` / misspelling / TYPOS |
+#: | es `La casa es blanco.` | `CONCORDANCIAS_ATRIBUTO` / inconsistency / AGREEMENT_VERBS |
+#: | es `La casa es blanca y yo vivo con mi hermano.` | `[]` |
+#: | de-DE `Ich xqzptv in dem Haus.` | `GERMAN_SPELLER_RULE` / misspelling / TYPOS |
+#: | ja-JP `わたしは xqzptv にいます。` | `[]` |
+#: | ja-JP, three further nonce shapes | `[]` each |
+#: | **fr `Je xqzptv dans la maison.`** | **`JE_VERBE` / uncategorized / CAT_GRAMMAIRE** |
+#: | fr `La maison xqzptv est grande.` | `FR_SPELLING_RULE` / misspelling / TYPOS |
+#:
+#: The French row is the correction. A nonce token straight after `Je` is claimed by the
+#: `JE_VERBE` grammar rule, which reports `uncategorized`, so the speller never fires and
+#: the probe concludes **French has no spell checker** — untrue, and it would have
+#: degraded every French pack on an axis that works. Moving the nonce out of the verb
+#: slot raises `FR_SPELLING_RULE`. This is exactly why the capability is probed rather
+#: than tabulated, and also why the probe SENTENCE is a measured constant rather than
+#: whatever reads naturally.
 SPELLCHECK_PROBE: Final[dict[str, str]] = {
     "es": "Yo xqzptv en la casa.",
-    "fr": "Je xqzptv dans la maison.",
+    # NOT "Je xqzptv dans la maison." — see the table above.
+    "fr": "La maison xqzptv est grande.",
     "de": "Ich xqzptv in dem Haus.",
     "ja": "わたしは xqzptv にいます。",
 }
@@ -192,6 +241,29 @@ KENLM_BAND_FILENAME: Final[str] = "band.json"
 #: installed" message is the fix.
 KENLM_TRAIN_BINARY: Final[str] = "lmplz"
 KENLM_BUILD_BINARY: Final[str] = "build_binary"
+
+# ---------------------------------------------------------------------------
+# What a degradation costs
+# ---------------------------------------------------------------------------
+
+#: Named fallback -> what the pack lost, and the one command that gives it back. Here
+#: rather than beside `DEGRADATION_NAMES` only because the KenLM remedy quotes
+#: `KENLM_ORDER` and a constant may not be read before it is declared.
+#:
+#: A warning that names a state without naming the remedy gets read once and normalised;
+#: this is the sentence a reviewer sees in the validator report and in the manifest.
+DEGRADATION_COST: Final[dict[str, str]] = {
+    DEGRADED_TO_PERPLEXITY_ONLY: (
+        "no grammar rule was applied, so naturalness rests on the perplexity band alone. "
+        "Start a LanguageTool sidecar and pass --set languagetool_url=<url>."
+    ),
+    DEGRADED_TO_GRAMMAR_ONLY: (
+        "nothing measured how UNLIKE the training corpus a sentence is, which is the axis "
+        "that catches text a rule set finds well-formed. Train a KenLM model "
+        f"(`{KENLM_TRAIN_BINARY} -o {KENLM_ORDER}` over the oracle text, then "
+        f"`{KENLM_BUILD_BINARY}`) and pass --set {KENLM_MODEL_OPTION}=<path>."
+    ),
+}
 
 # ---------------------------------------------------------------------------
 # Back-translation

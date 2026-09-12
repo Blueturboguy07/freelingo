@@ -93,6 +93,16 @@ REJECT_AXES: Final[tuple[str, ...]] = (
 #: G0 filters corpus sentences to 3-12 tokens for A1 (`scope2/00` §2.3). An authored
 #: sentence goes through the same window: "the same path as a corpus sentence" is not
 #: a slogan if the authoring path gets its own, looser numbers.
+#:
+#: This is G5's own copy and it should not stay that way. `config/ingest.py` (G0's) is an
+#: empty scaffold today and `config/base.py` — where the repo's own rule puts a constant
+#: two stages share — declares no length window, and neither file is in this lane's
+#: ownership, so there is nothing to import yet. What holds the claim in the meantime is
+#: `tests/test_g5_gapfill.py::test_the_length_window_cannot_drift_from_g0s`: it scans
+#: every other config module for a window under any of the plausible names and fails the
+#: build on a disagreement with these two numbers. When G0 lands its window, delete these
+#: two lines and import it — the test is the thing that makes that a one-line change
+#: instead of a silent divergence.
 MIN_TOKENS: Final[int] = 3
 MAX_TOKENS: Final[int] = 12
 

@@ -1,9 +1,11 @@
 {
   "invariant": "INV-PACK-14",
   "statement": "V8 records which engines actually ran per language (grammar_engine, spellcheck_engine) and degrades to the named fallback. A validator that reports \"0 errors\" when no engine ran fails this gate.",
+  "why": "Eleven G6 runlog shapes that all report zero errors on at least one axis, of which only three are a pass. A V8 that returns an empty finding list for every one of them is green in CI and ships a pack whose validator report is about nothing.",
+  "$why_note": "`why` is the one-sentence reason `packages/core/src/journey/falsifier-corpus.ts` requires of every corpus file (REASON_KEYS). It is here so these files satisfy that gate's format the moment its CORPUS_ROOTS learns about tools/ — see docs/owned/p2-g5-g6.json §gatesThisBranchTurnsRed.",
   "registry": "docs/invariants.md § 14 — Content packs",
   "covers": "EC-PACK-14 — V8 run on Japanese: LanguageTool ja has 735 grammar rules and no spell checker, the exact inverse of what deep/10 states. The degradation is spellcheck_engine: none, not grammar_engine: none (ADV 10/R1).",
-  "why_these_inputs": "Every case below produces the same headline number — zero grammar errors — and they are not the same result. Two of them are a clean course, three of them are a machine that checked nothing, and one is a course whose last validation run crashed halfway. A V8 that returns an empty finding list for all six is the failure this invariant is named for, and it is green in CI.",
+  "why_these_inputs": "Every case below produces zero errors on at least one axis, and they are not the same result. Three of them are a course that was really checked, six are a machine that checked nothing or half of it, one is a course whose last validation run crashed halfway, and one is Japanese, where a missing spell checker is correct. A V8 that returns an empty finding list for all of them is the failure this invariant is named for, and it is green in CI. Both degradation DIRECTIONS are here — grammar missing and perplexity missing, each in a named and an unnamed form — because the corpus originally carried only the first, and a real defect (an unnamed `grammar_only` state that V8 blocked with a message naming `perplexity_only`) survived nine cases and a green suite.",
   "runlog_note_shape": "Each case is the `notes` object of a G6 runlog entry, exactly as coursekit/stages/g6_validate_language.py writes it. `g6_status` is the entry's status. `expect` is what V8 must do with it.",
   "cases": [
     {
@@ -86,6 +88,36 @@
       },
       "expect": "blocking",
       "because": "'and degrades to the named fallback' is the second half of the invariant. An unnamed degradation reaches the manifest as a full-strength V8 pass."
+    },
+    {
+      "name": "perplexity engine missing, degradation named",
+      "g6_status": "ok",
+      "notes": {
+        "grammar_engine": "languagetool/6.6/es",
+        "spellcheck_engine": "languagetool/6.6/es",
+        "perplexity_engine": "none",
+        "backtranslation_engine": "agent_rubric/v1 (agent-authored rubric score, not a model round-trip)",
+        "degraded_to": "grammar_only",
+        "checked": 112,
+        "rejected_by_axis": { "perplexity_out_of_band": 0, "grammar": 4, "backtranslation": 0 }
+      },
+      "expect": "no blocking finding, and a warning naming grammar_only",
+      "because": "The inverse of the two cases above, and the one the corpus was missing. It is also the MORE LIKELY configuration: a LanguageTool sidecar is one command, while a perplexity band needs a KenLM model trained over a corpus G0 has not produced yet. The corpus covered grammar-missing in both its named and unnamed forms and never this direction, which is why a real defect survived nine cases and a green suite — `_degraded_to` returned '' here and V8 blocked the run with \"perplexity_engine did not run and G6 named the fallback as ''\", a message asking the operator to name the fallback after the engine that was missing. Grammar rules ran over 112 candidates and rejected four; that is a weaker claim, not a false one."
+    },
+    {
+      "name": "perplexity engine missing, degradation NOT named",
+      "g6_status": "ok",
+      "notes": {
+        "grammar_engine": "languagetool/6.6/es",
+        "spellcheck_engine": "languagetool/6.6/es",
+        "perplexity_engine": "none",
+        "backtranslation_engine": "agent_rubric/v1 (agent-authored rubric score, not a model round-trip)",
+        "degraded_to": "",
+        "checked": 112,
+        "rejected_by_axis": { "perplexity_out_of_band": 0, "grammar": 4, "backtranslation": 0 }
+      },
+      "expect": "blocking",
+      "because": "Symmetry with 'grammar engine missing, degradation NOT named'. An unnamed degradation reaches the manifest as a full-strength V8 pass whichever engine it was that went missing, so the gate may not be satisfied by naming one direction and leaving the other blank."
     },
     {
       "name": "an engine field missing from the entry",

@@ -146,6 +146,29 @@ def test_a_language_with_no_spell_checker_degrades_on_that_axis_only() -> None:
     assert report["detail"]["xml_rule_count"] == 735
 
 
+def test_the_spellcheck_probe_sentences_are_the_measured_ones() -> None:
+    """Where the nonce token sits decides the answer, and only the jar says where.
+
+    Measured against the real LanguageTool 6.6 server (build `f3e8d91`, Java 22.0.1,
+    port 8081) on 2026-09-12:
+
+    * `fr` `Je xqzptv dans la maison.` -> `JE_VERBE` / `uncategorized` / `CAT_GRAMMAIRE`
+      and **no misspelling**. A nonce straight after `Je` is claimed by a grammar rule,
+      the speller never fires, and the probe concludes French has no spell checker.
+    * `fr` `La maison xqzptv est grande.` -> `FR_SPELLING_RULE` / `misspelling` / `TYPOS`.
+
+    French is P7 and the wrong probe would have degraded its pack on an axis that works,
+    silently, with `spellcheck_engine: none` in the manifest. The probe sentence is
+    therefore a measured constant, not a phrase that reads naturally, and this test is
+    what stops it drifting back. The mock cannot catch this — it flags any unknown token
+    wherever it sits — so a real run is the only evidence, and the numbers above are it.
+    """
+    assert SPELLCHECK_PROBE["fr"] == "La maison xqzptv est grande."
+    assert "Je xqzptv" not in SPELLCHECK_PROBE["fr"]
+    assert all("xqzptv" in probe for probe in SPELLCHECK_PROBE.values())
+    assert set(SPELLCHECK_PROBE) == {"es", "fr", "de", "ja"}
+
+
 def test_a_misspelling_comes_back_labelled_the_way_v8_keys_on(spanish_server: str) -> None:
     matches = build_languagetool(spanish_server).check("es", "Yo xqzptv en la casa.")
     assert matches

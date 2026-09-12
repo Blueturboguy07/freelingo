@@ -15,6 +15,16 @@ only ever scans the real module.
 The source gate is necessary and not sufficient, so the behavioural half is here too: the
 emitted texts are a subset of the authored texts, over the real 160-candidate file and
 over generated ones.
+
+**The scan is two gates of different strength.** The identifier half runs over every
+module this lane owns (`LANE_SOURCES`), because a `_repair_text` helper one import away
+in `engines/` satisfies the letter of a two-file scan; the string-mutator half stays on
+the two stages (`GENERATOR_SOURCES`), because its argument — "nothing here has any
+business building a modified copy of a string" — is true there and false in a module that
+parses a rubric file and builds a URL. `test_g6_validate_language.py` carries the matching
+behavioural gate for the engines: every string they are handed must be a candidate text
+verbatim, which catches a repair that happens BEFORE the check and so never reaches
+emitted text.
 """
 
 from __future__ import annotations
@@ -33,7 +43,12 @@ import pytest
 
 from coursekit.adapters import ADAPTERS
 from coursekit.artifacts import read_records, write_records
-from coursekit.config.g5 import MIN_CANDIDATES_PER_SLOT, REJECT_AXES
+from coursekit.config.g5 import (
+    MAX_TOKENS,
+    MIN_CANDIDATES_PER_SLOT,
+    MIN_TOKENS,
+    REJECT_AXES,
+)
 from coursekit.inputs import MissingInput
 from coursekit.runlog import RunLog, UpstreamStageMissing, read_entries
 from coursekit.stages import STAGES, StageContext, StageResult
@@ -45,11 +60,33 @@ FALSIFIERS = Path(__file__).parent / "falsifiers"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REAL_CANDIDATES = REPO_ROOT / "content" / "es" / "candidates.jsonl"
 
-#: The two stages INV-PACK-10 is about. G6 narrows the surviving set and must not edit
-#: content either, so it is scanned by the same gate.
+#: The two stages candidate text actually flows through. Scanned by BOTH halves of the
+#: gate: repair-shaped identifiers and string-mutating calls. G6 narrows the surviving
+#: set and must not edit content either, so it is held to the same rule as G5.
 GENERATOR_SOURCES = (
     PACKAGE_ROOT / "stages" / "g5_gapfill.py",
     PACKAGE_ROOT / "stages" / "g6_validate_language.py",
+)
+
+#: Every other module this lane owns, scanned by the IDENTIFIER half only.
+#:
+#: The adversarial pass was right that a `_repair_text` helper in `engines/` or
+#: `validators/` would have slipped past a gate that looked at two files. It cannot be
+#: the same gate, though: the mutator half rests on an argument that is true of the two
+#: stages and false here — `languagetool.py` builds a URL with `rstrip('/')`,
+#: `backtranslation.py` reads a rubric file with `line.strip()`, `mock_lt.py` builds a
+#: category name with `.title()`. Banning `str` methods in a module whose job is parsing
+#: and HTTP would be a gate that has to be silenced, and the first thing silenced is the
+#: enforcement. So the name half — which is what a repair helper would announce itself
+#: with — runs everywhere in the lane, and the strict half runs where the text is.
+LANE_SOURCES = (
+    PACKAGE_ROOT / "engines" / "kenlm.py",
+    PACKAGE_ROOT / "engines" / "languagetool.py",
+    PACKAGE_ROOT / "engines" / "mock_lt.py",
+    PACKAGE_ROOT / "engines" / "backtranslation.py",
+    PACKAGE_ROOT / "validators" / "language.py",
+    PACKAGE_ROOT / "config" / "g5.py",
+    PACKAGE_ROOT / "config" / "g6.py",
 )
 
 
@@ -93,13 +130,16 @@ MUTATORS = frozenset(
 )
 
 
-def repair_paths(source: str) -> list[str]:
+def repair_paths(source: str, *, mutators: bool = True) -> list[str]:
     """Every repair-shaped thing in `source`. Identifiers and calls; never prose.
 
     Deliberately blind to strings and comments. The module this runs against documents
     the rule it is enforcing, in English, using the word "patched" — a scanner that read
     prose would fail on the documentation of the invariant, and the obvious fix for that
     (delete the documentation) is worse than the bug.
+
+    `mutators=False` runs the identifier half alone, for the lane modules where a `str`
+    method has a job that is not rewriting a candidate (see `LANE_SOURCES`).
     """
     tree = ast.parse(source)
     found: list[str] = []
@@ -126,7 +166,7 @@ def repair_paths(source: str) -> list[str]:
             if node.asname:
                 flag(node.asname, node, "import alias")
 
-        if isinstance(node, ast.Call):
+        if mutators and isinstance(node, ast.Call):
             func = node.func
             if isinstance(func, ast.Attribute) and func.attr in MUTATORS:
                 found.append(f"line {node.lineno}: string-mutating call .{func.attr}()")
@@ -152,6 +192,48 @@ def test_INV_PACK_10_no_repair_path_exists_in_the_generator() -> None:
         "discarded and resampled; the remedy for a near miss is the next candidate, "
         "never an edit to this one."
     )
+
+
+def test_INV_PACK_10_no_repair_path_exists_anywhere_in_the_lane() -> None:
+    """[INV-PACK-10] No module this lane owns declares a repair helper either.
+
+    "No repair path exists in the generator" is a claim about the generator, and a
+    `_repair_text` living one import away in `engines/` or `validators/` satisfies the
+    letter of a two-file scan while breaking the invariant. The identifier half runs over
+    every module in the lane; the mutator half stays on the two stages, where the only
+    strings in play are candidate texts.
+    """
+    offenders = {
+        str(path.relative_to(PACKAGE_ROOT)): repair_paths(
+            path.read_text(encoding="utf-8"), mutators=False
+        )
+        for path in LANE_SOURCES
+    }
+    assert {name: hits for name, hits in offenders.items() if hits} == {}, (
+        "a repair-shaped identifier exists in a lane module. A candidate that fails an "
+        "axis is discarded and resampled wherever the code that fails it lives."
+    )
+
+
+def test_INV_PACK_10_the_identifier_half_alone_still_catches_a_named_repair_helper() -> None:
+    """[INV-PACK-10] `mutators=False` is a narrower gate, not a disabled one.
+
+    The lane scan drops the string-method rule. If dropping it also dropped the name
+    rule, `test_INV_PACK_10_no_repair_path_exists_anywhere_in_the_lane` would pass over
+    any source at all — which is the shape of every gate that quietly stopped checking.
+    """
+    corpus = json.loads((FALSIFIERS / "INV-PACK-10.json").read_text(encoding="utf-8"))
+    named = [case for case in corpus["must_reject"] if repair_paths(case["source"], mutators=False)]
+    assert len(named) >= 4, (
+        "the identifier half caught fewer than four of the committed repair sources; "
+        "it is not a gate on its own"
+    )
+    false_positives = {
+        case["name"]: hits
+        for case in corpus["must_accept"]
+        if (hits := repair_paths(case["source"], mutators=False))
+    }
+    assert false_positives == {}, false_positives
 
 
 def test_INV_PACK_10_the_scanner_rejects_every_falsifier() -> None:
@@ -552,6 +634,100 @@ def test_the_committed_spanish_file_over_generates_twenty_per_slot() -> None:
         per_slot[str(Slot.of(row["slot"]))] = per_slot.get(str(Slot.of(row["slot"])), 0) + 1
     assert per_slot, "content/es/candidates.jsonl is empty"
     assert all(count >= MIN_CANDIDATES_PER_SLOT for count in per_slot.values()), per_slot
+
+
+# ---------------------------------------------------------------------------
+# "The same path as a corpus sentence" — enforced, not asserted in a docstring
+# ---------------------------------------------------------------------------
+
+#: Names another config module could plausibly give the A1 token window, and what each
+#: must equal. `config/ingest.py` is G0's and is empty today; `config/base.py` is where
+#: the scaffold says a constant two stages share belongs. Neither is this lane's to
+#: write, so the contract is enforced from here instead: the moment one of them declares
+#: a window, it has to be G5's.
+SHARED_WINDOW_SCALARS = {
+    "MIN_TOKENS": MIN_TOKENS,
+    "A1_MIN_TOKENS": MIN_TOKENS,
+    "MIN_TOKENS_A1": MIN_TOKENS,
+    "MAX_TOKENS": MAX_TOKENS,
+    "A1_MAX_TOKENS": MAX_TOKENS,
+    "MAX_TOKENS_A1": MAX_TOKENS,
+}
+
+#: The same window written as a pair.
+SHARED_WINDOW_TUPLES = (
+    "LENGTH_WINDOW",
+    "TOKEN_WINDOW",
+    "A1_LENGTH_WINDOW",
+    "A1_TOKEN_WINDOW",
+    "SENTENCE_LENGTH_WINDOW",
+)
+
+#: Config modules that are not this lane's, scanned for a second copy of the window.
+OTHER_CONFIG_MODULES = (
+    "coursekit.config.base",
+    "coursekit.config.ingest",
+    "coursekit.config.select",
+    "coursekit.config.analyze",
+    "coursekit.config.band",
+    "coursekit.config.curriculum",
+    "coursekit.config.gapfill",
+    "coursekit.config.validate",
+)
+
+
+def test_the_length_window_cannot_drift_from_g0s() -> None:
+    """G5's docstring says an authored sentence goes through G0's 3-12 A1 window.
+
+    Today that is two numbers in `config/g5.py`, because `config/ingest.py` is an empty
+    scaffold and `config/base.py` — where the repo's own rule puts a constant two stages
+    share — has no length window in it. Neither file is in this lane's ownership, so the
+    claim cannot be made true by importing something that does not exist yet.
+
+    What it can be is **unfalsifiable-proof**: the moment the G0 lane declares a window
+    under any of the names below, this test compares it to G5's and fails on a
+    disagreement. Then the fix is one line — G5 imports it — and the drift never reaches
+    a pack, which is the whole content of "a candidate re-enters through the same path as
+    a corpus sentence".
+    """
+    found: dict[str, Any] = {}
+    scanned: list[str] = []
+    for module_name in OTHER_CONFIG_MODULES:
+        module = importlib.import_module(module_name)
+        scanned.append(module_name)
+        for name, expected in SHARED_WINDOW_SCALARS.items():
+            if hasattr(module, name):
+                found[f"{module_name}.{name}"] = (getattr(module, name), expected)
+        for name in SHARED_WINDOW_TUPLES:
+            if hasattr(module, name):
+                found[f"{module_name}.{name}"] = (
+                    tuple(getattr(module, name)),
+                    (MIN_TOKENS, MAX_TOKENS),
+                )
+
+    assert len(scanned) == len(OTHER_CONFIG_MODULES), scanned
+    disagree = {where: pair for where, pair in found.items() if pair[0] != pair[1]}
+    assert disagree == {}, (
+        f"a second A1 length window disagrees with G5's ({MIN_TOKENS}-{MAX_TOKENS}): "
+        f"{disagree}. An authored candidate is supposed to go through the SAME filter as "
+        f"a corpus sentence; two windows means it does not. Delete the copy in "
+        f"config/g5.py and import the shared one."
+    )
+
+
+def test_the_window_scan_would_see_a_constant_if_one_appeared() -> None:
+    """The scan above passes trivially while every other config module is empty.
+
+    So it is run once against a module that does declare the window — this lane's own —
+    to show the lookup finds a constant when there is one to find. Without this, the G0
+    lane could land `A1_MAX_TOKENS = 20` under a name nobody scans and the gate above
+    would stay green for the same reason it is green today.
+    """
+    g5_config = importlib.import_module("coursekit.config.g5")
+    hits = {
+        name: getattr(g5_config, name) for name in SHARED_WINDOW_SCALARS if hasattr(g5_config, name)
+    }
+    assert hits == {"MIN_TOKENS": MIN_TOKENS, "MAX_TOKENS": MAX_TOKENS}
 
 
 def test_every_committed_candidate_is_machine_authored_with_a_rubric_score() -> None:

@@ -20,16 +20,23 @@ ran:
     grammar_engine · spellcheck_engine · perplexity_engine · backtranslation_engine
 
 each either an engine id carrying its version, or the literal `none`. `degraded_to`
-names the fallback when one is missing — `perplexity_only` is the one `scope2/00` §2.4
-names. V8 reads these and refuses to pass on a run where nothing ran.
+names the fallback when one is missing, **in both directions**: `perplexity_only` when
+the grammar engine is absent (the one `scope2/00` §2.4 names) and `grammar_only` when
+the perplexity model is. §2.4 naming only the first is not a reason for the second to be
+nameless — it is the more common of the two, since a LanguageTool sidecar is one command
+and a perplexity band needs a model trained over a corpus. V8 reads these and refuses to
+pass on a run where nothing ran.
 
 `spellcheck_engine` is separate from `grammar_engine` because they come apart in
 practice, and the way they come apart was got backwards once already: `deep/10` §S6 had
 Japanese as spell-check-only, and review R1 found the ✓ was the **Spell check** column
-and the quoted sentence was about Norwegian. Probed against LanguageTool 6.6 on
-2026-09-12: Spanish raises `MORFOLOGIK_RULE_ES` for a nonce token and Japanese raises
-nothing, so Japanese is 735 grammar rules with **no** spell checker, and Spanish — which
-the correction says nothing about — has both, and degrades to nothing at all.
+and the quoted sentence was about Norwegian. Probed against a real LanguageTool 6.6
+server (`languagetool-server.jar`, build `f3e8d91`, Java 22.0.1) on 2026-09-12: Spanish
+raises `MORFOLOGIK_RULE_ES` for a nonce token and Japanese raises nothing across four
+nonce shapes, so Japanese is 735 grammar rules with **no** spell checker, and Spanish —
+which the correction says nothing about — has both, and degrades to nothing at all.
+Running the jar also corrected this lane's own French probe; `config/g6.py` has the
+table.
 
 ## Requested-but-broken is not the same as not requested
 
@@ -56,8 +63,9 @@ from ..config.g6 import (
     DEFAULT_BACKTRANSLATION_ENGINE,
     DEFAULT_GRAMMAR_ENGINE,
     DEFAULT_PERPLEXITY_ENGINE,
-    DEGRADED_TO_PERPLEXITY_ONLY,
+    DEGRADATION_NAMES,
     ENGINE_NONE,
+    ENGINES_THAT_CAN_FIND_AN_ERROR,
     G6_REJECT_AXES,
     G6_REJECT_PREFIX,
     GRAMMAR_ENGINE_OPTION,
@@ -233,11 +241,21 @@ def validate_language(ctx: StageContext) -> StageResult:
 
 
 def _degraded_to(engines: dict[str, str]) -> str:
-    """The named fallback, or the empty string when nothing was missing."""
-    if engines["perplexity_engine"] == ENGINE_NONE and engines["grammar_engine"] == ENGINE_NONE:
+    """The named fallback, or the empty string when nothing was missing.
+
+    Both directions are named. `scope2/00` §2.4 names only `perplexity_only` (grammar
+    missing), and this function used to return `""` for the inverse — a grammar engine up
+    and no KenLM model, which is the *more likely* of the two on a real machine, because
+    a sidecar is one command and a band needs a model trained over a corpus. V8 then
+    blocked that run with a message asking the operator to name the fallback as
+    `perplexity_only`, i.e. after the engine that was missing. Measured on this branch,
+    2026-09-12, which is how it was found.
+    """
+    dead = [field for field in ENGINES_THAT_CAN_FIND_AN_ERROR if engines[field] == ENGINE_NONE]
+    if len(dead) == len(ENGINES_THAT_CAN_FIND_AN_ERROR):
         return ENGINE_NONE
-    if engines["grammar_engine"] == ENGINE_NONE:
-        return DEGRADED_TO_PERPLEXITY_ONLY
+    if len(dead) == 1:
+        return DEGRADATION_NAMES[dead[0]]
     return ""
 
 

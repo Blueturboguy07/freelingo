@@ -25,8 +25,19 @@ until G6 has told it what ran:
    set — Japanese has no spell checker and still has 735 grammar rules — and neither is
    back-translation, which in an environment with no hosted model is a rubric score an
    agent wrote, not an engine.
-4. Exactly one missing → the degradation must be **named** (`perplexity_only`) and is
-   reported as a finding, not swallowed.
+4. Exactly one missing → the degradation must be **named**, and the name is the one
+   belonging to the engine that SURVIVED: `perplexity_only` when grammar is gone,
+   `grammar_only` when the perplexity model is. Both are a warning carrying what the
+   pack lost and the command that gives it back — never a block, because one engine that
+   can find an error did run. `scope2/00` §2.4 names only the first of the two; the
+   second is the likelier one on a real machine (a LanguageTool sidecar is one command,
+   a perplexity band needs a model trained over a corpus), and before it had a name this
+   validator blocked that run and told the operator to name the fallback after the engine
+   that was *missing*.
+5. Any engine id naming a stand-in (`mock_lt`) → a warning. It may not block, or
+   `pack-ci.yml` could not exercise G6 without a JDK at all; it may not be silent either,
+   because "0 grammar errors" from a 40-line mock is not "0 grammar errors" from 1,644
+   XML rules.
 
 Only then does it report on what G6 found, and it copies the four engine strings into its
 own runlog entry so the manifest, the pack card (INV-PACK-55) and a reviewer all read the
@@ -34,17 +45,25 @@ same four values.
 
 ## What "the named fallback" costs, per language
 
-Measured against a local LanguageTool 6.6 sidecar on 2026-09-12 rather than read off the
+Measured against a local LanguageTool 6.6 sidecar on 2026-09-12 — the real
+`languagetool-server.jar` (build `f3e8d91`) under Java 22.0.1 — rather than read off the
 rule table, because that table has been read backwards once (review R1):
 
 | Language | grammar | spellcheck | degrades to |
 | -------- | ------- | ---------- | ----------- |
 | es | 1,644 rules; `CONCORDANCIAS_ATRIBUTO` fires | `MORFOLOGIK_RULE_ES` fires | nothing |
-| ja | 735 rules | the nonce probe raises nothing | `spellcheck_engine: none` |
+| de | 5,224 rules | `GERMAN_SPELLER_RULE` fires | nothing |
+| fr | 6,984 rules | `FR_SPELLING_RULE` fires — but only for the right probe | nothing |
+| ja | 735 rules | nothing, across four nonce probes | `spellcheck_engine: none` |
 
 Spanish — the language this phase ships — degrades on neither axis when the sidecar is
 up, which is not what `deep/10` said and not what its correction says either. It is what
 the server says.
+
+The French row is the second thing running the jar changed: `Je xqzptv dans la maison.`
+raises `JE_VERBE` / `uncategorized` and no misspelling at all, so that probe concludes
+French has no spell checker and degrades a pack on an axis that works. `config/g6.py`
+carries the whole table and the corrected sentence.
 """
 
 from __future__ import annotations
@@ -53,10 +72,12 @@ from typing import Any
 
 from ..artifacts import read_records
 from ..config.g6 import (
-    DEGRADED_TO_PERPLEXITY_ONLY,
+    DEGRADATION_COST,
+    DEGRADATION_NAMES,
     ENGINE_FIELDS,
     ENGINE_NONE,
     ENGINES_THAT_CAN_FIND_AN_ERROR,
+    MOCK_ENGINE_IDS,
 )
 from ..runlog import read_entries
 from . import Finding, ValidatorContext, register_validator
@@ -148,31 +169,66 @@ def perplexity_and_grammar(ctx: ValidatorContext) -> list[Finding]:
         return findings
 
     if dead:
+        # The name belongs to the SURVIVING engine, not the missing one, and there is one
+        # for each direction. Deriving it from `dead` rather than comparing against a
+        # single constant is what closes the defect the adversarial pass found: with a
+        # grammar engine up and no KenLM model — the likelier configuration, since a
+        # sidecar is one command and a band needs a trained model — V8 blocked the run
+        # and told the operator to name the fallback `perplexity_only`, after the engine
+        # that was missing.
+        expected = DEGRADATION_NAMES[dead[0]]
         degraded_to = notes.get("degraded_to", "")
-        if degraded_to != DEGRADED_TO_PERPLEXITY_ONLY:
+        if degraded_to != expected:
             findings.append(
                 _blocking(
                     f"{', '.join(dead)} did not run and G6 named the fallback as "
-                    f"{degraded_to!r}. A degradation must be named: 'degrades to the "
-                    f"named fallback' is the half of INV-PACK-14 that tells a reader of "
-                    f"the manifest what this pack's naturalness claim is worth.",
+                    f"{degraded_to!r}; the name for this state is {expected!r}. A "
+                    f"degradation must be named: 'degrades to the named fallback' is the "
+                    f"half of INV-PACK-14 that tells a reader of the manifest what this "
+                    f"pack's naturalness claim is worth.",
                     subject=ctx.lang,
                     engines=engines,
+                    expected_degraded_to=expected,
                 )
             )
         else:
+            # A warning, in BOTH directions, and deliberately not a block: one engine
+            # that can find an error did run, so the pack is weaker rather than
+            # unchecked. Only the empty intersection blocks, above.
             findings.append(
                 Finding(
                     validator_id="V8",
                     severity="warning",
                     message=(
                         f"degraded to {degraded_to}: {', '.join(dead)} was not available. "
-                        f"Naturalness rests on the perplexity band alone for this pack."
+                        f"{DEGRADATION_COST[expected]}"
                     ),
                     subject=ctx.lang,
-                    detail={"engines": engines},
+                    detail={"engines": engines, "degraded_to": expected},
                 )
             )
+
+    mocks = sorted(
+        f"{field}={value}"
+        for field, value in engines.items()
+        if value.split("/")[0] in MOCK_ENGINE_IDS
+    )
+    if mocks:
+        findings.append(
+            Finding(
+                validator_id="V8",
+                severity="warning",
+                message=(
+                    f"validated against a stand-in, not the engine it imitates: "
+                    f"{', '.join(mocks)}. `mock_lt` exists so pack-ci can exercise G6 "
+                    f"with no JDK; it is not LanguageTool and this course has not met "
+                    f"1,644 XML rules. A release pack must be re-validated against the "
+                    f"jar."
+                ),
+                subject=ctx.lang,
+                detail={"engines": engines, "mock_engines": mocks},
+            )
+        )
 
     if engines["spellcheck_engine"] == ENGINE_NONE:
         findings.append(
