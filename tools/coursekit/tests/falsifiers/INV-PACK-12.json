@@ -1,0 +1,72 @@
+{
+  "invariant": "INV-PACK-12",
+  "statement": "A missing per-language data source fails the build loudly with the missing input named; no silent fallback to a differently-shaped file is possible.",
+  "why_this_corpus_exists": "Two halves, and the second is the one that is easy to get wrong. 'Fails loudly' is testable by deleting a file. 'No silent fallback to a differently-shaped file' is not, unless the near-miss file is named: `spa_sentences.tsv.bz2` sits in the same directory as `spa_sentences_detailed.tsv.bz2`, shares its first three columns, parses cleanly, and carries no owner — so a build that substituted it would produce a full ledger with no attribution and a V10 that passes vacuously over a corpus whose licence is attribution-only. So every case names both the file that must be named in the error AND the files that must never be requested, and the test asserts against a transport that records every URL.",
+  "source": "~/duolingo-research/deep/00-EDGE-CASES.md EC-PACK-08; deep/10 §S1 and edge case 6",
+  "cases": [
+    {
+      "id": "detailed-export-missing",
+      "lang": "es",
+      "absent": "spa_sentences_detailed.tsv.bz2",
+      "must_name": "spa_sentences_detailed.tsv.bz2",
+      "must_not_request": ["spa_sentences.tsv.bz2", "spa_sentences_base.tsv.bz2"],
+      "why": "The detailed export is the only one with `username`, and V10 needs a per-sentence attribution row, not a corpus-level one. Its near-misses are real files that really exist in the same directory (verified live 2026-09-12: spa_sentences.tsv.bz2, spa_sentences_base.tsv.bz2, spa_sentences_CC0.tsv.bz2, spa_sentences_in_lists.tsv.bz2, spa_sentences_with_audio.tsv.bz2, spa_tags.tsv.bz2, spa_user_languages.tsv.bz2)."
+    },
+    {
+      "id": "links-export-missing",
+      "lang": "es",
+      "absent": "spa-eng_links.tsv.bz2",
+      "must_name": "spa-eng_links.tsv.bz2",
+      "must_not_request": ["spa_sentences_detailed.tsv.bz2"],
+      "why": "The per-pair export is IDS ONLY, so without it there is no pair at all. Failing here must stop before the 9.5 MB target-side export is pulled: a build that fetched the text first and then discovered it had no alignment would look like a slow network rather than a missing input."
+    },
+    {
+      "id": "english-side-missing",
+      "lang": "es",
+      "absent": "eng_sentences.tsv.bz2",
+      "must_name": "eng_sentences.tsv.bz2",
+      "must_not_request": ["eng_sentences_detailed.tsv.bz2"],
+      "why": "The L1 side is keyed by ISO-639-3 (`eng`, never `en`) and is text-only: Tatoeba's attribution rides on the TARGET sentence, so reaching for the detailed English export instead would be a heavier download that answers a question nobody asked."
+    },
+    {
+      "id": "plain-export-served-where-detailed-was-asked-for",
+      "lang": "es",
+      "serve_instead": {
+        "url_suffix": "spa_sentences_detailed.tsv.bz2",
+        "shape": "id\tlang\ttext",
+        "rows": ["2481\tspa\t¡Intentemos algo!", "2482\tspa\tTengo que irme a dormir."]
+      },
+      "must_name": "spa_sentences_detailed.tsv.bz2",
+      "expect": "WrongExportShape",
+      "why": "The silent-substitution case, made concrete. Three columns where six are declared: a loose parser takes fields[0..2], finds every id and every text it wanted, and emits a ledger with no owner. The column count is checked exactly, not as a minimum."
+    },
+    {
+      "id": "links-file-with-a-third-column",
+      "lang": "es",
+      "serve_instead": {
+        "url_suffix": "spa-eng_links.tsv.bz2",
+        "shape": "id\ttranslation_id\tuser",
+        "rows": ["2481\t1234\tShishir"]
+      },
+      "must_name": "spa-eng_links.tsv.bz2",
+      "expect": "WrongExportShape",
+      "why": "The same rule in the other direction: a file with MORE columns than declared is also a different file, and accepting it would mean a future Tatoeba format change lands as a silently different join."
+    },
+    {
+      "id": "hermitdave-ja-50k-does-not-exist",
+      "source_id": "hermitdave",
+      "lang": "ja",
+      "must_name": "hermitdave",
+      "expect": "MissingInput",
+      "why": "EC-PACK-08 itself. `content/2018/ja/` holds only ja_full.txt and ja_ignored.txt; ja_50k.txt is a 404. A fetch loop templated over four languages must fail loudly here rather than fall back to ja_full.txt, whose whitespace-tokenised 'words' are sentence fragments that would make V1 pass vacuously. Resolution refuses before any URL is built, so the case is a resolver case, not a network one."
+    },
+    {
+      "id": "an-opus-corpus-with-no-entry-cannot-be-fetched",
+      "source_id": "tatoeba",
+      "lang": "es",
+      "must_name": "OPUS_CORPUS_BY_SOURCE",
+      "expect": "MissingInput",
+      "why": "Asking the OPUS reader for a source that is not an OPUS corpus must name the table rather than build a plausible URL out of the source id. A corpus with no entry has no version and no legacy licence page, which means no resolved licence, which means INV-PACK-13 as well."
+    }
+  ]
+}

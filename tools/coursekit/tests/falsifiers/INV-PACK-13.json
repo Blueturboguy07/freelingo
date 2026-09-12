@@ -1,0 +1,107 @@
+{
+  "invariant": "INV-PACK-13",
+  "statement": "V10: every shipped sentence, voice file and derived list carries a resolved licence compatible with AGPL redistribution. Gate: corpora_shippable is an allow-list; anything unclassified fails; NC and ND sources are excluded at ingest, not at package time.",
+  "why_this_corpus_exists": "The obvious test — 'no forbidden sentence appears in the output' — is passed by a pipeline that downloads TED2020, parses it and drops the rows at the end. That pipeline has already written CC BY-NC-ND text into every intermediate artefact and onto the build machine's disk, which is what 'at ingest, not at package time' forbids. So every `refused` case below is asserted against a transport that records every request and MUST have recorded none, and every `permitted` case is asserted to actually mint a permit, so the gate cannot pass by refusing everything.",
+  "source": "~/duolingo-research/deep/00-EDGE-CASES.md EC-PACK-09..13; deep/10 §S2 and its adversarial review R2, R3, R4, R7, R8",
+  "cases": [
+    {
+      "id": "ted2020-is-nc-and-nd",
+      "source_id": "ted2020",
+      "lang": "es",
+      "expect": "refused",
+      "refusal": "forbidden",
+      "licence": "CC-BY-NC-ND-4.0",
+      "why": "The TED Talks Usage Policy is CC BY-NC-ND 4.0. NC bites because an AGPL app can be forked commercially; ND bites because every exercise shape — word bank, cloze, re-ordering, synthesised audio — is a derivative. deep/10 listed TED2020 in its quality-first ingest order and then reversed it; the reversal is the case."
+    },
+    {
+      "id": "ted2020-is-refused-for-every-language",
+      "source_id": "ted2020",
+      "lang": "ja",
+      "expect": "refused",
+      "refusal": "forbidden",
+      "why": "Not an es-only cut. TED2020 carries 296k-417k pairs on all four v1 pairs and is forbidden on all four."
+    },
+    {
+      "id": "jparacrawl-is-noncommercial-by-default",
+      "source_id": "jparacrawl",
+      "lang": "ja",
+      "expect": "refused",
+      "refusal": "forbidden",
+      "licence": "NOASSERTION-NONCOMMERCIAL",
+      "why": "R8. The OPUS legacy page says 'For commercial use, please contact NTT Communication Science Laboratories' — the same non-commercial-by-default category that cut TED2020. deep/10 put 25,740,836 ja pairs in its corpus table and gave the corpus no verdict anywhere, which is exactly how a build script templated from that table picks it up."
+    },
+    {
+      "id": "opensubtitles-is-unclassified",
+      "source_id": "opensubtitles",
+      "lang": "es",
+      "expect": "refused",
+      "refusal": "allow_list",
+      "licence": "NOASSERTION",
+      "why": "The legacy page states no licence at all; it asks for a link back, and a request is not a grant. The allow-list is an ALLOW-list, so 'no licence stated' fails rather than defaults. It remains usable as an oracle over data somebody else already holds — it is never ingested through this door."
+    },
+    {
+      "id": "ccmatrix-is-unclassified",
+      "source_id": "ccmatrix",
+      "lang": "es",
+      "expect": "refused",
+      "refusal": "allow_list",
+      "licence": "NOASSERTION",
+      "why": "Same. And R2 measured CCMatrix v1 and NLLB v1 as byte-identical alignment_pairs on all four pairs, so the licensed route to the same bitext is `nllb` — which is why substituting it is a decision with a reason rather than a fallback."
+    },
+    {
+      "id": "cefrlex-is-nc",
+      "source_id": "cefrlex",
+      "lang": "es",
+      "expect": "refused",
+      "refusal": "allow_list",
+      "licence": "CC-BY-NC-SA-4.0",
+      "why": "EC-PACK-12. NC data may ride inside a CC BY-NC-SA pack and may never be ingested as shippable text; G2 consults it on the build machine. That it is refused HERE, at the corpus door, is the point — the NC-vs-AGPL agony belongs at ingest."
+    },
+    {
+      "id": "an-unregistered-corpus-has-no-verdict",
+      "source_id": "paracrawl",
+      "lang": "es",
+      "expect": "refused",
+      "refusal": "unregistered",
+      "why": "A source nobody put in config.SOURCES has no licence verdict, and a source with no verdict must never be read. The refusal names every registered source so the operator sees what they could have meant."
+    },
+    {
+      "id": "tatoeba-is-the-shipped-pool",
+      "source_id": "tatoeba",
+      "lang": "es",
+      "expect": "permitted",
+      "licence": "CC-BY-2.0-FR",
+      "verdict": "shippable",
+      "attribution_required": true,
+      "why": "Attribution-only, so every shipped sentence needs a credits row reachable from S152 (INV-PACK-17). Present so the gate cannot pass by refusing everything."
+    },
+    {
+      "id": "nllb-is-odc-by-and-ingestible-as-an-oracle",
+      "source_id": "nllb",
+      "lang": "es",
+      "expect": "permitted",
+      "licence": "ODC-By-1.0",
+      "verdict": "oracle_only",
+      "attribution_required": true,
+      "why": "R2: the NLLB legacy page was never fetched by deep/10 and it states ODC-By 1.0. The plan ingests it, capped, for selection and validation statistics, and keeps it oracle-only while the crawl-text copyright question is open (plan risk 2). 'May not be shipped' and 'may not be ingested' are different decisions and this case pins the difference."
+    },
+    {
+      "id": "tatoeba-cc0-does-not-cover-spanish",
+      "source_id": "tatoeba_cc0",
+      "lang": "es",
+      "expect": "refused",
+      "refusal": "language",
+      "why": "R4, re-verified live 2026-09-12 by Content-Length: spa_sentences_CC0.tsv.bz2 is 2,266 bytes (deu 1,852, jpn 228, fra 313,297). The CC0 route is not a way to avoid the credits screen for es/de/ja; it is a way to have no course. Listed for fr only, and the refusal for es must name the language rather than the licence."
+    },
+    {
+      "id": "tatoeba-cc0-is-permitted-for-french",
+      "source_id": "tatoeba_cc0",
+      "lang": "fr",
+      "expect": "permitted",
+      "licence": "CC0-1.0",
+      "verdict": "shippable",
+      "attribution_required": false,
+      "why": "The one language where the subset is a real pool — and even there it is a sub-pool of `tatoeba`."
+    }
+  ]
+}
