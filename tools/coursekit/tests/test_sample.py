@@ -24,6 +24,7 @@ from coursekit.artifacts import write_records
 from coursekit.config import MAX_DEFECT_RATE, REVIEWER_SAMPLE_ITEMS
 from coursekit.config.sample import (
     PROVISIONAL_DEFECT_RATE_NOTE,
+    RECORDED_REVIEWER_KINDS,
     REVIEW_VERDICTS,
     REVIEWER_KIND_AGENT,
     REVIEWER_KIND_PAID_NATIVE,
@@ -39,6 +40,7 @@ from coursekit.sample import (
     read_scores,
     review_summary,
     sample_path,
+    sheet_exercise_ids,
     unscored_items,
     write_sample,
 )
@@ -226,8 +228,12 @@ def test_scores_are_read_and_the_rate_is_the_wrong_fraction(tmp_path) -> None:
         ],
     )
     scores = read_scores("es", repo_root=tmp_path)
-    summary = review_summary(scores=scores, sample_size=100)
+    summary = review_summary(
+        scores=scores, sample_size=100, sheet_item_ids=[f"e{index}" for index in range(100)]
+    )
     assert summary["scored"] == 100
+    assert summary["joined"] == 100
+    assert summary["unjoined"] == 0
     assert summary["wrong_item_rate"] == pytest.approx(0.01)
     assert summary["awkward_rate"] == pytest.approx(0.01)
 
@@ -239,7 +245,11 @@ def test_awkward_is_not_folded_into_the_wrong_item_rate(tmp_path) -> None:
         tmp_path,
         [{"exercise_id": f"e{i}", "verdict": "awkward", "reviewer": "opus"} for i in range(10)],
     )
-    summary = review_summary(scores=read_scores("es", repo_root=tmp_path), sample_size=10)
+    summary = review_summary(
+        scores=read_scores("es", repo_root=tmp_path),
+        sample_size=10,
+        sheet_item_ids=[f"e{index}" for index in range(10)],
+    )
     assert summary["wrong_item_rate"] == 0.0
     assert summary["awkward_rate"] == 1.0
 
@@ -263,15 +273,15 @@ def test_an_absent_scores_file_is_an_empty_review_not_a_crash(tmp_path) -> None:
 
 def test_an_unscored_sample_has_no_rate_and_does_not_pass_the_gate() -> None:
     """`None` is not 0%. The plan's non-negotiable 5 gates on a measurement."""
-    summary = review_summary(scores=[], sample_size=300)
+    summary = review_summary(scores=[], sample_size=300, sheet_item_ids=["e0"])
     assert summary["wrong_item_rate"] is None
     assert gate_passed(summary) is False
 
 
 def test_the_gate_is_the_two_percent_the_plan_names() -> None:
     assert MAX_DEFECT_RATE == 0.02
-    assert gate_passed(review_summary(scores=_verdicts(6, 294), sample_size=300)) is True
-    assert gate_passed(review_summary(scores=_verdicts(7, 293), sample_size=300)) is False
+    assert gate_passed(_summary(6, 294)) is True
+    assert gate_passed(_summary(7, 293)) is False
 
 
 def _verdicts(wrong: int, ok: int) -> list[dict]:
@@ -280,17 +290,167 @@ def _verdicts(wrong: int, ok: int) -> list[dict]:
     return rows
 
 
+def _summary(wrong: int, ok: int, **kwargs) -> dict:
+    """A review block whose sheet is exactly the rows that were scored."""
+    scores = _verdicts(wrong, ok)
+    return review_summary(
+        scores=scores,
+        sample_size=wrong + ok,
+        sheet_item_ids=[row["exercise_id"] for row in scores],
+        **kwargs,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Founder ruling B3 — the code half
+# ---------------------------------------------------------------------------
+
+
+def test_an_agent_scored_rate_under_the_gate_now_passes_it() -> None:
+    """**Founder ruling B3, 2026-09-12.** P3 proceeds on an agent-scored sample.
+
+    Before the ruling the only question was the number. The ruling makes the answer
+    depend on the reviewer class as well, and says that class may be
+    `REVIEWER_KIND_AGENT` for the automated run — with the paid native review moved to
+    `docs/RELEASE.md` as a release prerequisite. So this is the pass the ruling grants,
+    with the kind recorded on the block that passed.
+    """
+    summary = _summary(2, 298)
+    assert summary["reviewer_kind"] == REVIEWER_KIND_AGENT
+    assert summary["wrong_item_rate"] == pytest.approx(2 / 300)
+    assert gate_passed(summary) is True
+
+
+def test_the_gate_still_refuses_a_rate_of_none() -> None:
+    """The half of B3 that did NOT move. An unmeasured pack is not a passing pack."""
+    assert gate_passed(review_summary(scores=[], sample_size=300, sheet_item_ids=[])) is False
+    unmeasured = {
+        "reviewer_kind": REVIEWER_KIND_AGENT,
+        "joined": 5,
+        "wrong_item_rate": None,
+    }
+    assert gate_passed(unmeasured) is False
+
+
+def test_the_gate_refuses_a_rate_whose_reviewer_class_is_not_recorded() -> None:
+    """B3 is a ruling about WHO measured, so an unrecorded measurer is not a pass.
+
+    The falsifier is a truthy check: `if summary["reviewer_kind"]:` accepts
+    `"whoever"`, which is how a rate measured by nobody in particular ends up on the
+    S001 card wearing the same weight as one a paid native speaker produced.
+    """
+    assert RECORDED_REVIEWER_KINDS == (REVIEWER_KIND_PAID_NATIVE, REVIEWER_KIND_AGENT)
+    for kind in ("", "whoever", "intern", "unknown"):
+        summary = _summary(2, 298)
+        summary["reviewer_kind"] = kind
+        assert gate_passed(summary) is False, kind
+    for kind in RECORDED_REVIEWER_KINDS:
+        summary = _summary(2, 298)
+        summary["reviewer_kind"] = kind
+        assert gate_passed(summary) is True, kind
+
+
 def test_an_agent_review_always_carries_the_provisional_note() -> None:
-    summary = review_summary(scores=_verdicts(1, 99), sample_size=100)
+    summary = _summary(1, 99)
     assert summary["reviewer_kind"] == REVIEWER_KIND_AGENT
     assert summary["note"] == PROVISIONAL_DEFECT_RATE_NOTE
 
 
+def test_a_passing_agent_rate_still_carries_the_provisional_note() -> None:
+    """B3 grants the pass and keeps the label. The two are not the same decision.
+
+    "The gate accepts this rate" and "a learner may read this rate as reviewed" are
+    different claims; the ruling makes the first true and leaves the second false until
+    somebody is paid. A pass that cleared the note would be the pack claiming a review
+    that has not happened.
+    """
+    summary = _summary(2, 298)
+    assert gate_passed(summary) is True
+    assert summary["note"] == PROVISIONAL_DEFECT_RATE_NOTE
+
+
 def test_only_a_paid_native_review_clears_the_note() -> None:
-    summary = review_summary(
-        scores=_verdicts(1, 99), sample_size=100, reviewer_kind=REVIEWER_KIND_PAID_NATIVE
-    )
+    summary = _summary(1, 99, reviewer_kind=REVIEWER_KIND_PAID_NATIVE)
     assert summary["note"] == ""
+
+
+# ---------------------------------------------------------------------------
+# The join count the honest rate needs
+# ---------------------------------------------------------------------------
+
+
+def test_the_rate_is_computed_over_the_rows_that_join_this_builds_sheet() -> None:
+    """The denominator is the intersection, not the length of the scores file.
+
+    `content/es/review/scores.jsonl` is committed and the sheet is not. The draw is
+    reproducible under `SAMPLE_SEED` only for a fixed population, and G0 reads a live
+    Tatoeba export that rebuilds every Saturday 06:30 UTC — so a scores file can name
+    exercise ids this build does not have. Ten rows scored, four of them on the sheet,
+    one of those four wrong: the honest rate is 1/4, not 1/10, and a reader has to be
+    able to see which.
+    """
+    scores = [
+        {"exercise_id": "on-sheet-1", "verdict": "wrong", "reviewer": "opus"},
+        {"exercise_id": "on-sheet-2", "verdict": "ok", "reviewer": "opus"},
+        {"exercise_id": "on-sheet-3", "verdict": "ok", "reviewer": "opus"},
+        {"exercise_id": "on-sheet-4", "verdict": "ok", "reviewer": "opus"},
+    ] + [
+        {"exercise_id": f"last-week-{index}", "verdict": "wrong", "reviewer": "opus"}
+        for index in range(6)
+    ]
+    summary = review_summary(
+        scores=scores,
+        sample_size=4,
+        sheet_item_ids=[f"on-sheet-{index}" for index in range(1, 5)],
+    )
+    assert summary["scored"] == 10
+    assert summary["joined"] == 4
+    assert summary["unjoined"] == 6
+    assert summary["wrong_item_rate"] == pytest.approx(0.25)
+    # And the falsifier: over `scored` the same input reads 0.6, which would fail the
+    # gate for rows that belong to no population, or pass it if the stale rows were the
+    # good ones. Either way the number is an average of two different builds.
+    assert summary["wrong_item_rate"] != pytest.approx(6 / 10)
+
+
+def test_a_review_block_with_no_sheet_on_disk_has_no_rate_at_all() -> None:
+    """No sheet is not an empty sheet, and neither is a measurement.
+
+    `None` for `joined` says the intersection could not be taken; `0` says it was taken
+    and is empty. Both refuse the gate, and only one of them means a missing file.
+    """
+    unknown = review_summary(scores=_verdicts(1, 9), sample_size=10, sheet_item_ids=None)
+    assert unknown["joined"] is None
+    assert unknown["unjoined"] is None
+    assert unknown["wrong_item_rate"] is None
+    assert gate_passed(unknown) is False
+
+    empty = review_summary(scores=_verdicts(1, 9), sample_size=10, sheet_item_ids=[])
+    assert (empty["joined"], empty["unjoined"]) == (0, 10)
+    assert empty["wrong_item_rate"] is None
+    assert gate_passed(empty) is False
+
+
+def test_the_gate_refuses_a_rate_no_row_of_which_is_on_this_sheet() -> None:
+    """Every scored row is from another build: a 0% that describes nothing."""
+    scores = [{"exercise_id": f"old-{i}", "verdict": "ok", "reviewer": "opus"} for i in range(300)]
+    summary = review_summary(scores=scores, sample_size=300, sheet_item_ids=["new-1", "new-2"])
+    assert summary["scored"] == 300
+    assert summary["joined"] == 0
+    assert summary["wrong_item_rate"] is None
+    assert gate_passed(summary) is False
+
+
+def test_the_sheet_reader_distinguishes_an_absent_sheet_from_an_empty_one(
+    make_es_build,
+) -> None:
+    assert sheet_exercise_ids("es", 20) is None
+    make_es_build(units=4, per_unit=10)
+    sheet = draw_sample("es", n=20)
+    write_sample(sheet)
+    ids = sheet_exercise_ids("es", 20)
+    assert ids is not None
+    assert list(ids) == [item.exercise_id for item in sheet.items]
 
 
 def test_the_honesty_string_is_exactly_what_the_docs_promise() -> None:
@@ -376,8 +536,41 @@ def test_a_drawn_but_unscored_sample_still_appears_in_the_report(
     assert review is not None
     assert review["sample_size"] == 20
     assert review["scored"] == 0
+    assert review["joined"] == 0
     assert review["wrong_item_rate"] is None
     assert review["note"] == PROVISIONAL_DEFECT_RATE_NOTE
+
+
+def test_derive_review_joins_the_committed_scores_against_the_drawn_sheet(
+    make_es_build, tmp_path
+) -> None:
+    """End to end, on real artefacts: `derive_review` takes the intersection itself.
+
+    This is the path `coursekit validate` uses (`commands/_run.py`), so the join has to
+    happen there and not only in `review_summary`'s signature. Half the scored rows name
+    ids from the sheet and half are invented, and the rate follows the half that joins.
+    """
+    make_es_build(units=4, per_unit=10)
+    sheet = draw_sample("es", n=20)
+    write_sample(sheet)
+    on_sheet = [item.exercise_id for item in sheet.items][:10]
+    make_scores(
+        tmp_path,
+        [{"exercise_id": on_sheet[0], "verdict": "wrong", "reviewer": "opus"}]
+        + [
+            {"exercise_id": identifier, "verdict": "ok", "reviewer": "opus"}
+            for identifier in on_sheet[1:]
+        ]
+        + [
+            {"exercise_id": f"not-in-this-build-{index}", "verdict": "wrong", "reviewer": "opus"}
+            for index in range(10)
+        ],
+    )
+    review = derive_review("es", repo_root=tmp_path)
+    assert review is not None
+    assert (review["scored"], review["joined"], review["unjoined"]) == (20, 10, 10)
+    assert review["wrong_item_rate"] == pytest.approx(0.1)
+    assert gate_passed(review) is False  # 10% is over the 2% gate, and says so
 
 
 # ---------------------------------------------------------------------------

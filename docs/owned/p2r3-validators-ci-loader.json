@@ -1,0 +1,85 @@
+{
+  "$comment": "Invariant ids owned by the P2 round-3 task `validators-ci-loader`. The `owned` list is EMPTY and that is the correct state, for the same two reasons `p2-validate-ci.json` gives: `scripts/coverage-map.ts` walks `packages`, `apps` and `e2e` and deliberately not `tools/`, so a pytest cannot be an owning test; and the ids below are properties of a pack CI has not yet produced. What IS new here is that the read side is no longer fixture-only — `packages/core/src/packs/real-pack.test.ts` names all four ids and runs inside the `coverage-map` walk — so `claimedByTestsThatOnlyRunInCi` records exactly what that buys and what it does not.",
+  "phase": "P2",
+  "round": 3,
+  "task": "validators-ci-loader",
+  "branch": "p2r3/validators-ci-loader",
+  "module": "tools/coursekit, packages/core/src/packs, .github/workflows/pack-ci.yml, docs/ci.md",
+  "owned": [],
+  "namedInTestNames": ["INV-PACK-06", "INV-PACK-13", "INV-PACK-14", "INV-PACK-18"],
+  "claimedByTestsThatOnlyRunInCi": {
+    "file": "packages/core/src/packs/real-pack.test.ts",
+    "gate": "FREELINGO_REAL_PACK",
+    "runsIn": ".github/workflows/pack-ci.yml, the `validate-es` job",
+    "skipsIn": "pnpm test, ci.yml, every developer run — there is no build tree on a laptop",
+    "failsRatherThanSkips": "when FREELINGO_REAL_PACK is set and the pack is absent. Verified by running it three ways on this Mac (see `evidence`).",
+    "whatItDoesNotBuy": "the file is skipped in `ci.yml`, so `pnpm test:coverage-map` must NOT be told these ids are owned: a skipped test is not an owning test, and `invariants-owned.json` is out of this lane anyway. The ids stay in `willBeOwnedAt` until `build-es` is green and the gate has actually run."
+  },
+  "willBeOwnedAt": {
+    "P2": ["INV-PACK-06", "INV-PACK-13", "INV-PACK-14", "INV-PACK-18"],
+    "blockedBy": "B1/B1a — `build-es` fails at G5, so `validate-es` skips on `needs:` and nothing below has run in CI"
+  },
+  "deliverables": [
+    {
+      "id": "B17",
+      "what": "V11 hard-fails only across SECTION boundaries; a within-section fall is a warning carried in the report with its measured delta",
+      "where": "tools/coursekit/src/coursekit/validators/pack.py (`mean_difficulty_is_non_decreasing`), config/validate.py (the two severity constants, `unit_assignment` added to SUITE_REQUIRED_ARTIFACTS)",
+      "falsifier": "not a fall at all — the SECTION MAP. A V11 that read an absent or partial `unit_assignment` as 'one big section' would take the warning branch for every boundary in the course, `coursekit validate es` would exit 0, and a course that gets easier at the A1->A2 line would ship. No input could then make the blocking branch fire. So an absent artefact is `_input_missing` and a shipping unit with no section row is a blocking finding naming the unit: `test_v11_would_pass_while_wrong_if_a_missing_section_map_read_as_one_section`.",
+      "measurement": "the run that raised B17 reported 13 falling unit boundaries, largest -3.222 at u18->u19, then -1.789 at u22->u23 and -1.320 at u15->u16; units 19, 23 and 16 are the gap-heavy ones. The validator now carries every fall, its delta and `largest_fall_delta` into `validator-report.json` notes, so the next round reads the numbers instead of re-running a 90-minute build."
+    },
+    {
+      "id": "B3",
+      "what": "the code half of the founder ruling: `gate_passed()` accepts an agent-scored rate <= MAX_DEFECT_RATE with REVIEWER_KIND_AGENT recorded",
+      "where": "tools/coursekit/src/coursekit/sample.py (`gate_passed`, `review_summary`, `sheet_exercise_ids`, `derive_review`), config/sample.py (`RECORDED_REVIEWER_KINDS`), validators/report.py (the `review` schema)",
+      "kept": "`PROVISIONAL (unreviewed by a paid native speaker)` is byte-identical. Four carriers quote it (docs/pack-provenance.md, tools/coursekit/README.md, and the S001 card and manifest `review` block still to be built), and `tests/test_sample.py` asserts the literal and both files verbatim. A PASSING agent rate still carries it — `test_a_passing_agent_rate_still_carries_the_provisional_note` — because 'the gate accepts this rate' and 'a learner may read this as reviewed' are different claims and the ruling makes only the first true.",
+      "joinCount": "the rate's denominator is now `joined`: how many scored rows are on THIS build's sheet. `content/es/review/scores.jsonl` is committed and the sheet is not; the draw is reproducible under SAMPLE_SEED only for a fixed population, and G0 reads a live Tatoeba export that rebuilds every Saturday 06:30 UTC. So a rate over `len(scores)` averages two different builds. The block publishes `sample_size`, `scored`, `joined` and `unjoined`, all four required by the report schema, and `joined: null` (no sheet on disk) is a different answer from `joined: 0` (an empty intersection). Both refuse the gate.",
+      "residualHazard": "gate_passed requires `joined >= 1` and no more. A sheet of 300 with 1 joined row scoring `ok` therefore passes at 0%. Deliberately not fixed here: a minimum-join fraction is a threshold nobody has ruled on, and inventing one would be this lane deciding a founder question. The number is published (`joined`, `unjoined`, and `reviewer_joined` in `summarise()`), so the next reader can see it; the fix, if wanted, is one named constant in config/sample.py."
+    },
+    {
+      "id": "loader-in-ci",
+      "what": "`validate-es` opens `build/es/g9/pack.sqlite` with `packages/core`'s loader",
+      "where": ".github/workflows/pack-ci.yml (`validate-es`: pnpm/action-setup, setup-node, frozen install, `pnpm vitest run --project core src/packs/real-pack.test.ts`), packages/core/src/packs/real-pack.test.ts",
+      "why": "the gate clause is 'the pack loads in packages/core's pack loader tests' and it was discharged against `__fixtures__/es-mini` — a real G9 output, the right fixture for a unit test, and 30 rows built by a different invocation on a different day. The pack `build-es` produces was uploaded as `es-pack-<sha>` and never opened by anything.",
+      "kept": "the LanguageTool 6.6 sidecar and the `align` group (B8, B13), and `if-no-files-found: error` on both uploads. `tools/coursekit/tests/test_validate_runner.py` now reads the YAML and fails if any of them regresses, because a regression there is a SKIPPED `validate-es` and a skipped job is a green job."
+    },
+    {
+      "id": "B2-loose-ends",
+      "what": "the two stale `pack-bake.yml` comment references at pack-ci.yml ~50 and ~179 are gone",
+      "assertedBy": "test_the_workflow_no_longer_names_a_deleted_workflow — `\"pack-bake\" not in WORKFLOW`, because this is the second round in which those two lines were listed as loose ends",
+      "notInThisLane": "tools/coursekit/docs/pipeline.md ~L22 and ~L33 still name it (docs/owned/p2-validate-ci.json listed all four). That file is not in this lane's file list; it is still a loose end and is recorded here so it is not lost a third time."
+    }
+  ],
+  "crossLaneContracts": [
+    {
+      "artefact": "manifest `audio.accentClaim`",
+      "ruling": "B6 — Kokoro is the voice engine for es/fr/ja; manifests replace `locale: es-ES` with `language: es` + `accent_claim: unverified`",
+      "readSide": "NOTHING TO DO, and the brief's condition is why: it said this lands here 'if packages/core's parseManifest is strict'. There is no `parseManifest` in packages/core. The reader is `install.ts::parsePackManifest`, and it checks the eight fields `install.ts` requires and IGNORES every other key by design — `config/g9.py MANIFEST_EXTRA_FIELDS` says so in as many words ('the app tolerates unknown fields by design ... which is what lets S001, S002, S137 and S151 read provenance, the validator report and the licence table off the manifest without a schema bump'). So an `audio.accentClaim` added by the writer needs no reader change and cannot break install.",
+      "writeSide": "tools/coursekit/src/coursekit/packbuild/manifest.py builds the `audio` block (codec, bitrateKbps, bytes, clips, budgetMb, bytesByPipeline) and is NOT in this lane's file list. `accentClaim` has to be added there, by the lane that owns it. Nothing in this tree writes or reads it today: `grep -rn 'accent_claim\\|accentClaim' packages tools content` matches only docs/P2-BLOCKERS.md line 695.",
+      "ifItLandsLater": "add it to MANIFEST_EXTRA_FIELDS and to the `audio` dict in packbuild/manifest.py; the read side stays as it is until a surface renders it, at which point `PackMeta` grows a field and `readPackMeta` a `requireMeta` call."
+    },
+    {
+      "artefact": "the canonical bytes a manifest signature covers",
+      "producedBy": "coursekit.signing.canonical_manifest_bytes — `json.dumps(payload, sort_keys=True, separators=(',', ':'), ensure_ascii=False)` over the manifest with `signature` removed",
+      "consumedBy": "packages/core/src/packs/real-pack.test.ts, which rebuilds them with `canonicalJson` from packs/items.ts",
+      "assertion": "the two agree for a real signed manifest, and the embedded public key is compared with the committed one BEFORE the signature is checked",
+      "gap": "packages/core has no manifest canonicaliser of its own — `install.ts` takes `manifestBytes` already canonicalised, and no shipping caller produces them yet. The test does it inline. When the app-side download path lands it needs that helper, and `canonicalJson` is the function: it sorts keys at every level and emits compact separators, which is byte-identical to the Python for an ASCII-keyed manifest. Non-ASCII KEYS would be the one divergence (Python sorts by code point, JS by UTF-16 code unit); no manifest key is non-ASCII."
+    }
+  ],
+  "knownHazards": [
+    {
+      "what": "`tests/conftest.py::make_es_build` writes no `unit_assignment`, and V11 now requires one",
+      "status": "worked around, not fixed",
+      "detail": "conftest.py belongs to another lane, so the section map is written per-test by `write_sections()` in tests/test_validators_pack.py. That turned out to be the better shape anyway — 'unit 3 is easier than unit 2' is a different finding depending on whether the two are in one section, so a test that did not state the layout would be testing nothing. If another lane later adds sections to `make_es_build`, delete the helper rather than keeping two."
+    },
+    {
+      "what": "`SUITE_REQUIRED_ARTIFACTS` and `SUITE_OPTIONAL_ARTIFACTS` are read by nothing",
+      "status": "open, cosmetic",
+      "detail": "They are the suite's declaration of what it must be able to read, and `unit_assignment` was added to the first of them here with a test asserting the membership. But no code branches on either tuple — the per-validator `_read`/`_read_optional` calls carry the same knowledge a second time. Two declarations is the shape INV-PACK-40 is about. The fix is for the runner to check the required tuple once, up front, and name every absent artefact in one finding; that is a runner change with its own test and it is not what this task was asked for."
+    }
+  ],
+  "evidence": [
+    "tools/coursekit: `uv run pytest -q` 0 failures (log: scratchpad/pytest-full.log), `uv run ruff check .` all checks passed",
+    "actionlint .github/workflows/pack-ci.yml -> exit 0",
+    "real-pack.test.ts run three ways on this Mac: env unset -> 6 skipped; FREELINGO_REAL_PACK=/nope/... -> 6 FAILED naming the missing path; FREELINGO_REAL_PACK=<the committed es-mini G9 pack> -> 4 passed / 2 failed, and the two failures are the manifest assertions (`the manifest carries no validatorReport`, `the report has no V8 row`) because the fixture manifest is built by `build_fixture_pack()` with no validator run. That is the positive proof the loader half works on a real coursekit pack and the negative proof the manifest half is about a VALIDATED pack, which only `validate-es` has."
+  ]
+}
