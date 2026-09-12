@@ -8,6 +8,7 @@ import {
   installPack,
   parsePackManifest,
   payloadDigest,
+  SELF_STARTING_TRIGGERS,
   planPackFetch,
   resolvePackOnSwitch,
   type Connection,
@@ -15,7 +16,7 @@ import {
   type InstallInput,
   type PackManifest,
 } from './install.js';
-import { NOT_DOWNLOADED_FACTS, type PackFacts } from './state.js';
+import { NOT_DOWNLOADED_FACTS, PACK_STATES, packSurface, type PackFacts } from './state.js';
 
 /**
  * INV-PACK-18 (verify before install) and INV-PACK-27 (eviction and metered links).
@@ -232,7 +233,7 @@ describe('INV-PACK-27 eviction and metered links', () => {
     expect(plan.queued).toBe(true);
   });
 
-  it('[INV-PACK-27] EC-CRS-06 auto-resume survives, but only on an unmetered link', () => {
+  it('[INV-PACK-27] on an unmetered link a fetch starts iff the learner initiated it', () => {
     fc.assert(
       fc.property(arbTrigger, fc.integer({ min: 1, max: 120_000_000 }), (trigger, bytes) => {
         const plan = planPackFetch({
@@ -241,14 +242,19 @@ describe('INV-PACK-27 eviction and metered links', () => {
           trigger,
           bytesRemaining: bytes,
         });
-        expect(plan.start).toBe(true);
-        expect(plan.confirmRequired).toBe(false);
+        // EC-CRS-06's auto-resume survives; EC-PACK-23's "explicitly initiated with the
+        // size shown" means a course switch or a session start starts nothing, even here.
+        const initiated = SELF_STARTING_TRIGGERS.includes(trigger);
+        expect(plan.start).toBe(initiated);
+        expect(plan.confirmRequired).toBe(!initiated);
+        // Whatever the verdict, the size is on the plan so the offer can name it.
+        expect(plan.bytes).toBe(bytes);
       }),
       { numRuns: PROPERTY_RUNS },
     );
   });
 
-  it('[INV-PACK-27] offline queues rather than failing, and starts nothing', () => {
+  it('[INV-PACK-27] offline queues a download the learner started, and only that', () => {
     fc.assert(
       fc.property(arbTrigger, fc.boolean(), (trigger, confirmed) => {
         const plan = planPackFetch({
@@ -257,15 +263,18 @@ describe('INV-PACK-27 eviction and metered links', () => {
           trigger,
           bytesRemaining: 38_000_000,
         });
+        const initiated = SELF_STARTING_TRIGGERS.includes(trigger);
         expect(plan.start).toBe(false);
-        expect(plan.queued).toBe(true);
-        expect(plan.refusal).toBe('offline');
+        // Going offline must not be a way around "explicitly initiated": a course switch
+        // queues nothing, so nothing fires the moment a link appears.
+        expect(plan.refusal).toBe(initiated ? 'offline' : 'needs-explicit-start');
+        expect(plan.queued).toBe(initiated);
       }),
       { numRuns: PROPERTY_RUNS },
     );
   });
 
-  it('[INV-PACK-27] an evicted installed pack resolves to not-downloaded on switch, and opens no lesson', () => {
+  it('[INV-PACK-27] an evicted installed pack resolves to not-downloaded on switch, opens no lesson, and starts no fetch on ANY link', () => {
     fc.assert(
       fc.property(arbConnection, fc.integer({ min: 1, max: 120_000_000 }), (connection, bytes) => {
         const installed: PackFacts = {
@@ -285,11 +294,60 @@ describe('INV-PACK-27 eviction and metered links', () => {
         const result = resolvePackOnSwitch(evicted, connection, bytes);
         expect(result.state).toBe('not-downloaded');
         expect(result.sessionLaunchable).toBe(false);
-        expect(result.fetch.start).toBe(connection === 'unmetered' ? true : false);
+        // EC-PACK-23: "re-download is explicitly initiated with the size shown". Switching
+        // to a course is not a request for 38 MB — not on a hotspot the OS failed to flag
+        // as metered, and not on wifi either.
+        expect(result.fetch.start).toBe(false);
+        // On every link alike, including offline: the switch offers, it never queues.
+        expect(result.fetch.confirmRequired).toBe(true);
+        expect(result.fetch.refusal).toBe('needs-explicit-start');
+        expect(result.fetch.queued).toBe(false);
+        expect(result.offerBytes).toBe(bytes);
+        expect(result.fetch.bytes).toBe(bytes);
         expect(result.progressRowsRetained).toBe(true);
       }),
       { numRuns: PROPERTY_RUNS },
     );
+  });
+
+  it('[INV-PACK-27] the learner tapping that offer does start the fetch, so the rule is not a permanent no', () => {
+    for (const connection of ['unmetered', 'metered'] as const) {
+      const plan = planPackFetch({
+        connection,
+        userConfirmedMetered: true,
+        trigger: 'explicit-tap',
+        bytesRemaining: 38_000_000,
+      });
+      expect(plan.start).toBe(true);
+      expect(plan.bytes).toBe(38_000_000);
+    }
+  });
+
+  it('[EC-CRS-06][INV-PACK-27] a download the learner already started still auto-resumes, but only unmetered', () => {
+    // EC-CRS-06: "the download is queued and auto-resumes". That is finishing what the
+    // learner asked for, which is why `auto-resume` self-starts and `course-switch` does not.
+    expect(
+      planPackFetch({
+        connection: 'unmetered',
+        userConfirmedMetered: false,
+        trigger: 'auto-resume',
+        bytesRemaining: 12_000_000,
+      }).start,
+    ).toBe(true);
+    expect(
+      planPackFetch({
+        connection: 'metered',
+        userConfirmedMetered: true,
+        trigger: 'auto-resume',
+        bytesRemaining: 12_000_000,
+      }).start,
+    ).toBe(false);
+  });
+
+  it('[INV-PACK-27] progress rows are retained in every one of the six states, read from the surface table', () => {
+    for (const state of PACK_STATES) {
+      expect(packSurface(state).progressRowsRetained, `${state} dropped progress rows`).toBe(true);
+    }
   });
 
   it('[INV-PACK-27] a switch to an intact pack starts no fetch at all', () => {

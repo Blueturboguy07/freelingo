@@ -133,4 +133,83 @@ describe('ed25519 verification (INV-PACK-18 primitive)', () => {
       verify(null, Buffer.from(message), createPublicKey(pair.publicPem), Buffer.from(malleable)),
     ).toBe(false);
   });
+
+  /**
+   * Small-order (torsion) points.
+   *
+   * Ed25519's group has cofactor 8, so eight points have order dividing 8. They are the
+   * classic verifier trap: a *cofactorless* check — which is what OpenSSL, and therefore
+   * `node:crypto`, computes, and what this implementation deliberately matches — **accepts**
+   * a forged signature under some of them, and a verifier that quietly disagreed with
+   * OpenSSL here would accept packs the signing CI would never produce, or reject ones it
+   * would. The requirement is therefore agreement, not blanket rejection, and the pinned
+   * public key is what actually keeps a torsion key out of the install path.
+   */
+  const SMALL_ORDER_ENCODINGS: readonly string[] = [
+    '0100000000000000000000000000000000000000000000000000000000000000', // identity, order 1
+    'ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f', // order 2
+    '0000000000000000000000000000000000000000000000000000000000000000', // order 4
+    '0000000000000000000000000000000000000000000000000000000000000080', // order 4
+    '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05', // order 8
+    'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a', // order 8
+    '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85', // order 8
+    'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa', // order 8
+  ];
+
+  /** y >= p: not a point encoding at all, whatever its order would be. */
+  const NON_CANONICAL_ENCODINGS: readonly string[] = [
+    'edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f', // y = p
+    'eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f', // y = p + 1
+  ];
+
+  const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+  const hex = (value: string): Uint8Array => Uint8Array.from(Buffer.from(value, 'hex'));
+
+  function nodeVerdict(rawPublic: Uint8Array, signature: Uint8Array, message: Uint8Array): boolean {
+    const spki = Buffer.concat([SPKI_PREFIX, Buffer.from(rawPublic)]);
+    const key = createPublicKey({ key: spki, format: 'der', type: 'spki' });
+    return verify(null, Buffer.from(message), key, Buffer.from(signature));
+  }
+
+  it('agrees with node:crypto on every small-order (torsion) public key, including the forgeries a cofactorless check accepts', () => {
+    const message = utf8('freelingo-pack-manifest');
+    const identity = hex(SMALL_ORDER_ENCODINGS[0]!);
+    const signatures: Uint8Array[] = [
+      // R = identity, S = 0: the classic cofactorless forgery. node:crypto ACCEPTS this
+      // under a small-order key; if this implementation rejected it, the two would
+      // disagree about what a valid pack signature is.
+      Uint8Array.from([...identity, ...new Uint8Array(32)]),
+      // A real signature under a real key, offered under the torsion key instead.
+      nodeSign(pairs[0]!, message),
+      // S = 1, R = identity: no longer a forgery for any of them.
+      Uint8Array.from([...identity, 1, ...new Uint8Array(31)]),
+    ];
+
+    let accepted = 0;
+    for (const encoding of SMALL_ORDER_ENCODINGS) {
+      const rawPublic = hex(encoding);
+      for (const signature of signatures) {
+        const ours = verifyEd25519(signature, message, rawPublic);
+        const theirs = nodeVerdict(rawPublic, signature, message);
+        expect(ours, `disagreed with node:crypto on torsion key ${encoding.slice(0, 8)}`).toBe(
+          theirs,
+        );
+        if (ours) accepted += 1;
+      }
+    }
+    // The trap is real: at least one of these forgeries verifies under a cofactorless
+    // check. This assertion is what makes the agreement above worth having.
+    expect(accepted, 'no torsion forgery verified — re-derive these encodings').toBeGreaterThan(0);
+  });
+
+  it('rejects a non-canonical point encoding (y >= p) outright', () => {
+    const message = utf8('freelingo-pack-manifest');
+    const signature = nodeSign(pairs[1]!, message);
+    for (const encoding of NON_CANONICAL_ENCODINGS) {
+      expect(verifyEd25519(signature, message, hex(encoding))).toBe(false);
+      // The same value used as R inside the signature, rather than as the key.
+      const forged = Uint8Array.from([...hex(encoding), ...signature.subarray(32)]);
+      expect(verifyEd25519(forged, message, pairs[1]!.rawPublic)).toBe(false);
+    }
+  });
 });

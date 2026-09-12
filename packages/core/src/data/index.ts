@@ -12,3 +12,4 @@ export * from './manifest.js';
 export * from './export.js';
 export * from './import.js';
 export * from './ranges.js';
+export * from './durability.js';

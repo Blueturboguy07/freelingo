@@ -33,17 +33,37 @@ import {
   type AchievementTiers,
   type ImportCounters,
 } from './ranges.js';
+import { CHECKPOINT_STEP } from './integrity.js';
 import { IMPORT_UNDO_WINDOW_HOURS, type ArchiveManifest } from './manifest.js';
 
-/** The steps of an import, in the only order they may run. */
+/**
+ * The steps of an import, in the only order they may run.
+ *
+ * `wal_checkpoint(TRUNCATE)` sits immediately before the backup because EC-PER-19 requires
+ * it before **every** export, backup window and suspension — and the pre-import backup is
+ * precisely the file EC-PER-20's one-tap undo restores. A backup taken without a
+ * checkpoint is a backup missing whatever is still in the `-wal`: it opens cleanly, passes
+ * `integrity_check`, and silently loses the last sessions the learner did before the
+ * import they are now undoing. That is the exact failure EC-PER-19 describes, arriving
+ * through the one path that is supposed to be the safety net.
+ */
 export const IMPORT_STEPS = [
   'parse-manifest',
   'verify-payload',
   'check-free-space',
+  CHECKPOINT_STEP,
   'pre-import-backup',
   'swap',
 ] as const;
 export type ImportStep = (typeof IMPORT_STEPS)[number];
+
+/** The pre-import backup itself, as a backup window: checkpoint, write, verify. */
+export const IMPORT_BACKUP_STEPS = [
+  CHECKPOINT_STEP,
+  'write-backup',
+  'verify-backup',
+] as const;
+export type ImportBackupStep = (typeof IMPORT_BACKUP_STEPS)[number];
 
 export type ImportRefusal =
   | 'not-an-archive'
@@ -112,6 +132,8 @@ export interface ImportBackupPlan {
   readonly undo: 'one-tap';
   /** The last two backups are kept; a second import rolls the stack. */
   readonly keep: number;
+  /** Checkpoint first, always (EC-PER-19). Enumerated so the gate can walk it. */
+  readonly steps: readonly ImportBackupStep[];
 }
 
 export const IMPORT_BACKUPS_KEPT = 2;
@@ -191,7 +213,7 @@ export function decideImport(
     return refuse('short-disk', `needs ${required - device.freeBytes} more bytes`);
   }
 
-  steps.push('pre-import-backup', 'swap');
+  steps.push(CHECKPOINT_STEP, 'pre-import-backup', 'swap');
   const archiveLastDay = toLocalDay(manifest.lastDay);
   const gapDays = Math.max(0, civilDaysBetween(archiveLastDay, device.today) - 1);
   const freezeCost = Math.min(device.freezesOwned, gapDays);
@@ -223,6 +245,7 @@ export function decideImport(
       retainedHours: IMPORT_UNDO_WINDOW_HOURS,
       undo: 'one-tap',
       keep: IMPORT_BACKUPS_KEPT,
+      steps: [...IMPORT_BACKUP_STEPS],
     },
   };
 }
@@ -230,15 +253,70 @@ export function decideImport(
 /**
  * `max_local_day_seen` after an import (INV-DAT-05, EC-PER-15 + INV-DAT-10).
  *
- * EC-PER-15 says clamp to `max(device value, device today)`; INV-DAT-10 says the
- * post-import value is `<= today`. Both hold only if the result is exactly **today** — so
- * that is what this returns, and the archive value is nowhere in the expression. A device
- * whose own value had run ahead comes back to today too, which is the same anti-tamper
- * denial-of-service seen from the other side.
+ * **This is a spec-vs-invariant contradiction, resolved here and escalated.** EC-PER-15
+ * says clamp to `max(device value, device today)`. INV-DAT-10 says the post-import value
+ * is `<= today`. When the *device's own* value has run ahead — the phone whose clock read
+ * 2027 is the importing phone, not just the exporting one — the two disagree, and only
+ * one of them can hold. This returns **today**, satisfying INV-DAT-10, because the whole
+ * point of EC-PER-15 is that the guard must not suppress day-keyed rewards, and keeping a
+ * future device value is the same denial of service seen from the other side.
+ *
+ * That is an override of a catalogue row, so it is filed for the plan's rulings table
+ * rather than settled in a comment; the report carries it as a blocker. EC-PER-15's
+ * companion clause — *"apply the same rule to `broken_on` and the recovery window"* — is
+ * **not addressed here and is not addressed in `day/` either**, and is filed with it.
+ *
+ * The archive value is nowhere in this expression. It survives only as
+ * `maxLocalDaySeenDiagnostic` on the manifest and in the confirm.
  */
 export function clampImportedMaxLocalDaySeen(device: ImportDevice): LocalDay {
   const kept = device.maxLocalDaySeen > device.today ? device.maxLocalDaySeen : device.today;
   return kept > device.today ? device.today : kept;
+}
+
+/**
+ * The anti-tamper guard every day-keyed reward runs through (EC-PER-15).
+ *
+ * A reward keyed to `sessionDay` is suppressed when the device has already seen a *later*
+ * civil day: the clock went backwards, and granting a second Monday chest is how a
+ * hand-set clock farms them. Post-import `max_local_day_seen` is `today`, so the next
+ * honest-clock session is never suppressed — which is the entire content of INV-DAT-05,
+ * and the reason `clampImportedMaxLocalDaySeen` may not return the archive's value.
+ */
+export function dayKeyedRewardGranted(sessionDay: LocalDay, maxLocalDaySeen: LocalDay): boolean {
+  return sessionDay >= maxLocalDaySeen;
+}
+
+// ---------------------------------------------------------------------------
+// INV-DAT-04 — what happens to each civil date the import touches
+// ---------------------------------------------------------------------------
+
+/**
+ * How one civil date arrives on the importing device.
+ *
+ * `unlived` is in this union **so that the property can fail**. The plan's EC-PER-08
+ * ruling says imported gap days count as missed and never `unlived` — the learner existed,
+ * this device did not — and an invariant asserted against a value the type cannot hold is
+ * an invariant asserted against the compiler.
+ */
+export type ImportedDayClass = 'historical' | 'missed' | 'unlived' | 'outside';
+
+/**
+ * Classify one civil date against the archive's own history and the gap the import opens.
+ *
+ * **History wins.** A historical row is a fact stamped with the zone it was lived in; a
+ * date that is both in the archive's history and inside the gap window keeps its stamp
+ * rather than being re-stamped as a missed day (INV-DAT-04). Getting this order the other
+ * way round is exactly the re-stamp bug, and it is what `restampedDays` detects.
+ */
+export function classifyImportedDay(
+  day: string,
+  historical: ReadonlySet<string>,
+  gap: ReadonlySet<string>,
+): ImportedDayClass {
+  if (historical.has(day)) return 'historical';
+  if (gap.has(day)) return 'missed';
+  return 'outside';
 }
 
 // ---------------------------------------------------------------------------
@@ -286,12 +364,26 @@ export interface AppliedImport {
   readonly maxLocalDaySeen: LocalDay;
   /** EC-SEC-07: the account region is stamped so a surface can say where this came from. */
   readonly provenance: 'imported';
-  /** Days that were re-stamped. Always empty (INV-DAT-04). */
+  /**
+   * Historical rows, in the archive's own order, exactly as they are stored. The identity
+   * of this list with `archive.historicalDays` is what INV-DAT-04 asserts.
+   */
+  readonly historicalDaysStored: readonly string[];
+  /** Historical rows whose class came back as something other than `historical`. */
   readonly restampedDays: readonly string[];
-  /** Gap days, all classified `missed`. */
+  /** Gap days classified `missed`. */
   readonly missedDays: readonly string[];
-  /** Never `unlived`. Always empty. */
+  /**
+   * Gap days classified `unlived`. The plan's EC-PER-08 ruling says there are none — the
+   * learner existed, this device did not — and `ImportedDayClass` carries the value so
+   * that claim is asserted against a classifier rather than against the compiler.
+   */
   readonly unlivedDays: readonly string[];
+  /**
+   * Gap days the archive had already stamped as lived. They keep their stamps, so they
+   * are neither missed nor unlived; `missedDays.length + this.length === gapDays`.
+   */
+  readonly historicalDaysInGap: readonly string[];
   /** Field names that were clamped, for the one-line `adjusted` notice. */
   readonly adjusted: readonly string[];
   readonly noticeKey: string | null;
@@ -299,8 +391,11 @@ export interface AppliedImport {
   readonly unresolvedPackIds: readonly string[];
   /** The keys this import writes. Never intersects ECONOMY_CONFIG_FIELDS. */
   readonly writtenFields: readonly string[];
-  /** INV-DAT-05: the next honest-clock session still opens its goal chest. */
-  readonly nextSessionGrantsGoalChest: true;
+  /**
+   * INV-DAT-05: does the next honest-clock session still open its goal chest? Computed
+   * from the clamped value through `dayKeyedRewardGranted`, not asserted as a type.
+   */
+  readonly nextSessionGrantsGoalChest: boolean;
 }
 
 /**
@@ -334,10 +429,25 @@ export function applyImport(
 
   const streakAfterGap = confirm.streakWillBreak ? 0 : clamp('streak', archive.streak);
 
-  const missedDays: string[] = [];
+  // The gap the import opens, and the history the archive already stamped.
+  const gapWindow: string[] = [];
   for (let i = 1; i <= confirm.gapDays; i += 1) {
-    missedDays.push(addCivilDays(toLocalDay(confirm.archiveLastDay), i));
+    gapWindow.push(addCivilDays(toLocalDay(confirm.archiveLastDay), i));
   }
+  const historicalSet = new Set(archive.historicalDays);
+  const gapSet = new Set(gapWindow);
+  const classOf = (day: string): ImportedDayClass =>
+    classifyImportedDay(day, historicalSet, gapSet);
+
+  const historicalDaysStored = archive.historicalDays.filter(
+    (day) => classOf(day) === 'historical',
+  );
+  const restampedDays = archive.historicalDays.filter((day) => classOf(day) !== 'historical');
+  const missedDays = gapWindow.filter((day) => classOf(day) === 'missed');
+  const unlivedDays = gapWindow.filter((day) => classOf(day) === 'unlived');
+  const historicalDaysInGap = gapWindow.filter((day) => classOf(day) === 'historical');
+
+  const maxLocalDaySeen = clampImportedMaxLocalDaySeen(device);
 
   return {
     streak: streakAfterGap,
@@ -347,12 +457,14 @@ export function applyImport(
     counters,
     // Recomputed from counters, never read from the archive's flags (EC-SEC-07).
     achievements: recomputeAchievements(counters, IMPORTED_ACHIEVEMENT_LADDER),
-    maxLocalDaySeen: clampImportedMaxLocalDaySeen(device),
+    maxLocalDaySeen,
     provenance: 'imported',
     // Historical rows are facts stamped with the zone they were lived in (EC-PER-08).
-    restampedDays: [],
+    historicalDaysStored,
+    restampedDays,
     missedDays,
-    unlivedDays: [],
+    unlivedDays,
+    historicalDaysInGap,
     adjusted,
     noticeKey: adjusted.length > 0 ? 'data.import.adjusted' : null,
     unresolvedPackIds: [...confirm.unresolvablePackIds],
@@ -366,7 +478,9 @@ export function applyImport(
       'maxLocalDaySeen',
       'provenance',
     ],
-    nextSessionGrantsGoalChest: true,
+    // The next honest-clock session is `today` or later, and the clamp put
+    // `max_local_day_seen` at `today`, so the guard does not fire.
+    nextSessionGrantsGoalChest: dayKeyedRewardGranted(device.today, maxLocalDaySeen),
   };
 }
 

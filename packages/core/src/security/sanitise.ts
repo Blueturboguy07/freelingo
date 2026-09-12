@@ -40,6 +40,23 @@
  *    removed them (EC-SEC-06: 40,000 pasted characters).
  *
  * Named config only: no cap and no character class is written anywhere else.
+ *
+ * ## Where it is called from, today
+ *
+ * The invariant's load-bearing clause is "at storage time", and a sanitiser with no call
+ * sites proves nothing. The one write path that exists in `packages/core` at P1 is the
+ * session commit, so `data/commit.ts` calls this on its way to the writer:
+ * `storedCommitInput()` is the **only** producer of `StoredCommitInput`, and
+ * `CommitWriter.write` takes that type and not the raw `CommitInput`, so a write path that
+ * skipped the sanitiser would not type-check. `commit.test.ts` drives hostile text through
+ * `commitSession` and asserts on what the writer was handed.
+ *
+ * Three of the five fields are covered that way (`typed-answer`, `tier3-diff`,
+ * `report-note`). The other two — `read-and-respond` and `roleplay` — have no write path
+ * anywhere in the repo yet: the Explainer and Roleplay surfaces land at **P5**, and their
+ * turn log is their own module. Those two rows of `USER_TEXT_FIELDS` are therefore
+ * covered by the unit properties only, and wiring them is P5's obligation, filed as a
+ * blocker so it is not discovered by a reviewer instead.
  */
 
 export const USER_TEXT_FIELDS = [

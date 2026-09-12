@@ -1,5 +1,5 @@
 {
-  "$comment": "Invariant ids owned by the P1 task `p1-packs-data-security`: the pack lifecycle harness, export/import, and the two security gates. One file per task: `pnpm test:coverage-map` unions docs/invariants-owned.json with every docs/owned/*.json and fails if two files claim the same id, so parallel P1 tasks can each declare what they own without editing a shared array. Every id here has a test whose name contains it, under packages/core/src/{packs,data,security}/. The C-kind INV-PACK ids — the coursekit content gates (ledger, licences, story structure, characters) — are P2's and are deliberately NOT claimed here.",
+  "$comment": "Invariant ids owned by the P1 task `p1-packs-data-security`: the pack lifecycle harness, export/import, and the two security gates. One file per task: `pnpm test:coverage-map` unions docs/invariants-owned.json with every docs/owned/*.json and fails if two files claim the same id, so parallel P1 tasks can each declare what they own without editing a shared array. Every id here has a test whose name contains it, under packages/core/src/{packs,data,security}/. The C-kind INV-PACK ids \u2014 the coursekit content gates (ledger, licences, story structure, characters) \u2014 are P2's and are deliberately NOT claimed here.",
   "task": "p1-packs-data-security",
   "phase": "P1",
   "owned": [
@@ -23,5 +23,67 @@
     "INV-DAT-10",
     "INV-SEC-01",
     "INV-SEC-02"
-  ]
+  ],
+  "escalations": [
+    {
+      "id": "ESC-01",
+      "kind": "founder-decision",
+      "title": "Hand-rolled ed25519 and SHA-2 on the pack-install trust boundary",
+      "detail": "packages/core/src/packs/ed25519.ts (200 lines of RFC 8032) and hashing.ts (272 lines of SHA-256/512) are written by hand because packages/core cannot import @freelingo/schema (schema already depends on core, so the reverse is a cycle) and packages/core/package.json declares neither @noble/ed25519 nor @noble/hashes. Those two packages ARE already in pnpm-lock via packages/schema (commit ebbe84b), and moving them into packages/core's dependencies is a one-line change the DEPS lane owns - the cycle blocks importing the workspace package, not the npm ones. This is unaudited verification code guarding what gets installed on a learner's device, and the choice is above a task's pay grade. Options: (a) deps lane adds @noble/ed25519 + @noble/hashes to packages/core and verifyEd25519/sha256Hex become one-line adapters - ed25519.test.ts and hashing.test.ts are already the harness that proves the swap changed nothing; (b) keep the hand-rolled code and accept it. Until then the tests hold it against node:crypto on 24 key pairs x 4 messages, and now also on all 8 small-order (torsion) encodings plus the two non-canonical y >= p encodings.",
+      "blocks": "nothing at P1; a P8 release gate at most",
+      "owner": "founder"
+    },
+    {
+      "id": "ESC-02",
+      "kind": "plan-ruling",
+      "title": "EC-PER-15's clamp formula contradicts INV-DAT-10 and is overridden",
+      "detail": "EC-PER-15 says clamp max_local_day_seen to max(device value, device today). INV-DAT-10 says the post-import value is <= today. When the IMPORTING device's own value has run ahead the two disagree. clampImportedMaxLocalDaySeen returns today, satisfying INV-DAT-10, because EC-PER-15's own reason for existing is that the anti-tamper guard must not suppress day-keyed rewards. That is an override of a catalogue row and belongs in the plan's rulings table, not in a code comment. ALSO UNOWNED: EC-PER-15's companion clause, 'apply the same rule to broken_on and the recovery window', is addressed neither here nor in day/.",
+      "blocks": "nothing; a rulings-table row",
+      "owner": "founder / integrate"
+    },
+    {
+      "id": "ESC-03",
+      "kind": "product-map-addition",
+      "title": "EC-PER-14's blocking free-up-N-MB screen has no id",
+      "detail": "S149 in deep/00-PRODUCT-MAP.md:335 is 'Interrupted migration' with the single state 'mismatch-detected', which routes to S147 - a different failure. EC-PER-14's blocking screen (no DDL without a verified backup; still exposes 'Export my data' and 'Remove downloaded audio') has no id at all. planMigrationLaunch now routes it to S150, the low-disk notice, as a new state 'blocked-migration-needs-space' alongside 'warned-at-session-start' and 'write-failed'. Per the plan's non-negotiable #3, the map needs that state added; P1 is the phase that discovered it. The product map is outside this task's file lane.",
+      "blocks": "P4, which renders S147-S151",
+      "owner": "integrate"
+    },
+    {
+      "id": "ESC-04",
+      "kind": "integration",
+      "title": "guardRolloverForIntegrity must be wrapped around day/rollover.ts's rolloverTo",
+      "detail": "INV-PER-02 says 'rolloverTo() has an integrity precondition'. data/ owns the precondition only - guardRolloverForIntegrity(walk) - and the walk is p1/day-freeze-recovery's rolloverTo(state, today, ctx). Neither file may import the other's lane at implementation time, so the wiring is one line at the call site and belongs to integrate. Until it lands, the function the app calls is ungated. (The previous attempt shipped a SECOND rolloverTo inside data/integrity.ts with a min(freezesOwned, missedDays) freeze walk that contradicted the plan's EC-FRZ-01 ruling and collided by name with the real one; it is deleted, and a test asserts data/ exports no symbol called rolloverTo.)",
+      "blocks": "INV-PER-02 being true of the shipped app",
+      "owner": "integrate"
+    },
+    {
+      "id": "ESC-05",
+      "kind": "integration",
+      "title": "packs/, data/ and security/ are not reachable from @freelingo/core",
+      "detail": "packages/core/package.json pins exports to './.' -> src/index.ts, and src/index.ts (outside this task's lane) exports only day/civil, day/streak, ceremony/commit and db/. The three new barrels are therefore not importable as @freelingo/core from apps/mobile. Every P1 branch has this gap, so it is phase-wide. It is safe to add them now: with rolloverTo deleted from data/, there is no name collision between the day/ and data/ barrels.",
+      "blocks": "P3, which consumes the engine from the app",
+      "owner": "integrate"
+    },
+    {
+      "id": "ESC-06",
+      "kind": "integration",
+      "title": "docs/owned/packs.json is inert without the union-aware coverage-map script",
+      "detail": "scripts/coverage-map.ts on origin/main reads only docs/invariants-owned.json, so on this branch alone `pnpm test:coverage-map` reports 'owned now 6' and lists these 20 ids as pending. The union-over-docs/owned/*.json version is delivered by p1/foundation-economy-schema. The two must land together or the 20 ids are unenforced.",
+      "blocks": "the P1 gate",
+      "owner": "integrate"
+    },
+    {
+      "id": "ESC-07",
+      "kind": "deferred",
+      "title": "INV-SEC-01: two of the five user-text fields have no write path yet",
+      "detail": "sanitiseUserText is wired into data/commit.ts's storedCommitInput, which is the only producer of the StoredCommitInput that CommitWriter.write accepts - so typed-answer, tier3-diff and report-note are sanitised at storage time and commit.test.ts asserts on what the writer was handed. read-and-respond and roleplay have no write path anywhere in the repo: the Explainer and Roleplay surfaces land at P5. Those two rows are covered by unit properties only until then.",
+      "blocks": "nothing at P1",
+      "owner": "P5"
+    }
+  ],
+  "measured": {
+    "node:sqlite corruption census": "208 single-byte mutations of a 26-page fixture (node 24.18.0): 128 returned PRAGMA integrity_check failure rows, 48 threw code ERR_SQLITE_ERROR errcode 11 (SQLITE_CORRUPT), 3 threw errcode 26 (SQLITE_NOTADB), 29 were benign. PRAGMA integrity_check DOES throw, and it also DOES return failure rows; both channels are handled and both are asserted to occur.",
+    "expo-sqlite error shape": "expo-sqlite 57.0.3 throws SQLiteErrorException with code ERR_INTERNAL_SQLITE_ERROR and sqlite3_errmsg as the message, with no numeric result code, on iOS (ios/Exceptions.swift) and Android (SQLExceptions.kt). Read from source; unproven on a device until P3."
+  }
 }

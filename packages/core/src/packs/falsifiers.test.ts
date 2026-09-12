@@ -126,7 +126,7 @@ describe('pack falsifiers', () => {
     }
   });
 
-  it('[INV-PACK-27] falsifier: the cellular fixture never auto-resumes, and the switch opens no lesson', () => {
+  it('[INV-PACK-27] falsifier: the switch starts no fetch on any link, shows the size, and opens no lesson', () => {
     interface SwitchCase {
       readonly why: string;
       readonly facts: PackFacts;
@@ -135,8 +135,22 @@ describe('pack falsifiers', () => {
       readonly state: PackState;
       readonly sessionLaunchable: boolean;
       readonly fetchStarts: boolean;
+      readonly confirmRequired: boolean;
+      readonly offerBytes: number;
+      readonly refusal: string;
     }
-    const file = load<{ cases: readonly SwitchCase[] }>('INV-PACK-27');
+    interface StartCase {
+      readonly why: string;
+      readonly connection: 'metered' | 'unmetered' | 'offline';
+      readonly trigger: 'explicit-tap' | 'auto-resume' | 'course-switch' | 'session-start';
+      readonly userConfirmedMetered: boolean;
+      readonly starts: boolean;
+    }
+    const file = load<{
+      cases: readonly SwitchCase[];
+      explicitStartCases: readonly StartCase[];
+    }>('INV-PACK-27');
+
     for (const testCase of file.cases) {
       const result = resolvePackOnSwitch(
         testCase.facts,
@@ -146,17 +160,23 @@ describe('pack falsifiers', () => {
       expect(result.state, testCase.why).toBe(testCase.state);
       expect(result.sessionLaunchable, testCase.why).toBe(testCase.sessionLaunchable);
       expect(result.fetch.start, testCase.why).toBe(testCase.fetchStarts);
-      // ...and an explicit auto-resume attempt on the same link is refused too.
-      if (testCase.connection === 'metered') {
-        expect(
-          planPackFetch({
-            connection: 'metered',
-            userConfirmedMetered: true,
-            trigger: 'auto-resume',
-            bytesRemaining: testCase.bytesRemaining,
-          }).start,
-        ).toBe(false);
-      }
+      expect(result.fetch.confirmRequired, testCase.why).toBe(testCase.confirmRequired);
+      // "with the size shown": the offer carries the byte count, or there is no offer.
+      expect(result.offerBytes, testCase.why).toBe(testCase.offerBytes);
+      expect(result.fetch.refusal, testCase.why).toBe(testCase.refusal);
+    }
+
+    // ...and the rule is not a permanent no: these are the triggers that do start one.
+    for (const testCase of file.explicitStartCases) {
+      expect(
+        planPackFetch({
+          connection: testCase.connection,
+          userConfirmedMetered: testCase.userConfirmedMetered,
+          trigger: testCase.trigger,
+          bytesRemaining: 38_000_000,
+        }).start,
+        testCase.why,
+      ).toBe(testCase.starts);
     }
   });
 

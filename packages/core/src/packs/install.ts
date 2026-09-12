@@ -17,7 +17,7 @@
  */
 import { sha256Hex } from './hashing.js';
 import type { Ed25519Verifier } from './ed25519.js';
-import { resolvePackState, type PackFacts, type PackState } from './state.js';
+import { packSurface, resolvePackState, type PackFacts, type PackState } from './state.js';
 
 /** The steps of an install, in the order they may run. */
 export const INSTALL_STEPS = [
@@ -176,17 +176,37 @@ export interface FetchRequest {
   readonly bytesRemaining: number;
 }
 
-export type FetchRefusal = 'offline' | 'metered-needs-confirm' | 'nothing-to-fetch';
+export type FetchRefusal =
+  | 'offline'
+  | 'metered-needs-confirm'
+  | 'needs-explicit-start'
+  | 'nothing-to-fetch';
 
 export interface FetchPlan {
   readonly start: boolean;
-  /** The metered-connection confirm, with the size, must be shown before a byte moves. */
+  /** A confirm, **with the size**, must be shown and tapped before a byte moves. */
   readonly confirmRequired: boolean;
   readonly refusal: FetchRefusal | null;
   readonly bytes: number;
   /** EC-CRS-06: queued so it auto-resumes — but only on an unmetered link. */
   readonly queued: boolean;
 }
+
+/**
+ * Triggers that may begin a fetch on their own once the link allows it.
+ *
+ * `explicit-tap` is the learner asking for this download now. `auto-resume` is EC-CRS-06:
+ * *"the download is queued and auto-resumes"* — a download the learner already started
+ * and which was interrupted, so resuming it is finishing what they asked for.
+ *
+ * `course-switch` and `session-start` are **not** on this list. EC-PACK-23 is explicit
+ * that for an evicted pack *"re-download is explicitly initiated with the size shown"* —
+ * switching to a course is not a request for 38 MB, on any link. Starting one there means
+ * a learner who taps a course to look at their path has begun a download they never saw
+ * the size of, which on an unmetered link is merely rude and on a hotspot the OS has not
+ * flagged as metered is expensive.
+ */
+export const SELF_STARTING_TRIGGERS: readonly FetchTrigger[] = ['explicit-tap', 'auto-resume'];
 
 /**
  * "No pack byte is fetched on a metered link without a deliberate tap" (EC-PACK-23),
@@ -207,7 +227,21 @@ export function planPackFetch(request: FetchRequest): FetchPlan {
       queued: false,
     };
   }
+  // "Explicitly initiated with the size shown" is checked BEFORE the link, so it cannot be
+  // got around by being offline or on wifi when the course is tapped. Nothing is queued
+  // either: a queued download fires the moment a link appears, which is the same silent
+  // 38 MB fetch by a slower route.
+  if (!SELF_STARTING_TRIGGERS.includes(request.trigger)) {
+    return {
+      start: false,
+      confirmRequired: true,
+      refusal: 'needs-explicit-start',
+      bytes,
+      queued: false,
+    };
+  }
   if (request.connection === 'offline') {
+    // EC-CRS-06: a download the learner already started is queued and auto-resumes.
     return { start: false, confirmRequired: false, refusal: 'offline', bytes, queued: true };
   }
   if (request.connection === 'metered') {
@@ -227,15 +261,28 @@ export interface SwitchResult {
   readonly state: PackState;
   /** A session never launches into a course whose audio is gone (EC-PACK-23). */
   readonly sessionLaunchable: boolean;
+  /** Never `start: true`. The learner initiates the re-download, with the size shown. */
   readonly fetch: FetchPlan;
-  /** Progress, mistakes and FSRS rows are untouched by a switch, in every state. */
-  readonly progressRowsRetained: true;
+  /** The size to put on that offer, in bytes. 0 when there is nothing to fetch. */
+  readonly offerBytes: number;
+  /**
+   * Progress, mistakes and FSRS rows are untouched by a switch, in every state. Read from
+   * the surface table rather than asserted here, so one table decides it for all six
+   * states and this cannot drift from what S151 renders.
+   */
+  readonly progressRowsRetained: boolean;
 }
 
 /**
  * Switching to a course re-reads the facts rather than trusting the recorded state: iOS
  * can reclaim an inactive pack from the cache directory while the app is not running, and
  * no transition was ever observed (EC-PACK-23).
+ *
+ * The switch itself never starts a fetch — on **any** link. It resolves the state, refuses
+ * to launch a session into a course whose audio is gone, and hands back an offer carrying
+ * the size for the learner to initiate (EC-PACK-23). EC-CRS-06's auto-resume applies to a
+ * download that is already under way, which `planPackFetch` serves through the
+ * `auto-resume` trigger; it is not what a course tap is.
  */
 export function resolvePackOnSwitch(
   facts: PackFacts,
@@ -244,15 +291,18 @@ export function resolvePackOnSwitch(
 ): SwitchResult {
   const state = resolvePackState(facts);
   const launchable = state === 'installed' || state === 'partial';
+  const bytes = launchable ? 0 : Math.max(0, bytesRemaining);
+  const fetch = planPackFetch({
+    connection,
+    userConfirmedMetered: false,
+    trigger: 'course-switch',
+    bytesRemaining: bytes,
+  });
   return {
     state,
     sessionLaunchable: launchable,
-    fetch: planPackFetch({
-      connection,
-      userConfirmedMetered: false,
-      trigger: 'course-switch',
-      bytesRemaining: launchable ? 0 : bytesRemaining,
-    }),
-    progressRowsRetained: true,
+    fetch,
+    offerBytes: fetch.bytes,
+    progressRowsRetained: packSurface(state).progressRowsRetained,
   };
 }

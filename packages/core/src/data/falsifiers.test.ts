@@ -3,18 +3,30 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { addCivilDays, toLocalDay, type LocalDay } from '../day/civil.js';
 import { sha256Hex } from '../packs/hashing.js';
-import { COMMIT_WRITE_ORDER, commitSession, type CommitWriteGroup } from './commit.js';
+import {
+  COMMIT_WRITE_ORDER,
+  commitSession,
+  type CommitWriteFailure,
+  type CommitWriteGroup,
+  type StoredCommitInput,
+} from './commit.js';
 import { checkDiskAtSessionStart } from './disk.js';
 import { completeExport, planExport } from './export.js';
 import {
   assessRestore,
+  classifySqliteError,
+  guardRolloverForIntegrity,
+  integrityCheckRowsVerdict,
+  observeOpenFailure,
+  observeOpenSuccess,
   planCorruptionRecovery,
   planMigrationLaunch,
-  rolloverTo,
+  rolloverAllowed,
+  rolloverWasRefused,
   type IntegrityVerdict,
-  type OpenObservation,
   type RestoreObservation,
   type RestoreVerdict,
+  type SqliteFailureClass,
 } from './integrity.js';
 import {
   applyImport,
@@ -103,63 +115,100 @@ function archiveOf(overrides: Partial<ArchiveAccountState> = {}): ArchiveAccount
 }
 
 describe('persistence falsifiers', () => {
-  it('[INV-PER-01] falsifier: every committed observation renames and never deletes', () => {
-    interface Case {
+  it('[INV-PER-01] falsifier: every committed error shape classifies correctly, renames, and never deletes', () => {
+    interface ErrorCase {
       why: string;
-      observation: OpenObservation;
+      error: Record<string, unknown>;
+      classification: SqliteFailureClass | null;
       verdict: IntegrityVerdict;
       action: string;
       deletes: string[];
       screen: string;
     }
-    const file = load<{ cases: Case[] }>('INV-PER-01');
+    interface RowCase {
+      why: string;
+      rows: { integrity_check: string }[];
+      integrityCheck: 'ok' | 'failed';
+      verdict: IntegrityVerdict;
+      screen: string;
+    }
+    const file = load<{ cases: ErrorCase[]; returnedRowCases: RowCase[] }>('INV-PER-01');
     expect(file.cases.length).toBeGreaterThanOrEqual(5);
     for (const testCase of file.cases) {
-      const plan = planCorruptionRecovery(testCase.observation, new Date('2026-09-11T17:42:33Z'));
+      // The shape goes in unedited, exactly as the driver threw it.
+      expect(classifySqliteError(testCase.error), testCase.why).toBe(testCase.classification);
+      const plan = planCorruptionRecovery(
+        observeOpenFailure(testCase.error),
+        new Date('2026-09-11T17:42:33Z'),
+      );
       expect(plan.verdict, testCase.why).toBe(testCase.verdict);
       expect(plan.action, testCase.why).toBe(testCase.action);
       expect(plan.deletes, testCase.why).toEqual(testCase.deletes);
       expect(plan.screen, testCase.why).toBe(testCase.screen);
     }
+    // The other channel: the pragma answered rather than threw.
+    expect(file.returnedRowCases.length).toBeGreaterThanOrEqual(3);
+    for (const testCase of file.returnedRowCases) {
+      expect(integrityCheckRowsVerdict(testCase.rows), testCase.why).toBe(testCase.integrityCheck);
+      const plan = planCorruptionRecovery(
+        observeOpenSuccess(testCase.rows),
+        new Date('2026-09-11T17:42:33Z'),
+      );
+      expect(plan.verdict, testCase.why).toBe(testCase.verdict);
+      expect(plan.screen, testCase.why).toBe(testCase.screen);
+      expect(plan.deletes, testCase.why).toEqual([]);
+    }
   });
 
-  it('[INV-PER-02] falsifier: a failed-integrity rollover consumes nothing and breaks nothing', () => {
+  it('[INV-PER-02] falsifier: a failed-integrity rollover never enters the walk at all', () => {
     interface Case {
       why: string;
       integrity: IntegrityVerdict;
-      missedDays: number;
-      freezesOwned: number;
-      streak: number;
-      applied: boolean;
-      freezesConsumed: number;
-      streakAfter: number;
-      streakBroken: boolean;
+      precondition: 'ok' | 'failed-integrity';
+      walkCalls: number;
+      refused: boolean;
+      freezesConsumed: number | null;
+      screen: string | null;
     }
     const file = load<{ cases: Case[] }>('INV-PER-02');
     for (const testCase of file.cases) {
-      const outcome = rolloverTo({
-        integrity: testCase.integrity,
-        fromDay: toLocalDay('2026-09-01'),
-        toDay: toLocalDay('2026-09-11'),
-        missedDays: testCase.missedDays,
-        freezesOwned: testCase.freezesOwned,
-        streak: testCase.streak,
-      });
-      expect(outcome.applied, testCase.why).toBe(testCase.applied);
-      expect(outcome.freezesConsumed, testCase.why).toBe(testCase.freezesConsumed);
-      expect(outcome.streakAfter, testCase.why).toBe(testCase.streakAfter);
-      expect(outcome.streakBroken, testCase.why).toBe(testCase.streakBroken);
+      expect(rolloverAllowed(testCase.integrity), testCase.why).toBe(testCase.precondition);
+
+      let calls = 0;
+      // A walk that would burn every freeze and break the streak, so a guard that merely
+      // zeroed the result rather than refusing would still be caught.
+      const walk = (): { freezesConsumed: number; streakAfter: number } => {
+        calls += 1;
+        return { freezesConsumed: 2, streakAfter: 0 };
+      };
+      const outcome = guardRolloverForIntegrity(walk)(testCase.integrity);
+
+      expect(calls, testCase.why).toBe(testCase.walkCalls);
+      expect(rolloverWasRefused(outcome), testCase.why).toBe(testCase.refused);
+      if (testCase.refused) {
+        expect((outcome as { freezesConsumed: number }).freezesConsumed, testCase.why).toBe(
+          testCase.freezesConsumed,
+        );
+        expect((outcome as { screen: string }).screen, testCase.why).toBe(testCase.screen);
+      }
     }
   });
 
-  it('[INV-PER-04] falsifier: the ceremony shows nothing the commit did not write', () => {
+  it('[INV-PER-04] falsifier: the ceremony shows nothing the commit did not write, and disk-full is retried exactly once', () => {
     interface Case {
       why: string;
       failAt: CommitWriteGroup | null;
-      errorCode: string;
+      failure: CommitWriteFailure;
+      failsTimes: number | null;
+      checkpointFreesBytes: number | null;
       written: CommitWriteGroup[];
+      checkpoints: number;
+      retried: boolean;
       ceremonySuppressed: boolean;
       ceremonyRewards: number;
+      shortfallBytes: number;
+      noticeKey: string | null;
+      offers: string[];
     }
     const file = load<{ order: CommitWriteGroup[]; cases: Case[] }>('INV-PER-04');
     expect([...COMMIT_WRITE_ORDER]).toEqual(file.order);
@@ -173,12 +222,29 @@ describe('persistence falsifiers', () => {
       ],
     };
     for (const testCase of file.cases) {
+      let failuresLeft = testCase.failsTimes ?? Number.POSITIVE_INFINITY;
+      let checkpoints = 0;
       const result = commitSession(input, {
-        write: (group) => (group === testCase.failAt ? testCase.errorCode : null),
+        write: (group: CommitWriteGroup, _stored: StoredCommitInput) => {
+          if (group === testCase.failAt && failuresLeft > 0) {
+            failuresLeft -= 1;
+            return testCase.failure;
+          }
+          return null;
+        },
+        checkpointAndShed: () => {
+          checkpoints += 1;
+          return testCase.checkpointFreesBytes;
+        },
       });
       expect(result.written, testCase.why).toEqual(testCase.written);
+      expect(checkpoints, testCase.why).toBe(testCase.checkpoints);
+      expect(result.retried, testCase.why).toBe(testCase.retried);
       expect(result.ceremonySuppressed, testCase.why).toBe(testCase.ceremonySuppressed);
       expect(result.ceremonyRewards, testCase.why).toHaveLength(testCase.ceremonyRewards);
+      expect(result.shortfallBytes, testCase.why).toBe(testCase.shortfallBytes);
+      expect(result.noticeKey, testCase.why).toBe(testCase.noticeKey);
+      expect([...result.offers], testCase.why).toEqual(testCase.offers);
     }
   });
 
@@ -212,6 +278,7 @@ describe('persistence falsifiers', () => {
       userVersionAfter: number;
       openReadOnly: boolean;
       screen: string;
+      screenState: string | null;
       offers: string[];
     }
     const file = load<{ cases: Case[] }>('INV-PER-08');
@@ -220,7 +287,9 @@ describe('persistence falsifiers', () => {
       expect(plan.ddlAllowed, testCase.why).toBe(testCase.ddlAllowed);
       expect(plan.userVersionAfter, testCase.why).toBe(testCase.userVersionAfter);
       expect(plan.openReadOnly, testCase.why).toBe(testCase.openReadOnly);
+      // S150, the low-disk notice - not the invented `S149-blocking-free-space`.
       expect(plan.screen, testCase.why).toBe(testCase.screen);
+      expect(plan.screenState, testCase.why).toBe(testCase.screenState);
       expect([...plan.offers], testCase.why).toEqual(testCase.offers);
     }
   });

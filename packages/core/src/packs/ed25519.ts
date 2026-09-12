@@ -6,17 +6,26 @@
  * is a signing routine nobody tests. See `packages/schema/src/signing.ts` for key custody
  * and the SPKI parser this pairs with.
  *
- * Why hand-rolled: `packages/core` is the pure engine and cannot reach the
- * `@noble/ed25519` the P1 deps task installed — that dependency sits in
- * `packages/schema`, which already depends on core, so the reverse import is a cycle
- * (`db/Db.ts` documents the same constraint for the `Db` interface) and adding a manifest
- * entry belongs to the deps lane, not this one. The blocker is filed; if the deps task
- * later moves `@noble/ed25519` into core, `verifyEd25519` is the one function to swap and
+ * **This is escalated, not settled** — `docs/owned/packs.json` ESC-01, for the founder.
+ * Hand-writing RFC 8032 on the boundary that decides what gets installed on a learner's
+ * device is above a task's pay grade when an audited implementation is already in the
+ * lockfile. `packages/schema` declares `@noble/ed25519@^3.2.0` and `@noble/hashes@^2.4.0`
+ * (deps commit ebbe84b), and `packages/core` cannot import `@freelingo/schema` because
+ * schema already depends on core and the reverse is a cycle (`db/Db.ts` documents the same
+ * constraint) — but the **npm packages** are not the workspace package: adding them to
+ * `packages/core/package.json` is a one-line change, and only the deps lane may make it.
+ * Verified 2026-09-11: `require.resolve('@noble/ed25519')` from `packages/core/src` fails
+ * with MODULE_NOT_FOUND, so using it here today would be a phantom dependency.
+ *
+ * If the founder moves them, `verifyEd25519` is the one function to swap and
  * `ed25519.test.ts` is the harness that proves the swap changed nothing.
  *
  * The safety net is `ed25519.test.ts`, which holds this against `node:crypto` on
  * generated key pairs and messages, in both directions, and shows it rejecting a wrong
- * key, a truncated signature and a tampered message.
+ * key, a truncated signature, a tampered message, a non-canonical S, and — the one that
+ * catches a naive reimplementation — **agreeing** with `node:crypto` on all eight
+ * small-order (torsion) point encodings, including the cofactorless forgeries OpenSSL
+ * accepts, plus rejecting the two non-canonical `y >= p` encodings outright.
  *
  * Constant-time is **not** a goal and cannot be one in JavaScript: everything this
  * function touches — the public key, the signature, the manifest — is public. There is no

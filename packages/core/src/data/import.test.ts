@@ -6,9 +6,12 @@ import { sha256Hex } from '../packs/hashing.js';
 import {
   ECONOMY_CONFIG_FIELDS,
   IMPORT_ENTRY_POINTS,
+  IMPORT_BACKUP_STEPS,
   IMPORT_STEPS,
   applyImport,
+  classifyImportedDay,
   clampImportedMaxLocalDaySeen,
+  dayKeyedRewardGranted,
   decideImport,
   economyFieldsWritten,
   importIsReachableFromOnboarding,
@@ -24,6 +27,7 @@ import {
   type ArchiveManifest,
 } from './manifest.js';
 import { IMPORT_RANGES, recomputeAchievements, type ImportCounters } from './ranges.js';
+import { CHECKPOINT_STEP } from './integrity.js';
 
 /** INV-DAT-02, INV-DAT-04, INV-DAT-05, INV-DAT-09, INV-DAT-10. */
 
@@ -124,8 +128,15 @@ describe('INV-DAT-02 import is replace-only, refuses a downgrade, backs up first
       retainedHours: IMPORT_UNDO_WINDOW_HOURS,
       undo: 'one-tap',
       keep: 2,
+      steps: [...IMPORT_BACKUP_STEPS],
     });
     expect(IMPORT_UNDO_WINDOW_HOURS).toBe(24);
+    // EC-PER-19: the pre-import backup is the file EC-PER-20's one-tap undo restores, so
+    // it may not be written with uncheckpointed pages still in the `-wal`.
+    expect(decision.backup!.steps[0]).toBe(CHECKPOINT_STEP);
+    expect(decision.steps.indexOf(CHECKPOINT_STEP)).toBe(
+      decision.steps.indexOf('pre-import-backup') - 1,
+    );
   });
 
   it('[INV-DAT-02] a newer schema is refused by name, and nothing is backed up or swapped', () => {
@@ -197,7 +208,8 @@ describe('INV-DAT-04 historical rows are never re-stamped; gap days are missed',
           expect(confirm.streakWillBreak).toBe(gap > freezesOwned);
 
           const applied = applyImport(archiveOf(), confirm, device);
-          expect(applied.missedDays).toHaveLength(gap);
+          // Every gap day is accounted for, and none of them is `unlived`.
+          expect(applied.missedDays.length + applied.historicalDaysInGap.length).toBe(gap);
           expect(applied.unlivedDays).toEqual([]);
           expect(applied.restampedDays).toEqual([]);
           expect(applied.freezes).toBe(
@@ -227,6 +239,63 @@ describe('INV-DAT-04 historical rows are never re-stamped; gap days are missed',
     // Three uncovered days: the streak breaks, and the confirm said so first.
     expect(decision.confirm!.streakWillBreak).toBe(true);
     expect(applied.streak).toBe(0);
+  });
+
+  /**
+   * The falsifiable half. `restampedDays: []` on an archive whose history does not touch
+   * the gap is true of any implementation, including one with no rule at all. So: give the
+   * archive historical days that sit **inside** the gap window — a clock that ran ahead on
+   * the producing device, or an archive taken mid-gap — and assert those rows keep their
+   * own stamps. An implementation that classified the gap first would re-stamp them as
+   * missed, and both assertions below would fail.
+   */
+  it('[INV-DAT-04] historical rows that fall inside the gap window keep their own stamps', () => {
+    const archiveLastDay = '2026-09-04';
+    const inGap = ['2026-09-06', '2026-09-08'];
+    const archive = archiveOf({
+      historicalDays: ['2026-09-01', '2026-09-02', ...inGap],
+    });
+    const device = deviceOf({ freezesOwned: 0, freezeCap: 5 });
+    const decision = decideImport(manifestOf({ lastDay: archiveLastDay }), OBSERVED, device);
+    const confirm = decision.confirm!;
+    expect(confirm.gapDays).toBe(6); // 09-05 … 09-10
+
+    const applied = applyImport(archive, confirm, device);
+
+    // Nothing was re-stamped, and the stored history is identical to the archive's, in
+    // the archive's own order.
+    expect(applied.restampedDays).toEqual([]);
+    expect(applied.historicalDaysStored).toEqual([...archive.historicalDays]);
+    // The overlapping days are NOT in the missed list: they were lived, on that device.
+    for (const day of inGap) expect(applied.missedDays).not.toContain(day);
+    expect(applied.missedDays).toEqual(['2026-09-05', '2026-09-07', '2026-09-09', '2026-09-10']);
+    expect(applied.historicalDaysInGap).toEqual(inGap);
+    // And still nothing is `unlived`, which is the plan's EC-PER-08 ruling.
+    expect(applied.unlivedDays).toEqual([]);
+  });
+
+  it('[INV-DAT-04] the classifier puts history before the gap, for any generated overlap', () => {
+    fc.assert(
+      fc.property(
+        fc.uniqueArray(fc.integer({ min: -20, max: 20 }), { maxLength: 12 }),
+        fc.uniqueArray(fc.integer({ min: 1, max: 20 }), { maxLength: 12 }),
+        (historyOffsets, gapOffsets) => {
+          const historical = new Set(historyOffsets.map((o) => addCivilDays(TODAY, o) as string));
+          const gap = new Set(gapOffsets.map((o) => addCivilDays(TODAY, -o) as string));
+          for (const day of historical) {
+            // History wins, even where the two sets overlap. This is the re-stamp rule.
+            expect(classifyImportedDay(day, historical, gap)).toBe('historical');
+          }
+          for (const day of gap) {
+            const expected = historical.has(day) ? 'historical' : 'missed';
+            expect(classifyImportedDay(day, historical, gap)).toBe(expected);
+          }
+          // A day in neither set is nothing at all — never silently `missed`.
+          expect(classifyImportedDay('1999-01-01', historical, gap)).toBe('outside');
+        },
+      ),
+      { numRuns: PROPERTY_RUNS },
+    );
   });
 });
 
@@ -264,6 +333,36 @@ describe('INV-DAT-05 a future max_local_day_seen never suppresses a day-keyed re
     const decision = decideImport(manifest, OBSERVED, device);
     const applied = applyImport(archiveOf(), decision.confirm!, device);
     expect(applied.maxLocalDaySeen).toBe(TODAY);
+  });
+
+  /**
+   * The goal-chest clause, driven rather than asserted. `nextSessionGrantsGoalChest` used
+   * to be the literal type `true`, so the assertion could not fail. It is now computed
+   * through `dayKeyedRewardGranted`, and this runs the guard the way the next session
+   * would: on today, and on each of the following seven honest-clock days.
+   */
+  it('[INV-DAT-05] the next honest-clock session, and the seven after it, still open their chests', () => {
+    const device = deviceOf({ maxLocalDaySeen: addCivilDays(TODAY, 400) });
+    const manifest = manifestOf({ maxLocalDaySeenDiagnostic: '2027-06-01' });
+    const applied = applyImport(archiveOf(), decideImport(manifest, OBSERVED, device).confirm!, device);
+
+    expect(applied.nextSessionGrantsGoalChest).toBe(true);
+    for (let ahead = 0; ahead <= 7; ahead += 1) {
+      const sessionDay = addCivilDays(TODAY, ahead);
+      expect(
+        dayKeyedRewardGranted(sessionDay, applied.maxLocalDaySeen),
+        `day ${sessionDay} was suppressed by an imported max_local_day_seen`,
+      ).toBe(true);
+    }
+    // The guard itself is not a permanent yes: a clock that goes backwards still suppresses.
+    expect(dayKeyedRewardGranted(addCivilDays(TODAY, -1), applied.maxLocalDaySeen)).toBe(false);
+  });
+
+  it('[INV-DAT-05] the guard would fire if the archive value were adopted, which is why it is not', () => {
+    // The counterfactual, so the property above is known to have teeth: had the clamp kept
+    // the archive's 2027 value, every session for the next nine months would be suppressed.
+    const poisoned = toLocalDay('2027-06-01');
+    expect(dayKeyedRewardGranted(TODAY, poisoned)).toBe(false);
   });
 });
 
