@@ -43,6 +43,7 @@ import type {
   Disposition,
   Engine,
   RepairRecordPort,
+  RolloverResultPort,
   SessionRowPort,
   ZoneStampPort,
 } from './ports.js';
@@ -345,8 +346,20 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
 
     /* -- rollover, then replay it (INV-DAY-09, INV-FRZ-05) --------------------- */
     const ctx = { completedDays: world.completedDays, unlivedDays: world.unlived };
-    const first = day.rolloverTo(world.state, scripted.localDate, ctx);
-    const replay = day.rolloverTo(first.state, scripted.localDate, ctx);
+    let first: RolloverResultPort;
+    let replay: RolloverResultPort;
+    try {
+      first = day.rolloverTo(world.state, scripted.localDate, ctx);
+      replay = day.rolloverTo(first.state, scripted.localDate, ctx);
+    } catch (error) {
+      // A throw here is a finding, not a crash: the trace must keep going so the report
+      // lists every day that fails rather than only the first one.
+      refutations.push(
+        `day ${scripted.day} (${scripted.localDate}): rolloverTo threw ` +
+          `${(error as Error).message} — ${PORT_OWNER.day}`,
+      );
+      continue;
+    }
     const replayClean =
       replay.daysProcessed === 0 &&
       replay.freezesConsumed === 0 &&
@@ -370,16 +383,27 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
     const xpBefore = world.lifetimeXp;
     let sessionsToday = 0;
     for (const event of scripted.events) {
-      sessionsToday += applyEvent({
-        engine,
-        world,
-        event,
-        scripted,
-        stamp,
-        random,
-        refutations,
-        cannot,
-      });
+      try {
+        sessionsToday += applyEvent({
+          engine,
+          world,
+          event,
+          scripted,
+          stamp,
+          random,
+          refutations,
+          cannot,
+        });
+      } catch (error) {
+        // The ports are structural copies of shapes their lanes own (ports.ts header), so
+        // a lane that changes a signature shows up HERE, as one named finding on one day,
+        // rather than as a stack trace that takes the whole gate down and says nothing
+        // about which of the eight lanes moved.
+        refutations.push(
+          `day ${scripted.day} (${scripted.localDate}): the "${event.kind}" event threw ` +
+            `${(error as Error).message} — the port shape and the lane's export disagree`,
+        );
+      }
     }
 
     /* -- the snapshot ---------------------------------------------------------- */

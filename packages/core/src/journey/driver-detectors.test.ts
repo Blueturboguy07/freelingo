@@ -143,6 +143,8 @@ interface Mutants {
   readonly quarantineForgets?: boolean;
   /** The import does not round-trip the export. */
   readonly importLosesData?: boolean;
+  /** A lane changed a signature under the port: the call throws. */
+  readonly signatureMoved?: boolean;
 }
 
 function referenceEngine(mutants: Mutants = {}): Engine {
@@ -322,9 +324,13 @@ function referenceEngine(mutants: Mutants = {}): Engine {
   };
 
   const sessionPort: SessionPort = {
-    generate: ({ target, duePool, newPool }) => ({
-      items: [...duePool, ...newPool].slice(0, target).map((itemId) => ({ itemId })),
-    }),
+    generate: ({ target, duePool, newPool }) => {
+      if (mutants.signatureMoved === true)
+        throw new TypeError('request.modality is not a function');
+      return {
+        items: [...duePool, ...newPool].slice(0, target).map((itemId) => ({ itemId })),
+      };
+    },
     checkpoint: (session) => JSON.parse(JSON.stringify(session)) as unknown,
     restore: (row) => JSON.parse(JSON.stringify(row)) as unknown,
   };
@@ -463,6 +469,15 @@ describe('the journey driver detects what it claims to detect', () => {
   it('an import that does not round-trip the export is caught', () => {
     const broken = runJourney({ engine: referenceEngine({ importLosesData: true }) });
     expect(broken.refutations.some((line) => line.includes('did not round-trip'))).toBe(true);
+  });
+
+  it('a lane that moved a signature is one named finding per day, not a dead gate', () => {
+    const broken = runJourney({ engine: referenceEngine({ signatureMoved: true }) });
+    expect(broken.refutations.some((line) => line.includes('the port shape and the lane'))).toBe(
+      true,
+    );
+    // The trace still finished: one broken port must not hide the other twenty-nine days.
+    expect(broken.days).toHaveLength(30);
   });
 
   it('a missing lane is reported as NOT PROVEN, naming the task that owes it', () => {
