@@ -129,17 +129,16 @@ export function activeBoostFrom(
       kind: boost.kind,
       multiplier: boost.multiplier,
       startedAtUtc: boost.activatedAtUtc,
-      expiresAtUtc: new Date(Date.parse(clock.nowUtc) + clamp.remainingSeconds * 1_000).toISOString(),
+      expiresAtUtc: new Date(
+        Date.parse(clock.nowUtc) + clamp.remainingSeconds * 1_000,
+      ).toISOString(),
     },
     clamp,
   };
 }
 
 /** Persist a freshly activated grant with both clock readings (EC-ECO-39). */
-export function activateBoost(
-  grant: BoostGrant,
-  clock: BoostClockReading,
-): PersistedBoost {
+export function activateBoost(grant: BoostGrant, clock: BoostClockReading): PersistedBoost {
   return {
     kind: grant.kind,
     multiplier: grant.multiplier,

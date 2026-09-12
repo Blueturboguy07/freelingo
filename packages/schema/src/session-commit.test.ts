@@ -57,9 +57,9 @@ describe('the committed-session ledger', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.active_ms).toBe(183_000);
     expect(rows[0]?.xp_awarded).toBe(14);
-    expect(handle.get<{ lifetime_xp: number }>('SELECT lifetime_xp FROM account')?.lifetime_xp).toBe(
-      14,
-    );
+    expect(
+      handle.get<{ lifetime_xp: number }>('SELECT lifetime_xp FROM account')?.lifetime_xp,
+    ).toBe(14);
     expect(handle.get<{ xp: number }>('SELECT xp FROM course_progress')?.xp).toBe(14);
 
     // A kill inside the transaction leaves NOTHING: no ledger row, no XP.
@@ -69,9 +69,9 @@ describe('the committed-session ledger', () => {
         throw new Error('killed mid-ceremony');
       }),
     ).toThrow(/killed mid-ceremony/);
-    expect(handle.get<{ lifetime_xp: number }>('SELECT lifetime_xp FROM account')?.lifetime_xp).toBe(
-      14,
-    );
+    expect(
+      handle.get<{ lifetime_xp: number }>('SELECT lifetime_xp FROM account')?.lifetime_xp,
+    ).toBe(14);
     handle.close();
   });
 
@@ -128,9 +128,9 @@ describe('the committed-session ledger', () => {
     const again = commitSession(handle, commit);
     expect(again.committed).toBe(false);
     expect(again.alreadyCommitted).toBe(true);
-    expect(handle.get<{ lifetime_xp: number }>('SELECT lifetime_xp FROM account')?.lifetime_xp).toBe(
-      14,
-    );
+    expect(
+      handle.get<{ lifetime_xp: number }>('SELECT lifetime_xp FROM account')?.lifetime_xp,
+    ).toBe(14);
     handle.close();
   });
 

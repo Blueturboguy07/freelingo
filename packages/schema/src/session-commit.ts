@@ -57,7 +57,8 @@ export function commitSession(db: Db, commit: SessionCommit): SessionCommitResul
 
   const activeMs =
     Number.isFinite(commit.activeMs) && commit.activeMs > 0 ? Math.round(commit.activeMs) : 0;
-  const xp = Number.isFinite(commit.xpAwarded) && commit.xpAwarded > 0 ? Math.round(commit.xpAwarded) : 0;
+  const xp =
+    Number.isFinite(commit.xpAwarded) && commit.xpAwarded > 0 ? Math.round(commit.xpAwarded) : 0;
 
   db.withExclusiveTransaction(() => {
     db.run(

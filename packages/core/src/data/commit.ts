@@ -36,10 +36,7 @@
  * anything else: `commitSession` takes the raw input and the writer's type does not
  * accept it.
  */
-import {
-  sanitiseUserText,
-  type UserTextField,
-} from '../security/sanitise.js';
+import { sanitiseUserText, type UserTextField } from '../security/sanitise.js';
 
 /** The write groups, in the only order they may run. */
 export const COMMIT_WRITE_ORDER = ['attempts', 'mistakes', 'rewards'] as const;
@@ -156,9 +153,7 @@ export function storedCommitInput(input: CommitInput): StoredCommitInput {
           ? null
           : sanitiseUserText('typed-answer', attempt.typedAnswer),
       tier3Diff:
-        attempt.tier3Diff === undefined
-          ? null
-          : sanitiseUserText('tier3-diff', attempt.tier3Diff),
+        attempt.tier3Diff === undefined ? null : sanitiseUserText('tier3-diff', attempt.tier3Diff),
     })),
     mistakes: input.mistakes.map((mistake) => ({ itemId: mistake.itemId })),
     rewards: [...input.rewards],

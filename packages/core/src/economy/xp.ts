@@ -342,7 +342,10 @@ export function narrativeAward(
   format: 'story' | 'radio',
   entry: LongFormEntryPoint,
   ladderStateToday: LadderStateToday,
-  options: { readonly boostAtSessionStart?: ActiveBoost | null; readonly committedAtUtc?: string } = {},
+  options: {
+    readonly boostAtSessionStart?: ActiveBoost | null;
+    readonly committedAtUtc?: string;
+  } = {},
 ): SessionAward {
   return awardForSession({
     flavour: format,

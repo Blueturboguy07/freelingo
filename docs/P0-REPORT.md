@@ -8,76 +8,76 @@ behind it is listed as not proven, not as done.**
 
 ## The P0 gate, row by row
 
-The plan's P0 gate is three clauses: *"DAY-01/05 + CER-01 at 10k cases in four zones; DB-path
-gate on sim + emu; coverage-map job exists."*
+The plan's P0 gate is three clauses: _"DAY-01/05 + CER-01 at 10k cases in four zones; DB-path
+gate on sim + emu; coverage-map job exists."_
 
-| Gate clause | Status | Evidence |
-| --- | --- | --- |
-| DAY-01/05 + CER-01 at 10,000 cases in four zones | **GREEN** | `ci.yml` — see the numRuns table below |
-| DB-path gate (INV-PER-06) on **emulator** | **GREEN** | `native-e2e` Android job + local run; screenshot described below |
-| DB-path gate (INV-PER-06) on **simulator** | **NOT PROVEN** | iOS cannot build: `expo-modules-jsi@57.1.0` — see *The iOS blocker* |
-| coverage-map job exists | **GREEN** | `ci.yml` step *Coverage map — every owned invariant id has an owning test* |
+| Gate clause                                      | Status         | Evidence                                                                   |
+| ------------------------------------------------ | -------------- | -------------------------------------------------------------------------- |
+| DAY-01/05 + CER-01 at 10,000 cases in four zones | **GREEN**      | `ci.yml` — see the numRuns table below                                     |
+| DB-path gate (INV-PER-06) on **emulator**        | **GREEN**      | `native-e2e` Android job + local run; screenshot described below           |
+| DB-path gate (INV-PER-06) on **simulator**       | **NOT PROVEN** | iOS cannot build: `expo-modules-jsi@57.1.0` — see _The iOS blocker_        |
+| coverage-map job exists                          | **GREEN**      | `ci.yml` step _Coverage map — every owned invariant id has an owning test_ |
 
 ### Invariant coverage
 
 `pnpm test:coverage-map`: **424** ids in the registry, **6** owned at P0, **6** with an owning
 test, 418 pending for later phases. Owned ids and their owning test counts:
 
-| Invariant | Owning tests |
-| --- | --- |
-| INV-DAY-01 | 3 |
-| INV-DAY-05 | 5 |
-| INV-CER-01 | 7 |
-| INV-PER-06 | 11 |
-| INV-PLAT-01 | 3 |
-| INV-PLAT-02 | 1 |
+| Invariant   | Owning tests |
+| ----------- | ------------ |
+| INV-DAY-01  | 3            |
+| INV-DAY-05  | 5            |
+| INV-CER-01  | 7            |
+| INV-PER-06  | 11           |
+| INV-PLAT-01 | 3            |
+| INV-PLAT-02 | 1            |
 
 ### numRuns per property (the "10,000 cases in four zones" clause)
 
 The floor is `PROPERTY_RUNS = 10_000` in `packages/testkit/src/config.ts`. A zone-looped
 property runs the full count **in each** zone, not a quarter in each.
 
-| Invariant | Property | numRuns | Total cases |
-| --- | --- | --- | --- |
-| INV-DAY-01 | streak is a function of the SET: duplicates and order never change it | `PROPERTY_RUNS` | 10,000 |
-| INV-DAY-01 | streak agrees with an independent reference, in every zone | `PROPERTY_RUNS_PER_ZONE` × 4 zones | 40,000 |
-| INV-DAY-05 | civil arithmetic is exact and reversible for every generated instant and zone | `PROPERTY_RUNS` | 10,000 |
-| INV-DAY-05 | local_day is monotonic in the instant, in every zone | `PROPERTY_RUNS_PER_ZONE` × 4 zones | 40,000 |
-| INV-CER-01 | the decision is idempotent: replaying any planned commit yields null | 10,000 | 10,000 |
-| INV-CER-01 | the plan never invents or drops value: it carries the outcome verbatim | 10,000 | 10,000 |
-| INV-PER-06 | a copy name round-trips through the parser | 10,000 | 10,000 |
-| INV-PER-06 | pruning is idempotent and leaves exactly min(n, keep) copies for any set | 10,000 | 10,000 |
+| Invariant  | Property                                                                      | numRuns                            | Total cases |
+| ---------- | ----------------------------------------------------------------------------- | ---------------------------------- | ----------- |
+| INV-DAY-01 | streak is a function of the SET: duplicates and order never change it         | `PROPERTY_RUNS`                    | 10,000      |
+| INV-DAY-01 | streak agrees with an independent reference, in every zone                    | `PROPERTY_RUNS_PER_ZONE` × 4 zones | 40,000      |
+| INV-DAY-05 | civil arithmetic is exact and reversible for every generated instant and zone | `PROPERTY_RUNS`                    | 10,000      |
+| INV-DAY-05 | local_day is monotonic in the instant, in every zone                          | `PROPERTY_RUNS_PER_ZONE` × 4 zones | 40,000      |
+| INV-CER-01 | the decision is idempotent: replaying any planned commit yields null          | 10,000                             | 10,000      |
+| INV-CER-01 | the plan never invents or drops value: it carries the outcome verbatim        | 10,000                             | 10,000      |
+| INV-PER-06 | a copy name round-trips through the parser                                    | 10,000                             | 10,000      |
+| INV-PER-06 | pruning is idempotent and leaves exactly min(n, keep) copies for any set      | 10,000                             | 10,000      |
 
 **140,000 property cases.** Two meta-gates keep that honest, because a floor stated in a plan
 is easy to undo quietly:
 
 - `property-gates.test.ts` scans every test file in the tree and fails if any `numRuns` is
   below `PROPERTY_RUNS`; it also fails if the scan found nothing (a scan that finds nothing
-  passes for free). It additionally holds the **per-project** vitest timeout — see *CI rounds*.
+  passes for free). It additionally holds the **per-project** vitest timeout — see _CI rounds_.
 - `arbitraries.test.ts` holds the day-history generator's shape floors (anchored > 45 %, a run
   of 3+ in > 20 %, a run of 10+ in > 8 %), because the first version of that generator spent
   97 % of its budget asserting `0 === 0`.
 
 ## The other P0 deliverables
 
-| Deliverable | Status | Evidence |
-| --- | --- | --- |
-| Monorepo + CI on the public repo | done | `ci.yml`, `pack-ci.yml`, `native-e2e.yml`, `mutation.yml`, `cla.yml` |
-| Code/pack licence split | done | `LICENSE` (AGPL), `content/LICENSE` (CC BY-NC-SA), `packs/README.md` |
-| CLA bot | done | `.github/workflows/cla.yml` + `CLA.md`; accepted by comment on a PR |
-| Signing key custody | done | `packages/schema/keys/pack-signing.pub`; private half in the `PACK_SIGNING_KEY` Actions secret, `rm -P`'d, never printed. `packages/schema/src/signing.ts` is a hand-rolled ed25519-SPKI parser (the app has no `node:crypto`), held against `node:crypto` in `signing.test.ts` and shown to reject a P-256 key, prose, an empty block and a truncation. **It does not claim INV-PACK-18** — verify-before-install lands at P2 with the installer. |
-| Expo skeleton, persistence layout | done | `apps/mobile/src/db/ExpoDb.ts` opens `freelingo-progress.db` in `Paths.document` with `PRAGMA journal_mode = WAL` set outside any transaction; migrations run against `PRAGMA user_version` inside one `withExclusiveTransactionAsync` |
-| Backup-exclusion plugin | done on Android, unverified on iOS | local Expo module `apps/mobile/modules/backup-exclusion`; the config plugin writes `backup_rules.xml` and `data_extraction_rules.xml` (both excluding `domain="root" path="cache/packs"`). The iOS half (`URLResourceValues.isExcludedFromBackup`, read back off the filesystem) has never run on a device. |
-| `testkit` | done | virtual clock, four-zone matrix, arbitraries, named config, repo helpers |
-| PLAT-01 / PLAT-02 gates | **GREEN** | `ci.yml` frozen-lockfile install; `native-e2e` job *INV-PLAT-02 — native trees are generated and reproducible* |
-| **Merge pass** (388 hunted cases, ~120–160 new invariants, 4 in-place corrections) | **NOT DONE** | The registry still carries 424 ids. See *Deferred*. |
-| Disk: free ≥ 80 GB | **NOT DONE** | `df -h ~` below. See *Deferred*. |
+| Deliverable                                                                        | Status                             | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo + CI on the public repo                                                   | done                               | `ci.yml`, `pack-ci.yml`, `native-e2e.yml`, `mutation.yml`, `cla.yml`                                                                                                                                                                                                                                                                                                                                                                               |
+| Code/pack licence split                                                            | done                               | `LICENSE` (AGPL), `content/LICENSE` (CC BY-NC-SA), `packs/README.md`                                                                                                                                                                                                                                                                                                                                                                               |
+| CLA bot                                                                            | done                               | `.github/workflows/cla.yml` + `CLA.md`; accepted by comment on a PR                                                                                                                                                                                                                                                                                                                                                                                |
+| Signing key custody                                                                | done                               | `packages/schema/keys/pack-signing.pub`; private half in the `PACK_SIGNING_KEY` Actions secret, `rm -P`'d, never printed. `packages/schema/src/signing.ts` is a hand-rolled ed25519-SPKI parser (the app has no `node:crypto`), held against `node:crypto` in `signing.test.ts` and shown to reject a P-256 key, prose, an empty block and a truncation. **It does not claim INV-PACK-18** — verify-before-install lands at P2 with the installer. |
+| Expo skeleton, persistence layout                                                  | done                               | `apps/mobile/src/db/ExpoDb.ts` opens `freelingo-progress.db` in `Paths.document` with `PRAGMA journal_mode = WAL` set outside any transaction; migrations run against `PRAGMA user_version` inside one `withExclusiveTransactionAsync`                                                                                                                                                                                                             |
+| Backup-exclusion plugin                                                            | done on Android, unverified on iOS | local Expo module `apps/mobile/modules/backup-exclusion`; the config plugin writes `backup_rules.xml` and `data_extraction_rules.xml` (both excluding `domain="root" path="cache/packs"`). The iOS half (`URLResourceValues.isExcludedFromBackup`, read back off the filesystem) has never run on a device.                                                                                                                                        |
+| `testkit`                                                                          | done                               | virtual clock, four-zone matrix, arbitraries, named config, repo helpers                                                                                                                                                                                                                                                                                                                                                                           |
+| PLAT-01 / PLAT-02 gates                                                            | **GREEN**                          | `ci.yml` frozen-lockfile install; `native-e2e` job _INV-PLAT-02 — native trees are generated and reproducible_                                                                                                                                                                                                                                                                                                                                     |
+| **Merge pass** (388 hunted cases, ~120–160 new invariants, 4 in-place corrections) | **NOT DONE**                       | The registry still carries 424 ids. See _Deferred_.                                                                                                                                                                                                                                                                                                                                                                                                |
+| Disk: free ≥ 80 GB                                                                 | **NOT DONE**                       | `df -h ~` below. See _Deferred_.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ### INV-PLAT-02 is not a byte comparison, on purpose
 
 `expo prebuild` is **not** byte-reproducible: two consecutive `--clean --no-install` runs on
 the same commit agree on 70 files and differ in exactly one thing — a 24-hex Xcode object id
-that `expo-dev-client`'s config plugin mints afresh for its *Strip Local Network Keys* build
+that `expo-dev-client`'s config plugin mints afresh for its _Strip Local Network Keys_ build
 phase. A byte-for-byte gate would have been red on every run. The job compares trees **up to a
 consistent renaming of Xcode object ids** (`scripts/canonicalise-pbxproj.py`, whose
 `--self-test` proves a changed build setting and a reordered build phase are still drift), and
@@ -138,7 +138,7 @@ compiled from source at pod-build time and there is no prebuilt fallback.
   iOS cannot be proven locally at all.
 
 - **Xcode 16.4 (Swift 6.1)** — fails quietly at the same phase. `[CP-User] Build
-  ExpoModulesJSI xcframework` starts, the next log line is 16 s later, and the build reports
+ExpoModulesJSI xcframework` starts, the next log line is 16 s later, and the build reports
   `0 error(s), and 1 warning(s)` and exits 65. A script phase's stdout does not reach Expo's
   pretty printer, so a build that failed reports no errors.
 
@@ -159,7 +159,7 @@ runs were of a placeholder that booted a simulator and took a screenshot. Four d
 on contact, none of them visible locally, each failing in a way that points somewhere else:
 
 1. **The screenshot contract did not work.** Measured on Maestro 2.10.0: `takeScreenshot` is
-   always resolved inside Maestro's *own* run directory, never relative to the working
+   always resolved inside Maestro's _own_ run directory, never relative to the working
    directory — so no flow can write into `e2e/artifacts/` however the path is spelled; and a
    flow-level `env:` default **wins over** `maestro test -e NAME=…`, so CI's `ARTIFACT_DIR` was
    discarded and every run on every sha wrote the same literal path. (Probed with
@@ -202,15 +202,15 @@ integration.
 
 ## Deferred to P1, and why
 
-| Deferred | Why |
-| --- | --- |
-| **The merge pass** — 388 hunted cases, ~120–160 new invariants, the four in-place corrections (DAY-03, MOD-01, SEC-01, GRD-16), and the founder checkpoint on the re-baselined count | It is a content change to `docs/invariants.md`, which is generated from the research corpus, and the plan reserves a single task per phase for `packages/schema` and the registry. It is P1's first task, and P1's gate cannot be stated until the count is re-baselined. |
-| **The iOS DB-path gate** | Blocked upstream on `expo-modules-jsi@57.1.0`; see above. Not fakeable and not worth faking. |
-| **iOS backup exclusion on device** (INV-PACK-11's iOS half) | Same blocker. The Android half is proven. |
-| **INV-PACK-18** (verify a pack signature before install) | There is no installer and no pack yet. The key custody exists so P2 has one; the invariant lands with the thing it guards. |
-| **Two INV-CER-01 properties draw ids from `fc.string()`** | The ledger-collision branch ("already committed, refuse") is therefore covered only by example tests, never by the property — the same failure mode already fixed in the streak generator. `packages/core/src/ceremony` was outside every P0 task's file lane. Fix at P1 by drawing ids from a small pool so collisions are common. |
-| **An AVD cache for the Android job** | The AVD is created fresh every run. Worth doing once the job is reliably green, not while it is still being shaped. |
-| **Disk: free ≥ 80 GB** | A deletion list the founder approves item by item (plan §Risks 1). Nothing was deleted without approval. |
+| Deferred                                                                                                                                                                             | Why                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The merge pass** — 388 hunted cases, ~120–160 new invariants, the four in-place corrections (DAY-03, MOD-01, SEC-01, GRD-16), and the founder checkpoint on the re-baselined count | It is a content change to `docs/invariants.md`, which is generated from the research corpus, and the plan reserves a single task per phase for `packages/schema` and the registry. It is P1's first task, and P1's gate cannot be stated until the count is re-baselined.                                                           |
+| **The iOS DB-path gate**                                                                                                                                                             | Blocked upstream on `expo-modules-jsi@57.1.0`; see above. Not fakeable and not worth faking.                                                                                                                                                                                                                                        |
+| **iOS backup exclusion on device** (INV-PACK-11's iOS half)                                                                                                                          | Same blocker. The Android half is proven.                                                                                                                                                                                                                                                                                           |
+| **INV-PACK-18** (verify a pack signature before install)                                                                                                                             | There is no installer and no pack yet. The key custody exists so P2 has one; the invariant lands with the thing it guards.                                                                                                                                                                                                          |
+| **Two INV-CER-01 properties draw ids from `fc.string()`**                                                                                                                            | The ledger-collision branch ("already committed, refuse") is therefore covered only by example tests, never by the property — the same failure mode already fixed in the streak generator. `packages/core/src/ceremony` was outside every P0 task's file lane. Fix at P1 by drawing ids from a small pool so collisions are common. |
+| **An AVD cache for the Android job**                                                                                                                                                 | The AVD is created fresh every run. Worth doing once the job is reliably green, not while it is still being shaped.                                                                                                                                                                                                                 |
+| **Disk: free ≥ 80 GB**                                                                                                                                                               | A deletion list the founder approves item by item (plan §Risks 1). Nothing was deleted without approval.                                                                                                                                                                                                                            |
 
 ## Disk
 

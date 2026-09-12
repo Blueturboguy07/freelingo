@@ -230,7 +230,7 @@ describe('boost_applies and the tile colour', () => {
     );
   });
 
-  it('[INV-ECO-30] EC-ECO-35\'s exclusion list is boostable nowhere, and the boostable set is not empty', () => {
+  it("[INV-ECO-30] EC-ECO-35's exclusion list is boostable nowhere, and the boostable set is not empty", () => {
     // "lesson, practice, unit review, target practice, mistakes, words, daily refresh,
     // legendary and jump-here boostable; story, radio, Listen-Up and Roleplay not."
     const excluded = [...NARRATIVE_SESSION_FLAVOURS, 'hubListenUp', 'timedChallenge'];

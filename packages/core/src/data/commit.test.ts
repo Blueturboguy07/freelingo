@@ -184,7 +184,11 @@ describe('INV-PER-04 commit write order', () => {
       mistakes: [],
       rewards: [{ kind: 'xp', id: 'lesson', amount: 15 }],
     };
-    const writer = makeWriter({ at: 'rewards', failure: failure('SQLITE_FULL', 900), failsTimes: 1 });
+    const writer = makeWriter({
+      at: 'rewards',
+      failure: failure('SQLITE_FULL', 900),
+      failsTimes: 1,
+    });
     const result = commitSession(input, writer);
 
     expect(writer.checkpoints(), 'no wal_checkpoint(TRUNCATE) was attempted').toBe(1);

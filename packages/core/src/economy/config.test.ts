@@ -403,11 +403,16 @@ describe('streak milestones', () => {
 /* -------------------------------------------------------------------- ECO-32 */
 
 describe('story and radio XP', () => {
-  it('[INV-ECO-32] each format has ONE table keyed by EC-ECO-37\'s four entry points', () => {
+  it("[INV-ECO-32] each format has ONE table keyed by EC-ECO-37's four entry points", () => {
     // EC-ECO-37 fixes the SHAPE: "one long-form audio XP table per format keyed
     // {first, replay_plain, hub_recommended, legendary}". Asserting the spec's key names
     // is the only version of this test that can catch a table with four plausible keys.
-    expect([...LONG_FORM_XP_KEYS]).toEqual(['first', 'replay_plain', 'hub_recommended', 'legendary']);
+    expect([...LONG_FORM_XP_KEYS]).toEqual([
+      'first',
+      'replay_plain',
+      'hub_recommended',
+      'legendary',
+    ]);
     for (const table of [STORY_XP, RADIO_XP]) {
       for (const key of LONG_FORM_XP_KEYS) {
         expect(Object.hasOwn(table, key), key).toBe(true);

@@ -18,7 +18,5 @@
     }
   },
   "mustNotBe": "a goal chest on the start day, a second chest for the same completion day, a `flame` cell for a grace-credited date, or `creditedByGrace === true` on a session that crossed two local midnights",
-  "usedBy": [
-    "day/boundary.test.ts"
-  ]
+  "usedBy": ["day/boundary.test.ts"]
 }

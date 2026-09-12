@@ -129,9 +129,7 @@ function isChallengeState(shell: ShellState): boolean {
 }
 
 function isBannerState(shell: ShellState): boolean {
-  return (
-    shell === 'banner.correct' || shell === 'banner.softCorrect' || shell === 'banner.wrong'
-  );
+  return shell === 'banner.correct' || shell === 'banner.softCorrect' || shell === 'banner.wrong';
 }
 
 function currentItem(state: RuntimeState): QueuedItem | null {

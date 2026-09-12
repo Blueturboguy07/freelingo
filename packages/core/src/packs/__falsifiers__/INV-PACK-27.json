@@ -1,8 +1,6 @@
 {
   "id": "INV-PACK-27",
-  "covers": [
-    "EC-PACK-23"
-  ],
+  "covers": ["EC-PACK-23"],
   "why": "Abroad on metered roaming, iOS reclaims the inactive 38 MB pack and the learner switches to that course. EC-PACK-23 has two halves: the switch resolves to `not-downloaded` rather than launching a session with failing audio, AND `re-download is explicitly initiated with the size shown` - so the switch starts nothing on ANY link, metered or not. EC-CRS-06's auto-resume applies to a download the learner already began, which is the `auto-resume` trigger, not a course tap.",
   "cases": [
     {

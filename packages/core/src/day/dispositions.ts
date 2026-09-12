@@ -101,13 +101,7 @@ export function livedDays(ledger: DayLedger): Set<LocalDay> {
  * "neither flame nor snowflake", so it gets its own glyph and the calendar stays truthful.
  */
 export type DayCell =
-  | 'flame'
-  | 'half-flame'
-  | 'snowflake'
-  | 'grey'
-  | 'outline'
-  | 'unlived'
-  | 'recovered';
+  'flame' | 'half-flame' | 'snowflake' | 'grey' | 'outline' | 'unlived' | 'recovered';
 
 /** The copy slot each cell carries on S127. `null` where the cell speaks for itself. */
 export const DAY_CELL_PROVENANCE: Readonly<Record<DayCell, string | null>> = {
@@ -125,10 +119,7 @@ export const DAY_CELL_PROVENANCE: Readonly<Record<DayCell, string | null>> = {
  * rollover walk from `SessionRow.creditedByGrace`; it is what makes a `half-flame`
  * distinguishable from an ordinary flame.
  */
-export function dayCellOf(
-  disposition: DayDisposition | undefined,
-  graceCredited = false,
-): DayCell {
+export function dayCellOf(disposition: DayDisposition | undefined, graceCredited = false): DayCell {
   switch (disposition) {
     case 'completed':
       return graceCredited ? 'half-flame' : 'flame';

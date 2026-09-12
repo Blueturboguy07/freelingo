@@ -79,10 +79,7 @@ describe('falsifier fixtures', () => {
       [],
     );
     const unowned = owned.filter((id) => !tests.includes(`[${id}]`));
-    expect(
-      unowned,
-      "add a test whose name carries the id, e.g. it('[INV-DAY-02] …')",
-    ).toEqual([]);
+    expect(unowned, "add a test whose name carries the id, e.g. it('[INV-DAY-02] …')").toEqual([]);
   });
 
   it('every fixture names its own invariant and records the case it came from', () => {

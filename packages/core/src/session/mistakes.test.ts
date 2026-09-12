@@ -132,7 +132,9 @@ describe('mistake recycling (S049)', () => {
       expect(hasPendingMistake(queue)).toBe(false);
     }
     // And the lesson flavour does queue, so the test is not passing vacuously.
-    expect(queueMistake({ config: LESSON, item: item(1), queue: [], mainAnswersAtMiss: 1 })).toHaveLength(1);
+    expect(
+      queueMistake({ config: LESSON, item: item(1), queue: [], mainAnswersAtMiss: 1 }),
+    ).toHaveLength(1);
   });
 
   it('[INV-MIS-04] a mistake retires only after two correct encounters in sessions OTHER than the one that created it', () => {
@@ -258,7 +260,9 @@ describe('mistake recycling (S049)', () => {
     expect(weak).not.toBeNull();
     expect(weak!.itemId).toBe(trace.itemId);
     // …and NOT a mistake row: a non-punitive type never enters the queue.
-    expect(queueMistake({ config: LESSON, item: trace, queue: [], mainAnswersAtMiss: 1 })).toEqual([]);
+    expect(queueMistake({ config: LESSON, item: trace, queue: [], mainAnswersAtMiss: 1 })).toEqual(
+      [],
+    );
     // The hub serves it as recognition, never as the trace it failed at.
     expect(WEAK_ITEM_HUB_TYPE).toBe('characterSelect');
     expect(EXERCISE_REGISTRY[WEAK_ITEM_HUB_TYPE].family).toBe('character');

@@ -141,7 +141,10 @@ describe('INV-PER-01 corruption: rename, never delete', () => {
     }
 
     // Both channels are real. Neither may be the only one the classifier handles.
-    expect(tally.threwCorruption, 'no mutation made SQLite throw a corruption error').toBeGreaterThan(0);
+    expect(
+      tally.threwCorruption,
+      'no mutation made SQLite throw a corruption error',
+    ).toBeGreaterThan(0);
     expect(
       tally.returnedFailureRows,
       'no mutation made PRAGMA integrity_check RETURN a failure row',
@@ -225,7 +228,10 @@ describe('INV-PER-01 corruption: rename, never delete', () => {
     expect(classifySqliteError(expoShape)).toBe('corruption');
     expect(integrityVerdict(observeOpenFailure(expoShape))).toBe('corrupt');
 
-    const expoBusy = { code: SQLITE_DRIVER_ERROR_CODES['expo-sqlite'], message: 'database is locked' };
+    const expoBusy = {
+      code: SQLITE_DRIVER_ERROR_CODES['expo-sqlite'],
+      message: 'database is locked',
+    };
     expect(classifySqliteError(expoBusy)).toBe('other');
     expect(integrityVerdict(observeOpenFailure(expoBusy))).toBe('healthy');
 
@@ -249,10 +255,9 @@ describe('INV-PER-01 corruption: rename, never delete', () => {
           failure: fc.option(fc.constantFrom<'corruption' | 'other'>('corruption', 'other'), {
             nil: null,
           }),
-          driverErrorCode: fc.option(
-            fc.constantFrom(...Object.values(SQLITE_DRIVER_ERROR_CODES)),
-            { nil: null },
-          ),
+          driverErrorCode: fc.option(fc.constantFrom(...Object.values(SQLITE_DRIVER_ERROR_CODES)), {
+            nil: null,
+          }),
           message: fc.option(fc.string({ maxLength: 60 }), { nil: null }),
           integrityCheck: fc.constantFrom<OpenObservation['integrityCheck']>(
             'ok',
@@ -281,7 +286,10 @@ describe('INV-PER-01 corruption: rename, never delete', () => {
   });
 
   it('[INV-PER-01] a healthy open changes nothing', () => {
-    const plan = planCorruptionRecovery(observeOpenSuccess([{ integrity_check: 'ok' }]), new Date());
+    const plan = planCorruptionRecovery(
+      observeOpenSuccess([{ integrity_check: 'ok' }]),
+      new Date(),
+    );
     expect(plan).toMatchObject({ action: 'none', screen: 'none', rolloverInhibited: false });
   });
 

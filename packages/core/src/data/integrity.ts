@@ -175,11 +175,7 @@ export function observeOpenFailure(error: unknown, walRecovered = false): OpenOb
     failure: classifySqliteError(error),
     driverErrorCode: typeof e.code === 'string' ? e.code : null,
     message:
-      typeof e.errstr === 'string'
-        ? e.errstr
-        : typeof e.message === 'string'
-          ? e.message
-          : null,
+      typeof e.errstr === 'string' ? e.errstr : typeof e.message === 'string' ? e.message : null,
     // The pragma threw instead of answering; it did not answer "ok".
     integrityCheck: 'not-run',
     walRecovered,

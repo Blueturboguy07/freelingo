@@ -384,7 +384,6 @@ describe('the session shell state machine (S029)', () => {
     );
   });
 
-
   it('[INV-MIS-01] the FIRST recycle is served MID-LESSON: a replay is answered strictly before the last main-queue item', () => {
     // The refuted claim. An 8-item lesson missing item-1 used to produce the serve trace
     // MAIN(1..8) then REPLAY,REPLAY,REPLAY,REPLAY — every replay after the whole main

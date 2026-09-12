@@ -58,11 +58,7 @@ export const IMPORT_STEPS = [
 export type ImportStep = (typeof IMPORT_STEPS)[number];
 
 /** The pre-import backup itself, as a backup window: checkpoint, write, verify. */
-export const IMPORT_BACKUP_STEPS = [
-  CHECKPOINT_STEP,
-  'write-backup',
-  'verify-backup',
-] as const;
+export const IMPORT_BACKUP_STEPS = [CHECKPOINT_STEP, 'write-backup', 'verify-backup'] as const;
 export type ImportBackupStep = (typeof IMPORT_BACKUP_STEPS)[number];
 
 export type ImportRefusal =
