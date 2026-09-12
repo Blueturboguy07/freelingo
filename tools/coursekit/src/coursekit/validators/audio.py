@@ -36,7 +36,6 @@ from ..config.g8 import (
     MAX_CLIP_MS,
     MIN_CLIP_MS,
     TARGET_LUFS,
-    TARGET_TEXT_FIELD_BY_TYPE,
 )
 from . import Finding, ValidatorContext, register_validator
 
@@ -74,6 +73,7 @@ def _no_manifest(validator_id: str, lang: str) -> Finding:
 def string_audio_join(ctx: ValidatorContext) -> list[Finding]:
     """Every renderable string has audio; every audio file has a string."""
     from ..artifacts import read_records
+    from ..stages.g8_bake import spoken_text
 
     manifest = _manifest(ctx)
     if manifest is None:
@@ -104,14 +104,10 @@ def string_audio_join(ctx: ValidatorContext) -> list[Finding]:
     # -- every renderable string has audio ---------------------------------
     spoken: set[str] = set()
     for exercise in exercises:
-        field = TARGET_TEXT_FIELD_BY_TYPE.get(exercise["type"])
-        if field is None:
-            continue
-        text = (
-            exercise["accepted_answers"][0]
-            if field == "accepted_answers"
-            else exercise.get(field)
-        )
+        # The same function G8 plans from, so the two halves of V7 are one join asked
+        # from two sides rather than two tables that can drift — which is what they did:
+        # see `config/g8.py::SPOKEN_TEXT_SOURCE`.
+        text = spoken_text(exercise)
         if not text:
             continue
         spoken.add(str(text))

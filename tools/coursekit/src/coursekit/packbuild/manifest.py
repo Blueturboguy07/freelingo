@@ -328,6 +328,18 @@ def manifest_violations(manifest: Mapping[str, Any]) -> list[str]:
                 f"{', '.join(ACCENT_CLAIMS)} (ruling B6: a pack declares its language "
                 f"and how much is known about its voices' accent, never a region)"
             )
+        by_pipeline = audio.get("bytesByPipeline", {})
+        if isinstance(by_pipeline, Mapping) and audio.get("bytes") is not None:
+            summed = sum(int(value) for value in by_pipeline.values())
+            if summed != int(audio["bytes"]):
+                violations.append(
+                    f"the pack carries {int(audio['bytes'])} bytes of audio on disk and "
+                    f"declares {summed} across its pipelines. The first number is "
+                    f"measured (INV-PACK-15 is about what a learner downloads) and the "
+                    f"second is summed from the clip records, so a difference is clips "
+                    f"the pack describes and does not contain — which is the silent "
+                    f"partial pack the six-state enum exists to keep off a device."
+                )
         missing = [p for p in AUDIO_PIPELINES if p not in audio.get("bytesByPipeline", {})]
         if missing:
             violations.append(

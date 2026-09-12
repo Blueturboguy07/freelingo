@@ -40,12 +40,31 @@ The stage runs `build_hints` itself at build time and writes the COUNT to the ru
 (`word_bank_hints`), so a pack whose aligner produced no hintable token says so in a
 number rather than shipping a feature that renders nothing.
 
-## Why `audio_ref` can be filled before G8 runs
+## Why `audio_ref` can be filled before G8 runs, AND WHAT THAT COST ONCE
 
-G8 is content-addressed: a clip's id is a hash of what is spoken. So G7 computes the
-same id with the same function (`artifacts.sentence_id`) and G8 either finds the clip
-or bakes it. The alternative — a second pass over the exercise file after the bake —
-would make the exercise artefact mutable, and every id downstream of it with it.
+G8 is content-addressed, so G7 can name a clip before it exists: it computes the id
+with the same function G8 will, and G8 either finds the clip or bakes it. The
+alternative — a second pass over the exercise file after the bake — would make the
+exercise artefact mutable, and every id downstream of it with it.
+
+THE FUNCTION HAS TO BE THE SAME ONE, and for as long as this comment claimed it was, it
+was not. G7 wrote `sentence_id(lang, text)`; G8 names clips `cast.rebake_key(cast, role,
+text)`, which hashes the engine, the engine's pin, the voice spec, the codec, the
+bitrate and the target loudness as well as the text, because INV-AUD-08 requires an
+engine swap to re-bake the bank. Two different hashes of the same sentence, and nothing
+compared them until G9 tried to insert both: measured on the real Spanish course,
+2026-09-12, over units 1-3 — G8 baked 284 clips, all 198 exercises carrying an
+`audio_ref` pointed at ids that were in no `audio` row, and G9's foreign-key gate said
+so with `sqlite3.IntegrityError: FOREIGN KEY constraint failed`. It was invisible for
+exactly as long as no run had G7's output and G8's output in the same tree.
+
+So G7 loads the cast and computes the re-bake key. It makes this stage depend on
+`content/<lang>/cast.yaml`, which is the honest dependency: a pack that cannot name its
+clips cannot carry audio refs, and a missing cast is a `StageResult` naming the file.
+The role is `LESSON_ROLE`, because that is the role G8's `plan_utterances` bakes every
+exercise line in; a per-character dialogue line would need the role ON THE RECORD, which
+the frozen contract has no field for (the request is in
+`docs/owned/p2r3-expand-bake-package.json`).
 """
 
 from __future__ import annotations
@@ -79,6 +98,7 @@ from ..config.g7 import (
     SPANISH_INFINITIVE_ENDINGS,
     VERB_POS,
 )
+from ..config.g8 import LESSON_ROLE
 from ..exercises.alignment import alignment_provenance, get_aligner
 from ..exercises.distractors import (
     AlternativesIndex,
@@ -92,6 +112,7 @@ from ..exercises.shapes import ExerciseDraft, focus_for_item, shape
 from ..exercises.wordbank import Hint, build_hints, build_word_bank
 from ..ledger import surface_tokens
 from ..runlog import require_successful
+from ..tts.cast import Cast, CastError, load_cast, rebake_key
 from ..validators.exercise import check_pack_07, check_pack_50, check_v5, pos_sets
 from . import StageContext, StageResult, register_stage
 
@@ -149,11 +170,28 @@ class ExpansionInputs:
     l1_pool: L1DecoyPool
     pos_of: dict[str, str]
     band_of: dict[str, str]
+    #: The voice cast, loaded because a clip's id is a hash over the ENGINE and the
+    #: voice as well as the text (INV-AUD-08). G7 names clips G8 has not baked yet, so
+    #: it has to name them with G8's function or G9's foreign keys fail — which is
+    #: exactly what happened, see the module docstring.
+    cast: Cast | None = None
     #: `string -> every UD tag the course attests for it`, from the banded ledger and
     #: every token G1 tagged. The V5 gate compares SETS: a `wrong_form` distractor is an
     #: attested surface, and looking a surface up in a lemma table answers a different
     #: question — see `validators/exercise.py::pos_sets`.
     pos_sets: dict[str, set[str]] = field(default_factory=dict)
+
+
+def _audio_id(inputs: ExpansionInputs, text: str) -> str:
+    """The clip id G8 will bake this line under. G8's function, not a second one.
+
+    Falls back to `sentence_id` ONLY when there is no cast, which `expand` refuses
+    before it gets here — the fallback exists so a caller holding a hand-built
+    `ExpansionInputs` (the unit tests) does not have to carry a cast file.
+    """
+    if inputs.cast is None:
+        return sentence_id(inputs.lang, text)
+    return rebake_key(inputs.cast, LESSON_ROLE, text)
 
 
 def _load(lang: str) -> ExpansionInputs:
@@ -185,6 +223,7 @@ def _load(lang: str) -> ExpansionInputs:
         pos_of={row["lemma"]: row["pos"] for row in banded},
         band_of={row["lemma"]: row["band"] for row in banded},
         pos_sets=pos_sets(banded, analysed.values()),
+        cast=load_cast(lang),
     )
 
 
@@ -381,12 +420,56 @@ def ending_split(surface: str, lemma: str, pos: str, lang: str) -> tuple[str, st
     return stem_text, ending
 
 
-def _exercise_id(lang: str, unit: int, lesson: int, shape_id: str, body: str) -> str:
-    """Content-addressed, so a rebuild that did not change the item keeps its FSRS row."""
-    return sentence_id(lang, f"{unit}\x1f{lesson}\x1f{shape_id}\x1f{body}")
+def _exercise_id(
+    lang: str, unit: int, lesson: int, shape_id: str, body: str, *answers: str
+) -> str:
+    """Content-addressed, so a rebuild that did not change the item keeps its FSRS row.
+
+    THE ANSWER IS PART OF THE CONTENT, and leaving it out was a collision. The id was
+    `(unit, lesson, shape, body)`, and for a `l1_to_l2` shape the body is the ENGLISH
+    prompt — so two different Spanish sentences with one English translation in the same
+    lesson produced ONE id with two different accepted answers. Measured on the real
+    course, 2026-09-12: `Dos más dos es cuatro.` and `Dos más dos son cuatro.` are both
+    slots of unit 2 lesson 12 and both render `Write this in Spanish / Two plus two makes
+    four.`, and G9 refused the pack with `UNIQUE constraint failed: exercise.exercise_id`.
+    Downstream of that constraint it is worse than a refused build: one id means one FSRS
+    row for two items, so answering one would schedule the other.
+
+    The accepted answer is exactly what `packbuild.itemid.item_id` already hashes as
+    `preferredSurface`, so this makes the artefact id as discriminating as the pack id it
+    becomes. Every exercise id in the course moves, which is free at P2 (no pack has
+    shipped) and is why INV-PACK-02's additive-only clause is scoped to a major version.
+    """
+    parts = "\x1f".join((str(unit), str(lesson), shape_id, body, *answers))
+    return sentence_id(lang, parts)
 
 
-def _gapped(tokens: Sequence[str], index: int) -> str:
+def _gapped(slot: ResolvedSlot, tokens: Sequence[str], index: int) -> str:
+    """The sentence with one blank, CUT OUT OF THE ORIGINAL TEXT where possible.
+
+    Two things depend on the original text rather than on a space-joined token list,
+    and the second one is a defect this replaced:
+
+    * what the learner reads. `display_tokens` are LEXICAL tokens — spaCy puts
+      punctuation in its own token — so joining them renders `¿Dónde está la ____` with
+      no question marks and no full stop, which is not Spanish.
+    * what the clip is. `listen_for_the_missing_word` is "audio plus a sentence with one
+      gap" (`deep/01` §S038), so the audio is the WHOLE sentence and the only place G8
+      can recover it from is this body with the blank filled back in. If the body is a
+      detokenised approximation, the recovered string is not the sentence G7 named a
+      clip for, the clip ids differ, and G9's foreign keys reject the pack.
+
+    So the gap is the token's own span, taken from the analysis offsets — which is what
+    `CandidateAnalysis` says they are carried for — and the span is verified against the
+    surface before it is trusted. A slot with no analysis, or offsets that do not line
+    up, falls back to the join it always was.
+    """
+    analysis = slot.analysis
+    if analysis is not None and index < len(analysis["tokens"]):
+        token = analysis["tokens"][index]
+        start, end = int(token["start"]), int(token["end"])
+        if slot.text[start:end] == token["surface"]:
+            return f"{slot.text[:start]}{GAP_MARKER}{slot.text[end:]}"
     return " ".join(GAP_MARKER if position == index else token
                     for position, token in enumerate(tokens))
 
@@ -425,15 +508,14 @@ def expand_item(
     array and no field for tiles, tile order or hints, so the player re-derives the
     dotted underlines from these pairs with the rule in `exercises/wordbank.py`.
     """
-    lang = inputs.lang
-    text, translation, sid = slot.text, slot.translation, slot.sid
+    text, translation = slot.text, slot.translation
     unit = item["unit_index"]
     lesson = item["lesson_index"]
     concept = item["grammar_concept"]
     target_tokens = _target_tokens(slot)
     source_tokens = list(surface_tokens(translation))
     lemmas = _lemmas_for(slot)
-    audio = sentence_id(lang, text)
+    audio = _audio_id(inputs, text)
     pairs = tuple(sorted({(int(a), int(b)) for a, b in alignment}))
 
     if focus_for_item(len(target_tokens)) != "sentence":
@@ -456,7 +538,7 @@ def expand_item(
                 concept=concept,
                 register=register,
                 audio=audio,
-                sid=sid,
+                slot=slot,
                 alternatives=alternatives,
                 alignment=pairs,
             )
@@ -496,12 +578,13 @@ def _sentence_draft(
     concept: str,
     register: str,
     audio: str,
-    sid: str | None,
+    slot: ResolvedSlot,
     alternatives: AlternativesIndex,
     alignment: tuple[tuple[int, int], ...] = (),
 ) -> ExerciseDraft:
     chosen = shape(shape_id)
     lang = inputs.lang
+    sid = slot.sid
     key = f"sentence:{sid}" if sid else f"authored:{unit}:{lesson}:{text}"
     # What `item_keys` will file the record under. For a corpus sentence that is `key`;
     # for an authored one it is the concept, which is why the two are separate names.
@@ -533,9 +616,21 @@ def _sentence_draft(
         distractors = bank.extra_tiles
     elif chosen.id in {"fill_in_the_blank", "listen_for_the_missing_word"}:
         gap_index = _gap_index(target_tokens)
-        body = _gapped(target_tokens, gap_index)
+        # The gapped sentence stays ON THE RECORD for both shapes. It used to be blanked
+        # for `listen_for_the_missing_word`, which contradicts the product map — S038 is
+        # "audio plus a sentence with one gap" (`deep/01` §S038) — and left G8 with no
+        # way to recover the sentence its clip is of.
+        body = _gapped(slot, target_tokens, gap_index)
         accepted = (target_tokens[gap_index],)
-        body = "" if chosen.id == "listen_for_the_missing_word" else body
+        if chosen.needs_audio:
+            # S038's clip is the whole sentence, and G8 recovers it from THIS BODY with
+            # the blank filled back in (`SPOKEN_TEXT_SOURCE`). So the id is computed over
+            # the same string rather than over `text`: where the analysis offsets let
+            # `_gapped` cut the span out of the sentence the two are identical, and where
+            # they do not — a fixture, a ledger with synthetic offsets — they must still
+            # agree, because a clip id that disagrees is a dangling foreign key in the
+            # pack and a listening exercise that resolves to no file.
+            audio = _audio_id(inputs, body.replace(GAP_MARKER, accepted[0]))
         distractors = _decoys(
             inputs,
             lemmas=[_anchor_lemma(lemmas, gap_index, target_tokens[gap_index])],
@@ -548,7 +643,7 @@ def _sentence_draft(
         )
     elif chosen.id == "complete_the_translation":
         gap_index = _gap_index(target_tokens)
-        body = translation + "\n" + _gapped(target_tokens, gap_index)
+        body = translation + "\n" + _gapped(slot, target_tokens, gap_index)
         accepted = (target_tokens[gap_index],)
     elif chosen.id == "complete_the_chat":
         body = translation
@@ -556,7 +651,7 @@ def _sentence_draft(
 
     return ExerciseDraft(
         lang=lang,
-        exercise_id=_exercise_id(lang, unit, lesson, chosen.id, body or text),
+        exercise_id=_exercise_id(lang, unit, lesson, chosen.id, body or text, *accepted),
         unit_index=unit,
         lesson_index=lesson,
         shape_id=chosen.id,
@@ -662,7 +757,13 @@ def _decoys(
     # of a course whose ledger declares no proper nouns at all) while the answer surface
     # is attested only as NOUN. The answer's tag wins, and only when the pool has a
     # bucket for it — never a silent widening of the band.
-    answer_tags = inputs.pos_sets.get(normalise(accepted[0]), set()) if accepted else set()
+    # ONLY where the gate will have an answer POS to compare, which is the single-token
+    # case: `_answer_tags` returns nothing for a sentence, and this call's `accepted` is
+    # the TOKEN LIST for a word bank — reading `accepted[0]` there picked up `El` and
+    # asked the pool for a DET.
+    answer_tags: set[str] = set()
+    if len(accepted) == 1:
+        answer_tags = inputs.pos_sets.get(normalise(accepted[0]), set())
     if answer_tags and pos not in answer_tags:
         for attested in sorted(answer_tags):
             if (attested, band) in inputs.pool.by_pos_band:
@@ -763,7 +864,7 @@ def _lexeme_drafts(
         drafts.append(
             ExerciseDraft(
                 lang=lang,
-                exercise_id=_exercise_id(lang, unit, lesson, shape_id, lemma),
+                exercise_id=_exercise_id(lang, unit, lesson, shape_id, lemma, gloss),
                 unit_index=unit,
                 lesson_index=lesson,
                 shape_id=shape_id,
@@ -862,7 +963,7 @@ def _grammar_draft(
         distractors: tuple[str, ...] = ()
     else:
         gap_index = _gap_index(target_tokens)
-        body = _gapped(target_tokens, gap_index)
+        body = _gapped(slot, target_tokens, gap_index)
         accepted = (target_tokens[gap_index],)
         distractors = _decoys(
             inputs,
@@ -876,7 +977,9 @@ def _grammar_draft(
         )
     return ExerciseDraft(
         lang=lang,
-        exercise_id=_exercise_id(lang, unit, lesson, shape_id, f"{concept}\x1f{body}"),
+        exercise_id=_exercise_id(
+            lang, unit, lesson, shape_id, f"{concept}\x1f{body}", *accepted
+        ),
         unit_index=unit,
         lesson_index=lesson,
         shape_id=shape_id,
@@ -1186,7 +1289,15 @@ def expand(ctx: StageContext) -> StageResult:
     """Align, expand, generate distractors, gate, write."""
     lang = ctx.lang
     require_successful(lang, ["g1", "g2", "g3", "g4"])
-    inputs = _load(lang)
+    try:
+        inputs = _load(lang)
+    except CastError as exc:
+        # G7 names the clips G8 will bake, and a clip's id hashes the engine and the
+        # voice (INV-AUD-08), so this stage cannot write an `audio_ref` without the
+        # cast. Reported as a stage failure naming the file rather than as a traceback,
+        # and never by falling back to a different hash — that fallback is what made
+        # every audio_ref in the pack a dangling foreign key.
+        return StageResult(ok=False, message=f"the voice cast is unusable: {exc}")
     if any(item["gap"] for item in inputs.selected):
         require_successful(lang, ["g5", "g6"])
 

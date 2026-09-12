@@ -678,6 +678,29 @@ def _banded() -> list[dict[str, Any]]:
     ]
 
 
+
+def _with_offsets(
+    text: str, tokens: list[tuple[str, str, str]]
+) -> list[dict[str, Any]]:
+    """G1's token list for `text`, with each surface's real span in it."""
+    rows: list[dict[str, Any]] = []
+    cursor = 0
+    for surface, lemma, pos in tokens:
+        start = text.index(surface, cursor)
+        cursor = start + len(surface)
+        rows.append(
+            {
+                "surface": surface,
+                "lemma": lemma,
+                "pos": pos,
+                "morph": f"{pos}:{surface}",
+                "start": start,
+                "end": cursor,
+            }
+        )
+    return rows
+
+
 def _write_ledger(lang: str = LANG) -> None:
     """Write G0-G4's artefacts and their runlog entries into the isolated build root."""
     ingested = []
@@ -715,17 +738,12 @@ def _write_ledger(lang: str = LANG) -> None:
                     "model": "es_core_news_md",
                     "split_mode": None,
                 },
-                "tokens": [
-                    {
-                        "surface": surface,
-                        "lemma": lemma,
-                        "pos": pos,
-                        "morph": f"{pos}:{surface}",
-                        "start": 0,
-                        "end": len(surface),
-                    }
-                    for surface, lemma, pos in tokens
-                ],
+                # REAL offsets, found in the sentence. They used to be `0, len(surface)`
+                # for every token, which is a lie the fixture could tell because nothing
+                # read them — and then `_gapped` started cutting the gap out of the
+                # sentence by offset, so a fixture with fake offsets exercised only the
+                # fallback and hid the path the real ledger takes.
+                "tokens": _with_offsets(text, tokens),
                 "lemmas": [lemma for _surface, lemma, _pos in tokens],
                 "display_tokens": [surface for surface, _lemma, _pos in tokens],
             }
@@ -1103,6 +1121,54 @@ def test_INV_PACK_51_no_two_tiles_in_one_item_share_a_rendered_label() -> None:
         assert len(set(tiles)) == len(tiles), (found.id, tiles)
 
 
+def test_INV_PACK_02_two_sentences_with_one_translation_get_two_ids() -> None:
+    """[INV-PACK-02] the id is a content hash of the SEMANTIC fields, answer included.
+
+    `Dos más dos es cuatro.` and `Dos más dos son cuatro.` are both slots of unit 2
+    lesson 12 of the real course and both render `Write this in Spanish / Two plus two
+    makes four.` — the body of a `l1_to_l2` shape is the ENGLISH prompt. With the id
+    hashing `(unit, lesson, shape, body)` they were ONE id with two accepted answers:
+    G9 refused the pack (`UNIQUE constraint failed: exercise.exercise_id`), and had it
+    not, one FSRS row would have scheduled two different items.
+    """
+    from coursekit.stages.g7_expand import _exercise_id
+
+    body = "Two plus two makes four."
+    first = _exercise_id(LANG, 2, 12, "word_bank_forward", body, "Dos más dos es cuatro.")
+    second = _exercise_id(LANG, 2, 12, "word_bank_forward", body, "Dos más dos son cuatro.")
+    assert first != second
+    # Still a CONTENT hash: the same item rebuilt is the same id, in both shapes.
+    assert first == _exercise_id(LANG, 2, 12, "word_bank_forward", body, "Dos más dos es cuatro.")
+    assert first != _exercise_id(
+        LANG, 2, 12, "typed_translate_forward", body, "Dos más dos es cuatro."
+    )
+    # And it is the same discrimination the PACK's item id makes, so the artefact id is
+    # never coarser than the id a learner's FSRS row hangs off.
+    from coursekit.packbuild.itemid import item_id
+
+    semantic = {
+        "prompt": f"Write this in Spanish\n{body}",
+        "register": "tu",
+        "lexemes": ["dos"],
+        "grammarConcepts": [],
+        "graphemes": [],
+    }
+    assert item_id({**semantic, "preferredSurface": "Dos más dos es cuatro."}) != item_id(
+        {**semantic, "preferredSurface": "Dos más dos son cuatro."}
+    )
+
+
+def test_the_written_pack_has_no_two_records_with_one_id() -> None:
+    """G9's UNIQUE constraint, checked where it is cheap to check.
+
+    The stage gate is the honest place for it: by the time SQLite says
+    `UNIQUE constraint failed` the build has spent a three-hour bake.
+    """
+    records = _built_records()
+    ids = [record["exercise_id"] for record in records]
+    assert len(set(ids)) == len(ids)
+
+
 def test_the_stage_is_byte_identical_across_two_runs() -> None:
     """A rebuild that changed nothing must change nothing: the FSRS item ids, the
     content-addressed audio and the player's saved tile indices all ride on it."""
@@ -1411,6 +1477,69 @@ def test_a_sentence_with_no_separable_ending_authors_no_ending_drill() -> None:
         candidate_id="b" * 16,
     )
     assert _ending_target(authored, ["Ella", "corre"], LANG) == (1, "corr", "e")
+
+
+def test_inv_aud_08_the_audio_ref_is_the_clip_id_g8_will_actually_bake() -> None:
+    """[INV-AUD-08] G7 names a clip with G8'S function, and G8's planner is the judge.
+
+    The bug this pins is the most expensive kind: a comment that said the two stages
+    used "the same function" while naming a different one. G7 wrote
+    `sentence_id(lang, text)`; G8 names clips `rebake_key(cast, role, text)`, which
+    hashes the engine, its pin, the voice, the codec, the bitrate and the target
+    loudness as well as the text — because INV-AUD-08 requires an engine swap to
+    re-bake the bank. Both are 16 hex characters, both are deterministic, and they never
+    agree.
+
+    Nothing could see it until a tree held G7's output AND G8's output at once, which
+    had never happened: measured on the real Spanish course over units 1-3 on
+    2026-09-12, G8 baked 284 clips and all 198 exercises with an `audio_ref` pointed at
+    ids in no `audio` row, so G9 refused the pack with `sqlite3.IntegrityError: FOREIGN
+    KEY constraint failed`. Every listening exercise in the pack would have resolved to
+    no file.
+
+    Asserted against `plan_utterances` — G8's own planner — rather than against a second
+    copy of the formula, because agreeing with a formula is not the property; agreeing
+    with the stage that bakes the file is.
+    """
+    from coursekit.config.g8 import LESSON_ROLE
+    from coursekit.stages.g8_bake import plan_utterances
+    from coursekit.tts.cast import load_cast, rebake_key
+
+    records = _built_records()
+    cast = load_cast(LANG)
+    planned = {utterance.clip_id for utterance in plan_utterances(cast, records)}
+    refs = {record["audio_ref"] for record in records if record["audio_ref"]}
+    assert refs, "no record carries an audio_ref; the join is untested"
+    assert refs <= planned, sorted(refs - planned)
+
+    # And the old hash is a different string, so this is a real difference and not a
+    # tautology: same text, same language, two ids.
+    spoken = [
+        record["accepted_answers"][0]
+        for record in records
+        if record["audio_ref"] and shape_of_record(record).id == "type_what_you_hear"
+    ]
+    assert spoken
+    assert rebake_key(cast, LESSON_ROLE, spoken[0]) != sentence_id(LANG, spoken[0])
+
+
+def test_a_missing_voice_cast_fails_the_stage_by_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G7 cannot name a clip without the cast, and says so instead of guessing.
+
+    The guess is what the fixed bug was: fall back to a different hash and write an
+    `audio_ref` no bake will ever produce. A stage that cannot name its clips refuses.
+    """
+    from coursekit.config.g8 import CONTENT_ROOT_ENV_VAR
+
+    _write_ledger()
+    monkeypatch.setenv(CONTENT_ROOT_ENV_VAR, str(tmp_path))
+    result = _build()
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "Traceback" not in result.output, result.output
+    assert "voice cast is unusable" in result.output
+    assert "cast.yaml" in result.output
 
 
 def test_the_alignment_pairs_ride_on_the_records_that_need_them() -> None:

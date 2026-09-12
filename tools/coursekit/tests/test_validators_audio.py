@@ -354,7 +354,10 @@ def test_a_renderable_string_with_no_clip_is_blocking(plant, tmp_path, monkeypat
                 "unit_index": 1,
                 "lesson_index": 1,
                 "type": "listen",
-                "prompt": "Where is the station?",
+                # A REAL rendered prompt: V7 reads the spoken string through the same
+                # shape-keyed function G8 plans from, so a record whose instruction line
+                # no shape renders is one neither of them can place.
+                "prompt": "Tap what you hear\n",
                 "accepted_answers": ["¿Dónde está la estación?"],
                 "distractors": [],
                 "alignment": [],
@@ -387,7 +390,7 @@ def test_a_clip_no_exercise_plays_is_blocking(plant) -> None:
                 "unit_index": 1,
                 "lesson_index": 1,
                 "type": "listen",
-                "prompt": "It is hot today.",
+                "prompt": "Tap what you hear\n",
                 "accepted_answers": [text],
                 "distractors": [],
                 "alignment": [],
@@ -420,7 +423,7 @@ def test_a_cast_sample_is_exempt_by_name_not_by_accident(plant) -> None:
                 "unit_index": 1,
                 "lesson_index": 1,
                 "type": "match",
-                "prompt": "rojo",
+                "prompt": "Select the meaning for \u201crojo\u201d\nrojo",
                 "accepted_answers": ["red"],
                 "distractors": [],
                 "alignment": [],

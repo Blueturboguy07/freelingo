@@ -109,6 +109,7 @@ def _replay_seed(lang: str = "es", *, licences: list[dict[str, Any]] | None = No
     for kind, key in _SEED_RECORDS.items():
         write_records(kind, SEED[key], lang=lang)
     write_records("analysed_sentence", _analysed(lang), lang=lang)
+    _replay_bank(lang)
 
     runlog = RunLog(lang, run_id="0" * 32)
     for stage_id in ("g0", "g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8"):
@@ -119,6 +120,25 @@ def _replay_seed(lang: str = "es", *, licences: list[dict[str, Any]] | None = No
         with runlog.stage(validator_id, tool=TOOL_NAME, tool_version="test") as entry:
             entry.note(findings=0)
     return runlog
+
+
+def _replay_bank(lang: str) -> None:
+    """Put the fixture's committed clip stubs where a real G8 leaves its bank.
+
+    `baked_clip.path` is `bank/<clip_id>.opus`, RELATIVE TO G8's STAGE DIRECTORY, and G9
+    copies from there into the pack. Without this the replay declared three clips and
+    left the pack's `audio/` empty — which is the defect G9 now refuses, so the fixture
+    has to be as honest as the gate: the bytes are the committed stubs', copied, never
+    invented.
+    """
+    from coursekit.artifacts import stage_dir
+
+    bank = stage_dir(lang, "g8")
+    for clip in SEED["clips"]:
+        target = bank / str(clip["path"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        stub = repo_root() / FIXTURE_PACK_RELPATH / "audio" / f"{clip['clip_id']}.opus"
+        target.write_bytes(stub.read_bytes())
 
 
 def _analysed(lang: str) -> list[dict[str, Any]]:
@@ -224,6 +244,38 @@ def test_a_payload_key_that_is_not_a_column_fails_the_build(tmp_path: Path) -> N
     """The schema is read back out of SQLite, never restated here."""
     with pytest.raises(ValueError, match="has no column"):
         write_pack(tmp_path / "x.sqlite", {"meta": [{"key": "k", "value": "v", "extra": 1}]})
+
+
+def test_INV_PACK_51_a_repeated_lemma_is_one_join_row(tmp_path: Path) -> None:
+    """[INV-PACK-51] the join is a SET, and a sentence is not.
+
+    `item_tags.lemmas` is the token-aligned lemma list, so `El libro está sobre la
+    mesa.` carries `el` twice and `Hola, hola, hola.` carries `hola` three times — the
+    artefact being faithful to the text. `exercise_item_tag`'s key is `(exercise_id,
+    item_kind, item_ref)`, so the same pair twice is the same row twice. Measured on the
+    real course, 2026-09-12: G9 refused the pack with `UNIQUE constraint failed:
+    exercise_item_tag.exercise_id, exercise_item_tag.item_kind,
+    exercise_item_tag.item_ref` — AFTER the bake, which is the expensive place to learn
+    it. And `is_new` must be set by the FIRST row only, or a repeat marks the lexeme new
+    twice and S032's pill logic sees two introductions.
+    """
+    inputs = fixture_inputs()
+    first = dict(inputs.exercises[0])
+    lemma = first["item_tags"]["lemmas"][0]
+    first["item_tags"] = {**first["item_tags"], "lemmas": [lemma, lemma, lemma]}
+    from dataclasses import replace
+
+    grown = replace(inputs, exercises=(first, *inputs.exercises[1:]))
+    rows = build_rows(grown)
+    joined = [
+        row
+        for row in rows["exercise_item_tag"]
+        if row["exercise_id"] == first["exercise_id"] and row["item_ref"] == lemma
+    ]
+    assert len(joined) == 1, joined
+    assert joined[0]["is_new"] == 1
+    # And the pack is writable, which is the property the UNIQUE key expresses.
+    write_pack(tmp_path / "deduped.sqlite", rows)
 
 
 def test_a_dangling_reference_fails_the_build(tmp_path: Path) -> None:
