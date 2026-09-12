@@ -6,7 +6,10 @@ and what makes it reproducible (one seed, no I/O into the synthesis).
 
 The cue table is `deep/08-design-system-motion-sound.md` §12. That section is explicit
 that it is *a Freelingo specification, not a transcription of Duolingo's bank*: mono,
-48 kHz, everything under 400 ms except the two ceremony cues.
+48 kHz. Its prose adds "everything under 400 ms except the two ceremony cues" while its own
+table lists six rows longer than that, so the table is taken as the specification and the
+sentence as a summary of an earlier draft of it; `SPEC_TABLE` below is that table,
+transcribed, and every cue names the row it answers.
 
 Run:
 
@@ -355,6 +358,117 @@ def cue_earcon_stop() -> np.ndarray:
     return _earcon(E5, A4)
 
 
+def _click(rng: np.random.Generator, centre_hz: float, pitch_hz: float) -> np.ndarray:
+    """The UI click, 60 ms (§12). A band-passed noise transient over a short wooden tick:
+    two ingredients because noise alone reads as a pop and a tone alone reads as a note."""
+    out = np.zeros(int(0.060 * SR))
+    click_t = t(0.030)
+    transient = bandpass(rng.standard_normal(click_t.shape[0]), centre_hz, q=0.9)
+    place(out, transient * np.exp(-click_t / 0.0045), 0.000, 1.0)
+    place(out, marimba(pitch_hz, 0.045, tau_s=0.011), 0.000, 0.45)
+    return fade_out(out, 0.005)
+
+
+def cue_tap(rng: np.random.Generator) -> np.ndarray:
+    """Soft click, 60 ms (§12). §12 also suppresses it if the previous tap was < 80 ms ago,
+    which is INV-SND-04's debounce and a property of the player, not of this file."""
+    return _click(rng, 3200.0, C6)
+
+
+def cue_wordbank_place(rng: np.random.Generator) -> np.ndarray:
+    """Word-bank tile *place*: the click, brighter and a fifth up, 60 ms (§12). The two
+    variants differ in pitch direction so a learner can hear place from remove without
+    looking — the tile moves up into the answer, so the pitch does too."""
+    return _click(rng, 3600.0, note(17))
+
+
+def cue_wordbank_remove(rng: np.random.Generator) -> np.ndarray:
+    """Word-bank tile *remove*: the click, darker and a fourth down, 60 ms (§12)."""
+    return _click(rng, 2400.0, note(12))
+
+
+def cue_xp_pip() -> np.ndarray:
+    """XP count tick, 40 ms (§12). Capped at 12 ticks by the player regardless of XP, so
+    this has to survive being heard twelve times in a row: one partial, no noise, no tail."""
+    times = t(0.040)
+    body = np.sin(2 * np.pi * note(19) * times) + 0.18 * np.sin(2 * np.pi * 2 * note(19) * times)
+    return fade_out(body * decay(times, 0.010, attack_s=0.0015), 0.004)
+
+
+def cue_level_complete() -> np.ndarray:
+    """Fanfare + ascending arp, 1.2 s (§12).
+
+    Deliberately not the lesson-complete fanfare at another length: that one is four notes
+    walking up a chord and ducks under the XP ticks, and this one is a struck chord followed
+    by a fast run, so that a learner who hears both in one session can tell which ceremony
+    they are in.
+    """
+    out = np.zeros(int(1.200 * SR))
+    for freq in (C5, E5, G5):
+        place(out, marimba(freq, 0.50, tau_s=0.150), 0.000, 0.85)
+    # The ascending arp: six sixteenths up two octaves of the same triad.
+    for i, semitones in enumerate([3, 7, 10, 15, 19, 22]):
+        place(out, marimba(note(semitones), 0.34, tau_s=0.090), 0.180 + 0.085 * i, 0.80)
+    for freq in (C6, note(22)):
+        place(out, bell(freq, 0.62, tau_s=0.230), 0.680, 0.30)
+    return fade_out(out, 0.050)
+
+
+def cue_quest_chime() -> np.ndarray:
+    """Quest / badge earned: chime, 700 ms (§12). Two bells a fifth apart, the second
+    struck late and quietly, so it reads as an acknowledgement rather than a ceremony."""
+    out = np.zeros(int(0.700 * SR))
+    place(out, bell(E5, 0.60, tau_s=0.200), 0.000, 1.0)
+    place(out, bell(note(14), 0.52, tau_s=0.170), 0.140, 0.62)
+    return fade_out(out, 0.040)
+
+
+# --- the spec table -------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SpecRow:
+    """One row of deep/08 §12's cue table, transcribed."""
+
+    event: str
+    """The Event cell, verbatim, so a reader can find the row."""
+    duration_ms: float
+    cue_count: int
+    """How many files the row asks for: 2 for the word-bank variants and the mic earcon."""
+    note: str
+
+
+SPEC_TABLE: tuple[SpecRow, ...] = (
+    SpecRow("Correct answer", 240.0, 1, "rising two-note major third, marimba-ish"),
+    SpecRow("Wrong answer", 300.0, 1, "short descending buzz, low-passed; never harsh"),
+    SpecRow("Combo -> gold (6 in a row)", 600.0, 1, "one-shot shimmer, at the bar recolour"),
+    SpecRow("Tap / select", 60.0, 1, "soft click; suppressed under 80 ms (INV-SND-04)"),
+    SpecRow("Word-bank tile place / remove", 60.0, 2, "two variants of the click, -3 dB"),
+    SpecRow("Lesson complete", 1600.0, 1, "4-note fanfare; ducks under the XP ticks"),
+    SpecRow("XP count tick", 40.0, 1, "pip; max 12 ticks regardless of XP"),
+    SpecRow("Level / node complete", 1200.0, 1, "fanfare + ascending arp"),
+    SpecRow("Streak extended", 900.0, 1, "flame whoosh + chime"),
+    SpecRow("Chest open", 1100.0, 1, "latch + coin spill"),
+    SpecRow("Quest/badge earned", 700.0, 1, "chime"),
+    SpecRow(
+        "Speaking exercise start / stop",
+        120.0,
+        2,
+        "two-tone earcon; the mic state is otherwise invisible",
+    ),
+)
+"""Every row of deep/08 §12, including the ones the bank had better contain.
+
+This exists because the first version of this file shipped eight cues against a twelve-row
+table and the test suite could not see it: `test_durations_match_the_spec_table` iterated
+the cues that existed, so a missing cue was not a failure, it was an absence. The table is
+the authority now, and `test_the_bank_covers_every_spec_row` fails on a row with no cue.
+"""
+
+WORDBANK_DELTA_DB = -3.0
+"""deep/08 §12: the two word-bank variants are the click at -3 dB."""
+
+
 # --- the bank ------------------------------------------------------------------------
 
 
@@ -363,23 +477,94 @@ class Cue:
     name: str
     target_lkfs: float
     bus: str
+    event: str
+    """The `SpecRow.event` this cue answers. Pins the bank to the spec table."""
     spec: str
 
 
 BANK: tuple[Cue, ...] = (
-    Cue("correct", STING_BUS_LKFS, "sting", "deep/08 §12: rising two-note major third, 240 ms"),
-    Cue("wrong", STING_BUS_LKFS, "sting", "deep/08 §12: descending low-passed buzz, 300 ms"),
+    Cue(
+        "correct",
+        STING_BUS_LKFS,
+        "sting",
+        "Correct answer",
+        "deep/08 §12: rising two-note major third, 240 ms",
+    ),
+    Cue(
+        "wrong",
+        STING_BUS_LKFS,
+        "sting",
+        "Wrong answer",
+        "deep/08 §12: descending low-passed buzz, 300 ms",
+    ),
     Cue(
         "combo-shimmer",
         SHIMMER_BUS_LKFS,
         "shimmer",
+        "Combo -> gold (6 in a row)",
         "deep/08 §12 + EC-COM-09/INV-SND-01: one-shot shimmer, 600 ms, -6 dB second bus",
     ),
-    Cue("fanfare", STING_BUS_LKFS, "sting", "deep/08 §12: four-note fanfare, 1.6 s"),
-    Cue("chest", STING_BUS_LKFS, "sting", "deep/08 §12: latch + coin spill, 1.1 s"),
-    Cue("streak", STING_BUS_LKFS, "sting", "deep/08 §12: flame whoosh + chime, 900 ms"),
-    Cue("earcon-start", STING_BUS_LKFS, "earcon", "deep/08 §12: mic-on two-tone earcon, 120 ms"),
-    Cue("earcon-stop", STING_BUS_LKFS, "earcon", "deep/08 §12: mic-off two-tone earcon, 120 ms"),
+    Cue(
+        "fanfare",
+        STING_BUS_LKFS,
+        "sting",
+        "Lesson complete",
+        "deep/08 §12: four-note fanfare, 1.6 s",
+    ),
+    Cue("chest", STING_BUS_LKFS, "sting", "Chest open", "deep/08 §12: latch + coin spill, 1.1 s"),
+    Cue(
+        "streak",
+        STING_BUS_LKFS,
+        "sting",
+        "Streak extended",
+        "deep/08 §12: flame whoosh + chime, 900 ms",
+    ),
+    Cue(
+        "earcon-start",
+        STING_BUS_LKFS,
+        "earcon",
+        "Speaking exercise start / stop",
+        "deep/08 §12: mic-on two-tone earcon, 120 ms",
+    ),
+    Cue(
+        "earcon-stop",
+        STING_BUS_LKFS,
+        "earcon",
+        "Speaking exercise start / stop",
+        "deep/08 §12: mic-off two-tone earcon, 120 ms",
+    ),
+    # New cues go at the end — see render_bank_with_headroom's docstring on the seeded
+    # generator's draw order. These six close the gap against the §12 table.
+    Cue("tap", STING_BUS_LKFS, "ui", "Tap / select", "deep/08 §12: soft click, 60 ms"),
+    Cue(
+        "wordbank-place",
+        STING_BUS_LKFS + WORDBANK_DELTA_DB,
+        "ui",
+        "Word-bank tile place / remove",
+        "deep/08 §12: click variant, 60 ms, -3 dB",
+    ),
+    Cue(
+        "wordbank-remove",
+        STING_BUS_LKFS + WORDBANK_DELTA_DB,
+        "ui",
+        "Word-bank tile place / remove",
+        "deep/08 §12: click variant, 60 ms, -3 dB",
+    ),
+    Cue("xp-pip", STING_BUS_LKFS, "pip", "XP count tick", "deep/08 §12: XP tick pip, 40 ms"),
+    Cue(
+        "level-complete",
+        STING_BUS_LKFS,
+        "sting",
+        "Level / node complete",
+        "deep/08 §12: fanfare + ascending arp, 1.2 s",
+    ),
+    Cue(
+        "quest-chime",
+        STING_BUS_LKFS,
+        "sting",
+        "Quest/badge earned",
+        "deep/08 §12: chime, 700 ms",
+    ),
 )
 
 
@@ -400,6 +585,14 @@ def render_bank_with_headroom() -> tuple[dict[str, np.ndarray], float]:
         "streak": cue_streak(rng),
         "earcon-start": cue_earcon_start(),
         "earcon-stop": cue_earcon_stop(),
+        # Appended, never inserted: every entry below draws from `rng` after the three
+        # above it, so adding one here leaves correct/wrong/…/earcon-stop byte-identical.
+        "tap": cue_tap(rng),
+        "wordbank-place": cue_wordbank_place(rng),
+        "wordbank-remove": cue_wordbank_remove(rng),
+        "xp-pip": cue_xp_pip(),
+        "level-complete": cue_level_complete(),
+        "quest-chime": cue_quest_chime(),
     }
     bank = {cue.name: normalise_to(raw[cue.name], cue.target_lkfs) for cue in BANK}
     headroom_db = bank_headroom_gain_db(bank)
@@ -485,6 +678,7 @@ def bake(out_dir: Path, ffmpeg: str, keep_wav: bool = False) -> dict[str, object
         wav_digest = sha256(wav)
         files[cue.name] = {
             "bus": cue.bus,
+            "event": cue.event,
             "spec": cue.spec,
             "durationMs": round(1000.0 * samples.shape[0] / SR, 3),
             "targetLkfs": cue.target_lkfs,

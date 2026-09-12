@@ -17,14 +17,41 @@
  * that render these assets (plan §Phases, P3 gate); `docs/owned/art.json` says so.
  */
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ArtEntry } from '../assets/index.js';
 import { ART_INDEX, ART_PALETTE, artEntryPath } from '../assets/index.js';
+import { RASTER_OUT_DIR, repoRoot } from '../assets/paths.js';
 import { measure } from './metrics.js';
 import { MASCOT_SIZES } from './poses.js';
 import { writePreview } from './preview.js';
 import { renderSvg } from './raster.js';
+
+/**
+ * Every `.riv` file anywhere under the repository root, repo-relative.
+ *
+ * EC-PLAT-09 is a statement about the repository, so this walks the repository rather than
+ * consulting a registry that a person maintains by hand. `git ls-files '*.riv'` would miss
+ * the case that matters most: an untracked Rive artefact sitting in a working tree is
+ * already the thing the ruling forbids — output of an editor whose terms have not been
+ * cleared — and is one `git add -A` away from being committed. `node_modules` and `.git`
+ * are skipped because neither is this repository's own content.
+ */
+function rivFilesInRepo(): string[] {
+  const root = repoRoot();
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const item of readdirSync(dir, { withFileTypes: true })) {
+      if (item.name === 'node_modules' || item.name === '.git') continue;
+      const full = join(dir, item.name);
+      if (item.isDirectory()) walk(full);
+      else if (item.name.toLowerCase().endsWith('.riv')) found.push(relative(root, full));
+    }
+  };
+  walk(root);
+  return found.sort();
+}
 
 /**
  * The smallest number of 64 px pixels a colour the source actually paints may occupy.
@@ -193,6 +220,28 @@ describe('the art inventory matches the product map', () => {
   });
 
   it('no .riv file is in the repository (EC-PLAT-09)', () => {
-    for (const entry of ART_INDEX) expect(entry.source.endsWith('.svg')).toBe(true);
+    expect(
+      rivFilesInRepo(),
+      'EC-PLAT-09: no .riv file enters this repository until the Rive editor terms are ' +
+        'cleared; v1 ships code poses behind MascotRenderer',
+    ).toEqual([]);
+  });
+
+  it('the EC-PLAT-09 scan can actually go red (falsifier)', () => {
+    // The guard above is worth exactly as much as its ability to fail, and the version it
+    // replaced could not: it iterated ART_INDEX asserting every `source` ended in `.svg`,
+    // which a hand-maintained registry satisfies by construction. A refuter wrote a real
+    // art/rive/mascot.riv into the worktree and the suite stayed green.
+    //
+    // So this plants one and requires the *same function* the guard calls to find it. A
+    // future rewrite back into a registry check fails here.
+    const planted = join(repoRoot(), RASTER_OUT_DIR, 'ec-plat-09-falsifier.riv');
+    mkdirSync(dirname(planted), { recursive: true });
+    writeFileSync(planted, 'not a real Rive file');
+    try {
+      expect(rivFilesInRepo()).toContain(relative(repoRoot(), planted));
+    } finally {
+      rmSync(planted, { force: true });
+    }
   });
 });

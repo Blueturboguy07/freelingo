@@ -8,7 +8,7 @@
  * field is what stops the inventory drifting from the product map: an asset nobody can
  * name a screen for is an asset nobody asked for.
  *
- * Sources: `00-PRODUCT-MAP.md` (S013-S020, S034, S075, S101-S103, S125),
+ * Sources: `00-PRODUCT-MAP.md` (S013-S020, S034, S067, S075, S101-S103),
  * `art/README.md` (the v1 inventory), `deep/08-design-system-motion-sound.md` §10 and §12.
  */
 
@@ -62,8 +62,32 @@ export const ART_PALETTE = {
 
 // --- kinds -------------------------------------------------------------------------
 
-/** Path node kinds that carry art (S013-S019). */
-export const NODE_KINDS = ['lesson', 'chest', 'story', 'trophy', 'speaking', 'alphabet'] as const;
+/**
+ * Path node kinds that carry art (S013-S019).
+ *
+ * Two names here are load-bearing rather than descriptive:
+ *
+ * - `letters`, not `alphabet`. `art/README.md`'s inventory line says "alphabet", but
+ *   EC-PTH-42 / INV-PATH-24 name the pack-declarable node type `letters` and require it to
+ *   have "its own glyph, locked/active/complete art". The node-type registry is
+ *   *pack-driven*, so a Japanese pack declaring `letters` against a component registry that
+ *   only knows `alphabet` cannot be rendered from its own specs at all. The two names had
+ *   to reconcile before P3 wires this list to a `PathNode` variant, and the spec's name is
+ *   the one that wins.
+ * - `jump` is S019 (Node — Jump here) and is a node kind, not a dialog. Its three authored
+ *   states map onto S019's five: `active` is `offered`, `complete` is `passed`, and
+ *   `locked` is the node before a test is offered on it. There is no `failed` art because
+ *   S019 says failure is non-punitive and retryable — a failed jump returns to `offered`.
+ */
+export const NODE_KINDS = [
+  'lesson',
+  'chest',
+  'story',
+  'trophy',
+  'speaking',
+  'letters',
+  'jump',
+] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
 
 /**
@@ -82,7 +106,7 @@ export const COVER_STATES = ['gilded', 'active', 'locked'] as const;
 export type CoverState = (typeof COVER_STATES)[number];
 
 /**
- * The cast (S034 meaning-select avatars, S020 tableau).
+ * The cast (S034 meaning-select avatars).
  *
  * Four original characters, named so nothing reads as a Duolingo character. Each is built
  * from a different silhouette *and* a different hue, because at avatar size hue is what
@@ -91,7 +115,19 @@ export type CoverState = (typeof COVER_STATES)[number];
 export const CAST = ['pia', 'bruno', 'zari', 'oskar'] as const;
 export type CastMember = (typeof CAST)[number];
 
-/** Sound cues (deep/08 §12). `bus` is the class INV-SND-01 suppresses per-class. */
+/**
+ * Sound cues. `bus` is the class INV-SND-01 suppresses per-class.
+ *
+ * This list is every row of deep/08 §12's cue table, and `tools/soundbank` holds it to
+ * that: `test_the_bank_covers_every_spec_row` fails if a row has no cue, which is the
+ * failure an inventory that only iterates what exists can never see.
+ *
+ * Five buses, because per-class suppression only means something if the classes are the
+ * ones that can collide. `ui` (tap, word-bank) and `pip` (the XP tick) are separate from
+ * `sting` on purpose: the XP ticks play *under* the lesson-complete fanfare (§12 says the
+ * fanfare ducks under them), so sharing a class with it would suppress the thing §12 asks
+ * to be audible.
+ */
 export const SOUND_CUES = [
   { id: 'correct', bus: 'sting' },
   { id: 'wrong', bus: 'sting' },
@@ -101,6 +137,12 @@ export const SOUND_CUES = [
   { id: 'streak', bus: 'sting' },
   { id: 'earcon-start', bus: 'earcon' },
   { id: 'earcon-stop', bus: 'earcon' },
+  { id: 'tap', bus: 'ui' },
+  { id: 'wordbank-place', bus: 'ui' },
+  { id: 'wordbank-remove', bus: 'ui' },
+  { id: 'xp-pip', bus: 'pip' },
+  { id: 'level-complete', bus: 'sting' },
+  { id: 'quest-chime', bus: 'sting' },
 ] as const;
 export type SoundCueId = (typeof SOUND_CUES)[number]['id'];
 
@@ -129,9 +171,23 @@ export interface ArtEntry {
   readonly screens: readonly string[];
 }
 
+/**
+ * Which surfaces render which pose.
+ *
+ * The `screens` field is a *claim*, and the test that reads it can only check its shape
+ * (`/^S\d{3}$/`) — a wrong id is unfalsifiable by machine, so it has to be right by
+ * reading. Two earlier claims here were not: `sleepy` named S125, whose map row is a
+ * 13-award achievements grid with no parrot in it, and every cast avatar named S020, which
+ * `docs/art-and-sound.md` separately admitted was a stand-in rather than the "two sprite
+ * kinds" that row asks for. Both are gone; S125 and the second S020 sprite kind are listed
+ * as gaps in `docs/art-and-sound.md` with the phase that owes them.
+ *
+ * What is left: S020 (character tableau, the decorative sprite) and S067 (the session-end
+ * ceremony, which is the 240 px surface in deep/08 §10's "64 px and 240 px"). The phoenix
+ * is S075's streak milestone alone.
+ */
 function mascotEntry(pose: MascotPose): ArtEntry {
-  const screens =
-    pose === 'phoenix' ? ['S075'] : pose === 'sleepy' ? ['S020', 'S125'] : ['S020', 'S034', 'S067'];
+  const screens = pose === 'phoenix' ? ['S075'] : ['S020', 'S067'];
   return { id: `mascot/${pose}`, source: mascotSource(pose), kind: 'mascot', screens };
 }
 
@@ -155,8 +211,10 @@ const NODE_SCREENS: Record<NodeKind, readonly string[]> = {
   chest: ['S016'],
   story: ['S017', 'S101'],
   trophy: ['S018'],
+  // S017 is one map row covering story / radio / speaking / script nodes.
   speaking: ['S017'],
-  alphabet: ['S017'],
+  letters: ['S017'],
+  jump: ['S019'],
 };
 
 /** Every committed piece of vector art, in a stable order. */
@@ -166,7 +224,9 @@ export const ART_INDEX: readonly ArtEntry[] = [
     id: `cast/${member}`,
     source: castSource(member),
     kind: 'cast',
-    screens: ['S034', 'S020'],
+    // S034 only: these are speech-bubble avatars. They are *not* claimed as S020 tableau
+    // sprites — see mascotEntry above and the gaps table in docs/art-and-sound.md.
+    screens: ['S034'],
   })),
   {
     id: 'cast/speech-bubble',

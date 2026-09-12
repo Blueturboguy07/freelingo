@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo node — jump here, complete</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Flat plate with the measured 3D lip (deep/08 §2): the lip disc sits 16 units below the face disc, which is the 4 px lip at the 64 px node size. `complete` is S019's `passed` state: the test was taken and the jump was made. Product map: S019.</desc>
+
+  <circle cx="120" cy="140" r="88" fill="#58A700"/>
+  <circle cx="120" cy="124" r="88" fill="#58CC02"/>
+
+  <polyline points="76,124 120,80 164,124" fill="none" stroke="#FFFFFF" stroke-width="24"/>
+  <polyline points="76,172 120,128 164,172" fill="none" stroke="#FFFFFF" stroke-width="24"/>
+
+  <circle cx="188" cy="186" r="40" fill="#58CC02"/>
+  <circle cx="188" cy="182" r="34" fill="#FFFFFF"/>
+  <polyline points="172,182 184,194 206,170" fill="none" stroke="#58CC02" stroke-width="13"/>
+</svg>

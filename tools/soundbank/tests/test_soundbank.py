@@ -2,8 +2,9 @@
 
 The load-bearing one is `test_rebake_is_byte_identical`: it re-runs the whole synthesis
 into a temporary directory and compares hashes with the committed manifest. Without it,
-"regenerate the bank" is a diff nobody can review — eight binary files changed, and no way
-to tell a deliberate retune from a numpy upgrade that moved every sample by one LSB.
+"regenerate the bank" is a diff nobody can review — twenty-eight binary files changed,
+and no way to tell a deliberate retune from a numpy upgrade that moved every sample by one
+LSB.
 
 Run:  uv run --project tools/soundbank pytest
 """
@@ -23,8 +24,10 @@ from synthesize import (
     BANK,
     PEAK_CEILING_DBFS,
     SHIMMER_BUS_LKFS,
+    SPEC_TABLE,
     SR,
     STING_BUS_LKFS,
+    WORDBANK_DELTA_DB,
     bake,
     cue_loudness_lkfs,
     ffmpeg_version,
@@ -98,25 +101,76 @@ def test_no_cue_exceeds_the_peak_ceiling(manifest: dict) -> None:
         assert cue["peakDbfs"] <= PEAK_CEILING_DBFS + 1e-6, f"{name} clips"
 
 
-def test_durations_match_the_spec_table(manifest: dict) -> None:
-    """deep/08 §12, which also says everything under 400 ms bar the two ceremony cues."""
-    expected = {
-        "correct": 240.0,
-        "wrong": 300.0,
-        "combo-shimmer": 600.0,
-        "fanfare": 1600.0,
-        "chest": 1100.0,
-        "streak": 900.0,
-        "earcon-start": 120.0,
-        "earcon-stop": 120.0,
-    }
-    for name, ms in expected.items():
-        assert manifest["cues"][name]["durationMs"] == pytest.approx(ms)
+def test_the_bank_covers_every_spec_row(manifest: dict) -> None:
+    """Every row of deep/08 §12 has its cue (or cues), and no cue is off-spec.
 
-    ceremony = {"fanfare", "chest", "streak", "combo-shimmer"}
-    for name, cue in manifest["cues"].items():
-        if name not in ceremony:
-            assert cue["durationMs"] <= 400.0, f"{name} is a long cue but not a ceremony one"
+    This is the test whose absence let the bank ship eight cues against a twelve-row table.
+    `test_durations_match_the_spec_table` below iterates cues, so a missing cue is not a
+    failure there — it is simply not iterated. This one iterates the *spec*, which is the
+    only direction that can see an absence. Five rows were missing when it was written:
+    tap, the two word-bank variants, the XP pip, level/node complete and the quest chime.
+    """
+    for row in SPEC_TABLE:
+        cues = [cue for cue in BANK if cue.event == row.event]
+        assert len(cues) == row.cue_count, (
+            f"deep/08 §12 row {row.event!r} asks for {row.cue_count} cue(s), the bank has "
+            f"{len(cues)}: {[c.name for c in cues]}"
+        )
+        for cue in cues:
+            assert cue.name in manifest["cues"], f"{cue.name} is in BANK but not the manifest"
+            for ext in ("opus", "m4a"):
+                assert (SOUND / f"{cue.name}.{ext}").is_file(), f"{cue.name}.{ext} not committed"
+
+    events = {row.event for row in SPEC_TABLE}
+    for cue in BANK:
+        assert cue.event in events, f"{cue.name} answers no §12 row ({cue.event!r})"
+
+    assert len(manifest["cues"]) == len(BANK), "the manifest carries a cue the bank does not"
+
+
+def test_durations_match_the_spec_table(manifest: dict) -> None:
+    """Each shipped cue is the length its §12 row asks for."""
+    for row in SPEC_TABLE:
+        for cue in (c for c in BANK if c.event == row.event):
+            assert manifest["cues"][cue.name]["durationMs"] == pytest.approx(row.duration_ms), (
+                f"{cue.name} is not the {row.duration_ms} ms §12 asks for in {row.event!r}"
+            )
+
+
+def test_the_long_cues_are_exactly_the_ceremony_ones(manifest: dict) -> None:
+    """§12's prose says "all files < 400 ms except the two ceremony cues" while its own
+    table lists six rows longer than that. The table wins — it is the specification, the
+    sentence is a summary of an earlier draft of it — so the rule asserted here is the one
+    that survives both: a cue may only be long if its §12 row says it is long.
+    """
+    long_rows = {row.event for row in SPEC_TABLE if row.duration_ms > 400.0}
+    for cue in BANK:
+        ms = manifest["cues"][cue.name]["durationMs"]
+        assert (ms > 400.0) == (cue.event in long_rows), (
+            f"{cue.name} is {ms} ms, which does not match the length class of its §12 row "
+            f"{cue.event!r}"
+        )
+
+
+def test_wordbank_variants_sit_three_db_under_the_tap(manifest: dict) -> None:
+    """deep/08 §12: the word-bank place/remove cues are "two variants of the click, -3 dB".
+
+    Same reasoning as the shimmer: a relative level written in a table is only real if it
+    is in the audio, so it is read back off the measured loudness of the shipped files.
+    """
+    cues = manifest["cues"]
+    tap = cues["tap"]["loudnessLkfs"]
+    for name in ("wordbank-place", "wordbank-remove"):
+        assert tap - cues[name]["loudnessLkfs"] == pytest.approx(-WORDBANK_DELTA_DB, abs=0.01)
+        assert cues[name]["bus"] == cues["tap"]["bus"], "the variants are the click's class"
+
+
+def test_the_xp_pip_is_not_on_the_sting_bus(manifest: dict) -> None:
+    """INV-SND-01 suppresses per class, and §12 has the lesson-complete fanfare *duck under*
+    the XP ticks — so the pip and the fanfare sound together by design. If the pip shared
+    the fanfare's class, the rule that protects the answer sting would silence the ticks.
+    """
+    assert manifest["cues"]["xp-pip"]["bus"] != manifest["cues"]["fanfare"]["bus"]
 
 
 # --- the measure itself ---------------------------------------------------------------
