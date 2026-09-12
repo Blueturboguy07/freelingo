@@ -1827,3 +1827,35 @@ def test_the_pinned_lemmatiser_still_has_not_absorbed_the_prenominal_table() -> 
     assert "noches" in measured["Buenas noches."], (
         "`noches` now lemmatises to `noche`: the PROPN-plural half of the trap is gone too"
     )
+
+
+def test_analysis_is_null_on_exactly_the_rows_the_analyser_never_ran_on(
+    es_course: list[dict[str, Any]],
+) -> None:
+    """B16 option 2, write side, as an IFF over a whole run rather than over one row.
+
+    `test_an_emitted_candidate_carries_the_analysis_g7_will_read` proves the analysis is
+    real (it re-derives it from a second adapter call) and
+    `test_a_stale_row_carries_a_null_analysis_because_the_analyser_never_ran` proves the
+    nullable case exists. Neither says how many rows are null, and that is the number G7
+    depends on: the contract's own rule is "non-null exactly when G7 will read it", which
+    no schema keyword can express, so it has to be asserted over the population.
+
+    `stale_ledger` is the only axis evaluated above the `_analyse` call, so it is the only
+    `reject_reason` that may carry a null analysis. A second short-circuit added above
+    that call — a cheap early-out on length, say, using a whitespace count — would make an
+    accepted-looking population of rows G7 must refuse, and this is what notices.
+    """
+    result = run_g5()
+    assert result.ok, result.message
+    rows = list(read_records("candidate", lang="es"))
+    assert rows, "no candidates written; this test would pass over nothing"
+    null_reasons = {row["reject_reason"] for row in rows if row["analysis"] is None}
+    assert null_reasons <= {"stale_ledger"}, null_reasons
+    for row in rows:
+        if row["reject_reason"] == "stale_ledger":
+            continue
+        analysis = row["analysis"]
+        assert analysis is not None, row["text"]
+        assert analysis["lemmas"] and analysis["display_tokens"] and analysis["tokens"]
+        assert analysis["analyser"]["model"], "the pin rides on the row, not on the run"
