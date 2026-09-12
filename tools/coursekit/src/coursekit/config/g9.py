@@ -120,6 +120,7 @@ MANIFEST_EXTRA_FIELDS: Final[tuple[str, ...]] = (
     "provenance",
     "defectRate",
     "reviewerSampleItems",
+    "review",
     "cefrClaim",
     "cefrChecked",
     "audio",
@@ -128,6 +129,16 @@ MANIFEST_EXTRA_FIELDS: Final[tuple[str, ...]] = (
     "attribution",
     "shareAlike",
     "builtAt",
+)
+
+MANIFEST_REVIEW_FIELDS: Final[tuple[str, ...]] = (
+    "reviewerKind",
+    "sampleItems",
+    "scored",
+    "joined",
+    "wrongItemRate",
+    "awkwardRate",
+    "note",
 )
 
 #: INV-PACK-40 / EC-PACK-37: the ledger unit is NOT declared here. It is declared once, in

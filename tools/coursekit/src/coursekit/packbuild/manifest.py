@@ -42,9 +42,15 @@ from ..config.g9 import (
     ITEM_ID_PREFIX,
     MANIFEST_FILENAME,
     MANIFEST_REQUIRED_FIELDS,
+    MANIFEST_REVIEW_FIELDS,
     OPUS_LEGACY_LICENCE_URL,
     PACK_SCHEMA_VERSION,
     UNRESOLVED_LICENCE,
+)
+from ..config.sample import (
+    PROVISIONAL_DEFECT_RATE_NOTE,
+    RECORDED_REVIEWER_KINDS,
+    REVIEWER_KIND_PAID_NATIVE,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle avoidance only
@@ -176,6 +182,21 @@ def _item_ids(database: Path) -> list[str]:
         connection.close()
 
 
+def _review_block(review: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Translate the validated score summary into the closed signed-manifest shape."""
+    if review is None:
+        return None
+    return {
+        "reviewerKind": review.get("reviewer_kind"),
+        "sampleItems": review.get("sample_size"),
+        "scored": review.get("scored"),
+        "joined": review.get("joined"),
+        "wrongItemRate": review.get("wrong_item_rate"),
+        "awkwardRate": review.get("awkward_rate"),
+        "note": review.get("note"),
+    }
+
+
 def build_manifest(inputs: PackInputs, database: Path, *, audio_dir: Path) -> dict[str, Any]:
     """Assemble the manifest for a pack that has already been written to disk."""
     from .attribution import credit_rows
@@ -221,8 +242,15 @@ def build_manifest(inputs: PackInputs, database: Path, *, audio_dir: Path) -> di
             "machineAuthoredPct": machine_pct,
             "sentences": shipped,
         },
-        "defectRate": inputs.defect_rate,
-        "reviewerSampleItems": REVIEWER_SAMPLE_ITEMS,
+        "defectRate": (
+            inputs.review.get("wrong_item_rate")
+            if inputs.review is not None
+            else inputs.defect_rate
+        ),
+        "reviewerSampleItems": (
+            inputs.review.get("sample_size") if inputs.review is not None else REVIEWER_SAMPLE_ITEMS
+        ),
+        "review": _review_block(inputs.review),
         "cefrClaim": cefr_claim(inputs.lang),
         # The same fact as a boolean. `CourseManifest.cefrChecked` in `packages/core`
         # is what `path/manifest.ts` renders its own section-card chip from, and
@@ -311,6 +339,47 @@ def manifest_violations(manifest: Mapping[str, Any]) -> list[str]:
         violations.append(
             f"ledgerUnit is declared {declarations} times; INV-PACK-40 requires exactly once"
         )
+
+    review = manifest.get("review")
+    if review is not None:
+        if not isinstance(review, Mapping):
+            violations.append("manifest review is not an object or null")
+        else:
+            unknown = sorted(set(review) - set(MANIFEST_REVIEW_FIELDS))
+            missing = sorted(set(MANIFEST_REVIEW_FIELDS) - set(review))
+            if unknown:
+                violations.append(f"manifest review has unknown field(s): {', '.join(unknown)}")
+            if missing:
+                violations.append(f"manifest review is missing field(s): {', '.join(missing)}")
+            if review.get("wrongItemRate") != manifest.get("defectRate"):
+                violations.append("manifest review wrongItemRate disagrees with defectRate")
+            if review.get("sampleItems") != manifest.get("reviewerSampleItems"):
+                violations.append("manifest review sampleItems disagrees with reviewerSampleItems")
+            reviewer = review.get("reviewerKind")
+            if reviewer not in RECORDED_REVIEWER_KINDS:
+                violations.append(
+                    f"manifest review reviewerKind is {reviewer!r}, not a recorded reviewer class"
+                )
+            expected_note = (
+                "" if reviewer == REVIEWER_KIND_PAID_NATIVE else PROVISIONAL_DEFECT_RATE_NOTE
+            )
+            if review.get("note") != expected_note:
+                violations.append(
+                    "manifest review must carry PROVISIONAL provenance verbatim unless "
+                    "reviewerKind is paid-native-speaker"
+                )
+            for field in ("sampleItems", "scored", "joined"):
+                value = review.get(field)
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    violations.append(f"manifest review {field} is not a non-negative integer")
+            for field in ("wrongItemRate", "awkwardRate"):
+                value = review.get(field)
+                if value is not None and (
+                    not isinstance(value, int | float)
+                    or isinstance(value, bool)
+                    or not 0 <= float(value) <= 1
+                ):
+                    violations.append(f"manifest review {field} is not null or a rate in [0, 1]")
 
     audio = manifest.get("audio", {})
     if isinstance(audio, Mapping):

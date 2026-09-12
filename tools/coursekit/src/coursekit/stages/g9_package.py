@@ -41,6 +41,7 @@ from ..packbuild.attribution import attribution_violations
 from ..packbuild.manifest import build_manifest, manifest_violations, write_manifest
 from ..packbuild.sqlite import PackInputs, build_rows, row_id_for, write_pack
 from ..runlog import licences_seen, read_entries, require_successful
+from ..sample import derive_review
 from . import StageContext, StageResult, register_stage
 
 #: The stages whose records G9 reads. G5 and G6 leave no record of their own (a
@@ -75,6 +76,7 @@ def _collect(lang: str, kind: str) -> tuple[dict[str, Any], ...]:
 def _pack_inputs(ctx: StageContext) -> PackInputs:
     lang = ctx.lang
     options = ctx.options
+    review = derive_review(lang)
     return PackInputs(
         lang=lang,
         pack_id=options.get("pack_id", f"freelingo-{lang}"),
@@ -90,7 +92,12 @@ def _pack_inputs(ctx: StageContext) -> PackInputs:
         clips=_collect(lang, "baked_clip"),
         licences=tuple(licences_seen(lang)),
         validator_report=_validator_report(lang),
-        defect_rate=(float(options["defect_rate"]) if "defect_rate" in options else None),
+        defect_rate=(
+            review.get("wrong_item_rate")
+            if review is not None
+            else (float(options["defect_rate"]) if "defect_rate" in options else None)
+        ),
+        review=review,
     )
 
 

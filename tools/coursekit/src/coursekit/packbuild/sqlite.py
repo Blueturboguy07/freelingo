@@ -242,6 +242,8 @@ class PackInputs:
     validator_report: Mapping[str, Any] = field(default_factory=dict)
     #: The measured native-reviewer wrong-item rate, or None before the sample lands.
     defect_rate: float | None = None
+    #: The validated sample summary, or None before a sheet has been scored.
+    review: Mapping[str, Any] | None = None
     meta_extra: Mapping[str, str] = field(default_factory=dict)
 
 

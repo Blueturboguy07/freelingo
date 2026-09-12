@@ -18,6 +18,7 @@ from typing import Any
 
 from coursekit.config import AUDIO_BUDGET_MB
 from coursekit.config.g9 import MANIFEST_REQUIRED_FIELDS, PACK_DB_FILENAME
+from coursekit.config.sample import PROVISIONAL_DEFECT_RATE_NOTE, REVIEWER_KIND_AGENT
 from coursekit.packbuild.manifest import (
     accent_claim_for,
     build_manifest,
@@ -124,6 +125,75 @@ def test_the_defect_rate_and_sample_size_ride_along(tmp_path: Path) -> None:
     manifest = _built(tmp_path)
     assert manifest["defectRate"] == 0.0133
     assert manifest["reviewerSampleItems"] == 300
+
+
+def test_INV_PACK_14_agent_review_is_published_with_closed_provenance(tmp_path: Path) -> None:
+    """[INV-PACK-14] a measured rate never leaves G9 without its reviewer and note."""
+    inputs = replace(
+        fixture_inputs(),
+        review={
+            "reviewer_kind": REVIEWER_KIND_AGENT,
+            "sample_size": 300,
+            "scored": 300,
+            "joined": 300,
+            "wrong_item_rate": 0.0133,
+            "awkward_rate": 0.02,
+            "note": PROVISIONAL_DEFECT_RATE_NOTE,
+        },
+    )
+    database = write_pack(tmp_path / PACK_DB_FILENAME, build_rows(inputs))
+    audio = repo_root() / "packages/core/src/packs/__fixtures__/es-mini/audio"
+    manifest = build_manifest(inputs, database, audio_dir=audio)
+
+    assert manifest["defectRate"] == 0.0133
+    assert manifest["reviewerSampleItems"] == 300
+    assert manifest["review"] == {
+        "reviewerKind": REVIEWER_KIND_AGENT,
+        "sampleItems": 300,
+        "scored": 300,
+        "joined": 300,
+        "wrongItemRate": 0.0133,
+        "awkwardRate": 0.02,
+        "note": PROVISIONAL_DEFECT_RATE_NOTE,
+    }
+    assert manifest_violations(manifest) == []
+
+
+def test_INV_PACK_14_review_manifest_schema_is_closed_and_cross_checked(tmp_path: Path) -> None:
+    """[INV-PACK-14] free-form or contradictory review claims cannot be signed."""
+    manifest = _built(tmp_path)
+    valid = {
+        "reviewerKind": REVIEWER_KIND_AGENT,
+        "sampleItems": 300,
+        "scored": 300,
+        "joined": 300,
+        "wrongItemRate": manifest["defectRate"],
+        "awkwardRate": 0.0,
+        "note": PROVISIONAL_DEFECT_RATE_NOTE,
+    }
+    manifest["review"] = valid
+    assert manifest_violations(manifest) == []
+
+    with_extra = {**manifest, "review": {**valid, "trustMe": True}}
+    assert any("unknown field" in line for line in manifest_violations(with_extra))
+    mismatched = {**manifest, "review": {**valid, "wrongItemRate": 0.02}}
+    assert any("disagrees with defectRate" in line for line in manifest_violations(mismatched))
+    unknown_reviewer = {**manifest, "review": {**valid, "reviewerKind": "somebody"}}
+    assert any("reviewerKind" in line for line in manifest_violations(unknown_reviewer))
+    softened_note = {**manifest, "review": {**valid, "note": "agent reviewed"}}
+    assert any("PROVISIONAL" in line for line in manifest_violations(softened_note))
+
+
+def test_INV_PACK_14_absent_review_preserves_the_legacy_unscored_state(tmp_path: Path) -> None:
+    """[INV-PACK-14] old/unscored builds remain explicit rather than inventing review."""
+    inputs = replace(fixture_inputs(), defect_rate=None, review=None)
+    database = write_pack(tmp_path / PACK_DB_FILENAME, build_rows(inputs))
+    audio = repo_root() / "packages/core/src/packs/__fixtures__/es-mini/audio"
+    manifest = build_manifest(inputs, database, audio_dir=audio)
+
+    assert manifest["defectRate"] is None
+    assert manifest["review"] is None
+    assert manifest_violations(manifest) == []
 
 
 def test_the_validator_report_distinguishes_clean_from_never_ran(tmp_path: Path) -> None:

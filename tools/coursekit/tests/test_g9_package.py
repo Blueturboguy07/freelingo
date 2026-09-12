@@ -20,6 +20,7 @@ import json
 import re
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -63,6 +64,34 @@ from coursekit.runlog import LicenceRow, RunLog
 from coursekit.stages import STAGES
 
 runner = CliRunner()
+
+
+def test_INV_PACK_14_g9_sources_review_fields_from_the_validated_sample_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[INV-PACK-14] CLI defect-rate input cannot override a measured review."""
+    from coursekit.stages import g9_package
+
+    review = {
+        "reviewer_kind": "opus-agent-reviewer",
+        "sample_size": 300,
+        "scored": 300,
+        "joined": 300,
+        "wrong_item_rate": 0.01,
+        "awkward_rate": 0.02,
+        "note": "PROVISIONAL (unreviewed by a paid native speaker)",
+    }
+    monkeypatch.setattr(g9_package, "derive_review", lambda lang: review)
+    monkeypatch.setattr(g9_package, "_collect", lambda lang, kind: ())
+    monkeypatch.setattr(g9_package, "licences_seen", lambda lang: [])
+    monkeypatch.setattr(g9_package, "_validator_report", lambda lang: {})
+
+    inputs = g9_package._pack_inputs(
+        SimpleNamespace(lang="es", options={"defect_rate": "0.99"})
+    )
+
+    assert inputs.review == review
+    assert inputs.defect_rate == 0.01
 
 
 @pytest.fixture(autouse=True)
