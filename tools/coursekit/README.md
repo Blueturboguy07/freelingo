@@ -62,6 +62,25 @@ Every validator runs even after one produces a blocking finding: the suite runs 
 human review, and a reviewer handed "V1 failed" and nothing else waits a whole build to
 learn V6 failed too.
 
+**A fourth refusal lives in V8, and it is the one CI trips over today.** V8 blocks a run
+in which `grammar_engine` and `perplexity_engine` are both `none` — "zero errors from
+nothing", the exact reading INV-PACK-14 exists to fail. `pack-ci.yml`'s `build-es` runs
+`coursekit build es --set max_pairs=…` and names neither a LanguageTool URL nor a KenLM
+model, so that is the state every CI build is in, for any content whatsoever. It is a gap
+in the workflow, not in the pipeline, and it is written up with its measured remedy in
+`docs/P2-BLOCKERS.md` §B8. Locally:
+
+```bash
+java -cp LanguageTool-6.6/languagetool-server.jar \
+     org.languagetool.server.HTTPServer --port 8081 &
+uv run coursekit build es --set languagetool_url=http://localhost:8081
+```
+
+The URL is the server **base** — the engine appends `/v2/languages` and `/v2/check`
+itself, so `…/v2/check` 404s. With a sidecar and no KenLM, V8 warns `grammar_only`
+instead of blocking; measured 2026-09-12 against LanguageTool 6.6 by the two
+`COURSEKIT_LANGUAGETOOL_URL`-gated tests in `tests/test_g6_validate_language.py`.
+
 The run writes `build/<lang>/validator-report.json`, validated on write and on read.
 `validators/report.py::summarise()` is what S002's "validator-report summary" and S137's
 provenance block render; it never emits a defect rate without the note that says who
