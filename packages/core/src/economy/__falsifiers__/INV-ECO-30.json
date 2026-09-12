@@ -1,0 +1,19 @@
+{
+  "invariant": "INV-ECO-30",
+  "why": "the named falsifier: a PURPLE (boosted) XP tile on a story replay. Every flavour carries an explicit boost_applies, and the tile colour agrees with the multiplier actually applied",
+  "source": "EC-ECO-35",
+  "input": {
+    "flavour": "story",
+    "outcome": "replayed",
+    "boostActive": true,
+    "expected": {
+      "boost_applies": false,
+      "multiplier": 1,
+      "tile": "GOLD"
+    }
+  },
+  "mustNotBe": "a PURPLE tile, a multiplier of 2, or a flavour whose boost_applies is undefined rather than false.",
+  "usedBy": ["economy/xp.test.ts", "economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

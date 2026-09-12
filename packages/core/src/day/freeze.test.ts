@@ -76,7 +76,7 @@ describe('freeze ledger', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('[INV-FRZ-03] the timed_refill channel drives S121 `Refills in {{n}} day(s)`', () => {
+  it('[INV-FRZ-03] the streak_freeze_refill channel drives S121 `Refills in {{n}} day(s)`', () => {
     // S121's copy slot has no number behind it anywhere in the corpus, so the interval is
     // a DERIVED named constant rather than a literal in a view. Null at a full balance:
     // there is nothing to refill and the card shows `{{n}} / {{cap}} EQUIPPED` instead.
@@ -88,7 +88,7 @@ describe('freeze ledger', () => {
     expect(freezesHeld(spent)).toBe(1);
     const refilled = grantFreezes(spent, {
       grantKey: 'refill-1',
-      channel: 'timed_refill',
+      channel: 'streak_freeze_refill',
       ownedFromDay: DAY,
       amount: 1,
     });
@@ -106,8 +106,9 @@ describe('freeze ledger', () => {
     expect(daysUntilFreezeRefill(spentAgain, addCivilDays(DAY, 1))).toBe(
       DAY_CONFIG.freezeRefillIntervalDays - 1,
     );
-    expect(daysUntilFreezeRefill(spentAgain, addCivilDays(DAY, DAY_CONFIG.freezeRefillIntervalDays)))
-      .toBe(DAY_CONFIG.freezeRefillIntervalDays);
+    expect(
+      daysUntilFreezeRefill(spentAgain, addCivilDays(DAY, DAY_CONFIG.freezeRefillIntervalDays)),
+    ).toBe(DAY_CONFIG.freezeRefillIntervalDays);
   });
 
   it('[INV-FRZ-03] the balance never exceeds the cap, however many grants arrive', () => {
@@ -261,7 +262,7 @@ describe('freeze ledger', () => {
       { cap: input.amount, grants: [], consumptions: [] },
       {
         grantKey: 'bought-on-return',
-        channel: 'timed_refill',
+        channel: 'streak_freeze_refill',
         ownedFromDay: returnDay,
         amount: input.amount,
       },

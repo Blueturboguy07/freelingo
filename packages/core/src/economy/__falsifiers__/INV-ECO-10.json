@@ -1,0 +1,38 @@
+{
+  "invariant": "INV-ECO-10",
+  "why": "a quest base outside the shipped [10, 200] band — a returning learner whose trailing median is 0 getting a target of 0 (every quest pre-completed), or a grinder at 4,000 XP/day getting an unreachable one",
+  "source": "EC-ECO-10, EC-ECO-11",
+  "check": {
+    "module": "../quests.js",
+    "export": "clampQuestBase"
+  },
+  "cases": [
+    {
+      "name": "below the floor clamps UP to 10, never to 0",
+      "args": [0],
+      "expect": 10
+    },
+    {
+      "name": "a returning learner at 5 gets the floor",
+      "args": [5],
+      "expect": 10
+    },
+    {
+      "name": "above the ceiling clamps to 200",
+      "args": [4000],
+      "expect": 200
+    },
+    {
+      "name": "inside the band is rounded, not floored",
+      "args": [47.6],
+      "expect": 48
+    },
+    {
+      "name": "NaN cannot escape the band",
+      "args": [null],
+      "expect": 10
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

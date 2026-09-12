@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-ECO-19",
+  "why": "the named falsifier: a FAILED jump-here returning silently to the path on an otherwise empty day — no consequence string, no route, and the streak quietly extended",
+  "source": "EC-PTH-32",
+  "input": {
+    "flavour": "jumpHere",
+    "outcome": "failed"
+  },
+  "mustNotBe": "extends_streak true, an empty consequence string, or a null route on any gated flavour's failed row.",
+  "usedBy": ["economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

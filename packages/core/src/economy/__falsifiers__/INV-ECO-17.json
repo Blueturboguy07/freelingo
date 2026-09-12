@@ -1,0 +1,15 @@
+{
+  "invariant": "INV-ECO-17",
+  "why": "a test surface instantiating the hearts resource: a heart glyph, a refill modal or a purchase sheet on a jump-here or section test, or a pip counter that outlives the test",
+  "source": "EC-PTH-28",
+  "input": {
+    "jumpHere": 5,
+    "sectionTest": 4,
+    "legendary": "LEGENDARY_MISTAKE_ALLOWANCE",
+    "headerMeterReads": "infinity"
+  },
+  "mustNotBe": "a flavour with no mistake_allowance, a rendered heart, or a pip counter persisted past the test.",
+  "usedBy": ["economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

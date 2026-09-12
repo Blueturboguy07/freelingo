@@ -1,0 +1,19 @@
+{
+  "invariant": "INV-ECO-24",
+  "why": "a shipped string that says Super, Max, No ads, unlimited hearts, a heart refill or a price. The one permitted refill is S121's FREEZE timer, which is why the literal must say freeze or streak",
+  "source": "EC-ECO-29",
+  "input": {
+    "permitted": ["Refills in {{n}} day(s)", "streak_freeze_refill"],
+    "forbidden": [
+      "Refill your hearts for 350 gems",
+      "Get Super",
+      "No ads",
+      "unlimited hearts",
+      "$9.99"
+    ]
+  },
+  "mustNotBe": "an offender list that accepts any forbidden literal, or an exception wide enough to accept the heart refill. Found at P1 integration: the day lane's `timed_refill` channel was renamed `streak_freeze_refill`, which is also the value packages/schema's account_freeze CHECK constraint stores.",
+  "usedBy": ["economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

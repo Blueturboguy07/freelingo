@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-ECO-28",
+  "why": "the named falsifier: a badge with a null denominator, or a structurally-zero counter still rendered. Every ladder is non-empty, strictly ascending, and its first tier reachable under the installed packs",
+  "source": "EC-ECO-33",
+  "input": {
+    "badLadders": [[], [0, 5, 10], [5, 5, 10], [10, 5, 20]],
+    "goodLadder": [1, 5, 10, 25, 50]
+  },
+  "mustNotBe": "hasValidTierLadder true for an empty ladder, one starting at 0, or one that repeats or descends.",
+  "usedBy": ["economy/achievements.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

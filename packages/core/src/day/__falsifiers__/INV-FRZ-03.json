@@ -3,7 +3,7 @@
   "falsifier": "a fourth acquisition channel, a grant that replays under its own key, or a balance above the cap",
   "source": "EC-FRZ-06: three channels plus the distinct one_time gift at a goal-met moment",
   "input": {
-    "channels": ["timed_refill", "milestone_grant", "reward_chest"],
+    "channels": ["streak_freeze_refill", "milestone_grant", "reward_chest"],
     "oneTimeKey": "goal_met_gift:2026-09-11",
     "day": "2026-09-11",
     "cap": 5

@@ -1,0 +1,33 @@
+{
+  "invariant": "INV-ECO-22",
+  "why": "the named falsifier: a clock or zone move across a month boundary minting or discarding badge progress. The key is the YYYY-MM of max_local_day_seen and of nothing else",
+  "source": "EC-ECO-25",
+  "check": {
+    "module": "../quests.js",
+    "export": "badgeMonthKey"
+  },
+  "cases": [
+    {
+      "name": "the last civil day of a month keys to that month",
+      "args": ["2026-09-30"],
+      "expect": "2026-09"
+    },
+    {
+      "name": "the first of the next keys to the next",
+      "args": ["2026-10-01"],
+      "expect": "2026-10"
+    },
+    {
+      "name": "a December/January crossing does not wrap to month 00",
+      "args": ["2026-12-31"],
+      "expect": "2026-12"
+    },
+    {
+      "name": "and the year moves with it",
+      "args": ["2027-01-01"],
+      "expect": "2027-01"
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

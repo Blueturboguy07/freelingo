@@ -1,0 +1,23 @@
+{
+  "invariant": "INV-ECO-26",
+  "why": "the named falsifier: Challenger rendered at 0/40 with no timed-challenge surface enabled. A row nothing can move is not rendered at all, because the learner cannot tell an unearnable row from a merely unstarted one",
+  "source": "EC-ECO-31",
+  "check": {
+    "module": "../achievements.js",
+    "export": "renderedAchievements"
+  },
+  "cases": [
+    {
+      "name": "with every surface disabled, NOTHING is rendered — the grid empties rather than lying",
+      "args": [
+        {
+          "enabledSurfaces": [],
+          "packFeatures": []
+        }
+      ],
+      "expect": []
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

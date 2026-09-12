@@ -52,7 +52,7 @@ export interface DayConfig {
   /** Freezes a new account holds, pre-equipped. Observed live 2026-09-10: "2 / 2 EQUIPPED". */
   readonly freezeCapBase: number;
   /**
-   * The `timed_refill` channel's period, in civil days — the number behind S121's
+   * The `streak_freeze_refill` channel's period, in civil days — the number behind S121's
    * `Refills in {{n}} day(s)`. DERIVED: the copy slot is observed, the interval is not
    * published anywhere in the corpus. Named here so the screen has a source instead of a
    * literal, and so changing it is one line.

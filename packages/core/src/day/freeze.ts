@@ -22,11 +22,25 @@ import { DAY_CONFIG } from './config.js';
 /**
  * Freeze acquisition has exactly THREE channels (INV-FRZ-03). No spec defines
  * replenishment, so `deep/04`'s EC-FRZ-06 ruling ships all three:
- * - `timed_refill` — "Refills in {{n}} days"
+ * - `streak_freeze_refill` — "Refills in {{n}} days"
  * - `milestone_grant` — a streak milestone, and Streak Society tier entry (INV-FRZ-04)
  * - `reward_chest` — a chest drop
+ *
+ * The first channel is spelled `streak_freeze_refill`, not `timed_refill`, for two
+ * reasons found at P1 integration when the day lane and the schema lane first met in one
+ * tree:
+ *
+ * 1. It is the value `packages/schema`'s `account_freeze.acquired_via` column stores,
+ *    under a `CHECK (acquired_via IN ('streak_freeze_refill', 'milestone_grant',
+ *    'reward_chest'))`. An engine emitting `timed_refill` would have been rejected by
+ *    SQLite the first time a grant was written — a defect neither lane's suite could see
+ *    alone, because each was internally consistent.
+ * 2. INV-ECO-24's grep gate forbids the literal `refill` in shipped source unless the
+ *    same literal also says freeze or streak, because the forbidden thing is the HEART
+ *    refill paywall and the permitted one is S121's freeze timer. This name says which
+ *    refill it is, so the gate stays strict rather than growing an exemption.
  */
-export const FREEZE_CHANNELS = ['timed_refill', 'milestone_grant', 'reward_chest'] as const;
+export const FREEZE_CHANNELS = ['streak_freeze_refill', 'milestone_grant', 'reward_chest'] as const;
 export type FreezeChannel = (typeof FREEZE_CHANNELS)[number];
 
 /**

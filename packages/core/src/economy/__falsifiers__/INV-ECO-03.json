@@ -1,0 +1,20 @@
+{
+  "invariant": "INV-ECO-03",
+  "why": "two boosts stacking to x4, or a second grant extending a running timer instead of entering inventory",
+  "source": "EC-ECO-03, EC-ECO-04",
+  "input": {
+    "running": {
+      "multiplier": 2,
+      "expiresAtUtc": "2026-09-11T10:15:00Z"
+    },
+    "grantedDuringRun": {
+      "multiplier": 2,
+      "durationMinutes": 30
+    },
+    "maxBoostInventory": 5
+  },
+  "mustNotBe": "a multiplier above 2, an expiry later than 10:15 on the RUNNING boost, or an inventory above the cap.",
+  "usedBy": ["economy/boost.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

@@ -1,0 +1,18 @@
+{
+  "invariant": "INV-ECO-02",
+  "why": "a parked session banking a boost past the grace: started under a ×2, killed, resumed and committed 10 minutes after the boost expired, still paying ×2",
+  "source": "EC-ECO-02; plan §Rulings \"read at session start, but expires with the boost\"",
+  "input": {
+    "boostAtSessionStart": {
+      "multiplier": 2,
+      "expiresAtUtc": "2026-09-11T10:00:00Z"
+    },
+    "boostGraceSeconds": 120,
+    "committedAtUtc": "2026-09-11T10:10:00Z",
+    "baseXp": 10
+  },
+  "mustNotBe": "20 XP, or a ceremony number that disagrees with the committed one. Past expiry + grace the commit is 1x and S067 carries BOOST_LAPSED_EXPLANATION.",
+  "usedBy": ["economy/boost.test.ts", "economy/xp.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

@@ -1,0 +1,21 @@
+{
+  "invariant": "INV-ECO-13",
+  "why": "a word-count achievement computed as a SUM across courses: a learner of two Romance languages reported as knowing twice the words they know, because the same content-hashed lexeme was counted once per course",
+  "source": "EC-ECO-16, EC-ECO-17",
+  "input": {
+    "courses": [
+      {
+        "courseId": "es",
+        "itemIds": ["h1", "h2", "h3"]
+      },
+      {
+        "courseId": "fr",
+        "itemIds": ["h2", "h3", "h4"]
+      }
+    ]
+  },
+  "mustNotBe": "6. The union is 4. And course_progress.xp must die with a removed course while account.lifetime_xp survives it.",
+  "usedBy": ["economy/words.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

@@ -1,0 +1,19 @@
+{
+  "invariant": "INV-ECO-09",
+  "why": "the named gate: a flavour with no matrix row. Placement, jump-here, section test, recovery and endgame each need an EXPLICIT row, because the default for a missing row is whatever the reader guesses",
+  "source": "EC-ECO-15",
+  "input": {
+    "flavour": "placement",
+    "outcome": "completed",
+    "expectedRow": {
+      "extends_streak": true,
+      "counts_toward_goal": true,
+      "awards_xp": false,
+      "advances_quests": false
+    }
+  },
+  "mustNotBe": "a lookup that throws, returns undefined, or falls back to the lesson row. Placement extends the streak and counts toward the goal while awarding 0 XP.",
+  "usedBy": ["economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

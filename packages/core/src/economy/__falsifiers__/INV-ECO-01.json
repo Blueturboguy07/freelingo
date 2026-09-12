@@ -1,0 +1,38 @@
+{
+  "invariant": "INV-ECO-01",
+  "why": "a fifth goal tier, or a 40 where the ruling says 50: the minutes-to-XP ladder is 10/20/30/50 and lives in ONE named table, so a consumer that re-types it can drift from it silently",
+  "source": "EC-ECO-01; plan §Rulings \"10/20/30/50 XP for Casual/Regular/Serious/Intense, one named table\"",
+  "check": {
+    "module": "../xp.js",
+    "export": "goalXpFor"
+  },
+  "cases": [
+    {
+      "name": "casual is 10, not 5",
+      "args": ["casual"],
+      "expect": 10
+    },
+    {
+      "name": "regular is 20",
+      "args": ["regular"],
+      "expect": 20
+    },
+    {
+      "name": "serious is 30",
+      "args": ["serious"],
+      "expect": 30
+    },
+    {
+      "name": "intense is 50, NOT the 2023 figure of 40",
+      "args": ["intense"],
+      "expect": 50
+    },
+    {
+      "name": "a tier with no row throws rather than defaulting",
+      "args": ["casual-plus"],
+      "throws": "no row for"
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

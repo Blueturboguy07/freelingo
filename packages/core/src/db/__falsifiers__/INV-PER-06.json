@@ -1,0 +1,15 @@
+{
+  "invariant": "INV-PER-06",
+  "why": "the progress database opened under a CACHE path, which the OS may reclaim at any time — the learner returns to a wiped streak and no error was ever raised. The assertion must NAME the platform and exclude tvOS explicitly, because tvOS has no persistent per-app storage at all",
+  "source": "EC-PER-11, EC-PER-13",
+  "input": {
+    "correct": "Paths.document (progress)",
+    "wrong": ["Paths.cache", "a tmp path", "the pack cache directory"],
+    "platformsAsserted": ["ios", "android"],
+    "excluded": ["tvos"]
+  },
+  "mustNotBe": "a progress DB under Paths.cache, or a gate that passes on tvOS by failing to name it.",
+  "usedBy": ["db/persistence.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

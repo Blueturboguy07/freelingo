@@ -20,7 +20,7 @@
     "test:coverage-map": "node --experimental-strip-types scripts/coverage-map.ts",
     "invariants:sync": "node --experimental-strip-types scripts/sync-invariants.ts",
     "invariants:check": "node --experimental-strip-types scripts/sync-invariants.ts --check",
-    "test:falsify": "vitest run --project core -t falsifier",
+    "test:falsify": "vitest run --project core --project schema --project testkit -t falsifier",
     "test:golden-migrations": "vitest run --project schema -t golden",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -1,0 +1,37 @@
+{
+  "invariant": "INV-CER-01",
+  "why": "a replayed session_id awarding a second time. The whole reward commit is ONE exclusive transaction keyed by session_id, so a ceremony re-entered after a kill — the retry a flaky write forces, or a learner backgrounding at S1a and coming back — must decide to apply NOTHING the second time. Without it every kill during a ceremony is a coin flip on the learner's rewards.",
+  "source": "EC-CER-01, EC-ECO-18",
+  "check": { "module": "../commit.js", "export": "planCommit" },
+  "cases": [
+    {
+      "name": "a first commit applies exactly the outcome, inventing and dropping nothing",
+      "args": [{ "sessionId": "s-441", "xp": 30, "gems": 5 }, []],
+      "expect": { "sessionId": "s-441", "xp": 30, "gems": 5 }
+    },
+    {
+      "name": "the falsifier: replaying the SAME session_id applies nothing at all",
+      "args": [{ "sessionId": "s-441", "xp": 30, "gems": 5 }, ["s-441"]],
+      "expect": null
+    },
+    {
+      "name": "and it is the id that decides, not the position: a mid-ledger collision still refuses",
+      "args": [{ "sessionId": "s-441", "xp": 30, "gems": 5 }, ["s-1", "s-441", "s-2"]],
+      "expect": null
+    },
+    {
+      "name": "a DIFFERENT session still commits while others sit on the ledger",
+      "args": [{ "sessionId": "s-442", "xp": 10, "gems": 1 }, ["s-1", "s-441"]],
+      "expect": { "sessionId": "s-442", "xp": 10, "gems": 1 }
+    },
+    {
+      "name": "a zero-value outcome is still a commit, not a null: 0 XP is a decision",
+      "args": [{ "sessionId": "s-443", "xp": 0, "gems": 0 }, []],
+      "expect": { "sessionId": "s-443", "xp": 0, "gems": 0 }
+    }
+  ],
+  "mustNotBe": "a non-null plan for any already-committed session_id, or a plan whose xp/gems differ from the outcome it was handed.",
+  "usedBy": ["ceremony/commit.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: INV-CER-01 is a P0 id that shipped with tests and no falsifying input."
+}

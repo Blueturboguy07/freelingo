@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-ECO-23",
+  "why": "the named falsifier: twelve consecutive personal-record days producing twelve celebration cards, and any of them appearing inside the ceremony chain",
+  "source": "EC-ECO-27",
+  "input": {
+    "days": 30,
+    "recordDays": 12,
+    "bound": "ceil(30/7) = 5"
+  },
+  "mustNotBe": "12 celebrations, or any celebration rendered as a ceremony step.",
+  "usedBy": ["economy/daily.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

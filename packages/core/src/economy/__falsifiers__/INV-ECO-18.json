@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-ECO-18",
+  "why": "boosts minted by clock tampering: 400 days of wound clock over a Daily Refresh set producing more boosts than there were distinct local_days on which the final level was completed",
+  "source": "EC-PTH-30",
+  "input": {
+    "spanDays": 400,
+    "finalLevelCompletedOn": ["2026-09-11", "2026-09-12", "2026-10-01"],
+    "clockMovesBetween": 37
+  },
+  "mustNotBe": "more than 3 boosts, or legendary state surviving on a Daily Refresh level after its set cleared.",
+  "usedBy": ["economy/boost.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

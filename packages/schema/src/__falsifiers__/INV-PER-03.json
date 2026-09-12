@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-PER-03",
+  "why": "DDL committed without its PRAGMA user_version bump, or the bump committed without the DDL: a kill between the two leaves a database whose version lies about its schema, and the next launch migrates over tables that already exist",
+  "source": "EC-PER-03",
+  "input": {
+    "from": 1,
+    "to": 2,
+    "killBetween": ["after DDL, before the pragma", "after the pragma, before commit"]
+  },
+  "mustNotBe": "user_version = 2 over a version-1 schema, or version-2 tables under user_version = 1. Both halves ride ONE exclusive transaction, or the launch routes to INV-PER-01.",
+  "usedBy": ["schema/migrations.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

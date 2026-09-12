@@ -1,5 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 import { sha256Hex } from '../packs/hashing.js';
 import { CHECKPOINT_STEP } from './integrity.js';
@@ -159,7 +161,44 @@ describe('INV-DAT-01 export reaches the share sheet only on a verified-complete 
   });
 });
 
+/**
+ * INV-DAT-03's committed falsifier input, added at P1 integration: the data lane shipped
+ * twelve fixtures and not this one, so the phase gate's "committed falsifier inputs per
+ * invariant" clause was red on it. Descriptive rather than executable, and read here so
+ * the file is consumed rather than filed.
+ */
+const DAT03 = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./__falsifiers__/INV-DAT-03.json', import.meta.url)), 'utf8'),
+) as {
+  readonly invariant: string;
+  readonly input: {
+    readonly mustBeExcludedFromArchive: string;
+    readonly manifestMustDeclareTheExclusion: boolean;
+    readonly planMustCarryTheList: boolean;
+  };
+};
+
 describe('INV-DAT-03 session_state is excluded, and the manifest says so', () => {
+  it('[INV-DAT-03] falsifier: the named table is excluded, declared, AND carried on the plan', () => {
+    expect(DAT03.invariant).toBe('INV-DAT-03');
+    const table = DAT03.input.mustBeExcludedFromArchive;
+
+    // The table the fixture names, not one retyped here.
+    expect(EXCLUDED_FROM_ARCHIVE).toContain(table);
+
+    // Half one: excluded from the archive AND declared by the manifest. A silent
+    // omission is the failure this invariant is really about.
+    const manifest = manifestOf();
+    expect(DAT03.input.manifestMustDeclareTheExclusion).toBe(true);
+    expect(manifest.excluded).toContain(table);
+    expect(manifestDeclaresExclusions(manifest)).toBe(true);
+
+    // Half two: the plan hands the caller the list, so forgetting is not an option.
+    expect(DAT03.input.planMustCarryTheList).toBe(true);
+    const plan = planExport({ finalPath: '/x', estimatedBytes: 1, freeBytes: 1_000_000_000 });
+    expect(plan.excludedTables).toContain(table);
+  });
+
   it('[INV-DAT-03] the archive excludes session_state and the manifest declares the exclusion', () => {
     const manifest = manifestOf();
     expect(EXCLUDED_FROM_ARCHIVE).toContain('session_state');

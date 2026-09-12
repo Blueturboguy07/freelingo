@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-ECO-25",
+  "why": "the named falsifier: a grid row whose source column resolves to a mechanic the path lacks — plus the grep half, `crown` or `skill` appearing in an achievement config, which are 2023 mechanics this build does not have",
+  "source": "EC-ECO-30",
+  "input": {
+    "bannedWords": ["crown", "skill"],
+    "everyCounterMustExistIn": "the progress schema"
+  },
+  "mustNotBe": "an achievement naming a counter column no table holds, or one no reachable event increments.",
+  "usedBy": ["economy/achievements.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

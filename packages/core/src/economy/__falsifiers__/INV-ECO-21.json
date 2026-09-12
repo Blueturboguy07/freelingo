@@ -1,0 +1,33 @@
+{
+  "invariant": "INV-ECO-21",
+  "why": "the named falsifier: a flat-10-XP Practice session leaving a 10 XP Casual goal unmet. goalMet is >= and INCLUSIVE; a > would miss a five-minute learner by one XP every single day",
+  "source": "EC-ECO-24",
+  "check": {
+    "module": "../xp.js",
+    "export": "goalMet"
+  },
+  "cases": [
+    {
+      "name": "the falsifier itself: 10 XP against a 10 XP goal is MET",
+      "args": [10, 10],
+      "expect": true
+    },
+    {
+      "name": "one short is not met",
+      "args": [9, 10],
+      "expect": false
+    },
+    {
+      "name": "over is met",
+      "args": [55, 50],
+      "expect": true
+    },
+    {
+      "name": "zero against zero is met, and never throws",
+      "args": [0, 0],
+      "expect": true
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

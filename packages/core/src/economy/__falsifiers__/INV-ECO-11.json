@@ -1,0 +1,19 @@
+{
+  "invariant": "INV-ECO-11",
+  "why": "the day's quests or Daily Refresh set changing across a kill, a relaunch or a course switch on the same local day — the set is a pure function of (local_day, seed) and of nothing else",
+  "source": "EC-ECO-12, EC-PTH-14",
+  "input": {
+    "localDay": "2026-09-11",
+    "seed": "fixture-seed",
+    "between": [
+      "kill",
+      "relaunch",
+      "course-switch-es-to-fr",
+      "zone-change-Asia/Tokyo-to-America/Los_Angeles"
+    ]
+  },
+  "mustNotBe": "a second derivation differing from the first in id, order or target.",
+  "usedBy": ["economy/daily-refresh.test.ts", "economy/quests.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

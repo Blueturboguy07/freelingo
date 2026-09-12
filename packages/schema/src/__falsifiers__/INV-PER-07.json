@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-PER-07",
+  "why": "the named grep gate: withTransactionAsync (the non-exclusive one) reached for in a scheduler or economy module, where a concurrent writer can interleave between the read and the write of an XP counter",
+  "source": "EC-PER-12",
+  "input": {
+    "forbidden": "withTransactionAsync",
+    "required": "withExclusiveTransactionAsync",
+    "scannedModules": ["scheduler", "economy", "schema"]
+  },
+  "mustNotBe": "a single occurrence of the non-exclusive call in a scheduler or economy write path.",
+  "usedBy": ["schema/exclusive-transaction-gate.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-ECO-08",
+  "why": "a completed Daily Refresh level paying the LEVEL award again on replay instead of the practice award — or becoming unplayable, which is the opposite failure",
+  "source": "EC-PTH-15",
+  "input": {
+    "levelId": "dr-3",
+    "completedToday": true,
+    "replayed": true
+  },
+  "mustNotBe": "DAILY_REFRESH_LEVEL_XP on the replay, or a level that cannot be entered at all.",
+  "usedBy": ["economy/xp.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

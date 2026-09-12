@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-ECO-04",
+  "why": "a table that straddles the two regions — course XP or FSRS rows living beside gems and the streak — so removing one course takes account-scoped state with it, or leaves course state behind",
+  "source": "EC-ECO-05",
+  "input": {
+    "accountRegion": ["gems", "freezes", "boosts", "quests", "goal", "streak", "achievements"],
+    "courseRegion": ["course xp", "Score", "path state", "mistakes", "FSRS rows"]
+  },
+  "mustNotBe": "any table holding columns from both lists.",
+  "usedBy": ["schema/progress-schema.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

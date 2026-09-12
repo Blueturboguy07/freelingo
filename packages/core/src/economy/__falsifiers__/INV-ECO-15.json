@@ -1,0 +1,23 @@
+{
+  "invariant": "INV-ECO-15",
+  "why": "an offer advertising more XP than it awards — the node button reading +20 and the ceremony paying 10, with no named config value for the gap",
+  "source": "EC-ECO-19, EC-HUB-06",
+  "input": {
+    "flavours": [
+      "lesson",
+      "practice",
+      "legendary",
+      "sectionTest",
+      "unitReview",
+      "dailyRefresh",
+      "recovery",
+      "endgameReview",
+      "placement",
+      "jumpHere"
+    ]
+  },
+  "mustNotBe": "advertised != awarded for any flavour, unless the difference is an explicit named constant read from the same table.",
+  "usedBy": ["economy/xp.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

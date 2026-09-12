@@ -1,0 +1,16 @@
+{
+  "invariant": "INV-ECO-05",
+  "why": "a mid-day goal change re-firing the daily-goal chest, or un-meeting a day already met",
+  "source": "EC-ECO-09, EC-CER-06",
+  "input": {
+    "localDay": "2026-09-11",
+    "earnedXp": 30,
+    "goalAtStartOfDay": "casual",
+    "goalChangedMidDayTo": "intense",
+    "chestAlreadyGrantedForDay": true
+  },
+  "mustNotBe": "a second chest for 2026-09-11, or goalMet flipping back to false once the day is met.",
+  "usedBy": ["economy/daily.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

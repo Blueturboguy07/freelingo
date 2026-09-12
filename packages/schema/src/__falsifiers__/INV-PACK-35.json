@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-PACK-35",
+  "why": "the named falsifier: migrate a fixture with 40 completed nodes across a MAJOR version bump and find node completion, streak, gems or achievements changed",
+  "source": "EC-PACK-32",
+  "input": {
+    "fixture": "packages/schema/fixtures/golden/v2.db",
+    "completedNodesBefore": 40,
+    "accountScoped": ["streak", "gems", "achievements", "lifetime_xp"]
+  },
+  "mustNotBe": "a single completed node becoming incomplete, or any account-scoped value differing by one bit after the migration. Row-level equality against the committed expected state, not a row count.",
+  "usedBy": ["schema/golden.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

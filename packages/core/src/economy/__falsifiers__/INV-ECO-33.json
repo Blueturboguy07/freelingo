@@ -1,0 +1,38 @@
+{
+  "invariant": "INV-ECO-33",
+  "why": "the named falsifier: re-running one kana Letters node 100 times unlocks Sharpshooter tier 5 while accuracy is formally undefined. A lesson whose scorable set is entirely non-punitive must increment nothing",
+  "source": "EC-ECO-40",
+  "check": {
+    "module": "../achievements.js",
+    "export": "sharpshooterIncrements"
+  },
+  "cases": [
+    {
+      "name": "the falsifier: an all-character Letters node with zero mistakes increments NOTHING",
+      "args": [["character", "character", "character"], 0],
+      "expect": false
+    },
+    {
+      "name": "speak and readRespond are non-punitive too, so a set of them is empty",
+      "args": [["speak", "readRespond"], 0],
+      "expect": false
+    },
+    {
+      "name": "one punitive item with no mistakes does increment",
+      "args": [["character", "typedTranslate"], 0],
+      "expect": true
+    },
+    {
+      "name": "a punitive set WITH a mistake does not",
+      "args": [["typedTranslate", "listening"], 1],
+      "expect": false
+    },
+    {
+      "name": "an empty lesson is empty, not perfect",
+      "args": [[], 0],
+      "expect": false
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

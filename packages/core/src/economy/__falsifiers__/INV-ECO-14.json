@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-ECO-14",
+  "why": "a \"you did it\" string keyed off the calendar date rather than the streak number, and a milestone set that is not exactly {7, 30, 100, 365, 1000}",
+  "source": "EC-STK-18, EC-ECO-21",
+  "input": {
+    "milestones": [7, 30, 100, 365, 1000],
+    "streakGoalResolutions": ["rail", "celebration", "re-pick", "silent-reset"]
+  },
+  "mustNotBe": "a sixth milestone, a missing resolution, or a celebration string interpolating a date.",
+  "usedBy": ["economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

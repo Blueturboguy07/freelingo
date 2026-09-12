@@ -1,0 +1,33 @@
+{
+  "invariant": "INV-ECO-06",
+  "why": "the per-mode daily cap is what stops an unbounded replay farm; the falsifier is a mode whose cap is absent or infinite, so any number of sessions pays forever",
+  "source": "EC-ECO-06, EC-ECO-07, EC-ECO-08",
+  "check": {
+    "module": "../xp.js",
+    "export": "ladderDailyCap"
+  },
+  "cases": [
+    {
+      "name": "story replays are bounded at 60 XP a day",
+      "args": ["story"],
+      "expect": 60
+    },
+    {
+      "name": "so is radio",
+      "args": ["radio"],
+      "expect": 60
+    },
+    {
+      "name": "practice at 100",
+      "args": ["practice"],
+      "expect": 100
+    },
+    {
+      "name": "and path lessons, which run out of content, at 400",
+      "args": ["lesson"],
+      "expect": 400
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

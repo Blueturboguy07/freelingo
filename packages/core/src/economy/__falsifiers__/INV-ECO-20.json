@@ -1,0 +1,20 @@
+{
+  "invariant": "INV-ECO-20",
+  "why": "the named falsifier: a weekly-report minutes figure derived from wall-clock session spans — a learner who started a lesson, took a two-hour call and came back credited with two hours of study",
+  "source": "EC-ECO-23",
+  "input": {
+    "sessionStartUtc": "2026-09-11T09:00:00Z",
+    "committedAtUtc": "2026-09-11T11:03:00Z",
+    "activeSpans": [
+      {
+        "startMs": 0,
+        "endMs": 240000
+      }
+    ],
+    "backgroundedMs": 7140000
+  },
+  "mustNotBe": "123 minutes. active_ms is 240000 and every minutes-shaped string reads it, not the span.",
+  "usedBy": ["economy/daily.test.ts", "schema/session-commit.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   ZONES,
   civilDayRange,
@@ -36,7 +38,54 @@ function referenceStreak(days: readonly LocalDay[], today: LocalDay): number {
   return end - start + 1;
 }
 
+/**
+ * The committed falsifier input for an invariant (plan §Verification: "committed
+ * falsifier inputs per invariant"). Same helper as `boundary.test.ts`; the file also
+ * records the falsifier sentence and its source, and `__falsifiers__.test.ts` gates the
+ * shape and insists this call exists.
+ */
+const falsifier = (id: string): Record<string, unknown> => {
+  const file = JSON.parse(
+    readFileSync(fileURLToPath(new URL(`./__falsifiers__/${id}.json`, import.meta.url)), 'utf8'),
+  ) as { id: string; falsifier: string; input: Record<string, unknown> };
+  expect(file.id).toBe(id);
+  expect(file.falsifier.length).toBeGreaterThan(0);
+  return file.input;
+};
+
 describe('streak', () => {
+  /**
+   * INV-DAY-01's committed falsifier, run rather than filed.
+   *
+   * Added at P1 integration: INV-DAY-01 is a P0 id that shipped with three green tests
+   * and no falsifying input, and the phase gate's "committed falsifier inputs per
+   * invariant" clause was red on it. The case is the one an imperative counter cannot
+   * survive — a duplicated day and a day that arrives late — and both halves are asserted
+   * off the committed numbers, not off numbers retyped here.
+   */
+  it('[INV-DAY-01] falsifier: a duplicated day adds nothing and a LATE day still re-joins the run', () => {
+    const input = falsifier('INV-DAY-01') as {
+      today: string;
+      daysWithDuplicate: string[];
+      insertedLate: string;
+      expectedBeforeLateInsert: number;
+      expectedAfterLateInsert: number;
+    };
+    const today = toLocalDay(input.today);
+    const days = input.daysWithDuplicate.map(toLocalDay);
+
+    // The duplicate must not buy a day: the run ending today is 09-08..09-11.
+    expect(streakFromDays(days, today)).toBe(input.expectedBeforeLateInsert);
+
+    // The late row arrives out of order. A counter that had already moved past 09-07
+    // cannot revisit it; a function of the set closes the gap and the run becomes 7.
+    const withLate = [...days, toLocalDay(input.insertedLate)];
+    expect(streakFromDays(withLate, today)).toBe(input.expectedAfterLateInsert);
+
+    // And order is still irrelevant, which is the property the two numbers rest on.
+    expect(streakFromDays([...withLate].reverse(), today)).toBe(input.expectedAfterLateInsert);
+  });
+
   it('[INV-DAY-01] streak is the maximal contiguous run of distinct days ending today-or-yesterday', () => {
     const today = toLocalDay('2026-09-11');
     expect(streakFromDays([], today)).toBe(0);

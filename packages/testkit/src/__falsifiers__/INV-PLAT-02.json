@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-PLAT-02",
+  "why": "a hand-edited file under apps/mobile/ios or apps/mobile/android: the next `expo prebuild` deletes the edit without saying so, and a config-plugin change can no longer be told apart from drift",
+  "source": "EC-PLAT-02",
+  "input": {
+    "falsifyingEdit": "commit a single file under apps/mobile/ios/",
+    "secondHalf": "two `expo prebuild --clean` runs on one commit disagreeing beyond a consistent renaming of Xcode object ids"
+  },
+  "mustNotBe": "a tracked file under either native directory, or two prebuilds whose canonicalised trees differ. Repo-state falsifier; the CI job is prebuild-determinism in native-e2e.yml.",
+  "usedBy": ["testkit/platform-gates.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

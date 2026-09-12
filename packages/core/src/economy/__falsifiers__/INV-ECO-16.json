@@ -1,0 +1,16 @@
+{
+  "invariant": "INV-ECO-16",
+  "why": "the named falsifier: ten checkpoint-abandon runs on one node in one day yielding ten checkpoint awards",
+  "source": "EC-PTH-27",
+  "input": {
+    "nodeId": "n-9",
+    "localDay": "2026-09-11",
+    "failedAttempts": 10,
+    "reachedCheckpointEachTime": true,
+    "checkpointXp": 20
+  },
+  "mustNotBe": "200 XP, or any retained challenge progress between attempts.",
+  "usedBy": ["economy/xp.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

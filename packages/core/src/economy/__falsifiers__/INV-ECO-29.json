@@ -1,0 +1,107 @@
+{
+  "invariant": "INV-ECO-29",
+  "why": "the named falsifier: Strategist earned by opening the guidebook ALONE. It needs an open followed by a completed session, same unit, same local day, in that order",
+  "source": "EC-ECO-34",
+  "check": {
+    "module": "../quests.js",
+    "export": "strategistFires"
+  },
+  "cases": [
+    {
+      "name": "the falsifier: a guidebook open with no session earns nothing",
+      "args": [
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:00:00Z"
+          }
+        ],
+        []
+      ],
+      "expect": false
+    },
+    {
+      "name": "open then session, same unit same day, fires",
+      "args": [
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:00:00Z"
+          }
+        ],
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:30:00Z"
+          }
+        ]
+      ],
+      "expect": true
+    },
+    {
+      "name": "a session BEFORE the open does not fire — order is the rule",
+      "args": [
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:30:00Z"
+          }
+        ],
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:00:00Z"
+          }
+        ]
+      ],
+      "expect": false
+    },
+    {
+      "name": "a session in a DIFFERENT unit does not fire",
+      "args": [
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:00:00Z"
+          }
+        ],
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u2",
+            "atUtc": "2026-09-11T09:30:00Z"
+          }
+        ]
+      ],
+      "expect": false
+    },
+    {
+      "name": "a session on the NEXT local day does not fire",
+      "args": [
+        [
+          {
+            "localDay": "2026-09-11",
+            "unitId": "u1",
+            "atUtc": "2026-09-11T09:00:00Z"
+          }
+        ],
+        [
+          {
+            "localDay": "2026-09-12",
+            "unitId": "u1",
+            "atUtc": "2026-09-12T09:30:00Z"
+          }
+        ]
+      ],
+      "expect": false
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

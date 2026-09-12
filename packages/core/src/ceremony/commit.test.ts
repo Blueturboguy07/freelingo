@@ -19,8 +19,30 @@
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 import { planCommit, type SessionOutcome } from './commit.js';
+
+/**
+ * INV-CER-01's committed falsifier input, added at P1 integration.
+ *
+ * It is one of the first fixtures in the repo to declare the journey gate's executable
+ * `{check, cases}` contract, so `falsifier-corpus.test.ts` imports `commit.js`, calls
+ * `planCommit` with each case's arguments and compares structurally. That makes the same
+ * file evidence in two places; this one runs it beside the rest of the lane, so a fixture
+ * that drifts away from the module is red here too and not only in the gate.
+ */
+const CER01 = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./__falsifiers__/INV-CER-01.json', import.meta.url)), 'utf8'),
+) as {
+  readonly invariant: string;
+  readonly cases: readonly {
+    readonly name: string;
+    readonly args: [SessionOutcome, string[]];
+    readonly expect: unknown;
+  }[];
+};
 
 /**
  * A small id pool. The point of this property is the "already committed" branch, and a
@@ -37,6 +59,17 @@ const outcome = (sessionId: string, xp: number, gems: number): SessionOutcome =>
 });
 
 describe('planCommit', () => {
+  it('[INV-CER-01] falsifier: every committed case agrees with the module, replay included', () => {
+    expect(CER01.invariant).toBe('INV-CER-01');
+    expect(CER01.cases.length).toBeGreaterThanOrEqual(5);
+    // One of the five must be the replay itself, or this loop proves only the happy path.
+    expect(CER01.cases.some((c) => c.expect === null)).toBe(true);
+    for (const testCase of CER01.cases) {
+      const [outcomeArg, ledger] = testCase.args;
+      expect(planCommit(outcomeArg, ledger), testCase.name).toEqual(testCase.expect);
+    }
+  });
+
   it('[INV-CER-01] a first commit applies exactly the session outcome', () => {
     expect(planCommit(outcome('s1', 20, 3), [])).toEqual({ sessionId: 's1', xp: 20, gems: 3 });
   });

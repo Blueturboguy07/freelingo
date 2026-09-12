@@ -175,10 +175,7 @@ export function calendarCells(
  * fires on a morning that may be several foregrounds after the walk that spent the
  * freeze. The copy must not congratulate: the learner did not earn that day.
  */
-export function wasFrozenOn(
-  state: Pick<DayEngineState, 'dispositions'>,
-  day: LocalDay,
-): boolean {
+export function wasFrozenOn(state: Pick<DayEngineState, 'dispositions'>, day: LocalDay): boolean {
   return state.dispositions.get(day) === 'frozen';
 }
 
@@ -217,7 +214,7 @@ export function nextMilestoneDay(currentStreak: number, today: LocalDay): LocalD
  * S121: `Refills in {{n}} day(s)`.
  *
  * Null at a full balance — there is nothing to refill and the card shows the count
- * instead. Otherwise the civil days until the `timed_refill` channel's next tick, counted
+ * instead. Otherwise the civil days until the `streak_freeze_refill` channel's next tick, counted
  * from the most recent timed refill (or, on a fresh account that has never had one, from
  * the first grant the ledger holds).
  */
@@ -225,7 +222,7 @@ export function daysUntilFreezeRefill(ledger: FreezeLedger, today: LocalDay): nu
   if (freezesHeld(ledger) >= ledger.cap) return null;
   const period = DAY_CONFIG.freezeRefillIntervalDays;
   const timed = ledger.grants
-    .filter((g) => g.channel === 'timed_refill')
+    .filter((g) => g.channel === 'streak_freeze_refill')
     .map((g) => g.ownedFromDay)
     .sort();
   const anchor = timed.at(-1) ?? [...ledger.grants].map((g) => g.ownedFromDay).sort()[0];

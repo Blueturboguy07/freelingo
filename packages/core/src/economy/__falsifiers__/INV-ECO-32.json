@@ -1,0 +1,38 @@
+{
+  "invariant": "INV-ECO-32",
+  "why": "the named falsifier: a scalar sessionXP(story) literal, or six story replays paying first-completion XP. Both formats read a FOUR-KEY table and the replay key is not the first key",
+  "source": "EC-ECO-37, EC-ECO-08",
+  "check": {
+    "module": "../xp.js",
+    "export": "narrativeXp"
+  },
+  "cases": [
+    {
+      "name": "a story first completion pays 20",
+      "args": ["story", "first"],
+      "expect": 20
+    },
+    {
+      "name": "a plain story replay pays the review award, NOT 20",
+      "args": ["story", "replay_plain"],
+      "expect": 5
+    },
+    {
+      "name": "the hub promotion sits between the two",
+      "args": ["story", "hub_recommended"],
+      "expect": 10
+    },
+    {
+      "name": "radio first is 20",
+      "args": ["radio", "first"],
+      "expect": 20
+    },
+    {
+      "name": "and a radio replay is 10, the ruled figure, not the story one",
+      "args": ["radio", "replay_plain"],
+      "expect": 10
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

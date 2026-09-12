@@ -1,0 +1,13 @@
+{
+  "invariant": "INV-ECO-12",
+  "why": "a gem price appearing on hearts, Legendary, streak recovery or any learning surface — the paywall this clone exists to delete — or a deprecated boost reappearing in the catalogue",
+  "source": "EC-ECO-14, EC-ECO-22",
+  "input": {
+    "catalogueIds": ["streak-freeze", "cosmetic-outfit-rose"],
+    "deprecated": ["timerBoost", "doubleOrNothing", "happyHour", "earlyBird", "weekendAmulet"]
+  },
+  "mustNotBe": "a catalogue entry for any deprecated kind, or any priced item that is not a cosmetic or a Streak Freeze.",
+  "usedBy": ["economy/config.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

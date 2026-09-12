@@ -1,0 +1,25 @@
+{
+  "invariant": "INV-PER-11",
+  "why": "the named falsifier: a SINGLE GLOBAL display-preference row. A learner reading Japanese with furigana on and Spanish with it off gets one setting for both, and the same row also straddles the two regions INV-ECO-04 keeps apart",
+  "source": "EC-I18N-11",
+  "input": {
+    "writes": [
+      {
+        "courseId": "ja",
+        "furigana": true
+      },
+      {
+        "courseId": "es",
+        "furigana": false
+      },
+      {
+        "courseId": "ja",
+        "furigana": true
+      }
+    ]
+  },
+  "mustNotBe": "a read of ja returning false after the es write, or a course_display table with no course_id key.",
+  "usedBy": ["schema/progress-schema.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

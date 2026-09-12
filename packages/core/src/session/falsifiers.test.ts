@@ -26,11 +26,7 @@ import {
 } from './test-doubles.js';
 import { COURSE_A, freshSession, item, items } from './session-fixture.js';
 import { barIsGold, comboAfter, comboLabelVisible } from './combo.js';
-import {
-  STEP_UP_COPY,
-  emitInterstitials,
-  isCanonicalInterstitialOrder,
-} from './interstitials.js';
+import { STEP_UP_COPY, emitInterstitials, isCanonicalInterstitialOrder } from './interstitials.js';
 import { advanceProgress, consumeFinalSegment, initialProgress } from './progress.js';
 import {
   afterMistakeReplay,
@@ -490,7 +486,8 @@ const HANDLERS: Record<string, Handler> = {
     const queued = queueMistake({
       config: DEFAULT_FLAVOUR_MATRIX.lesson,
       item: trace,
-      queue: [], mainAnswersAtMiss: 1,
+      queue: [],
+      mainAnswersAtMiss: 1,
     });
     return { weakItem: weak !== null, mistakeQueued: queued.length };
   },
@@ -917,8 +914,7 @@ const HANDLERS: Record<string, Handler> = {
     for (let guard = 0; guard < 400 && state.shellState !== 'complete'; guard += 1) {
       // What is on screen right now?
       served = state.currentReplay;
-      const onScreen =
-        served !== null ? served.item : (state.core.queue[state.core.index] ?? null);
+      const onScreen = served !== null ? served.item : (state.core.queue[state.core.index] ?? null);
       if (onScreen !== null && state.shellState === 'challenge.idle') {
         trace.push(`${served !== null ? 'REPLAY' : 'MAIN'}(${onScreen.itemId})`);
         if (served !== null) {
@@ -1000,8 +996,7 @@ const HANDLERS: Record<string, Handler> = {
         headline = state.lastVerdict?.note ?? null;
         // …and it is on the ROW, so a kill between the verdict and CONTINUE restores the
         // banner WITH its headline (INV-SESS-04).
-        headlineAfterKill =
-          deserialiseSession(serialiseSession(state)).lastVerdict?.note ?? null;
+        headlineAfterKill = deserialiseSession(serialiseSession(state)).lastVerdict?.note ?? null;
       }
       state = step(state, { type: 'continue' }, d).state;
       if (state.shellState === 'interstitial') {
@@ -1025,8 +1020,7 @@ const HANDLERS: Record<string, Handler> = {
       // The whole run, so "the milestone is not lost" is a count, not an absence: 5 and
       // 10 both fired, with distinct copy (INV-COM-03).
       milestonesInWholeRun: allMilestoneKeys.filter((k) => k.startsWith('combo.')).length,
-      distinctCopyInWholeRun: new Set(allMilestoneKeys.filter((k) => k.startsWith('combo.')))
-        .size,
+      distinctCopyInWholeRun: new Set(allMilestoneKeys.filter((k) => k.startsWith('combo.'))).size,
       // A soft-correct never breaks the combo.
       comboBroken: state.core.combo !== (input.correctBefore as number) + 1,
     };

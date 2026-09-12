@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-PLAT-01",
+  "why": "a dependency version hand-typed into package.json instead of resolved by `npx expo install`: the lockfile's Reanimated/worklets pair drifting off the pair the installed SDK bundles, which fails at runtime on the New Architecture and not at build time",
+  "source": "EC-PLAT-01",
+  "input": {
+    "sdk": "expo 57",
+    "pairThatMustAgree": ["react-native-reanimated", "react-native-worklets"],
+    "falsifyingEdit": "bump react-native-reanimated alone in apps/mobile/package.json"
+  },
+  "mustNotBe": "a lockfile whose Reanimated/worklets pair differs from the SDK's bundled pair. This is a repo-state falsifier, not a function input: the gate reads the lockfile.",
+  "usedBy": ["testkit/platform-gates.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the id was owned by a green test and had no committed falsifying input."
+}

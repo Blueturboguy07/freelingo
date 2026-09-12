@@ -1,0 +1,22 @@
+{
+  "id": "INV-DAY-01",
+  "falsifier": "a streak held as a COUNTER and incremented imperatively rather than computed from the set of distinct local_days: two sessions on one day adding two, and a day that arrives out of order — a late attempt row, an import, a repaired day — adding nothing at all because the counter had already moved past it",
+  "source": "EC-STK-01, EC-STK-15. INV-DAY-01: \"Computed from the set, never incremented imperatively\".",
+  "input": {
+    "today": "2026-09-11",
+    "daysWithDuplicate": [
+      "2026-09-05",
+      "2026-09-06",
+      "2026-09-06",
+      "2026-09-08",
+      "2026-09-09",
+      "2026-09-10",
+      "2026-09-11"
+    ],
+    "insertedLate": "2026-09-07",
+    "expectedBeforeLateInsert": 4,
+    "expectedAfterLateInsert": 7
+  },
+  "mustNotBe": "7 before the late row arrives (which is what counting the duplicate 2026-09-06 gives), or still 4 after it (which is what an imperative counter gives, because it never revisits a day it has passed). The set has six distinct days ending at today; the maximal contiguous run ending today-or-yesterday is 2026-09-08..2026-09-11 = 4, and becomes 2026-09-05..2026-09-11 = 7 the moment the gap is filled.",
+  "usedBy": ["day/streak.test.ts"]
+}

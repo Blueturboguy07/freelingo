@@ -1,0 +1,15 @@
+{
+  "invariant": "INV-DAT-03",
+  "why": "an export archive carrying session_state — the nine resume fields of a lesson in flight. Importing it drops the learner into a half-finished session from another device, against content that may not even be installed; and an archive that quietly omits it without the manifest saying so is indistinguishable from a bug, which is why the invariant has two halves and this fixture names both.",
+  "source": "EC-PER-07",
+  "input": {
+    "sessionStateRowsAtExportTime": 1,
+    "mustBeExcludedFromArchive": "session_state",
+    "manifestMustDeclareTheExclusion": true,
+    "planMustCarryTheList": true
+  },
+  "mustNotBe": "a session_state key anywhere in the archive; an export plan whose excludedTables omits it, so a caller has to remember; or a manifest that excludes it SILENTLY, which a reader cannot tell apart from a writer that forgot.",
+  "usedBy": ["data/export.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "Added at P1 integration: the data lane's corpus had twelve files and not this one. Descriptive rather than executable because planExport's return carries paths and byte budgets that no committed JSON should pin."
+}

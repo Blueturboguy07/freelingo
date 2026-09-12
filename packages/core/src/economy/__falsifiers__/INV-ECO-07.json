@@ -1,0 +1,14 @@
+{
+  "invariant": "INV-ECO-07",
+  "why": "the falsifier in the registry text: a second legendary completion of one node paying a second 40 XP. legendary_awarded_at is set once per node, ever",
+  "source": "EC-PTH-04",
+  "input": {
+    "nodeId": "n-17",
+    "legendaryAwardedAt": "2026-09-10T18:00:00Z",
+    "secondAttemptPassed": true
+  },
+  "mustNotBe": "an award above 0 on the second pass, or an outcome other than `replayed`; the popup exposes only the practice route.",
+  "usedBy": ["economy/xp.test.ts"],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}

@@ -108,6 +108,26 @@ describe.skipIf(UNDER_STRYKER)('falsifier corpus', () => {
       .filter((r) => !r.ok)
       .map((r) => `${r.file} [${r.invariant}] ${r.case}: ${r.detail}`);
     expect(failed).toEqual([]);
+
+    /*
+     * And it ran something.
+     *
+     * `docs/P1-REPORT.md` recorded this clause as "GREEN because there is nothing to
+     * run": zero of 176 committed fixtures declared `{check, cases}`, so `runCorpus`
+     * returned an empty array and `expect([]).toEqual([])` passed forever. That is the
+     * exact shape `docs/ci.md` names — a scan that finds nothing passes for free — sitting
+     * inside the gate written to catch it.
+     *
+     * At P1 integration the economy and ceremony lanes became the contract's first users,
+     * so a floor now exists. It is deliberately a floor and not the exact number: a lane
+     * adding a case must not have to edit this file, but a change that takes the corpus
+     * back to "executed by nobody" has to.
+     */
+    expect(
+      results.length,
+      'no committed falsifier declares the executable {check, cases} contract, so this ' +
+        'clause is green over zero cases. Give at least one fixture a `check`.',
+    ).toBeGreaterThanOrEqual(40);
   });
 
   it('every owned invariant id has a committed falsifier input', () => {
@@ -134,9 +154,36 @@ describe.skipIf(UNDER_STRYKER)('falsifier corpus', () => {
     ).toEqual([]);
   });
 
-  it('the falsify script still routes to this gate', () => {
-    expect(script).toContain('--project core');
+  it('the falsify script still routes to this gate, and to every project holding a corpus', () => {
     expect(script, 'test:falsify must filter by test name').toMatch(/-t\s+\S+/);
+
+    /*
+     * `expect(script).toContain('--project core')` was the assertion here until P1
+     * integration, and it went stale the moment the corpus stopped living only in
+     * `packages/core`: the schema lane's five fixtures and the platform gates' two sit in
+     * `packages/schema` and `packages/testkit`, and a script pinned to one project selects
+     * none of them. The consumption check would still have passed — it reads test NAMES,
+     * and those carry the filter term — so `pnpm test:falsify` would have reported green
+     * over seven inputs it never ran. That is this file's own failure mode, one level up.
+     *
+     * So the projects are DERIVED from where the corpus actually is. Vitest project names
+     * are package directory names (`vitest.config.ts`: root `./packages/${name}`), so a
+     * corpus at `packages/schema/src/__falsifiers__` requires project `schema`. A script
+     * with no `--project` pin at all runs every project and is fine.
+     */
+    const pinned = [...script.matchAll(/--project\s+(\S+)/g)].map((m) => m[1] as string);
+    if (pinned.length > 0) {
+      const needed = [
+        ...new Set(corpusDirectories(corpus).map((dir) => dir.split('/')[1] as string)),
+      ].sort();
+      const unreachable = needed.filter((project) => !pinned.includes(project));
+      expect(
+        unreachable,
+        `these packages hold falsifier corpora that \`pnpm test:falsify\` does not select ` +
+          `(it pins --project ${pinned.join(', ')}). Add them, or drop the pin.`,
+      ).toEqual([]);
+    }
+
     const self = readFileSync(new URL(import.meta.url), 'utf8');
     expect(
       testNamesIn(self).filter((name) => name.includes(FILTER_TERM)).length,

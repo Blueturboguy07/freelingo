@@ -1,0 +1,65 @@
+{
+  "invariant": "INV-ECO-27",
+  "why": "the named falsifier: a third ad-hoc word count computed at render, and the uncountable-item half — a ledger row with countable:false entering either counter",
+  "source": "EC-ECO-32",
+  "check": {
+    "module": "../words.js",
+    "export": "wordCounters",
+    "call": "single"
+  },
+  "cases": [
+    {
+      "name": "learned never exceeds introduced, and an uncountable row enters NEITHER",
+      "input": [
+        {
+          "itemId": "a",
+          "countable": true,
+          "learned": true
+        },
+        {
+          "itemId": "b",
+          "countable": true,
+          "learned": false
+        },
+        {
+          "itemId": "c",
+          "countable": false,
+          "learned": true
+        }
+      ],
+      "expect": {
+        "wordsIntroduced": 2,
+        "wordsLearned": 1
+      }
+    },
+    {
+      "name": "the same content-hashed id twice is one word, not two",
+      "input": [
+        {
+          "itemId": "a",
+          "countable": true,
+          "learned": true
+        },
+        {
+          "itemId": "a",
+          "countable": true,
+          "learned": true
+        }
+      ],
+      "expect": {
+        "wordsIntroduced": 1,
+        "wordsLearned": 1
+      }
+    },
+    {
+      "name": "an empty ledger reports zeroes, never null",
+      "input": [],
+      "expect": {
+        "wordsIntroduced": 0,
+        "wordsLearned": 0
+      }
+    }
+  ],
+  "addedBy": "p1-integrate",
+  "addedNote": "P1 integration. Every one of these ids was owned by a green test and had no committed falsifying input; the registry text for each names its own falsifier and that sentence is what is written down here."
+}
