@@ -180,7 +180,7 @@ def _display_split(text: str) -> list[str]:
     THE PUNCTUATION MATTERS AND IT STOPPED A BUILD. An authored candidate has no
     `analysed_sentence` — G5 lemmatises it to filter it and the frozen `candidate`
     record has nowhere to put the result — so G7 falls back to a split here. It used to
-    be a bare `text.split()`, which makes `Hola,` and `noche.` word-bank tiles, and the
+    be a bare whitespace split, which makes `Hola,` and `noche.` word-bank tiles, and the
     distractor core is then asked for two same-POS same-band lexemes for a string that
     is in no lexicon: POS empty, band `unbanded`, zero candidates, `NotEnoughDistractors`,
     and the whole stage fails on a sentence that is perfectly good. Measured on this Mac,
