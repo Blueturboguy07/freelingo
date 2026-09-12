@@ -251,22 +251,58 @@ def ingest_licence_allow_list(ctx: ValidatorContext) -> list[Finding]:
             )
         )
 
+    # Oracle-only text in the SELECTED set, not in the ingest ledger.
+    #
+    # The first version of this check read `ingested_sentence` and fired on the first real
+    # build: 1,000 NLLB rows, every one of them legitimate. `sources/licences.py` is
+    # explicit that `oracle_only` is not refused at ingest — NLLB is ODC-By and the plan
+    # ingests it, capped, to inform frequency, KenLM and the alignment priors — and
+    # `inputs.forbid_unshippable` is what stops it at G4. Conflating "may not be ingested"
+    # with "may not be shipped" makes F1 refuse the run the plan asks for, which is worse
+    # than not checking: a validator that cries wolf on the designed path gets muted.
+    #
+    # So the question is asked of what G4 SELECTED. A missing selection is a warning, not
+    # a pass and not a failure: V10-V12 already fail loudly on that artefact, and F1
+    # saying "I could not check" is the honest third thing.
+    by_sentence = {str(row["sentence_id"]): str(row.get("source_id", "")) for row in sentences}
+    oracle_sources = {
+        source_id
+        for source_id, row in by_source.items()
+        if str(row.get("verdict", "")).lower() != _SHIPPABLE_VERDICT
+    }
+    try:
+        selected = list(read_records("selected_item", lang=lang))
+    except FileNotFoundError:
+        selected = None
+        findings.append(
+            Finding(
+                validator_id="F1",
+                severity="warning",
+                message=(
+                    f"no selected_item artefact for {lang}, so F1 could not check that "
+                    f"oracle-only text stayed out of the shipped set. The ingest half of "
+                    f"INV-PACK-13 above did run; this half did not, and 'did not run' is "
+                    f"reported rather than counted as clean."
+                ),
+                subject=lang,
+            )
+        )
+
     oracle_shipped = sorted(
         {
             str(row["sentence_id"])
-            for row in sentences
-            if str(by_source.get(str(row.get("source_id", "")), {}).get("verdict", ""))
-            not in {"", _SHIPPABLE_VERDICT}
+            for row in (selected or [])
+            if row.get("sentence_id") and by_sentence.get(str(row["sentence_id"])) in oracle_sources
         }
     )
     if oracle_shipped:
         findings.append(
             _blocking(
                 "F1",
-                f"{len(oracle_shipped)} ingested row(s) carry text from an `oracle_only` "
-                f"source (first: {oracle_shipped[0]}). NLLB and the crawl corpora may "
-                f"inform frequency, KenLM and alignment priors and may never appear "
-                f"verbatim in a pack while the ODC-By crawl-text question is open "
+                f"{len(oracle_shipped)} selected item(s) draw their text from an "
+                f"`oracle_only` source (first: {oracle_shipped[0]}). NLLB and the crawl "
+                f"corpora may inform frequency, KenLM and alignment priors and may never "
+                f"appear verbatim in a pack while the ODC-By crawl-text question is open "
                 f"(plan risk 2); `inputs.forbid_unshippable` is what should have stopped "
                 f"this at G4.",
                 lang,
@@ -304,7 +340,9 @@ def ingest_licence_allow_list(ctx: ValidatorContext) -> list[Finding]:
         corpora_configured_but_unread=unread,
         sentences_checked=len(sentences),
         sources_without_a_permit=unrecorded,
-        oracle_only_text_shipped=len(oracle_shipped),
+        selected_items_checked=None if selected is None else len(selected),
+        oracle_only_sources=sorted(oracle_sources),
+        oracle_only_text_selected=len(oracle_shipped),
         attribution_required_without_owner=len(ownerless),
     )
     return findings

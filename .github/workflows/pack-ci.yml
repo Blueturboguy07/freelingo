@@ -47,6 +47,8 @@ env:
   COURSEKIT_MAX_PAIRS: '200000'
   # Named here because two jobs assert against it and one of them is a shell script.
   AUDIO_BUDGET_MB: '120'
+  # Where `build-es` puts the Kokoro weights. Same path shape as `pack-bake.yml`.
+  COURSEKIT_KOKORO_WEIGHTS: ${{ github.workspace }}/.kokoro
 
 jobs:
   coursekit:
@@ -174,8 +176,46 @@ jobs:
       # transformers) and `tts` (onnxruntime + model downloads) are gigabytes and do not
       # fit this job — a stage that needs one exits 3 with the install command rather
       # than degrading to a worse aligner or a system voice.
-      - name: Sync nlp + lm (locked)
-        run: uv sync --locked --group nlp --group lm
+      # `tts` as well, which `pack-bake.yml` asks for by name for the same reason.
+      # The deps lane kept it out of `[tool.uv] default-groups` so the 20-minute
+      # `coursekit` job stays 20 minutes; THIS job has 60 and its product is a pack, and
+      # a pack contains audio. A stage whose group is absent exits 3 rather than
+      # degrading, so without this the build stops at G8 and the artefact is not a pack.
+      - name: Sync nlp + lm + tts (locked)
+        run: uv sync --locked --group nlp --group lm --group tts
+
+      - name: Install opus-tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends opus-tools
+
+      # G2's input. hermitdave is on the ingest allow-list (CC BY-SA-4.0, `shippable`,
+      # attribution required) and `resolve()` refuses it if it ever leaves that list, so
+      # fetching it here cannot smuggle anything past INV-PACK-13. It is fetched rather
+      # than vendored because it is 658,626 bytes of third-party share-alike data and the
+      # repo ships code and original content only.
+      - name: Fetch the es frequency list (hermitdave, CC BY-SA-4.0)
+        run: |
+          set -euo pipefail
+          dir="$GITHUB_WORKSPACE/build/es/sources"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/es_50k.txt" \
+            https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt
+          wc -l "$dir/es_50k.txt"
+
+      - name: Cache the pinned Kokoro weights
+        id: weights
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.kokoro
+          key: kokoro-model-files-v1.0
+
+      - name: Download the pinned Kokoro weights
+        if: steps.weights.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$COURSEKIT_KOKORO_WEIGHTS"
+          base=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
+          curl -fL --retry 3 -o "$COURSEKIT_KOKORO_WEIGHTS/kokoro-v1.0.onnx" "$base/kokoro-v1.0.onnx"
+          curl -fL --retry 3 -o "$COURSEKIT_KOKORO_WEIGHTS/voices-v1.0.bin" "$base/voices-v1.0.bin"
 
       - name: Disk before
         run: df -h .

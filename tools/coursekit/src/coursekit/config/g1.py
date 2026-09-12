@@ -203,6 +203,25 @@ ADAPTER_SELFTEST: Final[dict[str, tuple[tuple[str, str], ...]]] = {
 #: and **it cannot be changed after the first pack ships without orphaning every
 #: learner's FSRS state**. Hence "exactly once", and hence a whole module
 #: (`coursekit.ledger`) whose only job is to be the single reader of this dict.
+#: The most of a corpus G1 may drop for falling outside the ledger's length window before
+#: the stage calls it a failure rather than a filter.
+#:
+#: **Not zero, and the reason is a measurement.** G0's filter runs before any morphology
+#: model exists, so it counts letter runs; G1 counts lemmas. The two disagree at the
+#: margins by construction — spaCy splits `del` into `de` + `el` and `dámelo` into
+#: `dar` + `me` + `lo`, and it drops punctuation G0 never counted — so a corpus filtered
+#: to 3-12 letter runs always has a small tail outside 3-12 lemmas. Measured on the first
+#: real `es` build (2026-09-12, 2,823 ingested rows): 15 outside, 0.53%.
+#:
+#: What the invariant is actually about is a G0 that measured length with a *materially*
+#: different notion of a token — one that would put a double-digit percentage outside the
+#: window, or all of it. So the window is APPLIED here, where real tokenisation exists,
+#: the drop is counted in the runlog, and the rate is what fails the stage. A stage that
+#: died on the first straggler would make the ledger's own window unusable on real data;
+#: one that dropped silently is how a corpus loses a percent of itself between two stages
+#: and nobody can say which one.
+LENGTH_DRIFT_MAX_RATE: Final[float] = 0.05
+
 LEDGER_UNIT_BY_LANGUAGE: Final[dict[str, str]] = {
     "es": "lemma",
     "fr": "lemma",

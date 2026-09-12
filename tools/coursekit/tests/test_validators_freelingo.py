@@ -132,6 +132,7 @@ def test_INV_PACK_13_f1_passes_a_run_whose_corpora_were_all_permitted() -> None:
     """
     _write_g0_runlog()
     write_records("ingested_sentence", [_sentence()], lang="es")
+    write_records("selected_item", [_selected("a" * 16)], lang="es")
     assert ingest_licence_allow_list(_ctx()) == []
 
 
@@ -161,6 +162,7 @@ def test_INV_PACK_13_f1_blocks_a_corpus_read_under_a_forbidden_verdict() -> None
         ]
     )
     write_records("ingested_sentence", [_sentence()], lang="es")
+    write_records("selected_item", [_selected("a" * 16)], lang="es")
     findings = ingest_licence_allow_list(_ctx())
     assert [f.severity for f in findings] == ["blocking"]
     assert "forbidden" in findings[0].message
@@ -178,35 +180,73 @@ def test_INV_PACK_13_f1_blocks_a_source_that_shipped_rows_with_no_recorded_permi
         [_sentence(), _sentence(sentence_id="c" * 16, source_id="ted2020", corpus="ted2020")],
         lang="es",
     )
+    write_records("selected_item", [_selected("a" * 16)], lang="es")
     findings = ingest_licence_allow_list(_ctx())
-    assert any("ted2020" in f.message for f in findings)
+    assert any("ted2020" in f.message and f.severity == "blocking" for f in findings)
+
+
+ORACLE_ROW = {
+    "sentence_id": "d" * 16,
+    "source_id": "nllb",
+    "corpus": "nllb",
+    "licence": "ODC-By-1.0",
+    "licence_verdict": "oracle_only",
+}
+
+
+def _selected(sentence_id: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "lang": "es",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "slot_index": 0,
+        "sentence_id": sentence_id,
+        "provenance": "corpus",
+        "gap": False,
+        "new_lemmas": ["gato"],
+        "known_lemmas": ["el"],
+        "grammar_concept": "concept-1",
+    }
+
+
+def test_INV_PACK_13_f1_does_not_fire_on_oracle_only_text_in_the_INGEST_ledger() -> None:
+    """[INV-PACK-13] NLLB in `ingested_sentence` is the designed path, not a violation.
+
+    Written first because the first version of this validator got it backwards and fired
+    on the first real `es` build: 1,000 NLLB rows, every one legitimate. `oracle_only` is
+    NOT refused at ingest — the plan ingests NLLB, capped, to inform frequency, KenLM and
+    the alignment priors — and `inputs.forbid_unshippable` is what stops it at G4. A gate
+    that refuses the designed path gets muted, which is worse than one that never ran.
+    """
+    _write_g0_runlog()
+    write_records("ingested_sentence", [_sentence(), _sentence(**ORACLE_ROW)], lang="es")
+    write_records("selected_item", [_selected("a" * 16)], lang="es")
+    assert ingest_licence_allow_list(_ctx()) == []
+
+
+def test_INV_PACK_13_f1_blocks_oracle_only_text_in_the_SELECTED_set() -> None:
+    """[INV-PACK-13] the same row, selected for a lesson slot, is the violation.
+
+    Identical ingest, one extra `selected_item` pointing at the NLLB sentence. That is
+    the line the ODC-By crawl-text question draws (plan risk 2), and a validator that
+    only looked at licences would report this run clean.
+    """
+    _write_g0_runlog()
+    write_records("ingested_sentence", [_sentence(), _sentence(**ORACLE_ROW)], lang="es")
+    write_records("selected_item", [_selected("a" * 16), _selected("d" * 16)], lang="es")
+    findings = ingest_licence_allow_list(_ctx())
+    assert any("oracle_only" in f.message for f in findings)
     assert all(f.severity == "blocking" for f in findings)
 
 
-def test_INV_PACK_13_f1_blocks_oracle_only_text_in_the_shipped_ledger() -> None:
-    """[INV-PACK-13] NLLB may inform statistics and may never ship verbatim.
-
-    The row is perfectly licensed and perfectly recorded; what is wrong is that its TEXT
-    reached the ledger. `inputs.forbid_unshippable` should have stopped it at G4, and a
-    validator that only checked licences would report this run clean.
-    """
+def test_INV_PACK_13_f1_warns_rather_than_passes_when_there_is_no_selection_to_check() -> None:
+    """[INV-PACK-13] "I could not check" is the honest third thing, and it is recorded."""
     _write_g0_runlog()
-    write_records(
-        "ingested_sentence",
-        [
-            _sentence(),
-            _sentence(
-                sentence_id="d" * 16,
-                source_id="nllb",
-                corpus="nllb",
-                licence="ODC-By-1.0",
-                licence_verdict="oracle_only",
-            ),
-        ],
-        lang="es",
-    )
+    write_records("ingested_sentence", [_sentence()], lang="es")
     findings = ingest_licence_allow_list(_ctx())
-    assert any("oracle_only" in f.message for f in findings)
+    assert [f.severity for f in findings] == ["warning"]
+    assert "did not run" in findings[0].message
 
 
 def test_INV_PACK_13_f1_blocks_a_run_with_no_g0_entry_at_all() -> None:
@@ -228,6 +268,7 @@ def test_INV_PACK_13_f1_blocks_an_attributed_sentence_with_no_owner() -> None:
         [_sentence(attribution_required=True, attribution_owner=None)],
         lang="es",
     )
+    write_records("selected_item", [_selected("a" * 16)], lang="es")
     findings = ingest_licence_allow_list(_ctx())
     assert any("name" in f.message and "owner" in f.message for f in findings)
 
@@ -372,10 +413,7 @@ def test_INV_PACK_18_f4_passes_a_manifest_signed_by_the_committed_key(
     returned `[]` before opening the file, so the recorded state is asserted too.
     """
     key = SigningKey.generate()
-    monkeypatch.setattr(
-        "coursekit.validators.freelingo.trusted_public_key_spki",
-        lambda *_args, **_kwargs: bytes(key.verify_key.encode()) and _spki(key),
-    )
+    _trust(monkeypatch, key)
     _write_manifest(sign_manifest(dict(BARE_MANIFEST), key=key))
     ctx = _ctx()
     assert manifest_signature_verifies(ctx) == []
@@ -386,6 +424,24 @@ def _spki(key: SigningKey) -> bytes:
     from coursekit.signing import public_key_spki
 
     return public_key_spki(key)
+
+
+def _trust(monkeypatch: pytest.MonkeyPatch, key: SigningKey) -> None:
+    """Make `key` the committed key, for the function that actually reads it.
+
+    Patched on `manifest_signature_verifies.__globals__`, not by dotted module path, for
+    the reason `Registry.restore_for_tests` documents: a restore evicts its modules from
+    `sys.modules`, so after `tests/test_cli.py` has run,
+    `coursekit.validators.freelingo` is a fresh module object while this file's imported
+    function still reads the old one's globals. Written by dotted path first; it passed
+    when this file ran alone and failed in the full suite, which is the same afternoon
+    `tests/test_g2_band.py` lost.
+    """
+    monkeypatch.setitem(
+        manifest_signature_verifies.__globals__,
+        "trusted_public_key_spki",
+        lambda *_args, **_kwargs: _spki(key),
+    )
 
 
 def test_INV_PACK_18_f4_blocks_a_manifest_signed_by_a_key_that_is_not_the_shipped_one() -> None:
@@ -407,10 +463,7 @@ def test_INV_PACK_18_f4_blocks_a_manifest_edited_after_it_was_signed(
 ) -> None:
     """[INV-PACK-18] the bytes the signature covers are the bytes that shipped."""
     key = SigningKey.generate()
-    monkeypatch.setattr(
-        "coursekit.validators.freelingo.trusted_public_key_spki",
-        lambda *_args, **_kwargs: _spki(key),
-    )
+    _trust(monkeypatch, key)
     signed = sign_manifest(dict(BARE_MANIFEST), key=key)
     signed["version"] = "9.9.9"
     _write_manifest(signed)

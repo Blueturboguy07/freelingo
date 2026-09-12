@@ -11,11 +11,14 @@ The stage does four things and reports all four:
 2. Analyses every G0 row into an `analysed_sentence`.
 3. Reports **mean content-words-per-sentence** for the pack (INV-PACK-40) and writes the
    whole ledger declaration into the runlog, where G9 picks it up for the manifest.
-4. Counts how many rows fall outside the pack's own length window. That number should be
-   zero — G0 already filtered — and a non-zero one is the numeric half of INV-PACK-40:
-   G0 measured length with a different notion of a token than the ledger uses. The grep
-   gate in `tests/test_ledger_unit.py` is the static half; this is the one that fires on
-   a real corpus.
+4. **Applies** the pack's own length window — this is the first stage that can, because
+   the window is in ledger units and ledger units need the adapter — and counts what it
+   drops. A small tail is expected and is dropped: G0 filtered on letter runs because no
+   morphology model existed yet, and spaCy splits `del` into two lemmas. A tail above
+   `LENGTH_DRIFT_MAX_RATE` is the numeric half of INV-PACK-40 — G0 measured length with a
+   materially different notion of a token — and fails the stage. The grep gate in
+   `tests/test_ledger_unit.py` is the static half; this is the one that fires on a real
+   corpus. Measured on the first real `es` build: 15 of 2,823, 0.53%.
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from typing import Any
 
 from ..adapters import ADAPTERS
 from ..artifacts import read_records, write_records
-from ..config.g1 import ADAPTER_BY_LANGUAGE
+from ..config.g1 import ADAPTER_BY_LANGUAGE, LENGTH_DRIFT_MAX_RATE
 from ..inputs import MissingInput, licence_row, resolve
 from ..ledger import (
     count_units,
@@ -86,31 +89,41 @@ def analyze(ctx: StageContext) -> StageResult:
             ),
         )
 
-    written = write_records("analysed_sentence", analysed, lang=ctx.lang)
+    # The window, applied in the unit the pack declares. Everything downstream joins on
+    # `analysed_sentence`, so a row dropped here never reaches a lesson slot.
+    outside = length_report(ctx.lang, analysed)
+    in_window = [record for record in analysed if length_ok(record)]
+    dropped = len(analysed) - len(in_window)
+    rate = dropped / len(analysed) if analysed else 0.0
+
+    written = write_records("analysed_sentence", in_window, lang=ctx.lang)
     ctx.entry.record_output("analysed_sentence")
     ctx.entry.read = read
     ctx.entry.written = written
-    ctx.entry.rejected = rejected
+    ctx.entry.rejected = rejected + dropped
 
-    mean_content = mean_content_words_per_sentence(analysed)
-    outside = length_report(ctx.lang, analysed)
+    mean_content = mean_content_words_per_sentence(in_window)
     ctx.entry.note(
         ledger=ledger_declaration(ctx.lang, mean_content_words_per_sentence=mean_content),
         mean_content_words_per_sentence=mean_content,
         outside_length_window=outside,
+        outside_length_window_rate=round(rate, 6),
+        outside_length_window_max_rate=LENGTH_DRIFT_MAX_RATE,
     )
 
-    if outside["count"]:
+    if rate > LENGTH_DRIFT_MAX_RATE:
         minimum, maximum = length_window(ctx.lang)
         return StageResult(
             ok=False,
             message=(
-                f"{outside['count']} of {written} sentence(s) fall outside the pack's "
-                f"length window {minimum}-{maximum} {ledger_unit(ctx.lang)}(s) — shortest "
-                f"{outside['min']}, longest {outside['max']}. G0 filtered this corpus with "
-                f"a different notion of a token than the ledger declares, which is "
-                f"INV-PACK-40's failure mode measured on real data. G0's length filter "
-                f"must read coursekit.ledger.length_window, not count tokens itself."
+                f"{dropped} of {len(analysed)} sentence(s) ({rate:.1%}) fall outside the "
+                f"pack's length window {minimum}-{maximum} {ledger_unit(ctx.lang)}(s) — "
+                f"shortest {outside['min']}, longest {outside['max']} — which is over the "
+                f"{LENGTH_DRIFT_MAX_RATE:.0%} drift this stage tolerates between G0's "
+                f"pre-analysis count and the ledger's. A tail is expected (spaCy splits "
+                f"`del` into two lemmas); a tail this size means G0 filtered with a "
+                f"materially different notion of a token, which is INV-PACK-40's failure "
+                f"mode measured on real data."
             ),
         )
 
@@ -118,7 +131,8 @@ def analyze(ctx: StageContext) -> StageResult:
         ok=True,
         detail={
             "analysed": written,
-            "rejected": rejected,
+            "rejected": rejected + dropped,
+            "outside_length_window": dropped,
             "mean_content_words_per_sentence": mean_content,
             "adapter": fingerprint,
         },
