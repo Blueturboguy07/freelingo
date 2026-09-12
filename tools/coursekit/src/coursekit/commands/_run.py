@@ -26,8 +26,9 @@ from ..inputs import (
     group_is_installed,
 )
 from ..runlog import RunLog, UpstreamStageMissing
+from ..sample import ScoreError, derive_review
 from ..stages import STAGES, StageContext
-from ..validators import VALIDATORS, Finding, ValidatorContext
+from ..validators.runner import run_suite
 
 
 def fail(message: str, code: int) -> typer.Exit:
@@ -120,58 +121,77 @@ def run_stages(
 
 
 def run_validators(language: str, validator_ids: Sequence[str]) -> None:
-    """Run every named validator, collect findings, then decide.
+    """Print and exit over `validators.runner.run_suite`.
 
-    Every validator runs even after one produces findings. `scope2/00` §2.4 puts this
-    suite before any human review, and a reviewer who is handed "V1 failed" and nothing
-    else has to wait a whole build to learn V6 failed too.
+    The decision logic moved into `coursekit.validators.runner` so that
+    `validator-report.json` — the artefact S002's "validator-report summary" and S137's
+    provenance block render — is written by the same pass that decides the exit code,
+    and so that the suite's rules can be asserted on outcomes rather than by scraping
+    stdout. What stays here is presentation and the exit contract.
+
+    The three refusals the runner enforces, restated because they are the point:
+    every validator runs even after one produces a blocking finding; an UNREGISTERED
+    validator is exit 2 with its id named; and a SKIPPED one (an absent dependency
+    group) is exit 3, never a pass.
     """
     check_language(language)
 
-    missing = VALIDATORS.missing(tuple(validator_ids))
-    if missing:
-        raise _report_unregistered("validator", missing, VALIDATOR_TITLES)
+    # The review block rides in the same report, because S002 and S137 render the
+    # validator summary and the measured wrong-item rate side by side and a rate with no
+    # report beside it is a number with nothing to check it against.
+    try:
+        review = derive_review(language)
+    except ScoreError as exc:
+        raise fail(f"{language}: {exc}", EXIT_FAILED) from exc
 
-    runlog = RunLog(language)
-    findings: list[Finding] = []
-    for validator_id in validator_ids:
-        validator = VALIDATORS.get(validator_id)
-        assert validator is not None
+    result = run_suite(language, tuple(validator_ids), review=review)
 
-        if validator.requires_group is not None and not group_is_installed(
-            validator.requires_group
-        ):
-            raise fail(
-                f"{validator_id} needs the {validator.requires_group!r} dependency group, "
-                f"which is not installed. "
-                f"`{GROUP_INSTALL_COMMAND.format(group=validator.requires_group)}`. "
-                f"A validator that cannot run must not report a pass.",
-                EXIT_MISSING_INPUT,
-            )
+    if result.unregistered:
+        for line in _unregistered_lines(result.unregistered):
+            typer.secho(line, fg=typer.colors.YELLOW, err=True)
 
-        with runlog.stage(validator_id, tool=TOOL_NAME, tool_version=__version__) as entry:
-            found = validator.run(ValidatorContext(lang=language, entry=entry))
-            entry.note(findings=len(found))
-            if any(finding.severity == "blocking" for finding in found):
-                entry.status = "failed"
-        findings.extend(found)
+    for run in result.runs:
+        for message in run.messages:
+            typer.secho(f"{run.id}: {message}", fg=typer.colors.RED, err=True)
+        for finding in run.findings:
+            colour = typer.colors.RED if finding.severity == "blocking" else typer.colors.YELLOW
+            subject = f" [{finding.subject}]" if finding.subject else ""
+            typer.secho(f"{finding.validator_id}{subject}: {finding.message}", fg=colour, err=True)
 
-    blocking = [finding for finding in findings if finding.severity == "blocking"]
-    for finding in findings:
-        colour = typer.colors.RED if finding.severity == "blocking" else typer.colors.YELLOW
-        subject = f" [{finding.subject}]" if finding.subject else ""
-        typer.secho(f"{finding.validator_id}{subject}: {finding.message}", fg=colour, err=True)
+    if result.report_file is not None:
+        typer.secho(f"validator report: {result.report_file}", fg=typer.colors.BLUE)
 
-    if blocking:
+    counts = result.report["counts"]
+    code = result.exit_code
+    if code != EXIT_OK:
         raise fail(
-            f"{language}: {len(blocking)} blocking finding(s) across "
-            f"{len(validator_ids)} validators. Nothing ships.",
-            EXIT_FAILED,
+            f"{language}: {counts['green']}/{counts['declared']} validators green, "
+            f"{counts['unregistered']} unregistered, {counts['skipped']} skipped, "
+            f"{counts['blocking_findings']} blocking finding(s). Nothing ships.",
+            code,
         )
 
     typer.secho(
-        f"{language}: {len(validator_ids)} validators green"
-        + (f", {len(findings)} non-blocking finding(s)" if findings else ""),
+        f"{language}: {counts['declared']} validators green"
+        + (
+            f", {counts['warning_findings']} non-blocking finding(s)"
+            if counts["warning_findings"]
+            else ""
+        ),
         fg=typer.colors.GREEN,
     )
     raise typer.Exit(code=EXIT_OK)
+
+
+def _unregistered_lines(missing: Sequence[str]) -> list[str]:
+    """The exit-2 explanation, as lines. Naming them matters as much as the code."""
+    lines = [
+        f"coursekit: {len(missing)} validator(s) are not registered, so this command "
+        f"cannot report a result. A half-built pipeline must never quietly produce a pack."
+    ]
+    lines.extend(f"  {identifier}: {VALIDATOR_TITLES[identifier]}" for identifier in missing)
+    lines.append(
+        "Register one by adding a module to coursekit/validators/ with "
+        "@register_validator; no dispatcher changes."
+    )
+    return lines

@@ -2,10 +2,7 @@
   "$comment": "Invariant ids owned by the P1 task `p1-day-freeze-recovery` (packages/core/src/day/**, packages/core/src/streak/**). REQUIRED OF THE INTEGRATE TASK: merge every docs/owned/*.json into docs/invariants-owned.json, which is the ONLY file `pnpm test:coverage-map` reads. docs/invariants-owned.json is outside this task's file lane, so until that merge happens test:coverage-map still owns only P0's six ids and would not notice if any of the 28 below lost its test. Until then the local gate is packages/core/src/day/__falsifiers__.test.ts, which fails if any id here is missing from the registry or from a test name in day/ or streak/. INV-DAY-01 and INV-DAY-05 are P0's and stay owned there; this task must not regress them, and day/rollover.test.ts carries a test for each showing the whole-day-boundary walk still obeys them.",
   "task": "p1-day-freeze-recovery",
   "phase": "P1",
-  "modules": [
-    "packages/core/src/day",
-    "packages/core/src/streak"
-  ],
+  "modules": ["packages/core/src/day", "packages/core/src/streak"],
   "falsifiers": "packages/core/src/day/__falsifiers__/<id>.json, one per id, loaded by the test that owns the id and gated by packages/core/src/day/__falsifiers__.test.ts",
   "owned": [
     "INV-DAY-02",

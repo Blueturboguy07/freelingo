@@ -164,7 +164,6 @@ describe('Daily Refresh boost grants', () => {
   });
 });
 
-
 /* ------------------------------------------------- INV-ECO-02 / EC-ECO-39 */
 
 describe('the rewind clamp', () => {

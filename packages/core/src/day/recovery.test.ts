@@ -138,9 +138,12 @@ describe('recovery', () => {
             state = repairStreak(state, cursor).state;
           }
           // The span really was walked: a shrunk generator must not quietly shorten it.
-          expect(
-            civilDaysBetween(start, state.maxLocalDaySeen ?? start),
-          ).toBeGreaterThanOrEqual(Math.min(SPAN_DAYS, runs.reduce((a, b) => a + b + 1, 0)));
+          expect(civilDaysBetween(start, state.maxLocalDaySeen ?? start)).toBeGreaterThanOrEqual(
+            Math.min(
+              SPAN_DAYS,
+              runs.reduce((a, b) => a + b + 1, 0),
+            ),
+          );
           expect(new Set(state.settlements.map((s) => s.month)).size).toBeGreaterThanOrEqual(2);
           // Never more than the monthly allowance, in any month.
           const byMonth = new Map<string, number>();
@@ -597,9 +600,11 @@ describe('recovery', () => {
     expect(hasEarnedLongestStreakEver(done.state, done.streakAfter)).toBe(true);
     const nextDay = addCivilDays(today, 1);
     const lived = rolloverTo(done.state, nextDay, {
-      completedDays: new Set([...done.state.dispositions.keys()].filter(
-        (d) => done.state.dispositions.get(d) === 'completed',
-      )),
+      completedDays: new Set(
+        [...done.state.dispositions.keys()].filter(
+          (d) => done.state.dispositions.get(d) === 'completed',
+        ),
+      ),
     }).state;
     expect(longestStreak(lived)).toBe(input.streak + 1);
     // …and the next milestone is a date, not a count (S127 copy slot).

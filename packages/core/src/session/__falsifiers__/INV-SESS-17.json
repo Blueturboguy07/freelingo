@@ -4,21 +4,9 @@
   "kind": "store",
   "input": {
     "rows": [
-      [
-        "en-es",
-        "story",
-        "story-3"
-      ],
-      [
-        "en-es",
-        "radio",
-        "ep-1"
-      ],
-      [
-        "en-es",
-        "graded",
-        "node-1"
-      ]
+      ["en-es", "story", "story-3"],
+      ["en-es", "radio", "ep-1"],
+      ["en-es", "graded", "node-1"]
     ]
   },
   "expect": {

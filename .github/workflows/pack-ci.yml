@@ -2,6 +2,21 @@ name: pack-ci
 
 # tools/coursekit: the content pipeline. Nothing ships to a learner that did not come
 # through `coursekit validate`.
+#
+# Three layers:
+#
+#   coursekit        lint + unit tests, always
+#   pipeline-ready   counts the registered G-stages and validators (ten seconds, Linux)
+#   build-es ───────▶ validate-es          both gated on pipeline-ready
+#
+# `pipeline-ready` is `native-e2e.yml`'s `flows-present` applied to this pipeline, and it
+# exists for the same reason. `maestro test` over an empty directory exits 0; `coursekit
+# build es` over an empty registry exits 2, which is the right answer but makes every
+# unrelated PR red for the weeks the G-lanes are landing. So the registry is counted
+# first on a cheap runner, the two long jobs are SKIPPED rather than run over nothing,
+# and the skip is printed into the job summary with the ids that are still missing. The
+# artefact upload then uses `if-no-files-found: error`, so `es-pack-<sha>` can never be
+# an empty archive that reads as a successful build.
 
 on:
   push:
@@ -9,11 +24,13 @@ on:
     paths:
       - 'tools/coursekit/**'
       - 'content/**'
+      - 'packages/schema/keys/**'
       - '.github/workflows/pack-ci.yml'
   pull_request:
     paths:
       - 'tools/coursekit/**'
       - 'content/**'
+      - 'packages/schema/keys/**'
       - '.github/workflows/pack-ci.yml'
   workflow_dispatch:
 
@@ -23,6 +40,13 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  # The plan's ingest cap. G0 streams OPUS shards through the API and never downloads
+  # the 94 GB set; ~250k raw candidates is far more than the ledger needs.
+  COURSEKIT_MAX_PAIRS: '200000'
+  # Named here because two jobs assert against it and one of them is a shell script.
+  AUDIO_BUDGET_MB: '120'
 
 jobs:
   coursekit:
@@ -71,3 +95,227 @@ jobs:
 
       - name: CLI smoke — every stage is reachable
         run: uv run coursekit --help
+
+  pipeline-ready:
+    name: pipeline-ready (which stages and validators exist)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      ready: ${{ steps.count.outputs.ready }}
+      missing: ${{ steps.count.outputs.missing }}
+    defaults:
+      run:
+        working-directory: tools/coursekit
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/coursekit/uv.lock
+
+      - name: Sync (locked)
+        run: uv sync --locked
+
+      - name: Count the registry
+        id: count
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          from coursekit.config import BUILD_STAGE_IDS, VALIDATOR_IDS
+          from coursekit.stages import STAGES
+          from coursekit.validators import VALIDATORS
+
+          missing = [
+              *(f"stage:{s}" for s in STAGES.missing(BUILD_STAGE_IDS)),
+              *(f"validator:{v}" for v in VALIDATORS.missing(VALIDATOR_IDS)),
+          ]
+          print(f"ready={'false' if missing else 'true'}")
+          print(f"missing={' '.join(missing) or '(none)'}")
+          summary = os.environ["GITHUB_STEP_SUMMARY"]
+          with open(summary, "a", encoding="utf-8") as handle:
+              handle.write("## pipeline-ready\n\n")
+              handle.write(
+                  f"- stages registered: {len(STAGES.ids())}/{len(BUILD_STAGE_IDS)}\n"
+                  f"- validators registered: {len(VALIDATORS.ids())}/{len(VALIDATOR_IDS)}\n"
+              )
+              if missing:
+                  handle.write(
+                      "\n**`build-es` and `validate-es` are SKIPPED**: the pipeline is "
+                      "incomplete, and a pack built over an empty registry is not a "
+                      "pack. Still missing:\n\n"
+                  )
+                  handle.writelines(f"- `{item}`\n" for item in missing)
+              else:
+                  handle.write("\nThe pipeline is complete; the es pack jobs run.\n")
+          PY
+
+  build-es:
+    name: build-es (G0-G9, capped ingest)
+    needs: pipeline-ready
+    if: needs.pipeline-ready.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: tools/coursekit
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/coursekit/uv.lock
+
+      # `nlp` and `lm` are the two groups CI carries: spaCy with the URL-pinned
+      # es_core_news_md wheel, and KenLM pinned to a commit archive. `align` (torch +
+      # transformers) and `tts` (onnxruntime + model downloads) are gigabytes and do not
+      # fit this job — a stage that needs one exits 3 with the install command rather
+      # than degrading to a worse aligner or a system voice.
+      - name: Sync nlp + lm (locked)
+        run: uv sync --locked --group nlp --group lm
+
+      - name: Disk before
+        run: df -h .
+
+      - name: Build es (G0-G9)
+        run: uv run coursekit build es --set max_pairs="$COURSEKIT_MAX_PAIRS"
+
+      - name: Assert the audio bank is inside the declared budget
+        run: |
+          set -euo pipefail
+          bank="../../build/es/g8"
+          if [ ! -d "$bank" ]; then
+            echo "::error::G8 reported success and wrote no audio directory at $bank"
+            exit 1
+          fi
+          bytes=$(du -sb "$bank" | cut -f1)
+          budget=$((AUDIO_BUDGET_MB * 1000 * 1000))
+          echo "audio bank: $bytes bytes, budget ${AUDIO_BUDGET_MB} MB ($budget bytes)"
+          if [ "$bytes" -gt "$budget" ]; then
+            echo "::error::the es audio bank is $bytes bytes, over the ${AUDIO_BUDGET_MB} MB budget (INV-PACK-15)"
+            exit 1
+          fi
+          if [ "$bytes" -eq 0 ]; then
+            echo "::error::the es audio bank is empty; a budget check that passes on 0 bytes checks nothing"
+            exit 1
+          fi
+
+      - name: Draw the reviewer sample (300 items, recorded seed)
+        run: uv run coursekit sample es
+
+      - name: Sign the manifest
+        env:
+          PACK_SIGNING_KEY: ${{ secrets.PACK_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PACK_SIGNING_KEY:-}" ]; then
+            echo "::notice::PACK_SIGNING_KEY is not available to this run (it is not exposed to pull requests from forks); the pack is built unsigned and a device would report it as \`unverified\`."
+            exit 0
+          fi
+          uv run coursekit sign es
+
+      - name: Upload the build tree for validate-es
+        uses: actions/upload-artifact@v4
+        with:
+          name: es-build-${{ github.sha }}
+          path: build/es
+          if-no-files-found: error
+          retention-days: 1
+
+  validate-es:
+    name: validate-es (V1-V12 + F1-F5)
+    needs: [pipeline-ready, build-es]
+    if: needs.pipeline-ready.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: tools/coursekit
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/coursekit/uv.lock
+
+      - name: Sync nlp + lm (locked)
+        run: uv sync --locked --group nlp --group lm
+
+      - name: Download the build tree
+        uses: actions/download-artifact@v4
+        with:
+          name: es-build-${{ github.sha }}
+          path: build/es
+
+      # Exit 0 only. 2 means a validator nobody wrote, 3 means one that could not run,
+      # 4 means one that ran and failed — and all three report zero findings, which is
+      # what a green validator also reports.
+      - name: Validate es
+        run: uv run coursekit validate es
+
+      - name: Assert V1-V4 at 100% and the whole suite green
+        run: |
+          uv run python - <<'PY'
+          import json
+          import sys
+
+          from coursekit.config.validate import HARD_GATE_VALIDATOR_IDS
+          from coursekit.validators.report import read_report, report_path, summarise
+
+          report = read_report(report_path("es"))
+          summary = summarise(report)
+          print(json.dumps(summary, indent=2))
+
+          problems = []
+          if not report["hard_gate"]["passed"]:
+              problems.append(f"the hard gate {list(HARD_GATE_VALIDATOR_IDS)} is not 100%")
+          if summary["not_run"]:
+              problems.append(f"{summary['not_run']} validator(s) did not run")
+          if report["status"] != "green":
+              problems.append(f"suite status is {report['status']}")
+          if summary["declared"] != summary["green"]:
+              problems.append(f"only {summary['green']}/{summary['declared']} validators are green")
+
+          for problem in problems:
+              print(f"::error::{problem}")
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: Collect the pack artefacts
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/es-pack"
+          mkdir -p "$out"
+          # `build/` is at the repository root: `coursekit.artifacts.build_root()`
+          # resolves it from the package's own path, not from the working directory.
+          #
+          # CROSS-LANE CONTRACT: `g9/es.pack` is a filename this lane WROTE DOWN, not
+          # one it imported — config/package.py is empty by design and owned by
+          # p2-g9-package-loader. It is recorded in docs/owned/p2-validate-ci.json ->
+          # crossLaneContracts so the disagreement has a name if G9 calls its SQLite
+          # output something else. `g9/manifest.json` is safe: MANIFEST_FILENAME and
+          # PACK_STAGE_ID are both real constants in coursekit.config.
+          root="$GITHUB_WORKSPACE/build/es"
+          for file in "$root/g9/es.pack" "$root/g9/manifest.json" \
+                      "$root/validator-report.json" "$root/sample-300.jsonl" \
+                      "$root/sample-summary.json" "$root/runlog.jsonl"; do
+            if [ -f "$file" ]; then
+              cp "$file" "$out/"
+            else
+              echo "::error::$file is missing; the pack artefact would be incomplete"
+              exit 1
+            fi
+          done
+          ls -l "$out"
+
+      - name: Upload es-pack-<sha>
+        uses: actions/upload-artifact@v4
+        with:
+          name: es-pack-${{ github.sha }}
+          path: es-pack
+          if-no-files-found: error

@@ -158,9 +158,9 @@ describe('the ten flavours are a config table, not ten code paths (S057-S066)', 
       const stepUp = DEFAULT_FLAVOUR_MATRIX[flavour].stepUp;
       expect(stepUp === null || stepUp === 'production' || stepUp === 'audio').toBe(true);
     }
-    expect(
-      SESSION_FLAVOURS.filter((f) => DEFAULT_FLAVOUR_MATRIX[f].stepUp === 'audio'),
-    ).toEqual([]);
+    expect(SESSION_FLAVOURS.filter((f) => DEFAULT_FLAVOUR_MATRIX[f].stepUp === 'audio')).toEqual(
+      [],
+    );
   });
 
   it('[INV-MIS-01] every flavour that recycles declares a mid-lesson gap that leaves room in its own queue', () => {

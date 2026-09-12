@@ -164,9 +164,18 @@ describe('quest determinism', () => {
         fc.integer({ min: 0, max: 400 }),
         (medianXp, dayOffset) => {
           const day = addCivilDays(DAY, dayOffset);
-          const first = questsForDay(day, 'device-seed', { trailingDailyXp: [medianXp], goalXp: 20 });
-          const afterKill = questsForDay(day, 'device-seed', { trailingDailyXp: [medianXp], goalXp: 20 });
-          const afterCourseSwitch = questsForDay(day, 'device-seed', { trailingDailyXp: [medianXp], goalXp: 20 });
+          const first = questsForDay(day, 'device-seed', {
+            trailingDailyXp: [medianXp],
+            goalXp: 20,
+          });
+          const afterKill = questsForDay(day, 'device-seed', {
+            trailingDailyXp: [medianXp],
+            goalXp: 20,
+          });
+          const afterCourseSwitch = questsForDay(day, 'device-seed', {
+            trailingDailyXp: [medianXp],
+            goalXp: 20,
+          });
           expect(afterKill).toEqual(first);
           expect(afterCourseSwitch).toEqual(first);
         },
@@ -182,7 +191,10 @@ describe('quest determinism', () => {
     const shapes = new Set<string>();
     for (let i = 0; i < 400; i += 1) {
       const day = addCivilDays(DAY, i);
-      const quests = questsForDay(day, `seed-${prng.int(0, 9)}`, { trailingDailyXp: [120], goalXp: 20 });
+      const quests = questsForDay(day, `seed-${prng.int(0, 9)}`, {
+        trailingDailyXp: [120],
+        goalXp: 20,
+      });
       shapes.add(quests.map((q) => q.templateId).join(','));
     }
     expect(shapes.size).toBeGreaterThan(3);
@@ -191,7 +203,10 @@ describe('quest determinism', () => {
   it('[INV-ECO-11] the three quests of a day are distinct templates', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 400 }), (dayOffset) => {
-        const quests = questsForDay(addCivilDays(DAY, dayOffset), 'seed', { trailingDailyXp: [100], goalXp: 20 });
+        const quests = questsForDay(addCivilDays(DAY, dayOffset), 'seed', {
+          trailingDailyXp: [100],
+          goalXp: 20,
+        });
         expect(new Set(quests.map((q) => q.templateId)).size).toBe(quests.length);
       }),
       RUNS,

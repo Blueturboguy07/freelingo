@@ -200,7 +200,6 @@ describe('Sharpshooter', () => {
   });
 });
 
-
 /* -------------------------------------------------------------------- INV-ECO-28 */
 
 describe('the ladders the rulings fix', () => {

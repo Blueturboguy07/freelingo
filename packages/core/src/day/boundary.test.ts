@@ -429,9 +429,7 @@ describe('day boundary', () => {
       ),
     }).state;
     expect(walked.graceCreditedDays.has(startDay)).toBe(true);
-    const cells = new Map(
-      calendarCells(walked, ordinaryDay, completionDay).map((c) => [c.day, c]),
-    );
+    const cells = new Map(calendarCells(walked, ordinaryDay, completionDay).map((c) => [c.day, c]));
     expect(cells.get(startDay)?.cell).toBe('half-flame');
     expect(cells.get(startDay)?.provenance).toBe('Just made it!');
     expect(cells.get(ordinaryDay)?.cell).toBe('flame');

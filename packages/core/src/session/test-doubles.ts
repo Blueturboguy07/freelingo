@@ -35,9 +35,7 @@ export class ScriptedGrading implements GradingPort {
   #fallback: Verdict;
 
   constructor(verdicts: Record<string, VerdictKind> = {}, fallback: VerdictKind = 'correct') {
-    this.#verdicts = new Map(
-      Object.entries(verdicts).map(([id, kind]) => [id, { kind }] as const),
-    );
+    this.#verdicts = new Map(Object.entries(verdicts).map(([id, kind]) => [id, { kind }] as const));
     this.#fallback = { kind: fallback };
   }
 

@@ -344,7 +344,11 @@ describe('INV-DAT-05 a future max_local_day_seen never suppresses a day-keyed re
   it('[INV-DAT-05] the next honest-clock session, and the seven after it, still open their chests', () => {
     const device = deviceOf({ maxLocalDaySeen: addCivilDays(TODAY, 400) });
     const manifest = manifestOf({ maxLocalDaySeenDiagnostic: '2027-06-01' });
-    const applied = applyImport(archiveOf(), decideImport(manifest, OBSERVED, device).confirm!, device);
+    const applied = applyImport(
+      archiveOf(),
+      decideImport(manifest, OBSERVED, device).confirm!,
+      device,
+    );
 
     expect(applied.nextSessionGrantsGoalChest).toBe(true);
     for (let ahead = 0; ahead <= 7; ahead += 1) {

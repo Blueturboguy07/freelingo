@@ -20,11 +20,7 @@
  */
 import { EXPORT_STEPS } from './export.js';
 import { IMPORT_BACKUP_STEPS } from './import.js';
-import {
-  CHECKPOINT_STEP,
-  MIGRATION_BACKUP_STEPS,
-  SUSPENSION_STEPS,
-} from './integrity.js';
+import { CHECKPOINT_STEP, MIGRATION_BACKUP_STEPS, SUSPENSION_STEPS } from './integrity.js';
 
 export const FILE_PRODUCING_PATH_IDS = [
   'export',

@@ -245,14 +245,37 @@ def test_registering_the_same_stage_twice_raises(empty_registry: None) -> None:
         register_stage("g0")(lambda ctx: StageResult())
 
 
-def test_discovery_finds_nothing_yet_and_that_is_the_correct_state() -> None:
-    """P2 wave 2 registers the stages. Today the packages are registries only.
+def test_discovery_reports_exactly_what_is_not_registered_yet() -> None:
+    """`missing()` is the complement of what discovery found. Nothing else.
 
-    Asserted rather than left implicit so the day a lane lands `coursekit/stages/g0.py`
-    this test is the thing that tells them the wiring worked.
+    This used to assert that *nothing* was registered, which was true on the day the
+    scaffold landed and is false from the first P2 lane onwards — and eight lanes editing
+    one literal in turn is how a test stops being read. The invariant that survives the
+    phase is the relationship: whatever `discover()` finds, `missing()` is the rest of
+    the ledger, so a stage that registers under the wrong id shows up as missing here
+    rather than as a stage nobody can explain.
     """
-    assert STAGES.missing(BUILD_STAGE_IDS) == BUILD_STAGE_IDS
-    assert VALIDATORS.missing(VALIDATOR_IDS) == VALIDATOR_IDS
+    assert set(STAGES.missing(BUILD_STAGE_IDS)) == set(BUILD_STAGE_IDS) - set(STAGES.ids())
+    assert set(VALIDATORS.missing(VALIDATOR_IDS)) == set(VALIDATOR_IDS) - set(VALIDATORS.ids())
+
+
+def test_resetting_the_registry_lets_discovery_run_again(empty_registry: None) -> None:
+    """A reset must not leave the registry permanently empty for the rest of the suite.
+
+    `reset_for_tests()` used to clear `_discovered` and nothing else. Registration is a
+    side effect of importing a module, `importlib.import_module` returns the cached
+    module without re-running it, so the next `discover()` was a no-op and every test
+    after the first user of the `empty_registry` fixture saw an empty registry whatever
+    the package contained. That reads simultaneously as "the suite is green" and as "my
+    validator isn't running".
+    """
+    assert VALIDATORS.ids() == ()  # the fixture reset it, and reset means empty
+    VALIDATORS.restore_for_tests()
+    rediscovered = set(VALIDATORS.ids())
+    assert rediscovered <= set(VALIDATOR_IDS)
+    assert rediscovered, "discovery found no validators after a restore"
+    VALIDATORS.restore_for_tests()
+    assert set(VALIDATORS.ids()) == rediscovered, "a second restore lost registrations"
 
 
 # ---------------------------------------------------------------------------

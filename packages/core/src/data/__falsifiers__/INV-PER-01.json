@@ -10,7 +10,11 @@
   "cases": [
     {
       "why": "node:sqlite, corrupted b-tree page. The wrapper code is the same for every SQLite failure; errcode 11 is what discriminates.",
-      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 11, "errstr": "database disk image is malformed" },
+      "error": {
+        "code": "ERR_SQLITE_ERROR",
+        "errcode": 11,
+        "errstr": "database disk image is malformed"
+      },
       "classification": "corruption",
       "verdict": "corrupt",
       "action": "rename-and-start-fresh",
@@ -28,7 +32,11 @@
     },
     {
       "why": "SQLITE_CORRUPT_VTAB = 11 | (1 << 8) = 267. A classifier comparing the raw number would call this `other` and skip the ladder.",
-      "error": { "code": "ERR_SQLITE_ERROR", "errcode": 267, "errstr": "database disk image is malformed" },
+      "error": {
+        "code": "ERR_SQLITE_ERROR",
+        "errcode": 267,
+        "errstr": "database disk image is malformed"
+      },
       "classification": "corruption",
       "verdict": "corrupt",
       "action": "rename-and-start-fresh",
@@ -37,7 +45,10 @@
     },
     {
       "why": "expo-sqlite on device: no numeric field at all, so the sqlite3_errmsg string is the only signal.",
-      "error": { "code": "ERR_INTERNAL_SQLITE_ERROR", "message": "database disk image is malformed" },
+      "error": {
+        "code": "ERR_INTERNAL_SQLITE_ERROR",
+        "message": "database disk image is malformed"
+      },
       "classification": "corruption",
       "verdict": "corrupt",
       "action": "rename-and-start-fresh",
@@ -85,7 +96,9 @@
     {
       "why": "The pragma answers instead of throwing - 128 of the 208 census mutations did. The rows are real output copied from the census.",
       "rows": [
-        { "integrity_check": "*** in database main ***\nTree 2 page 4 cell 0: Offset 61686 out of range 569..4092" },
+        {
+          "integrity_check": "*** in database main ***\nTree 2 page 4 cell 0: Offset 61686 out of range 569..4092"
+        },
         { "integrity_check": "database disk image is malformed" }
       ],
       "integrityCheck": "failed",

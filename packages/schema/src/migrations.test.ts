@@ -265,7 +265,6 @@ describe('migration atomicity', () => {
   });
 });
 
-
 /* ---------------------------------------------------------------------- S149 */
 
 describe('the schema-vs-version detector (S149)', () => {

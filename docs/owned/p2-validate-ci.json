@@ -1,0 +1,81 @@
+{
+  "$comment": "Invariant ids owned by the P2 task `p2-validate-sample-ci`. The list is EMPTY, and that is the correct state. This lane owns the validator SUITE (the runner, the report, V10-V12), the stratified reviewer sample, `coursekit sign`, and the `build-es` / `validate-es` jobs in pack-ci.yml. Two independent reasons nothing is claimed here. First, `scripts/coverage-map.ts` scans `packages`, `apps` and `e2e` for owning tests; `tools/` is deliberately outside that walk, so a Python test cannot be an owning test and claiming an id here would mean claiming one with no owner. Second, the ids this work will eventually back are properties of a produced pack — INV-PACK-15 wants codec, bitrate and bytes on a real bank; INV-PACK-17 wants an attribution string reachable from a rendered credits surface; INV-PACK-18 wants a device refusing an unverified pack; INV-PACK-54 wants a subsetted font file in apps/mobile — and none of those exist until G0-G9 and the app-side installer land. Claiming one now would mean writing a test that asserts a dict has a key and naming it INV-PACK-18, which is the 'owning test that proves nothing' the plan's rule 4 is written against.",
+  "phase": "P2",
+  "task": "p2-validate-sample-ci",
+  "module": "tools/coursekit",
+  "owned": [],
+  "willBeOwnedAt": {
+    "P2": ["INV-PACK-15", "INV-PACK-17", "INV-PACK-18"],
+    "P3": ["INV-PACK-54"]
+  },
+  "crossLaneContracts": [
+    {
+      "artefact": "build/<lang>/g9/<lang>.pack",
+      "producedBy": "p2-g9-package-loader (G9)",
+      "consumedBy": ".github/workflows/pack-ci.yml, the `Collect the pack artefacts` step of `validate-es`",
+      "assertion": "the file exists under that exact name; the step prints `::error::...is missing` and exits 1 otherwise",
+      "why": "nothing in tools/coursekit defines this filename. config/package.py is empty by design and owned by the G9 lane, so `es.pack` is a string this lane WROTE DOWN rather than imported. If G9 names its SQLite output anything else — `pack.sqlite`, `es-0.1.0.pack` — `validate-es` fails at the collect step and the failure reads as a missing build rather than as a disagreement about a name. Move it into a shared constant the moment G9 defines one."
+    },
+    {
+      "artefact": "build/<lang>/g9/manifest.json",
+      "producedBy": "p2-g9-package-loader (G9)",
+      "consumedBy": "the same collect step, and `coursekit sign <lang>`",
+      "assertion": "MANIFEST_FILENAME == 'manifest.json' and PACK_STAGE_ID == 'g9' both already exist in coursekit.config, so this half of the path IS imported, not written down",
+      "why": "the manifest is what `sign` signs and what S137's provenance block renders"
+    },
+    {
+      "artefact": "pack_row rows with table='meta', row_id='rtl'",
+      "producedBy": "p2-g9-package-loader (G9)",
+      "consumedBy": "V12 (validators/pack.py, `direction_and_font_coverage`)",
+      "assertion": "an ABSENT rtl meta row is a blocking finding, not a false: nobody having decided is not the same as having decided LTR",
+      "why": "RTL_LANGUAGES is empty today, so for es the correct value is false — but V12 must fail a pack that never wrote the row at all, or the first language that needs true ships without it"
+    },
+    {
+      "artefact": "selected_item, ingested_sentence, candidate, exercise, banded_lemma",
+      "producedBy": "G4, G0, G5, G7, G2 respectively",
+      "consumedBy": "shipped_items() — the join V10/V11/V12 and `coursekit sample` all read",
+      "assertion": "a missing artefact raises SuiteInputMissing and becomes a blocking finding; it is never an empty pass",
+      "why": "these are the inter-stage contract frozen by p2/deps-scaffold; this lane reads them and writes none of them"
+    }
+  ],
+  "heldWithoutAnInvariantId": [
+    "The suite cannot report a pass it did not earn, and all three ways it could are refused by name in validators/runner.py with a falsifier each in tests/test_validate_runner.py: an UNREGISTERED validator is exit 2 and an `unregistered` row in the report (the denominator is config.VALIDATOR_IDS, never the registry — a report that omitted the unwritten validator would print '16/16 green' on the S002 card); a SKIPPED validator whose dependency group is absent is exit 3 and blocking; a validator that RAISES is exit 4. test_green_is_not_vacuous proves the success path is still reachable, because a runner that failed unconditionally would pass every refusal test in the file",
+    "V10, V11 and V12 each FAIL on an empty or absent input rather than passing fast. The shared join `shipped_items()` raises when `selected_item` or `ingested_sentence` is missing, and each validator turns that into a blocking finding. tests/test_validators_pack.py::test_v10_fails_on_an_empty_pack_rather_than_passing_fast is the falsifier: zero sentences produce zero findings, and zero findings is exactly what a green validator returns — the same shape docs/ci.md describes for `maestro test` over an empty directory",
+    "V10 separates three failures that have three different fixes: an unresolved licence (NOASSERTION / UNKNOWN / empty), a licence that resolved to a real string off the allow-list (CC BY-NC-ND, the licence that cut TED2020 — a check that only looked for empty fields would pass it), and a resolved licence whose attribution owner is missing, which is INV-PACK-17 failing at the credits surface instead of here",
+    "V11's difficulty is a DECLARED PROXY with named weights in config/validate.py, recomputed by hand in a test, and its banded-token coverage is measured and reported. Below MIN_BANDED_TOKEN_COVERAGE the validator emits a warning saying the number is a length signal rather than a vocabulary one, because the banded table is keyed by lemma and the proxy reads surface tokens — a validator that quietly reported the weaker number as the stronger one would be the drift it is looking for",
+    "V12 is the PACK half of INV-PACK-54 and says so: it proves no pack string carries a character outside the shipped font's declared ranges (for Spanish that is á é í ó ú ñ ü ¿ ¡ and their upper case, asserted against the ranges themselves so a future narrowing fails there rather than at the first ¿ a learner sees), and it records `bundled_font_subset_checked: false` in its runlog entry. The other half — that the .ttf actually shipped in apps/mobile still carries those ranges after subsetting — is P3's, because the subset lives with the app",
+    "V12 fails an ABSENT direction flag as well as a wrong one. `rtl` missing from the pack's meta rows is not `false`, it is nobody having decided, and the first pack that needs `true` would ship without it",
+    "The reviewer sample is stratified over (unit_index, exercise_type, provenance) and deterministic under a recorded seed. A measured bug is pinned by test_a_budget_smaller_than_the_strata_still_reaches_the_last_unit: 5 units x 8 exercise types x 2 provenances is ~80 strata, and a 40-row sheet allocated one-each in lexicographic key order filled up inside units 1-4 and drew nothing from unit 5 — the unit built on the most accumulated vocabulary, which is where drift lands. Allocation now round-robins over units, numerically so `10` does not sort before `2`",
+    "The wrong-item rate never leaves the tool without its provenance. PROVISIONAL_DEFECT_RATE_NOTE is one constant because the string has to be identical on the S001 card, in the manifest, in docs/pack-provenance.md and in tools/coursekit/README.md; summarise() cannot emit a rate without it, only reviewer_kind == 'paid-native-speaker' clears it, an unscored sample has a rate of None (which does not pass the 2% gate — None is not 0%), and `awkward` verdicts are published separately rather than folded into the number the gate is about",
+    "`coursekit sign` verifies what it just wrote against the COMMITTED public key, and verify_manifest refuses a manifest signed by any other key. A manifest that carries its own public key and verifies against it proves that somebody owned *a* key, which is what an attacker who re-signed a modified pack also has; test_a_manifest_signed_by_another_key_is_refused shows the self-consistent check passing and the trusted check failing on the same bytes. The private key is only ever the PACK_SIGNING_KEY CI secret: a PEM block or a path in that variable is refused by name, and `coursekit sign --help` carries no --key flag",
+    "The Python and TypeScript halves of the signing contract are pinned to each other: tests/test_signing.py reads packages/schema/src/signing.ts and asserts the key path, the secret name, the algorithm, the 44-byte SPKI length and the 12-byte ed25519 OID prefix all match, so a rename on either side fails the build instead of producing packs no device can verify",
+    "A registry bug that would have poisoned every later P2 lane, found and fixed here: `Registry.reset_for_tests()` cleared `_discovered` but registration is a side effect of IMPORTING a module, and importlib returns a cached module without re-running it — so the next discover() was a no-op and every test after the first user of the `empty_registry` fixture saw a permanently empty registry whatever the package contained. Measured before the fix: register V10-V12, reset, ask again, get (). reset_for_tests now suppresses discovery so 'empty' stays empty, and a new restore_for_tests() evicts the discovered modules from sys.modules so registrations re-run",
+    ".github/workflows/pack-ci.yml gains `build-es` and `validate-es`, guarded by a `pipeline-ready` job in the shape of native-e2e's `flows-present`: the G-stages and validators are counted on a ten-second runner first, the two long jobs are skipped rather than run over an empty registry, and the artefact upload uses `if-no-files-found: error` so `es-pack-<sha>` can never be an empty archive that reads as a successful build"
+  ],
+  "knownHazards": [
+    {
+      "what": "`Registry.restore_for_tests()` (coursekit/__init__.py) evicts the discovered stage/validator modules from sys.modules so their registrations re-run on the next import. The re-import defines a SECOND `SuiteInputMissing` class object, while `coursekit/sample.py` bound the name at its own import time.",
+      "statusToday": "Harmless. Each half stays internally consistent — sample.py keeps calling the pre-eviction `shipped_items`, which raises the pre-eviction class — and the 191-test suite is green.",
+      "whenItBites": "The first `except SuiteInputMissing` that crosses the boundary (a stage catching what a re-imported validator raised) stops catching, silently, with no test failure.",
+      "fix": "Move the exception into a module the registry never evicts. That module does not exist and `coursekit/__init__.py` is owned by the scaffold lane, so this is filed rather than done. A comment at the import in sample.py points here."
+    },
+    {
+      "what": "`coursekit sample es --n 300`, the spelling in this lane's brief, does not exist. Per-stage options ride on `--set` for all seven verbs.",
+      "statusToday": "The capability is present under the sanctioned spelling: `--set n=300 --set seed=20260911`, and a bare `coursekit sample es` already draws REVIEWER_SAMPLE_ITEMS = 300, which is what the plan's P2 row asks for. tools/coursekit/README.md says this in as many words.",
+      "whenItBites": "Never functionally; only if somebody types the brief's spelling.",
+      "fix": "Two lines in `cli.py`, whose docstring deliberately forbids per-stage flags ('P2 runs as two waves over eight lanes; a hand-maintained dispatch table here would be eight conflicting edits to one function'). Not this lane's file and not this lane's call to overturn."
+    },
+    {
+      "what": "`build-es` and `validate-es` in pack-ci.yml have never executed. `pipeline-ready` counts 0/10 stages and 3/17 validators today (only V10-V12 exist), so both long jobs are skipped by their `if:` guard.",
+      "statusToday": "The two jobs are actionlint-clean and nothing more. The capped ingest, the full G0-G9, the V1-V4 100% assertion, the 120 MB `du -sb` audio budget and the `es-pack-<sha>` artefact upload are all UNRUN.",
+      "whenItBites": "The first phase where the G-lanes are all registered — the jobs go live and any mistake in them surfaces then.",
+      "fix": "Nothing to fix here; it is a sequencing fact. The integrator should expect the first green `pipeline-ready` to be the first real run of both jobs."
+    },
+    {
+      "what": "docs/ci.md's workflow table still describes pack-ci as '`coursekit validate` on content changes' and does not mention `coursekit`, `pipeline-ready`, `build-es` or `validate-es`.",
+      "statusToday": "Stale documentation. docs/ci.md is not in this lane's file list.",
+      "whenItBites": "A reader trusts the table over the workflow.",
+      "fix": "One table row, for whoever owns docs/ci.md."
+    }
+  ]
+}

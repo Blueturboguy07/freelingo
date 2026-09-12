@@ -177,10 +177,7 @@ export interface FetchRequest {
 }
 
 export type FetchRefusal =
-  | 'offline'
-  | 'metered-needs-confirm'
-  | 'needs-explicit-start'
-  | 'nothing-to-fetch';
+  'offline' | 'metered-needs-confirm' | 'needs-explicit-start' | 'nothing-to-fetch';
 
 export interface FetchPlan {
   readonly start: boolean;

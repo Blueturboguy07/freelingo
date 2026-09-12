@@ -242,11 +242,7 @@ export function rolloverTo(
   return expired === result.state ? result : { ...result, state: expired };
 }
 
-function walkTo(
-  state: DayEngineState,
-  today: LocalDay,
-  ctx: RolloverContext,
-): RolloverResult {
+function walkTo(state: DayEngineState, today: LocalDay, ctx: RolloverContext): RolloverResult {
   const ledger = state.ledger;
   const draft: Draft = {
     dispositions: new Map(state.dispositions),

@@ -8,9 +8,7 @@
     "stepUpAlreadyFired": true
   },
   "expect": {
-    "producersWhenAlreadyFired": [
-      "combo"
-    ],
+    "producersWhenAlreadyFired": ["combo"],
     "stepUpsWhenAlreadyFired": 0,
     "stepUpsOnFirstTrip": 1,
     "copyKeyPerStepUpKind": {
