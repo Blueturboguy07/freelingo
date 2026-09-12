@@ -33,6 +33,63 @@
 # prose to render, which G3 reports rather than inventing one. This course stops at
 # `high A1`, so it never hits that wall — but the rule is enforced, not assumed.
 
+# `forms:` — WHAT THE COURSE TEACHES, AND WHY IT HAS TO BE WRITTEN DOWN (ruling B9(c))
+#
+# A unit may declare, per lexeme, the surface forms it teaches. G3 lemmatises them with
+# the pinned adapter and FAILS THE BUILD naming any target lexeme no form can reach.
+# It is not a selector and G4 never sees it; it is a claim about Spanish that the
+# lemmatiser can contradict.
+#
+# It exists because `es_core_news_md` 3.8.0 does not always produce the lemma a reader
+# would expect, and until this gate landed the disagreement was SILENT: an unreachable
+# lexeme is in no lexicon, so G3 counted it as "deferred" — the same bucket as a good
+# lemma this corpus happened not to contain — and the unit shipped teaching one thing
+# fewer than it says. Measured on this file before the fix: 92 of 990. After it: 0 of 952.
+#
+# Every declared form is a real Spanish form of the lexeme and is LOWERCASE — the loader
+# refuses a capital and says why. Most are the one-word-document effect the adapter's
+# `lemmatise_surface` docstring describes: `trabajo` alone is read as a verb, `trabajos`
+# as the noun. **A capitalised form is refused because it is not a repair.** The model
+# re-tags a sentence-initial capital PROPN and keeps the surface as the lemma, so
+# `Gracias` reaches `gracias` where `gracias` reaches `gracia`: the gate would go green
+# for a lexeme that no ordinary corpus sentence can select, which is the exact defect
+# this gate exists to catch. An adversarial review found three such rows here
+# (`Gracias`, `Media`, `Paraguas`) and they are gone: the position artefact belongs in
+# `config/g1.LEMMA_NORMALISATION_ES`, whose whole job is to make the two positions agree.
+#
+# SO THERE ARE THREE LEVERS, AND WHICH ONE TO PULL IS DECIDED BY D-B9A-01 IN THAT FILE:
+#
+#   1. `forms:` — the bare surface mis-lemmatises but another real lowercase form of the
+#      same word does not (`trabajos` for `trabajo`, `primas` for `prima`). 38 rows.
+#   2. A normalisation-table row — no lowercase form works, and the raw lemma the model
+#      produces is not itself a Spanish word the course could mean (`cucharo` -> `cuchara`,
+#      `paragua` -> `paraguas`, `to` -> `tos`).
+#   3. **Declare the lemma the model produces** — the raw lemma IS a Spanish headword, so
+#      a table row would fold a real word into another ledger item: `gracias` -> `gracia`
+#      (u1), `media` -> `medio` (u13), `resta` -> `restar` (u26). The ledger item is what
+#      the lemmatiser's partition calls it; the learner still sees "gracias".
+#
+# AND WHERE NO LEVER WORKS, THE DECLARATION WAS REMOVED, because the model MERGES these
+# rather than spelling them differently and a table cannot re-split a merge:
+#
+#   * subject and object pronouns the lemmatiser collapses — `ella`, `nosotros`, `ellos`
+#     (u1) and `lo`, `me`, `te`, `nos`, `os`, `se` (u28) all lemmatise to `él`, `yo` or
+#     `tú`, which the frozen self-test has recorded since P2 round 1;
+#   * reflexive infinitives — `llamarse` (u1), `encontrarse` (u15), `equivocarse` (u20),
+#     `dirigirse` (u23) and the whole of u21 give `<verb> él`, a two-word lemma, and the
+#     same one for `-lo`/`-la`/`-le`, so it identifies no verb;
+#   * the locative `fuera` (u7) -> `ser`: it is spelled like the imperfect subjunctive of
+#     `ser`/`ir`, so the adverb pair is taught with `afuera`, which the model does produce;
+#   * `vacaciones` (u24) -> `vacación`, `un` (u30) -> `uno` (already taught in u2).
+#
+# Nothing is lost pedagogically: these constructions are taught by their GRAMMAR
+# CONCEPT, and Q2 option C (`scope2/00`) schedules a grammar concept as a ledger item of
+# its own. What is removed is the claim that the pronoun or the reflexive infinitive is a
+# separate LEMMA, which the ledger cannot hold. u21 now declares the twelve base verbs
+# the lemmatiser does produce for what the learner says ("se levanta" -> `levantar`);
+# its title, function and `reflexive_daily_routine` probe are unchanged, and the probe
+# matches the clitic, not the verb.
+#
 schema: 1
 lang: es
 l1: en
@@ -353,7 +410,7 @@ sections:
             tarde,
             noche,
             adiós,
-            gracias,
+            gracia,
             por,
             favor,
             sí,
@@ -362,10 +419,6 @@ sections:
             tú,
             usted,
             él,
-            ella,
-            nosotros,
-            ellos,
-            llamarse,
             ser,
             nombre,
             apellido,
@@ -381,6 +434,7 @@ sections:
             luego,
             y,
           ]
+
 
       - title: Count the people and things around you
         function: counting and stating quantity
@@ -505,6 +559,7 @@ sections:
             cajón,
           ]
 
+
       - title: Introduce the people in your family
         function: talking about family
         grammar_concept: possessive_adjectives
@@ -545,6 +600,9 @@ sections:
             cuñado,
             gente,
           ]
+
+        forms:
+          prima: [primas]
 
       - title: Say what you have and how old you are
         function: stating possession and age
@@ -628,6 +686,10 @@ sections:
             duda,
           ]
 
+        forms:
+          pregunta: [preguntas]
+          duda: [dudas]
+
       - title: Describe what something looks like
         function: describing objects and people
         grammar_concept: adjective_agreement
@@ -710,6 +772,11 @@ sections:
             tarjeta,
           ]
 
+        forms:
+          vino: [vinos]
+          cuenta: [cuentas]
+          propina: [propinas]
+
       - title: Say where something is
         function: locating things and places
         grammar_concept: estar_state_location
@@ -720,7 +787,7 @@ sections:
             cerca,
             lejos,
             dentro,
-            fuera,
+            afuera,
             arriba,
             abajo,
             delante,
@@ -750,6 +817,10 @@ sections:
             planta,
             ascensor,
           ]
+
+        forms:
+          izquierda: [izquierdas]
+          planta: [plantas]
 
   - index: 2
     cefr_prose: early A1
@@ -797,6 +868,9 @@ sections:
             cliente,
           ]
 
+        forms:
+          trabajo: [trabajos]
+
       - title: Say what you eat and drink
         function: talking about food and meals
         grammar_concept: present_er_ir_verbs
@@ -838,6 +912,10 @@ sections:
             almuerzo,
           ]
 
+        forms:
+          patata: [patatas]
+          ensalada: [ensaladas]
+
       - title: Buy food at the market
         function: shopping for groceries
         grammar_concept: hay_existence
@@ -878,6 +956,10 @@ sections:
             billete,
             cesta,
           ]
+
+        forms:
+          marca: [marcas]
+          rebaja: [rebajas]
 
       - title: Say what you like and what you do not
         function: expressing preference
@@ -957,9 +1039,13 @@ sections:
             minuto,
             distancia,
             perdido,
-            encontrarse,
             indicar,
           ]
+
+        forms:
+          paso: [pasos]
+          salida: [salidas]
+          perdido: [perdidos]
 
       - title: Tell the time and name the day
         function: telling the time
@@ -968,7 +1054,7 @@ sections:
         target_lexemes:
           [
             hora,
-            media,
+            medio,
             cuarto,
             punto,
             temprano,
@@ -1001,6 +1087,9 @@ sections:
             medianoche,
             rato,
           ]
+
+        forms:
+          cita: [citas]
 
       - title: Say what the weather is doing
         function: talking about the weather
@@ -1043,6 +1132,9 @@ sections:
             brisa,
           ]
 
+        forms:
+          helada: [heladas]
+
       - title: Show someone around your home
         function: describing a home
         grammar_concept: noun_number_agreement
@@ -1083,6 +1175,12 @@ sections:
             vecindario,
             alquiler,
           ]
+
+        forms:
+          terraza: [terrazas]
+          estantería: [estanterías]
+          alfombra: [alfombras]
+          almohada: [almohadas]
 
       - title: Say what you are going to do next
         function: making plans
@@ -1125,6 +1223,10 @@ sections:
             actividad,
           ]
 
+        forms:
+          pasado: [pasados]
+          encuentro: [encuentros]
+
       - title: Say no, and put a mistake right
         function: refusing and correcting
         grammar_concept: negation_no
@@ -1139,7 +1241,6 @@ sections:
             apenas,
             sino,
             error,
-            equivocarse,
             corregir,
             falso,
             verdadero,
@@ -1177,39 +1278,18 @@ sections:
         register_slot: n/a
         target_lexemes:
           [
-            levantarse,
-            ducharse,
-            vestirse,
-            peinarse,
-            lavarse,
-            afeitarse,
-            acostarse,
-            dormirse,
-            despertarse,
-            sentarse,
-            quedarse,
-            irse,
-            ponerse,
-            quitarse,
-            prepararse,
-            arreglarse,
-            maquillarse,
-            cepillarse,
-            secarse,
-            bañarse,
-            despedirse,
-            reunirse,
-            acordarse,
-            olvidarse,
-            alegrarse,
-            enfadarse,
-            cansarse,
-            aburrirse,
-            divertirse,
-            moverse,
-            caerse,
-            perderse,
-            sentirse,
+            levantar,
+            duchar,
+            vestir,
+            peinar,
+            lavar,
+            afeitar,
+            acostar,
+            despertar,
+            sentar,
+            poner,
+            quitar,
+            secar,
           ]
 
       - title: Pick out clothes by colour
@@ -1253,14 +1333,15 @@ sections:
             tela,
           ]
 
+        forms:
+          tela: [telas]
+
       - title: Ask for help at a service desk
         function: asking for help politely
         grammar_concept: formal_informal_address
         register_slot: binary_t_v
         target_lexemes:
           [
-            vosotros,
-            ustedes,
             señorita,
             don,
             doña,
@@ -1282,7 +1363,6 @@ sections:
             despedir,
             presentar,
             tratar,
-            dirigirse,
             recepción,
             mostrador,
             turno,
@@ -1293,6 +1373,11 @@ sections:
             trámite,
             gestión,
           ]
+
+        forms:
+          señorita: [señoritas]
+          cortés: [corteses]
+          respeto: [respetos]
 
       - title: Get yourself across a city
         function: travelling and using transport
@@ -1322,7 +1407,6 @@ sections:
             playa,
             montaña,
             excursión,
-            vacaciones,
             pasaporte,
             turista,
             conducir,
@@ -1376,6 +1460,10 @@ sections:
             hueso,
           ]
 
+        forms:
+          resfriado: [resfriados]
+          oreja: [orejas]
+
       - title: Talk about what you are studying
         function: talking about school and study
         grammar_concept: stem_changing_verbs
@@ -1417,6 +1505,11 @@ sections:
             resumen,
           ]
 
+        forms:
+          recreo: [recreos]
+          diploma: [diplomas]
+          resumen: [resúmenes]
+
       - title: Put two things side by side
         function: comparing and measuring
         grammar_concept: comparatives_basic
@@ -1452,11 +1545,14 @@ sections:
             máximo,
             mínimo,
             suma,
-            resta,
+            restar,
             total,
             parte,
             porcentaje,
           ]
+
+        forms:
+          suma: [sumas]
 
       - title: Follow a match with friends
         function: talking about sport and hobbies
@@ -1464,12 +1560,6 @@ sections:
         register_slot: n/a
         target_lexemes:
           [
-            lo,
-            me,
-            te,
-            nos,
-            os,
-            se,
             fútbol,
             baloncesto,
             tenis,
@@ -1540,13 +1630,15 @@ sections:
             merienda,
           ]
 
+        forms:
+          cafetería: [cafeterías]
+
       - title: Bring a present to a celebration
         function: taking part in a celebration
         grammar_concept: indefinite_articles
         register_slot: n/a
         target_lexemes:
           [
-            un,
             fiesta,
             boda,
             bautizo,
@@ -1580,3 +1672,8 @@ sections:
             sorpresa,
             banquete,
           ]
+
+        forms:
+          bautizo: [bautizos]
+          romería: [romerías]
+          recuerdo: [recuerdos]

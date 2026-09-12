@@ -150,6 +150,79 @@ def test_INV_PACK_40_the_declaration_is_the_only_place_the_unit_is_written() -> 
     )
 
 
+def _names_the_table(node: ast.AST) -> bool:
+    """True if `node` is one of the three ways a name can actually be USED in code.
+
+    An import, a bare reference, or an attribute access. Everything else that contains
+    the string — a docstring, a comment — is prose, and `g3_solve.py` writes some: its
+    reachability gate depends on the table having been applied upstream and a reader has
+    to be told where the table lives. A text-level grep called that a second reader.
+    """
+    if isinstance(node, ast.Name):
+        return "LEMMA_NORMALISATION" in node.id
+    if isinstance(node, ast.Attribute):
+        return "LEMMA_NORMALISATION" in node.attr
+    if isinstance(node, ast.ImportFrom):
+        return any("LEMMA_NORMALISATION" in alias.name for alias in node.names)
+    return False
+
+
+def test_INV_PACK_40_the_lemma_normalisation_table_is_declared_in_exactly_one_place() -> None:
+    """[INV-PACK-40] falsifier case 2 again, for the B9(a) table.
+
+    The table maps a raw spaCy lemma to the ledger lemma, so it IS part of the ledger's
+    partition of the vocabulary — the same subject as `ledger_unit`, and the same
+    failure mode: a second copy beside a consumer, where nobody reviewing the spec will
+    find it, and the pack ends up partitioned two ways. The cross-lane contract for this
+    round is written as "the table lives in `config/g1.py`, the adapter applies it, and
+    no downstream lane hardcodes a copy"; this is that sentence as a grep.
+
+    **The grep is over NAMES IN CODE, not over the file's text.** A module that explains
+    in a docstring where the table lives — `g3_solve.py` does, because its reachability
+    gate depends on the table having been applied upstream and a reader has to be told
+    where to look — is not a second reader, and a text-level grep called it one. So the
+    AST is walked for the places a name can actually be used: an `import`, a bare
+    reference, or an attribute access. A real second reader needs one of those three and
+    cannot avoid all of them.
+    """
+    declaring: list[str] = []
+    reading: list[str] = []
+    for path in sorted(PACKAGE_ROOT.rglob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        if "LEMMA_NORMALISATION" not in source:
+            continue
+        where = str(path.relative_to(PACKAGE_ROOT))
+        tree = ast.parse(source)
+        declared_here = False
+        used_here = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+            elif isinstance(node, ast.AnnAssign):
+                targets = [node.target]
+            else:
+                used_here = used_here or _names_the_table(node)
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name) and "LEMMA_NORMALISATION" in target.id:
+                    declared_here = True
+        if declared_here:
+            declaring.append(where)
+        elif used_here:
+            reading.append(where)
+
+    assert declaring == ["config/g1.py"], (
+        f"the lemma-normalisation table is declared in {declaring}; it is the ledger's "
+        f"partition and INV-PACK-40 says exactly once"
+    )
+    assert reading == ["adapters/spacy_es.py"], (
+        f"{reading} read the normalisation table; only the adapter may. A stage or "
+        f"validator applying it a second time is the inlined-notion-of-a-token failure "
+        f"with a different spelling — and one that applied it and another that did not "
+        f"would give a pack two ledgers that both look right."
+    )
+
+
 def test_INV_PACK_40_each_pack_declares_its_own_window_and_budget() -> None:
     """[INV-PACK-40] falsifier case 5: one shared window starves a Japanese lesson.
 

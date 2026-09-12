@@ -1,0 +1,111 @@
+{
+  "$comment": "Invariant ids the P2 round-3 task `p2r3/lemma-reachability` turns green in tools/coursekit. The integrate task merges these into docs/invariants-owned.json.",
+  "task": "p2r3-lemma-reachability",
+  "module": "tools/coursekit (config/g1.py, adapters/spacy_es.py, stages/g3_solve.py) + content/es/curriculum.yaml",
+  "phase": "P2",
+  "screens": [],
+  "owned": [],
+  "$ownedIsEmpty": "Deliberately empty, and not because this task covers nothing. `owned` is EXCLUSIVE: scripts/coverage-map.ts unions the ownership files and fails on any id claimed by two, and packages/core/src/journey/phase-roster.test.ts asserts the same. All three ids this task was told to turn green already have an owner — INV-PACK-06 in docs/owned/p2-g3-g4.json, INV-PACK-12 in docs/owned/p2-g0-ingest.json, INV-PACK-40 in docs/owned/p2-g1-g2.json — so claiming them here would turn the gate red rather than green. What this task adds is listed under `strengthens`, and every test there carries its id in the name, so `test:coverage-map` counts them against the owning file.",
+  "strengthens": {
+    "$comment": "Tests this task adds to invariants owned by another P2 file. Same ids, new coverage.",
+    "ids": [
+      "INV-PACK-06",
+      "INV-PACK-12",
+      "INV-PACK-40"
+    ],
+    "tests": {
+      "INV-PACK-06": [
+        "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_06_every_declared_surface_really_produces_its_raw_lemma",
+        "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_06_the_probe_the_third_column_was_measured_with_is_the_gates_own",
+        "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_06_the_lesson_one_greeting_is_inside_the_lesson_that_teaches_it",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_06_a_declared_lexeme_the_lemmatiser_never_produces_is_named",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_06_the_forms_block_discharges_a_lexeme_whose_bare_form_mislemmatises",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_06_a_capitalised_form_is_refused_and_the_message_says_why",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_06_the_stage_itself_fails_on_an_unreachable_lexeme",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_06_the_shipped_spanish_curriculum_has_no_unreachable_lexeme",
+        "tools/coursekit/tests/test_curriculum_es.py::test_INV_PACK_06_every_declared_form_is_a_form_of_the_lexeme_it_discharges",
+        "tools/coursekit/tests/test_curriculum_es.py::test_INV_PACK_06_a_declared_form_reaches_its_lexeme_mid_sentence_and_lowercase",
+        "tools/coursekit/tests/test_curriculum_es.py::test_INV_PACK_06_no_lexeme_the_ledger_cannot_hold_is_declared_again"
+      ],
+      "INV-PACK-12": [
+        "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_12_a_language_with_no_measured_table_is_normalised_by_nothing",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_12_an_adapter_that_answers_a_different_number_of_probes_is_refused",
+        "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_12_no_registered_adapter_fails_g3_by_name_and_never_skips_the_gate"
+      ],
+      "INV-PACK-40": [
+        "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_40_the_normalisation_table_is_declared_once_and_the_adapter_reads_it",
+        "tools/coursekit/tests/test_g1_analyze.py::test_INV_PACK_40_every_row_is_well_formed_and_terminates",
+        "tools/coursekit/tests/test_ledger_unit.py::test_INV_PACK_40_the_lemma_normalisation_table_is_declared_in_exactly_one_place"
+      ]
+    }
+  },
+  "ruling": "B9(a) and B9(c) of docs/P2-BLOCKERS.md Founder rulings, 2026-09-12. B9(b) — per-lesson MIN_TOKENS for a verbless window — is the gapfill lane's half and is NOT here.",
+  "crossLaneContract": {
+    "declaration": "config/g1.LEMMA_NORMALISATION_ES + LEMMA_NORMALISATION_BY_LANGUAGE — the only place a raw lemma is mapped to a ledger lemma.",
+    "reader": "adapters/spacy_es.ledger_lemma, applied in analyse() and in _single_token (so lemmatise_surface and lemmatise_surfaces agree with it).",
+    "gate": "tests/test_ledger_unit.py::test_INV_PACK_40_the_lemma_normalisation_table_is_declared_in_exactly_one_place asserts declaring == ['config/g1.py'] and reading == ['adapters/spacy_es.py']. A downstream lane that copies the table fails it by name.",
+    "forbidden": "No stage, validator or content file may restate the mapping, and no lane may apply it a second time: a pack normalised twice and a pack normalised once are two ledgers that both look right."
+  },
+  "measured": {
+    "when": "2026-09-12, this worktree, es_core_news_md 3.8.0 via `uv run --group nlp`, every figure re-taken after the adversarial review",
+    "greeting": "analyse('Hola, buenos días.')['lemmas'] == ['hola', 'bueno', 'día'] — all three inside G4's five-lemma lesson-1 window. Before the table: ['hola', 'buen', 'día'], which is what docs/P2-BLOCKERS.md §B9 measured. Also 'Hola, buenas noches.' -> ['hola','bueno','noche'], 'Buenas tardes.' -> ['bueno','tarde'], 'Buenos días.' -> ['bueno','día'], 'Buen día.' -> ['bueno','día'].",
+    "selectableNow": "The three lexemes the refuter proved were still unselectable now land on their declared ledger key from an ordinary mid-sentence position: 'Muchas gracias por todo.' -> ['mucho','gracia','por','todo'] and the curriculum declares `gracia`; 'Son las dos y media.' -> ['ser','el','dos','y','medio'] and it declares `medio`; 'Tengo un paraguas nuevo.' -> ['tener','uno','paraguas','nuevo'] and it declares `paraguas`.",
+    "unreachableBefore": "unreachable_lexemes over origin/main's curriculum with this branch's adapter: 92 of 990 declared lexemes.",
+    "unreachableAfter": "0 of 952. Counted exactly: 54 declared lexemes removed and 16 added, so 990 -> 952; of the 16, four are renames to the lemma the model produces (gracias->gracia, media->medio, resta->restar) plus afuera for the merged `fuera`, and twelve are unit 21's base verbs replacing 21 reflexive infinitives. 38 `forms:` entries, one form each, all lowercase. 14 normalisation rows.",
+    "tableRows": 14,
+    "frozenSentences": "18 (12 pre-existing + 6 B9(a) witnesses); every normalisation row is witnessed by at least one of them IN A SENTENCE as well as by its bare-surface third column.",
+    "digest": "ADAPTER_SELFTEST_ES_DIGEST 2b3ba30a… -> 88fc73b7…, re-pinned in the same commit; selftest_digest covers the frozen corpus, LEMMA_NORMALISATION_PROBE, the table and ADAPTER_SELFTEST_ES_NORMALISED.",
+    "g4OverEsMini": "756 slots, 108 filled, 648 gaps, gap_fraction 0.8571 (was 105/651/0.8611). Six lemmas — bueno, cuchara, gracia, medio, paraguas, tos — move from deferred to dealt, and three more slots find a corpus sentence."
+  },
+  "decisions": [
+    "D-B9A-01 — ONE RULE, so the next author does not have to guess which lever to pull. A row exists where the pinned model produces, for forms of one word, a raw lemma that is not that word's dictionary headword, and the row sends it to the headword. Its converse keeps the table small: where the raw lemma IS a headword the course could mean, there is no row and the curriculum declares the lemma the model produces instead. Three measured shapes fall out of it and all three get the same treatment, because they are one defect — one word, two raw lemmas, depending on position: (1) prenominal/apocopated adjectives (buen/buena/buenas/buenos -> bueno, gran -> grande, tercer -> tercero); (2) a sentence-initial capital re-tagged PROPN keeping the surface as the lemma (Días -> día, Noches -> noche, Tardes -> tarde, Gracias -> gracia, Media -> medio); (3) a bare one-word document over- or mis-singularising (paragua -> paraguas, cucharo -> cuchara, to -> tos). Shape 3 runs the other way round and is safe only because none of `paragua`, `cucharo`, `to` is a Spanish word — that clause IS the safety argument, and a row whose raw side is a word would fold that word into another ledger item. `primer` gets no row because `primer` -> `primero` already.",
+    "D-B9A-01a — what the adversarial review changed, recorded because the shape it caught is subtle. The first version handled `Cuchara`, `Media` and `Paraguas` with capitalised `forms:` entries while handling `días`/`noches`/`tardes` with table rows, which is two treatments of one measured shape. Under D-B9A-01 they are all table rows or all curriculum declarations, and a capitalised `forms:` entry is now refused at load: `Gracias` -> `gracias` but `gracias` -> `gracia`, so a capital discharges the gate for a lexeme no ordinary sentence can select. `forms:` is for real lowercase forms only (plurals, inflections); position artefacts belong in the table.",
+    "D-B9A-02 — reflexive infinitives, collapsing pronouns and `fuera` get NO row, and the measurement is why: `levantarse`, `levantarlo`, `levantarla`, `levantarle`, `levantarlos` and `levantarles` all produce the one raw lemma `levantar él`, and `fuera` produces `ser` because it is spelled like the imperfect subjunctive of ser/ir. A table cannot re-split what the lemmatiser merged, and a row `ser -> fuera` would claim every `era`/`fue` teaches the adverb. The curriculum stopped declaring those lemmas; `afuera` (measured self-lemmatising) carries the locative pair.",
+    "D-B9A-03 — the third column is measured with the BARE surface (`LEMMA_NORMALISATION_PROBE`), declared in config and covered by the digest. It is the bare surface because that is exactly the call `lemmatise_surface` takes, which is what the G2 frequency tail and the B9(c) gate both run; a carrier-sentence probe would be evidence about a call the pipeline never makes. Measured: `cuchara` alone -> `cucharo`, `cuchara` in a sentence -> `cuchara`, so the column means nothing without saying which.",
+    "D-B9C-01 — the reachability gate does NOT consult the G2 lexicon, though `solve` has it in hand. Lexicon membership is stronger evidence than a one-word document and that is the problem: it makes the verdict a property of the corpus, so the same curriculum and model would pass on one ingest and fail on the next, and a curriculum error could hide behind a lucky corpus. The gate is a pure function of (curriculum, pinned model, table), like the adapter self-test.",
+    "D-B9C-02 — no new validator id. The check runs inside the G3 stage, unconditionally and with no option to skip: VALIDATOR_IDS is what pack-ci's `pipeline-ready` job counts, so an unregistered id would skip both pack jobs green.",
+    "D-B9C-03 — a missing adapter is StageResult(ok=False) naming it, not a raise and never a skip. Ruling B14 settled the raise-vs-StageResult question for G7; the skip is the worse option, because `report.unreachable` left empty reads as 'nothing unreachable', which is how an unreachable lexeme got into the shipped curriculum in the first place. Pinned by test_INV_PACK_12_no_registered_adapter_fails_g3_by_name_and_never_skips_the_gate, which deliberately does not need the `nlp` group.",
+    "D-B9C-04 — unit 1's target ORDER is untouched and no lexeme was re-ordered anywhere; what changed in unit 1 is four unreachable removals, `gracias` -> `gracia`, and no `forms:`. Its ledger_digests move anyway, and NOT because of the curriculum: the B9(a) table puts `bueno` into the G2 lexicon, so unit 1's lesson deal gains a lemma at position 2. That is the blocker's option 2 arriving through the adapter rather than through the YAML, it is exactly what ruling B9(a) asks for, and it cannot be avoided while also fixing B9. The one-slot consequence in content/es/authoring/axis-fixture.jsonl is applied on this branch (see outOfLaneEditsApplied)."
+  ],
+  "handoffs": {
+    "gapfill": "Unit 21 ('Walk someone through your morning') is the ONE digest-moving change in this commit, and it was forced: all 33 of its lexemes were reflexive infinitives, all 33 unreachable, and a unit with none left fails the loader. It now declares 12 base verbs (levantar, duchar, vestir, peinar, lavar, afeitar, acostar, despertar, sentar, poner, quitar, secar), all measured self-lemmatising and unclaimed elsewhere. Twelve keeps `derive_level_count` at 1 and the unit at 2 lessons, so course-global LESSON NUMBERING and every slot key are unchanged; what moves is `index.known` from unit 21 onward, so slots in units 21-30 get a new ledger_digest and their authored rows need a re-digest (not a re-authoring).",
+    "gapfillSecond": "The table itself also re-partitions the G2 lexicon — `buen`, `buena`, `buenas`, `buenos`, `días`, `noches`, `tardes`, `gran` and `tercer` stop being lexicon keys and their counts fold into the ledger lemma — so lexicon ranks shift and any unit that back-filled one of those loses it. Ruling B9 anticipates this: 're-key only rows whose ledger_digest changes'. The scale is not knowable from the adapter alone; it needs one `coursekit build es`.",
+    "founder": "Unit 1 still does not teach `llamar`, and 'Say hello and give your name' is the unit that should. Adding it would give unit 1 a target lemma it does not have today and move every unit-1 ledger_digest — which the brief reserves. Recorded here rather than done."
+  },
+  "heldWithoutAnInvariantId": [
+    "The third column of every normalisation row is RE-MEASURED against the RAW lemma by test_INV_PACK_06_every_declared_surface_really_produces_its_raw_lemma, through the adapter's `raw_lemma_of_surface`. The first version read `record['lemmas'][0]`, which is already normalised, so the comparison was circular and two rows (`días`, `tardes`) carried surfaces the model contradicts while the test stayed green. Column one of the table is now verified by something.",
+    "test_a_sentence_with_no_normalised_row_is_left_alone_by_the_table asserts every frozen sentence ABSENT from ADAPTER_SELFTEST_ES_NORMALISED normalises to its own raw fingerprint — so a new row that fires somewhere nobody looked fails the suite instead of quietly moving a lemma in a pack that is already built.",
+    "test_INV_PACK_40_every_row_is_well_formed_and_terminates refuses a row whose ledger lemma is another row's raw lemma. `ledger_lemma` makes exactly one pass, so a chain would leave the answer depending on dict order; it is refused by assertion rather than by a fixed-point loop, which would hide the mistake.",
+    "test_INV_PACK_40_the_lemma_normalisation_table_is_declared_in_exactly_one_place now greps the AST for NAMES IN CODE (import, bare reference, attribute) rather than the file's text, because g3_solve.py's docstring names the table to tell a reader where it lives and a text-level grep called that a second reader. A real second reader needs one of those three forms and cannot avoid all of them.",
+    "test_INV_PACK_06_a_declared_form_reaches_its_lexeme_mid_sentence_and_lowercase is the corroborating half of the gate: the gate probes a bare surface, which is unavoidably sentence-initial, so on its own it cannot tell `trabajos` -> `trabajo` from `Gracias` -> `gracias`. Measured over all 38 declared forms in five carriers, same answer in every one.",
+    "test_a_form_repeated_or_equal_to_the_lexeme_is_probed_once — `taught_forms` dedupes, so a lexeme named twice in target_lexemes cannot report the same attempt twice in the failure line.",
+    "content/es/curriculum.yaml's header states the three levers, which one to pull, and which declarations were removed and why, so the removals are reviewable as a decision rather than showing up as a shorter list."
+  ],
+  "notOwnedHere": {
+    "INV-PACK-13": "the licence allow-list at ingest — G0's lane",
+    "INV-PACK-17": "the credits surface S152 — B5, P4",
+    "INV-PACK-51": "the ledger identity key — tests/test_ledger_unit.py, the G1/G2 lane"
+  },
+  "outOfLaneEditsApplied": {
+    "$comment": "THREE FILES OUTSIDE this task's declared file lane are edited on this branch, and the integrator should know why before rebasing. All three are forced by deliverable (1) — the B9(a) table re-partitions the G2 lexicon, so artefacts that snapshot the old partition go stale — and NONE of them is touched by any of the four parallel P2 round-3 lanes (checked with `git diff origin/main...HEAD --name-only` in each of the five worktrees on 2026-09-12), so there is no collision to resolve. The previous attempt deferred them and left the branch red: `uv run --group nlp pytest -q` was 4 FAILED + 16 ERROR here and EXIT=0 at origin/main b9a68eb, which pack-ci would have reported as this branch breaking the suite.",
+    "content/es/authoring/axis-fixture.jsonl": {
+      "what": "slot u1/l2/s2 (unit_index 1, lesson_index 2, slot_index 2), 20 rows: `bueno` added to allowed_lemmas, ledger_digest recomputed f095015aeeb44d12 -> ee54cb707e2f61e3 with stages.g5_gapfill.ledger_digest over sorted(set(known)|set(new)). 20 lines changed, nothing else in the file.",
+      "why": "its allowed_lemmas enumerated the OLD partition — `buen`, `buena`, `Buenas`, `Buenos`, `día`, `días`, `noche`, `noches`, `tarde`, `tardes` — and did not contain `bueno`. Every one of its 20 candidates now analyses to `bueno`, so all 20 were rejected `out_of_vocabulary` and the slot exhausted. That the lemma the lesson TEACHES was missing from a list carrying six spellings of it is the clearest single statement of what B9 was. This single slot was the cause of ALL 18 of the 19 g5/g6 failures the refuter measured.",
+      "notCleanedUp": "The seven dead spellings are LEFT IN the list. Removing them is also correct and gives digest b34c6d5324f62525, but it is a second, larger change to a file this task does not own, and the slot passes either way."
+    },
+    "tools/coursekit/tests/test_validators_ledger.py": {
+      "what": "filled 105 -> 108, gaps 651 -> 648, gap_fraction 0.8611 -> 0.8571, in the assertions and in both docstrings that quote them (module docstring and the test's own).",
+      "why": "it pins G4's measurement over es-mini. Six lemmas move from deferred to dealt because the table puts them in the lexicon, and three more slots find a corpus sentence."
+    },
+    "tools/coursekit/tests/test_g4_select.py": {
+      "what": "`run_g4_over_es_mini` calls a new `_ensure_es_adapter_registered()` before driving G3 and G4; the ceiling test's docstring figures updated to 756/108/648/0.8571.",
+      "why": "ruling B9(c) gives G3 a dependency on the ADAPTERS registry it did not have. tests/test_g5_gapfill.py's `es_adapter` fixture tears down with ADAPTERS.reset_for_tests(), which per coursekit/__init__.py suppresses discovery PERMANENTLY — conftest.empty_registry documents the same trap and calls restore_for_tests() instead — so in a full-suite run every G3 after the first G5 test saw an empty registry. With pytest-randomly that is a coin toss rather than a reproducible failure, which is why the fix is at the shared helper and not in the one test that happened to fail.",
+      "theRealRepair": "one word in tests/test_g5_gapfill.py's teardown: ADAPTERS.reset_for_tests() -> ADAPTERS.restore_for_tests(), in both places (the `es_adapter` fixture and test_g5_refuses_to_run_without_a_morphology_adapter). That file is the gapfill lane's and is being rewritten by them right now (647 added lines at the time of writing), so it is NOT touched here. Whoever lands that one-word change can delete `_ensure_es_adapter_registered` in the same commit."
+    }
+  },
+  "notedNotFixed": [
+    "tests/test_g4_select.py::analyse_es_mini builds its G1 records by hand with `token.lemma_.lower()`, so the es-mini fixture's lemmas are RAW — the B9(a) table never runs over them. That is consistent with what the fixture is (a hand-rolled G1 simulation, not the adapter) and it is why test_g1_analyze's fixture/corpus comparison now compares LEDGER keys; but it means the es-mini G2 lexicon is partitioned the old way, and a later lane may want it to go through `ledger_lemma`. Not changed here: it would move the es-mini figures again and the file is not this task's.",
+    "content/es/curriculum.yaml's `prepositions_place` concept probe still lists `fuera` in `lemma_any`. The lemma is unreachable, so that entry can never match — a dead probe clause. It is harmless (the concept also matches on `pos_any: [ADP, ADV]`) and extending the B9(c) gate to probe clauses is a change to what G3 checks, so it is recorded rather than done.",
+    "docs/P2-BLOCKERS.md §B9's 'three ways out' table and docs/P2-REPORT.md §'B9, restated' still describe B9 as open. They are the provenance-docs lane's files."
+  ]
+}

@@ -10,10 +10,13 @@ statement is actually present in both the file and its README — and the rest i
 
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
+import pytest
 import yaml
 
+from coursekit.adapters import ADAPTERS
 from coursekit.config import PACK_LICENCE
 from coursekit.config.g3 import (
     CEFR_CHIP_FOR_PROSE,
@@ -21,6 +24,7 @@ from coursekit.config.g3 import (
     PROBE_CLAUSES,
     REGISTER_SLOT_BY_LANGUAGE,
 )
+from coursekit.inputs import group_is_installed
 from coursekit.stages.g3_solve import curriculum_path, load_curriculum
 
 ES = curriculum_path("es")
@@ -31,6 +35,13 @@ README = ES.parent / "README.md"
 MIN_CONCEPTS, MAX_CONCEPTS = 25, 30
 MIN_UNITS = 10
 MIN_LEXEMES, MAX_LEXEMES = 900, 1100
+
+#: The `nlp` group is the hard gate `inputs.require_group` enforces, so a machine without
+#: it skips the one test here that loads the pinned model rather than inventing a
+#: fallback. Same spelling as `test_g1_analyze.py`, read from the same helper.
+needs_nlp = pytest.mark.skipif(
+    not group_is_installed("nlp"), reason="the nlp group is not installed"
+)
 
 
 def raw() -> dict:
@@ -154,3 +165,162 @@ def test_the_readme_and_the_file_agree_about_where_cefr_comes_from() -> None:
     assert "R23" in readme and "R23" in text
     assert "section_cefr" in text
     assert Path(README).exists()
+
+
+# ---------------------------------------------------------------------------
+# `forms:` and the declarations ruling B9 removed
+# ---------------------------------------------------------------------------
+
+#: Every lexeme the gate proved unreachable and that no normalisation table can rescue,
+#: because the pinned model MERGES these rather than merely spelling them differently:
+#: measured 2026-09-12, `levantarse`, `levantarlo`, `levantarla`, `levantarle`,
+#: `levantarlos` and `levantarles` all give the one lemma `levantar él`, and `él`,
+#: `ella`, `ellos`, `lo` and `se` all give `él`. They are named here so a later edit
+#: cannot quietly put one back: it would be deferred forever and teach nothing.
+UNHOLDABLE = (
+    "ella",
+    "ellos",
+    "nosotros",
+    "vosotros",
+    "ustedes",
+    "lo",
+    "me",
+    "te",
+    "nos",
+    "os",
+    "se",
+    "llamarse",
+    "encontrarse",
+    "equivocarse",
+    "dirigirse",
+    "levantarse",
+    "vacaciones",
+    "un",
+)
+
+
+def _stem(word: str) -> str:
+    """The first four characters, accents stripped — enough to tell a form from a word."""
+    bare = "".join(
+        ch for ch in unicodedata.normalize("NFD", word.lower()) if not unicodedata.combining(ch)
+    )
+    return bare[:4]
+
+
+#: The carrier the mid-sentence check below puts a declared form into. Position 1, never
+#: 0, and lowercase: `es_core_news_md` re-tags a sentence-initial capital PROPN and keeps
+#: the surface as the lemma, so a form at index 0 or with a capital can reach a lemma no
+#: ordinary sentence reaches. Measured 2026-09-12 over all 38 declared forms in four
+#: other carriers (`Hay …`, `Tengo …`, `Aquí hay … y más.`, `Ella ve … hoy.`): the same
+#: answer in every one, so the check is about the position and not about this sentence.
+MID_SENTENCE_CARRIER = "Veo {form} aquí."
+
+
+def test_INV_PACK_06_every_declared_form_is_a_form_of_the_lexeme_it_discharges() -> None:
+    """[INV-PACK-06] the gate is discharged by Spanish, not by any string that passes.
+
+    `forms:` exists so a lexeme whose bare form mis-lemmatises can name one that does
+    not. That makes it the one place in this file where a wrong entry turns the gate
+    green: `bueno: [casa]` would discharge nothing and look like a fix. The loader
+    already refuses a key that is not a target lexeme; this refuses a VALUE that is not
+    a form of it. Generated plural-of-a-plural strings (`vacacioneses`, `uns`) do not
+    survive it, which is how the removals below were told apart from the fixes.
+
+    **And the capitalisation half, which this test could not see before.** `_stem`
+    lowercases, so it accepted `Gracias` as a form of `gracias` — and an adversarial
+    review found three rows doing exactly that, each reaching its lemma only because a
+    sentence-initial capital is read PROPN. The loader now refuses a non-lowercase form
+    outright (`_load_forms`); this asserts the same thing from the artefact's side, so
+    the rule is visible in the file that would break it.
+    """
+    curriculum = load_curriculum("es")
+    declared = 0
+    for _section, unit in curriculum.units():
+        for lexeme, forms in unit.forms:
+            for form in forms:
+                declared += 1
+                assert _stem(form) == _stem(lexeme), (
+                    f"{unit.title!r} declares {form!r} as a form of {lexeme!r}"
+                )
+                assert form == unicodedata.normalize("NFC", form.lower()), (
+                    f"{unit.title!r} declares the non-lowercase form {form!r}; a capital "
+                    f"reaches a lemma only sentence-initially"
+                )
+    assert declared == 38, f"{declared} forms declared; the shipped file carries 38"
+
+
+@needs_nlp
+def test_INV_PACK_06_a_declared_form_reaches_its_lexeme_mid_sentence_and_lowercase() -> None:
+    """[INV-PACK-06] the gate may not be discharged by a position artefact.
+
+    The gate itself probes a BARE surface, because that is the call `lemmatise_surface`
+    and the G2 frequency tail make. A bare surface is unavoidably sentence-initial, so
+    on its own it cannot tell a real repair (`trabajos` -> `trabajo`) from a
+    capitalisation trick (`Gracias` -> `gracias`, where `gracias` -> `gracia`). This is
+    the corroborating half: **for every lexeme that declares forms, at least one of them
+    reaches the lexeme with the word lowercase and NOT first in the sentence**, which is
+    the only position a corpus sentence can actually offer.
+
+    Measured 2026-09-12: `Muchas gracias por todo.` -> `gracia`, `Son las dos y media.`
+    -> `medio`, `Tengo un paraguas nuevo.` -> `paraguas`. All three were declared with a
+    capitalised `forms:` entry in the first version of this lane, all three passed the
+    gate, and none of them could be selected from an ordinary sentence — the exact
+    defect B9(c) exists to catch.
+    """
+    adapter = ADAPTERS.get("es")()
+    curriculum = load_curriculum("es")
+    for _section, unit in curriculum.units():
+        for lexeme, forms in unit.forms:
+            reached = []
+            for form in forms:
+                record = adapter.analyse(
+                    sentence_id="0" * 16, text=MID_SENTENCE_CARRIER.format(form=form)
+                )
+                at = [i for i, token in enumerate(record["tokens"]) if token["surface"] == form]
+                if at and at[0] > 0 and record["tokens"][at[0]]["lemma"] == lexeme:
+                    reached.append(form)
+            assert reached, (
+                f"{unit.title!r}: no form of {lexeme!r} in {list(forms)} reaches it "
+                f"lowercase and mid-sentence; the only thing discharging the gate is the "
+                f"bare one-word probe"
+            )
+
+
+def test_INV_PACK_06_no_lexeme_the_ledger_cannot_hold_is_declared_again() -> None:
+    """[INV-PACK-06] ruling B9(c)'s removals, pinned by name.
+
+    A reflexive infinitive or a collapsing pronoun declared as a `target_lexeme` is a
+    lemma the pinned lemmatiser never produces. It is not a build failure today only
+    because it is not there; `unreachable_lexemes` fails the stage the moment one comes
+    back, and this test says which words to think twice about.
+    """
+    curriculum = load_curriculum("es")
+    declared = {lexeme for _s, unit in curriculum.units() for lexeme in unit.target_lexemes}
+    assert declared.isdisjoint(UNHOLDABLE), sorted(declared & set(UNHOLDABLE))
+    reflexive = sorted(
+        lexeme
+        for lexeme in declared
+        if lexeme.endswith("se") and lexeme[:-2].endswith(("ar", "er", "ir"))
+    )
+    assert reflexive == [], f"{reflexive} lemmatise to `<verb> él`, a two-word lemma"
+
+
+def test_the_reflexive_unit_still_teaches_the_routine_it_is_titled_after() -> None:
+    """Ruling B9(c) moved the unit's lexemes to the base verbs; it did not gut the unit.
+
+    The ledger item for what the learner says — "se levanta" — IS `levantar`; the
+    reflexive construction is the unit's grammar concept, which Q2 option C schedules as
+    an item of its own, and the concept's probe matches the CLITIC, not the verb. So the
+    unit teaches the same Spanish through a vocabulary the ledger can hold.
+    """
+    curriculum = load_curriculum("es")
+    unit = next(
+        unit for _s, unit in curriculum.units() if unit.grammar_concept == "reflexive_daily_routine"
+    )
+    assert "morning" in unit.title
+    assert len(unit.target_lexemes) >= 10
+    for expected in ("levantar", "duchar", "lavar", "despertar", "acostar"):
+        assert expected in unit.target_lexemes
+    probe = curriculum.concepts["reflexive_daily_routine"].probe
+    assert probe.pos_any == ("PRON",)
+    assert probe.morph_any == ("Reflex=Yes",)

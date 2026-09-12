@@ -424,6 +424,38 @@ def test_g4_is_registered() -> None:
 # slots and `run()` refuses it, while the test suite reported the same ledger as clean.
 
 
+def _ensure_es_adapter_registered() -> None:
+    """Put the Spanish adapter back if a previous test file emptied `ADAPTERS`.
+
+    G3 needs it: founder ruling B9(c) made the reachability gate part of the stage, so
+    `solve_curriculum` asks `adapter_for(ctx.lang)` for a lemmatiser on every run. The
+    gate takes no "skip" option on purpose — an option is a way to turn it off — so a
+    G3 run with no adapter is a failed G3, and G4 then refuses on `require_successful`.
+
+    **Why this helper exists rather than the gate being made optional.**
+    `tests/test_g5_gapfill.py`'s `es_adapter` fixture tears down with
+    `ADAPTERS.reset_for_tests()`, which per `coursekit/__init__.py` suppresses discovery
+    **permanently** — `conftest.empty_registry` documents the same trap and calls
+    `restore_for_tests()` instead. So in a full-suite run every G3 after the first G5
+    test saw an empty registry, and with `pytest-randomly` picking the order that was a
+    coin toss rather than a reproducible failure. Measured 2026-09-12: the whole file
+    passed alone and `test_the_stage_that_built_this_pack_rejects_it_and_the_claim_says_so`
+    failed in the full suite with `MissingInput: no morphology adapter is registered for
+    'es'`.
+
+    The real repair is one word in that fixture's teardown and belongs to the lane that
+    owns the file; this keeps the two callers of `run_g4_over_es_mini` order-independent
+    in the meantime. `ADAPTERS.add` raises on a duplicate key, hence the guard.
+    """
+    from coursekit.adapters import ADAPTERS
+
+    if ADAPTERS.get("es") is not None:
+        return
+    from coursekit.adapters.spacy_es import build
+
+    ADAPTERS.add("es", build)
+
+
 def run_g4_over_es_mini() -> tuple[StageResult, list[dict[str, Any]]]:
     """Run the REAL g3 and g4 stages over the fixture, and return g4's verdict.
 
@@ -444,6 +476,7 @@ def run_g4_over_es_mini() -> tuple[StageResult, list[dict[str, Any]]]:
             entry.written = write_records(kind, rows, lang="es")
             entry.record_output(kind)
 
+    _ensure_es_adapter_registered()
     for stage_id in ("g3", "g4"):
         stage = REGISTERED_AT_IMPORT[stage_id]
         with runlog.stage(stage_id, tool="test", tool_version="0") as entry:
@@ -457,9 +490,12 @@ def run_g4_over_es_mini() -> tuple[StageResult, list[dict[str, Any]]]:
 def test_the_stage_refuses_the_es_mini_pack_and_names_the_ceiling() -> None:
     """G4's own gate REJECTS the pack this lane's fixture produces, and that is correct.
 
-    Measured 2026-09-12 at this commit: 756 slots, 98 filled, 658 gaps, gap_fraction
-    0.8704, against `MAX_GAP_FRACTION` 0.60. The fixture is 200 sentences and the
-    curriculum is 30 units; no arrangement of 200 sentences fills 756 slots.
+    Measured 2026-09-12 at this commit: 756 slots, 108 filled, 648 gaps, gap_fraction
+    0.8571, against `MAX_GAP_FRACTION` 0.60 (98/658/0.8704 before G4 reserved a named
+    lemma per gap, 105/651/0.8611 before founder ruling B9(a)'s lemma-normalisation
+    table put six previously-deferred lemmas into the G2 lexicon). The fixture is 200
+    sentences and the curriculum is 30 units; no arrangement of 200 sentences fills 756
+    slots.
 
     The point of asserting it is that the previous version of this suite never did.
     `INV-PACK-06`'s pack half called `select()` directly, so the ledger it certified as

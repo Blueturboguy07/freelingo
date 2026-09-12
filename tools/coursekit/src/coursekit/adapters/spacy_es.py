@@ -7,9 +7,10 @@ is enforced.
 
 ## The self-test corpus, and what it is actually for
 
-`self_test()` runs `config/g1.ADAPTER_SELFTEST_ES` — twelve original A1 sentences — and
+`self_test()` runs `config/g1.ADAPTER_SELFTEST_ES` — eighteen original A1 sentences — and
 fails if one token's lemma or UD tag has moved. `stages/g1_analyze` calls it before it
-analyses a single corpus row.
+analyses a single corpus row. It also checks the OTHER side, the post-B9(a) fingerprint,
+for the six sentences the normalisation table changes something in.
 
 The hazard it exists for is not "spaCy might be broken". It is that **a silent
 lemmatiser swap retro-introduces lemmas before their unit and makes V1 pass vacuously.**
@@ -30,6 +31,20 @@ Four of the frozen answers are wrong Spanish (`Nosotros` -> `yo`, `se` -> `él`,
 records what the pinned model DOES. A later "fix" that quietly improves them moves lemmas
 between units in packs that are already built, which is the same failure from the other
 direction.
+
+## And the one place a raw lemma is allowed to move (founder ruling B9(a))
+
+`ledger_lemma` applies `config/g1.LEMMA_NORMALISATION_ES` on the way out of `analyse()`
+and `_single_token`, so a corpus sentence and a bare frequency row land on the same
+ledger key. That is a deliberate, declared, digest-covered exception to "freeze what the
+model does" and not a loosening of it: the frozen fingerprints above still record the RAW
+answer, and a second frozen table (`ADAPTER_SELFTEST_ES_NORMALISED`) records what the
+first one becomes. Raw catches the MODEL moving; normalised catches the TABLE stopping.
+Neither alone can tell the two apart, which is why both are frozen.
+
+The table exists because without it `Buenos días.` was out of vocabulary in the lesson
+that teaches both `bueno` and `día` (`docs/P2-BLOCKERS.md` §B9). What it may and may not
+contain is decision D-B9A-01, argued beside the table itself.
 """
 
 from __future__ import annotations
@@ -48,6 +63,10 @@ from ..config.g1 import (
     ADAPTER_BY_LANGUAGE,
     ADAPTER_SELFTEST,
     ADAPTER_SELFTEST_ES_DIGEST,
+    ADAPTER_SELFTEST_ES_NORMALISED,
+    LEMMA_NORMALISATION_BY_LANGUAGE,
+    LEMMA_NORMALISATION_ES,
+    LEMMA_NORMALISATION_PROBE,
     NON_LEXICAL_POS,
     SPACY_BATCH_SIZE,
     SPACY_DISABLED_COMPONENTS,
@@ -59,9 +78,31 @@ from ..inputs import MissingInput, require_group
 __all__ = [
     "AdapterSelfTestFailed",
     "SpacyEsAdapter",
+    "ledger_lemma",
     "parse_fingerprint",
     "selftest_digest",
 ]
+
+
+def ledger_lemma(lang: str, raw_lemma: str) -> str:
+    """The ledger lemma for one raw spaCy lemma: NFC-lowercased, then normalised.
+
+    The ONE implementation of founder ruling B9(a), called from `analyse()` and from
+    `_single_token` (so `lemmatise_surface` and `lemmatise_surfaces` agree with it), and
+    the only reader of `config/g1.LEMMA_NORMALISATION_BY_LANGUAGE`.
+
+    The table is keyed on the NFC-lowercased raw lemma rather than on whatever spaCy
+    handed over, so a row cannot be missed because the model returned `Buenas` where the
+    table says `buenas`; the values are already NFC-lowercase and
+    `test_g1_analyze.py` asserts it, so the normalised answer needs no second pass.
+
+    A language with no table is normalised by nothing. That is the right default and not
+    a silent fallback: the mapping is a measurement of one lemmatiser, so inventing rows
+    for fr/de/ja from the Spanish ones would be exactly the quiet re-partition this
+    module exists to make loud.
+    """
+    lemma = unicodedata.normalize("NFC", raw_lemma.lower())
+    return LEMMA_NORMALISATION_BY_LANGUAGE.get(lang, {}).get(lemma, lemma)
 
 
 class AdapterSelfTestFailed(RuntimeError):
@@ -117,7 +158,7 @@ class SpacyEsAdapter:
             tokens.append(
                 {
                     "surface": token.text,
-                    "lemma": unicodedata.normalize("NFC", token.lemma_.lower()),
+                    "lemma": ledger_lemma(self.lang, token.lemma_),
                     "pos": token.pos_,
                     "morph": str(token.morph),
                     "start": token.idx,
@@ -165,11 +206,9 @@ class SpacyEsAdapter:
         row that is really two words cannot be attributed to one lemma, and guessing
         which half to keep is worse than dropping a rank.
         """
-        return _single_token(_pipeline(self.model)(surface))
+        return _single_token(_pipeline(self.model)(surface), lang=self.lang)
 
-    def lemmatise_surfaces(
-        self, surfaces: Sequence[str]
-    ) -> list[tuple[str, str] | None]:
+    def lemmatise_surfaces(self, surfaces: Sequence[str]) -> list[tuple[str, str] | None]:
         """`lemmatise_surface` over a whole list, in order, through `nlp.pipe`.
 
         Part of the adapter contract, not a convenience: a frequency list is 50,000 rows
@@ -181,21 +220,67 @@ class SpacyEsAdapter:
         ordered = list(surfaces)
         pipeline = _pipeline(self.model)
         return [
-            _single_token(doc)
+            _single_token(doc, lang=self.lang)
             for doc in pipeline.pipe(ordered, batch_size=SPACY_BATCH_SIZE)
         ]
+
+    # -- measurement -------------------------------------------------------
+
+    def raw_lemma_of_surface(self, surface: str) -> str | None:
+        """The **raw** lemma of one bare surface — the table's third column, re-measured.
+
+        `lemmatise_surface` cannot answer this: it returns the lemma with the B9(a) table
+        already applied, so comparing it to the table's ledger column is circular and a
+        stale row passes. That is not hypothetical — the first version of
+        `test_INV_PACK_06_every_declared_surface_really_produces_its_raw_lemma` did
+        exactly that, and two rows (`días`, `tardes`) carried third-column surfaces the
+        model contradicts while the test stayed green.
+
+        `None` when the probe is not one token, or is not a content word, which is how a
+        row naming an impossible surface fails rather than silently comparing to nothing.
+        The probe shape is `config/g1.LEMMA_NORMALISATION_PROBE`, so this and the table's
+        third column cannot drift apart.
+        """
+        doc = _pipeline(self.model)(LEMMA_NORMALISATION_PROBE.format(surface=surface))
+        words = [token for token in doc if not token.is_space]
+        if len(words) != 1 or words[0].pos_ in NON_LEXICAL_POS:
+            return None
+        return unicodedata.normalize("NFC", words[0].lemma_.lower())
 
     # -- the gate ----------------------------------------------------------
 
     def self_test(self) -> list[str]:
-        """Every disagreement with the frozen corpus, as readable lines. `[]` is a pass."""
+        """Every disagreement with the frozen corpus, as readable lines. `[]` is a pass.
+
+        Both sides of it. The RAW fingerprints catch the model moving; the normalised
+        ones (`ADAPTER_SELFTEST_ES_NORMALISED`) catch the B9(a) table stopping firing,
+        which the raw side cannot see — a deleted row leaves every raw fingerprint green
+        and puts `Buenos días.` back outside the lesson that teaches both its words.
+        """
         failures: list[str] = []
         for sentence, expected in ADAPTER_SELFTEST[self.lang]:
             actual = self._fingerprint_sentence(sentence)
-            if actual == expected:
+            if actual != expected:
+                failures.extend(_diff(sentence, expected, actual))
+            wanted = self._normalised_expectation(sentence)
+            if wanted is None:
                 continue
-            failures.extend(_diff(sentence, expected, actual))
+            normalised = self._fingerprint_sentence(sentence, normalise=True)
+            if normalised != wanted:
+                failures.extend(_diff(f"{sentence} (normalised)", wanted, normalised))
         return failures
+
+    def _normalised_expectation(self, sentence: str) -> str | None:
+        """The frozen post-table fingerprint for `sentence`, or None if it has no row.
+
+        No row means "the table changes nothing here", and that is asserted rather than
+        assumed: `test_g1_analyze.py` checks every unlisted sentence normalises to its
+        raw fingerprint unchanged, so a new row that fires somewhere nobody looked at
+        fails the suite instead of quietly moving a lemma.
+        """
+        if self.lang != "es":
+            return None
+        return ADAPTER_SELFTEST_ES_NORMALISED.get(sentence)
 
     def require_self_test(self) -> None:
         """Run the self-test and raise on any disagreement."""
@@ -215,24 +300,40 @@ class SpacyEsAdapter:
             "shipped was partitioned by the old one."
         )
 
-    def _fingerprint_sentence(self, sentence: str) -> str:
+    def _fingerprint_sentence(self, sentence: str, *, normalise: bool = False) -> str:
+        """`surface/lemma/POS ...` for one sentence; RAW by default.
+
+        Raw is the default because the frozen table records what the model does, and a
+        fingerprint that had already been through the B9(a) table could not tell a model
+        change from a table change. `normalise=True` is the other frozen side.
+        """
         doc = _pipeline(self.model)(sentence)
+
+        def lemma_of(token) -> str:  # noqa: ANN001 — spaCy's Token
+            if normalise:
+                return ledger_lemma(self.lang, token.lemma_)
+            return unicodedata.normalize("NFC", token.lemma_.lower())
+
         return " ".join(
-            f"{token.text}/{unicodedata.normalize('NFC', token.lemma_.lower())}/{token.pos_}"
-            for token in doc
-            if not token.is_space
+            f"{token.text}/{lemma_of(token)}/{token.pos_}" for token in doc if not token.is_space
         )
 
 
-def _single_token(doc) -> tuple[str, str] | None:  # noqa: ANN001 — spaCy's Doc
-    """`(lemma, UD POS)` for a document that is exactly one lexical word, else None."""
+def _single_token(doc, *, lang: str) -> tuple[str, str] | None:  # noqa: ANN001 — Doc
+    """`(ledger lemma, UD POS)` for a one-lexical-word document, else None.
+
+    The lemma goes through `ledger_lemma`, so the frequency list and G3's reachability
+    gate are partitioned the same way a corpus sentence is. Without that the ledger has
+    two partitions again — `buenos` counted under `buen` in the lexicon and under
+    `bueno` in every analysed sentence — which is the exact shape of INV-PACK-40.
+    """
     words = [token for token in doc if not token.is_space]
     if len(words) != 1:
         return None
     token = words[0]
     if token.pos_ in NON_LEXICAL_POS:
         return None
-    return unicodedata.normalize("NFC", token.lemma_.lower()), token.pos_
+    return ledger_lemma(lang, token.lemma_), token.pos_
 
 
 def parse_fingerprint(fingerprint: str) -> list[tuple[str, str, str]]:
@@ -266,15 +367,31 @@ def _diff(sentence: str, expected: str, actual: str) -> list[str]:
 
 
 def selftest_digest(lang: str) -> str:
-    """sha256 over the frozen corpus, for the runlog and the manifest.
+    """sha256 over everything frozen about this lemmatiser, for the runlog and manifest.
 
-    One line a reader can compare across two runs. The table in `config/g1.py` is what
-    tells them WHICH token moved; this is what tells them that something did.
+    One line a reader can compare across two runs. The tables in `config/g1.py` are what
+    tell them WHICH token moved; this is what tells them that something did.
+
+    **Three tables and one probe, one digest, on purpose.** The frozen corpus, the
+    B9(a) normalisation table and its normalised expectations all partition the ledger,
+    and a digest that covered only the first would let a normalisation row be added,
+    changed or deleted with the runlog and the manifest still reporting the same
+    fingerprint. `LEMMA_NORMALISATION_PROBE` rides along because the table's third
+    column is evidence only relative to one probe — change the probe and the same rows
+    mean something else.
     """
-    payload = "\n".join(
-        f"{sentence}\t{expected}" for sentence, expected in ADAPTER_SELFTEST[lang]
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
+    lines = [f"{sentence}\t{expected}" for sentence, expected in ADAPTER_SELFTEST[lang]]
+    if lang == "es":
+        lines.append(f"probe\t{LEMMA_NORMALISATION_PROBE}")
+        lines.extend(
+            f"{raw}\t{ledger}\t{','.join(surfaces)}"
+            for raw, ledger, surfaces in LEMMA_NORMALISATION_ES
+        )
+        lines.extend(
+            f"{sentence}\t{expected}"
+            for sentence, expected in sorted(ADAPTER_SELFTEST_ES_NORMALISED.items())
+        )
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
 
 
 @lru_cache(maxsize=4)
