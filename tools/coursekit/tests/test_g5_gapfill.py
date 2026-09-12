@@ -1077,6 +1077,51 @@ def test_INV_PACK_40_a_candidate_for_a_slot_that_is_not_a_gap_fails_the_stage(
     assert entry["notes"]["orphan_authored_slots"] == ["u2/l1/s1"]
 
 
+def test_INV_PACK_40_the_orphan_message_offers_both_causes_rather_than_diagnosing_one(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-40] the orphan check has two causes and the message must not pick one.
+
+    THE FALSIFIER, and it cost a round. The message used to open with
+    "G4 emits a GLOBAL lesson index ... so a file keyed per unit names slots that do not
+    exist. Re-key against `coursekit gaps es`" — the per-unit-vs-global keying bug, stated
+    as the diagnosis. B19 is the other cause: correctly-keyed rows whose slot ceased to
+    exist when the B9 ruling moved the ledger and G4 re-cut its gap list. The old wording
+    sent a reader to re-key a file that was already correctly keyed, and did so for a whole
+    round.
+
+    So this test pins three things about the message and not its prose: it states the
+    OBSERVATION (the slot is not in this build's gap list), it offers the keying
+    explanation as one POSSIBILITY rather than as the cause, and it names the discriminator
+    a reader can actually run. A message that only said "re-key" passes none of them.
+    """
+    real = _one_slot(1)
+    stray = [dict(row) for row in real]
+    for row in stray:
+        row["slot"] = {"unit_index": 2, "lesson_index": 1, "slot_index": 1}
+    _write_shards(tmp_path, monkeypatch, {"lane.jsonl": [*real, *stray]})
+    stage_g4("es", gap_list(real))
+
+    message = run_g5().message
+
+    # The observation, not a cause. "G4's gap list" was true of the message before and is
+    # not the point; "this build's" is, because a gap list is a property of a run.
+    assert "not in this build's gap list" in message
+    # Both causes, and the ledger-moved one first, because it is the one a lane hits after
+    # a curriculum change and the one the old message could not express at all.
+    assert "the ledger moved" in message
+    assert "no longer exists" in message
+    assert "GLOBAL lesson index" in message
+    # Offered, not asserted: each cause is numbered and introduced as one of two.
+    assert "Two causes" in message
+    assert "(1)" in message and "(2)" in message
+    assert "cannot tell them apart" in message
+    # The discriminator. Without it the reader has two stories and no way to choose.
+    assert "every slot in a file is an orphan" in message
+    # And the retirement path for the first cause, which is not a re-key.
+    assert "candidates-orphaned" in message
+
+
 def test_INV_PACK_40_the_orphan_check_does_not_fire_on_a_file_that_matches(
     es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

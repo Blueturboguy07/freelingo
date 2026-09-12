@@ -602,15 +602,36 @@ def gapfill(ctx: StageContext) -> StageResult:
     # "8 of 918 slots covered" when the true figure was zero. A stage that is handed
     # content it cannot use must say so; the reader's question is not "how many gaps are
     # left" but "why did none of what I wrote count".
+    #
+    # THE MESSAGE NAMES THE CHECK, NOT ONE OF ITS CAUSES. It used to open with the
+    # per-unit-vs-global keying explanation as a statement of fact, because that was the
+    # bug in front of whoever wrote it. There are two ways to be an orphan and the stage
+    # cannot tell them apart from here: the rows may be keyed in a numbering G4 does not
+    # use (the 2026-09-11 case), or the ledger may have moved under correctly-keyed rows
+    # so that the slot stopped existing (B19, 2026-09-12 — a curriculum or lemmatiser
+    # change re-cuts G4's gap list, and 18 authored slots ceased to be gaps). The first
+    # phrasing misdiagnosed the second case for a whole round: it sent a reader to re-key
+    # a file that was already correctly keyed. So the message states the observation,
+    # offers both explanations as possibilities, and hands over the one cheap
+    # discriminator between them — all of the file orphaned is a key-space mismatch, some
+    # of it orphaned is a ledger that moved.
     if orphans:
         return StageResult(
             ok=False,
             message=(
-                f"{len(orphans)} authored slot(s) are not in G4's gap list: "
-                f"{', '.join(orphans)}. G4 emits a GLOBAL lesson index (unit 2 is lessons "
-                f"7-12, unit 3 is 13-18), so a file keyed per unit names slots that do not "
-                f"exist. Re-key against `coursekit gaps {ctx.lang}`; nothing here is filled "
-                f"by a candidate written for another slot."
+                f"{len(orphans)} authored slot(s) are not in this build's gap list: "
+                f"{', '.join(orphans)}. Nothing here is filled by a candidate written for "
+                f"another slot (INV-PACK-10). Two causes produce this and the stage cannot "
+                f"tell them apart: (1) the ledger moved since these rows were written, so "
+                f"the slot no longer exists — a curriculum or lemmatiser change re-cuts "
+                f"G4's gap list, and rows for a slot that is gone belong in "
+                f"`content/{ctx.lang}/candidates-orphaned/`, not in a neighbouring window; "
+                f"or (2) the file is keyed in a lesson numbering G4 does not use — G4 emits "
+                f"a GLOBAL lesson index (unit 2 is lessons 7-12, unit 3 is 13-18), so a "
+                f"file keyed per unit names slots that do not exist. Diff against "
+                f"`coursekit gaps {ctx.lang}`: if every slot in a file is an orphan it is "
+                f"(2) and the file is re-keyed; if some are and the rest matched, it is (1) "
+                f"and the orphans are retired."
             ),
         )
     if thin:
