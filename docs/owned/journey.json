@@ -1,0 +1,106 @@
+{
+  "$comment": "Invariant ids owned by the P1 task `p1-journey-and-gate`, and the phase declarations the roster gate needs. This task owns no invariant id of its own: it is the gate, and a gate that also owns invariants can pass itself. `owned` is therefore empty on purpose and must stay empty. `engineParts` names the §14 PACK/AUD ids a P1 lane genuinely owns (the plan's P1 row says 'engine parts' and does not enumerate them, so each is written down here with the reason it is engine and not a P2 pack gate). `deferred` names roster ids P1 does NOT own, each with the reason — a deferral is a decision that shows up in docs/P1-REPORT.md, never a silent gap. The roster itself is derived from docs/invariants.md in packages/core/src/journey/ownership.ts; see that file's header for why it is derived and not typed out.",
+  "task": "p1-journey-and-gate",
+  "phase": "P1",
+  "owned": [],
+  "engineParts": [
+    {
+      "id": "INV-AUD-01",
+      "why": "audio availability is resolved at SESSION GENERATION, not at render — it is a property of the session generator, which is P1's, and needs no pack to exist"
+    },
+    {
+      "id": "INV-PACK-01",
+      "why": "the six-value pack-state enum is a total function from facts to state in packs/state.ts; the P2 half is that a real pack produces those facts, and every surface rendering all six is P3+"
+    },
+    {
+      "id": "INV-PACK-02",
+      "why": "content-hashed ids and the major-bump quarantine are pure functions over scheduler rows (packs/items.ts); the pack that triggers a bump is P2's"
+    },
+    {
+      "id": "INV-PACK-03",
+      "why": "the node-type registry is pack-driven, and the engine half is that a manifest declaring no stories yields a path with no book nodes — a pure function of the manifest"
+    },
+    {
+      "id": "INV-PACK-04",
+      "why": "partial != corrupt is a claim about the state resolver's precedence rules, which is engine; the surfaces that render the difference are P3"
+    },
+    {
+      "id": "INV-PACK-05",
+      "why": "a missing asset degrades one item and never aborts a session: a property of session generation over any subset of deleted assets, provable with no pack"
+    },
+    {
+      "id": "INV-PACK-18",
+      "why": "verify-before-install and the precedence that routes a bad signature to `unverified` rather than `corrupt` are engine rules; P0 shipped the key custody and explicitly did not claim this id"
+    },
+    {
+      "id": "INV-PACK-19",
+      "why": "every exercise-type string the registry can emit has a declared state machine, heart cost and grading rule — a build-time gate over the engine's own registry"
+    },
+    {
+      "id": "INV-PACK-27",
+      "why": "an evicted pack resolving to not-downloaded on switch, and the metered-connection confirm gate, are decisions the engine makes before any download exists"
+    },
+    {
+      "id": "INV-PACK-35",
+      "why": "across a major-version migration no completed node becomes incomplete and account state is bit-identical — this is the golden-DB migration corpus, which the plan puts in P1"
+    },
+    {
+      "id": "INV-PACK-56",
+      "why": "completion copy, the section list and the Score ceiling are functions of the manifest; the function is engine, the manifest that feeds it is P2"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "INV-CER-12",
+      "why": "kind E: a back press on each ceremony screen leaves the rendered screen and the ledger unchanged. There is no back press without a ceremony UI; it lands with P4's S067-S090"
+    },
+    {
+      "id": "INV-CER-16",
+      "why": "kind S: every Score-chain screen's primary CTA resolves to the `macaw` token. A design-token assertion over rendered components, which is P3's token-conformance gate"
+    },
+    {
+      "id": "INV-COM-05",
+      "why": "kind S: a colour transition never cancels or rewinds an in-flight width tween. A Reanimated claim about the progress bar, provable only once the bar exists in P3"
+    },
+    {
+      "id": "INV-DAT-06",
+      "why": "kinds P and E: no pending notification or widget entry derives from pre-import state. Notifications are P4 and the widget is P5; neither exists to be checked at P1"
+    },
+    {
+      "id": "INV-DAT-08",
+      "why": "kinds P and E: import never opens a content:// URI directly and fails before the backup when space is short. Both halves are platform behaviour, measured on a device at P5"
+    },
+    {
+      "id": "INV-ECO-31",
+      "why": "kinds P and S: equipping a cosmetic changes only MascotRenderer output plus the snapshot field. MascotRenderer is P3 art and the snapshot field is the P5 widget"
+    },
+    {
+      "id": "INV-GRD-09",
+      "why": "kinds U and P: every production input declares autocorrect and spellcheck off. The engine half (curly quotes folded idempotently at tier 1) is inside the grading lane's normalisation tests; the declaration is a P3 component gate"
+    },
+    {
+      "id": "INV-PATH-10",
+      "why": "kinds S and E: after a section-complete return the canvas contains only the new section's nodes, inside the declared scroll band. A scroll-position assertion, P3"
+    },
+    {
+      "id": "INV-PATH-11",
+      "why": "kind S: at every scroll offset exactly one unit header is rendered pinned. A fling-scroll screenshot series, P3"
+    },
+    {
+      "id": "INV-PATH-12",
+      "why": "kinds P and E: the guidebook route id equals the pinned header's unit id at every scroll position. The zero-scheduler-rows half is engine, but it cannot be asserted without the scroll surface, so the whole id moves to P3"
+    },
+    {
+      "id": "INV-PATH-24",
+      "why": "kinds U and C: every pack-declarable node type has a PathNode variant with locked/active/complete art and declared geometry. The art is the P3 entry criterion; the registry half has no component to check against yet"
+    },
+    {
+      "id": "INV-PER-09",
+      "why": "kinds P and E: after a speaking item, zero files remain under the recording directory. ASR and the recording directory are P5"
+    },
+    {
+      "id": "INV-PER-10",
+      "why": "kind D: the on-device backup manifest lists only the checkpointed DB file and stays inside the platform quota. A manual device check, on the P5 checklist"
+    }
+  ]
+}

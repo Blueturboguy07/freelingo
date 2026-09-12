@@ -1,0 +1,1236 @@
+/**
+ * The headless 30-day, two-course, four-zone journey driver.
+ *
+ * One learner. Thirty simulated local days from `script.ts`. Two installed courses, four
+ * IANA zones, three flights, one date-line crossing, two broken streaks, one recovery
+ * challenge, one monthly Streak Repair, a boost that lapses, a pack major bump and an
+ * export/wipe/import — driven through the real engine modules, never a local copy of
+ * their rules (`bind.ts` refuses to substitute).
+ *
+ * ## What it asserts, and what it does not
+ *
+ * It asserts **end-state ledgers**, not screens. Three kinds of claim:
+ *
+ *  - **Idempotence.** Every day's rollover is run, then run again with the same
+ *    arguments. The second call must decide nothing: no day processed, no freeze
+ *    consumed, the same disposition map. That is INV-DAY-09 and INV-FRZ-05, and it is
+ *    the single cheapest way to catch a walk that double-counts under a kill.
+ *  - **Conservation.** Lifetime XP equals the sum of the awards the economy returned;
+ *    freezes consumed equal freezes granted minus freezes held; the count of committed
+ *    sessions equals the count of lesson events; goal chests equal the number of distinct
+ *    local days whose XP crossed the goal in force on that day.
+ *  - **Cross-checks against an independent reference.** The streak the day engine reports
+ *    is recomputed here from the disposition ledger by a different route, and a
+ *    disagreement is a refutation naming the day lane.
+ *
+ * It never patches across a module boundary. A disagreement is recorded in
+ * `refutations` with the lane that owns it (plan §The build workflow, step 4: refuted
+ * goes back to the owner, not into this file).
+ *
+ * ## Missing lanes
+ *
+ * A port that `bind.ts` could not resolve does not stop the journey: the events that
+ * need it are recorded in `notProven` with the lane that owes them, and the rest of the
+ * trace still runs. This matters because the journey is the LAST task in the P1 merge
+ * queue and is written while the other eight lanes are still open — a driver that
+ * refuses to run until everything is perfect is a driver nobody ever sees run. What it
+ * must never do is *pretend*: `notProven` is non-empty exactly when a clause of the gate
+ * was not executed, and `docs/P1-REPORT.md` prints it verbatim.
+ */
+import type {
+  Day,
+  DayStatePort,
+  ScheduledItemPort,
+  Disposition,
+  Engine,
+  RepairRecordPort,
+  RolloverResultPort,
+  SessionRowPort,
+  ZoneStampPort,
+} from './ports.js';
+import { PORT_OWNER } from './ports.js';
+import {
+  JOURNEY,
+  PRIMARY_COURSE,
+  USUAL_LESSON_HOUR,
+  type JourneyDay,
+  type JourneyEvent,
+} from './script.js';
+
+/* --------------------------------------------------------------- named config */
+
+/** XP awarded per lesson is the engine's business; this is how many items a lesson has. */
+const LESSON_ITEMS = 10;
+/** Minutes a lesson takes, monotonic. Far short of the session-staleness timeout. */
+const LESSON_MINUTES = 7;
+/** The seed for every pseudo-random choice, so a failure is reproducible verbatim. */
+export const DEFAULT_SEED = 0x5eed_1ec0;
+/** Authored candidates offered to the generator per session. Comfortably over target. */
+const CANDIDATE_POOL = 24;
+/** The one path node the trace's lessons come from. */
+const NODE_REF = 'node-1';
+/** The typed answer the grader must accept exactly, in the lane's own Spanish pack. */
+const ACCEPTED_ANSWER = 'el gato';
+/** An answer with nothing in common with the target. Must be wrong at every tier. */
+const WRONG_ANSWER = 'zzzz';
+/** The item every graded answer in the trace is graded against. */
+const GRADED_ITEM = {
+  itemId: 'es-1',
+  family: 'typed-translate',
+  targetLexemeId: 'gato',
+  targetLexemeSurface: 'gato',
+  accepted: [{ surface: ACCEPTED_ANSWER, rank: 1, surfaceId: 's1' }],
+} as const;
+/**
+ * INV-DAY-09's ceiling, as the JOURNEY states it.
+ *
+ * Deliberately a literal here and not read from the day lane's config: this is the
+ * number the plan's EC-STK-14 ruling names (`maxRolloverDeferralSeconds = 300`), and a
+ * gate that reads the bound from the thing it is bounding cannot catch the bound moving.
+ */
+const MAX_ROLLOVER_DEFERRAL_SECONDS = 300;
+
+/* ------------------------------------------------------------------ the ledger */
+
+export interface DaySnapshot {
+  readonly day: number;
+  readonly localDay: Day;
+  readonly zone: string;
+  /** The disposition the rollover walk finally settled on for this civil date. */
+  readonly disposition: Disposition | null;
+  readonly streak: number;
+  readonly lifetimeXp: number;
+  readonly sessionsCommittedToday: number;
+  readonly freezesConsumedToday: number;
+  /** False when replaying this day's rollover changed anything. */
+  readonly replayClean: boolean;
+}
+
+export interface JourneyLedger {
+  readonly days: readonly DaySnapshot[];
+  readonly account: {
+    readonly lifetimeXp: number;
+    readonly streakAtEnd: number;
+    readonly freezesGranted: number;
+    readonly freezesConsumed: number;
+    readonly goalChestDays: readonly Day[];
+    readonly repairs: readonly RepairRecordPort[];
+    readonly settledMonths: readonly string[];
+  };
+  readonly courses: Readonly<Record<string, { readonly xp: number; readonly sessions: number }>>;
+  readonly unlivedDays: readonly Day[];
+  readonly dispositions: ReadonlyMap<Day, Disposition>;
+  readonly committedSessions: readonly SessionRowPort[];
+  /** A disagreement between the engine and an independent reference. Names the lane. */
+  readonly refutations: readonly string[];
+  /** A day whose rollover replay changed the ledger. Should always be empty. */
+  readonly replayViolations: readonly string[];
+  /** A gate clause that could not be executed, with the lane that owes it. */
+  readonly notProven: readonly string[];
+}
+
+/* ------------------------------------------------------------------- internals */
+
+/**
+ * A tiny deterministic PRNG (xorshift32), NOT fast-check.
+ *
+ * `property-gates.test.ts` holds every `numRuns` in the tree at 10,000, and a 30-day
+ * two-course journey cannot run 10,000 times in any budget anybody would accept. So the
+ * "random instant" the task asks for is *pseudo-random and seeded*: one trace, fully
+ * reproducible from `DEFAULT_SEED`, and a failure quotes the seed rather than a shrunk
+ * counterexample. The property-shaped coverage of the same modules lives in the lanes.
+ */
+function prng(seed: number): () => number {
+  let state = seed | 0 || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 1_000_000) / 1_000_000;
+  };
+}
+
+interface CourseWorld {
+  xp: number;
+  sessions: number;
+  /** At most one parked session row per course — INV-SESS-07. */
+  parked: ParkedSession | null;
+  liveItemIds: Set<string>;
+  quarantinedItemIds: Set<string>;
+  packVersion: string;
+}
+
+interface ParkedSession {
+  readonly sessionId: string;
+  readonly courseId: string;
+  readonly startedAtUtcMs: number;
+  readonly startedAtMonotonicMs: number;
+  readonly startZone: ZoneStampPort;
+  /** The lane's canonical serialisation of the resume row, for the round trip. */
+  readonly checkpoint: string;
+  readonly boostAtStart: ActiveBoostLike | null;
+  readonly answeredIndex: number;
+}
+
+interface ActiveBoostLike {
+  readonly kind: string;
+  readonly multiplier: number;
+  readonly startedAtUtc: string;
+  readonly expiresAtUtc: string;
+}
+
+interface World {
+  state: DayStatePort;
+  freezeLedger: unknown;
+  lifetimeXp: number;
+  freezesGranted: number;
+  goalTier: string;
+  goalXp: number;
+  activeBoost: ActiveBoostLike | null;
+  courses: Record<string, CourseWorld>;
+  completedDays: Set<Day>;
+  unlived: Set<Day>;
+  committed: Map<string, SessionRowPort>;
+  /** XP earned per local day, for the goal-chest conservation check. */
+  xpByDay: Map<Day, number>;
+  /** The goal in force on a local day, captured when the day's first session commits. */
+  goalByDay: Map<Day, number>;
+  /** Sessions completed per local day, for the per-mode ladder the economy applies. */
+  sessionsByDay: Map<Day, { count: number; xp: number }>;
+  monotonicMs: number;
+  sequence: number;
+  /** The FSRS/attempt state, one per account: the ledger is keyed by session id. */
+  schedulerState: unknown;
+}
+
+function newCourse(): CourseWorld {
+  return {
+    xp: 0,
+    sessions: 0,
+    parked: null,
+    liveItemIds: new Set(),
+    quarantinedItemIds: new Set(),
+    packVersion: '1.4.0',
+  };
+}
+
+/**
+ * The UTC instant at `hour` local time on `localDate` in `tzId`.
+ *
+ * Resolved by fixed point rather than by arithmetic: the offset depends on the instant,
+ * and the instant depends on the offset. Two iterations settle every zone in the matrix
+ * including Lord Howe's half hour; the caller checks the answer by asking the engine what
+ * local day the instant lands on, so a zone this does not settle is a refutation and not
+ * a silent off-by-one.
+ */
+function utcForLocal(engine: Engine, localDate: string, hour: number, tzId: string): number {
+  const day = engine.day!;
+  let instant = Date.parse(`${localDate}T${String(hour).padStart(2, '0')}:00:00Z`);
+  for (let i = 0; i < 3; i += 1) {
+    const stamp = day.resolveZone(new Date(instant), tzId);
+    const candidate =
+      Date.parse(`${localDate}T${String(hour).padStart(2, '0')}:00:00Z`) -
+      stamp.utcOffsetMinutes * 60_000;
+    if (candidate === instant) break;
+    instant = candidate;
+  }
+  return instant;
+}
+
+/**
+ * An independent streak reference.
+ *
+ * The engine walks BACKWARDS from today through the decided days. This walks FORWARDS in
+ * one pass from the earliest decided date, accumulating a run and resetting it to zero on
+ * any day that neither contributes nor preserves. Same rule, stated from INV-DAY-01's
+ * text; different traversal, so an off-by-one in either direction shows up as a
+ * disagreement rather than as two copies of the same mistake.
+ *
+ * It is a cross-check and not a second implementation of the day engine: it knows nothing
+ * about freezes, breaks, recovery or the tamper guard. What it catches is a disposition
+ * ledger and a reported streak that do not describe the same thirty days.
+ *
+ * `recovered` PRESERVES and never increments, which is the day lane's ruling in
+ * `dispositions.ts` ("its own glyph, neither flame nor snowflake ... Preserves, never
+ * increments") and not this file's opinion. The first run of this journey against the
+ * real engine disagreed from day 15 onwards — 11 against 12 — because this reference
+ * counted a restored day as practised. The engine was right: INV-REC-02 restores
+ * `previous_streak` and marks TODAY satisfied, so the restore itself adds nothing and
+ * today's own lesson adds the one day INV-REC-07 allows. The reference was corrected;
+ * there is no defect in the day lane. It is recorded because a cross-check that is wrong
+ * in the same direction as the thing it checks is worth nothing, and this one was wrong
+ * in the other direction, which is how it got noticed.
+ */
+function referenceStreak(dispositions: ReadonlyMap<Day, Disposition>, today: Day): number {
+  const decided = [...dispositions.keys()].sort();
+  if (decided.length === 0) return 0;
+  let run = 0;
+  for (let cursor = decided[0]!; cursor <= today; cursor = shiftDate(cursor, 1)) {
+    const disposition = dispositions.get(cursor);
+    if (disposition === 'completed') run += 1;
+    else if (disposition === 'frozen' || disposition === 'unlived' || disposition === 'recovered')
+      continue;
+    else if (cursor === today && disposition === undefined)
+      continue; // today is not over
+    else run = 0;
+  }
+  return run;
+}
+
+/** Civil-date arithmetic for the reference only. The engine has its own. */
+function shiftDate(day: Day, delta: number): Day {
+  const at = Date.parse(`${day}T00:00:00Z`) + delta * 86_400_000;
+  return new Date(at).toISOString().slice(0, 10);
+}
+
+/* --------------------------------------------------------------------- driver */
+
+export interface JourneyOptions {
+  readonly engine: Engine;
+  readonly script?: readonly JourneyDay[];
+  readonly seed?: number;
+}
+
+export function runJourney(options: JourneyOptions): JourneyLedger {
+  const { engine } = options;
+  const script = options.script ?? JOURNEY;
+  const random = prng(options.seed ?? DEFAULT_SEED);
+  const refutations: string[] = [];
+  const replayViolations: string[] = [];
+  const notProven: string[] = [];
+  const days: DaySnapshot[] = [];
+
+  if (engine.day === null) {
+    return {
+      days: [],
+      account: {
+        lifetimeXp: 0,
+        streakAtEnd: 0,
+        freezesGranted: 0,
+        freezesConsumed: 0,
+        goalChestDays: [],
+        repairs: [],
+        settledMonths: [],
+      },
+      courses: {},
+      unlivedDays: [],
+      dispositions: new Map(),
+      committedSessions: [],
+      refutations: [],
+      replayViolations: [],
+      notProven: [`the whole journey: ${PORT_OWNER.day} has not landed`],
+    };
+  }
+  const day = engine.day;
+
+  /** Record a clause that could not be executed, once per (kind, lane). */
+  const cannot = (port: keyof Engine, clause: string): void => {
+    const line = `${clause} — owed by ${PORT_OWNER[port]} (port \`${port}\` unresolved)`;
+    if (!notProven.includes(line)) notProven.push(line);
+  };
+
+  const world: World = {
+    state: day.newState({ freezesOwnedFrom: script[0]!.localDate, cap: 2 }),
+    freezeLedger: null,
+    lifetimeXp: 0,
+    freezesGranted: 0,
+    goalTier: 'regular',
+    goalXp: 20,
+    activeBoost: null,
+    courses: {},
+    completedDays: new Set(),
+    unlived: new Set(),
+    committed: new Map(),
+    xpByDay: new Map(),
+    goalByDay: new Map(),
+    sessionsByDay: new Map(),
+    monotonicMs: 1_000_000,
+    sequence: 0,
+    schedulerState: null,
+  };
+  world.freezeLedger = (world.state as { ledger: unknown }).ledger;
+  const freezesGrantedAtStart = engine.freeze?.held(world.freezeLedger) ?? 0;
+
+  let freezesConsumedTotal = 0;
+
+  for (const scripted of script) {
+    const zoneId = scripted.zone;
+    const noon = utcForLocal(engine, scripted.localDate, 12, zoneId);
+    const stamp = day.resolveZone(new Date(noon), zoneId);
+    const observedDay = day.localDayOf(new Date(noon), zoneId);
+    if (observedDay !== scripted.localDate) {
+      refutations.push(
+        `day ${scripted.day}: local noon in ${zoneId} resolves to ${observedDay}, ` +
+          `the script says ${scripted.localDate} — ${PORT_OWNER.day}`,
+      );
+    }
+
+    /* -- travel: a zone change may jump over a civil date (INV-DAY-03) ---------- */
+    if (scripted.travelledFrom !== undefined) {
+      // The instant is declared by the trace, never guessed here: WHEN the zone changed
+      // decides which civil dates are skipped, and a default hour chosen by the driver
+      // would make the unlived date an accident of the driver rather than a property of
+      // the flight (see script.ts, "the arithmetic that fixed this trace once already").
+      const atUtcMs =
+        scripted.travelAtUtc === undefined
+          ? utcForLocal(engine, scripted.localDate, 2, zoneId)
+          : Date.parse(scripted.travelAtUtc);
+      const transition = {
+        atUtcMs,
+        from: day.resolveZone(new Date(atUtcMs), scripted.travelledFrom),
+        to: day.resolveZone(new Date(atUtcMs), zoneId),
+      };
+      for (const jumped of day.unlivedDaysFromTransitions([transition])) world.unlived.add(jumped);
+    }
+
+    /* -- rollover, then replay it (INV-DAY-09, INV-FRZ-05) --------------------- */
+    const ctx = { completedDays: world.completedDays, unlivedDays: world.unlived };
+    let first: RolloverResultPort;
+    let replay: RolloverResultPort;
+    try {
+      first = day.rolloverTo(world.state, scripted.localDate, ctx);
+      replay = day.rolloverTo(first.state, scripted.localDate, ctx);
+    } catch (error) {
+      // A throw here is a finding, not a crash: the trace must keep going so the report
+      // lists every day that fails rather than only the first one.
+      refutations.push(
+        `day ${scripted.day} (${scripted.localDate}): rolloverTo threw ` +
+          `${(error as Error).message} — ${PORT_OWNER.day}`,
+      );
+      continue;
+    }
+    const replayClean =
+      replay.daysProcessed === 0 &&
+      replay.freezesConsumed === 0 &&
+      sameDispositions(first.state.dispositions, replay.state.dispositions);
+    if (!replayClean) {
+      replayViolations.push(
+        `day ${scripted.day} (${scripted.localDate}): replaying rollover decided ` +
+          `${replay.daysProcessed} more day(s) and spent ${replay.freezesConsumed} more freeze(s)` +
+          ` — ${PORT_OWNER.day}`,
+      );
+    }
+    world.state = first.state;
+    world.freezeLedger = (world.state as { ledger: unknown }).ledger;
+    freezesConsumedTotal += first.freezesConsumed;
+
+    /* -- the day's events ------------------------------------------------------ */
+    // A boost is minutes long; none of them survives a local day. Clearing it here keeps
+    // every later session's recorded multiplier honest instead of carrying one long-dead
+    // boost through the whole trace and calling the lapse "expected".
+    world.activeBoost = null;
+    const xpBefore = world.lifetimeXp;
+    let sessionsToday = 0;
+    for (const event of scripted.events) {
+      try {
+        sessionsToday += applyEvent({
+          engine,
+          world,
+          event,
+          scripted,
+          stamp,
+          random,
+          refutations,
+          cannot,
+        });
+      } catch (error) {
+        // The ports are structural copies of shapes their lanes own (ports.ts header), so
+        // a lane that changes a signature shows up HERE, as one named finding on one day,
+        // rather than as a stack trace that takes the whole gate down and says nothing
+        // about which of the eight lanes moved.
+        refutations.push(
+          `day ${scripted.day} (${scripted.localDate}): the "${event.kind}" event threw ` +
+            `${(error as Error).message} — the port shape and the lane's export disagree`,
+        );
+      }
+    }
+
+    /* -- the snapshot ---------------------------------------------------------- */
+    const streak = day.streakFromDispositions(world.state.dispositions, scripted.localDate);
+    const reference = referenceStreak(world.state.dispositions, scripted.localDate);
+    if (streak !== reference) {
+      refutations.push(
+        `day ${scripted.day} (${scripted.localDate}): the engine reports streak ${streak}, ` +
+          `the independent reference over the same disposition ledger says ${reference} — ${PORT_OWNER.day}`,
+      );
+    }
+    days.push({
+      day: scripted.day,
+      localDay: scripted.localDate,
+      zone: zoneId,
+      disposition: world.state.dispositions.get(scripted.localDate) ?? null,
+      streak,
+      lifetimeXp: world.lifetimeXp,
+      sessionsCommittedToday: sessionsToday,
+      freezesConsumedToday: first.freezesConsumed,
+      replayClean,
+    });
+    void xpBefore;
+  }
+
+  /* -- close the trace: roll over one more day so the last day is decided ------- */
+  const lastDay = script[script.length - 1]!;
+  const closing = day.rolloverTo(world.state, shiftDate(lastDay.localDate, 1), {
+    completedDays: world.completedDays,
+    unlivedDays: world.unlived,
+  });
+  world.state = closing.state;
+  freezesConsumedTotal += closing.freezesConsumed;
+
+  const goalChestDays = [...world.xpByDay.entries()]
+    .filter(([localDay, xp]) => xp >= (world.goalByDay.get(localDay) ?? world.goalXp))
+    .map(([localDay]) => localDay)
+    .sort();
+
+  const courses: Record<string, { xp: number; sessions: number }> = {};
+  for (const [id, course] of Object.entries(world.courses)) {
+    courses[id] = { xp: course.xp, sessions: course.sessions };
+  }
+
+  return {
+    // The disposition is filled in RETROSPECTIVELY. `rolloverTo` decides everything
+    // strictly before today and never today itself — today is not over — so at the moment
+    // a day's snapshot is taken its own disposition is always undecided. Reading it during
+    // the loop would have recorded thirty nulls and the "every day is decided" assertion
+    // would have been vacuous.
+    days: days.map((snapshot) => ({
+      ...snapshot,
+      disposition: world.state.dispositions.get(snapshot.localDay) ?? null,
+    })),
+    account: {
+      lifetimeXp: world.lifetimeXp,
+      streakAtEnd: day.streakFromDispositions(world.state.dispositions, lastDay.localDate),
+      freezesGranted: freezesGrantedAtStart + world.freezesGranted,
+      freezesConsumed: freezesConsumedTotal,
+      goalChestDays,
+      repairs: world.state.repairs,
+      settledMonths: world.state.settlements.map((s) => s.month),
+    },
+    courses,
+    unlivedDays: [...world.unlived].sort(),
+    dispositions: world.state.dispositions,
+    committedSessions: [...world.committed.values()],
+    refutations,
+    replayViolations,
+    notProven,
+  };
+}
+
+function sameDispositions(
+  a: ReadonlyMap<Day, Disposition>,
+  b: ReadonlyMap<Day, Disposition>,
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) if (b.get(key) !== value) return false;
+  return true;
+}
+
+/* -------------------------------------------------------------- event handlers */
+
+interface EventContext {
+  readonly engine: Engine;
+  readonly world: World;
+  readonly event: JourneyEvent;
+  readonly scripted: JourneyDay;
+  readonly stamp: ZoneStampPort;
+  readonly random: () => number;
+  readonly refutations: string[];
+  readonly cannot: (port: keyof Engine, clause: string) => void;
+}
+
+/** Returns the number of sessions this event committed. */
+function applyEvent(ctx: EventContext): number {
+  const { engine, world, event, scripted } = ctx;
+  const courseId = event.course ?? PRIMARY_COURSE;
+
+  switch (event.kind) {
+    case 'install-course': {
+      world.courses[courseId] = newCourse();
+      const course = world.courses[courseId]!;
+      for (let i = 1; i <= CANDIDATE_POOL; i += 1) course.liveItemIds.add(`item-${i}`);
+      if (engine.scheduler !== null) {
+        if (world.schedulerState === null) {
+          world.schedulerState = engine.scheduler.emptyState(scripted.zone);
+        }
+        world.schedulerState = engine.scheduler.registerRows(
+          world.schedulerState,
+          [...course.liveItemIds].map((itemId) => ({
+            itemId,
+            surface: ACCEPTED_ANSWER,
+            kind: 'lexeme',
+          })),
+        );
+        for (const itemId of course.liveItemIds) {
+          world.schedulerState = engine.scheduler.introduce(
+            world.schedulerState,
+            itemId,
+            ACCEPTED_ANSWER,
+            new Date(utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone)),
+          );
+        }
+      }
+      if (engine.packs === null) {
+        ctx.cannot('packs', 'the installed-pack state of a freshly installed course');
+      } else {
+        // The six-state enum is total over FACTS, not over a version string: a verified,
+        // present, intact pack with all its audio is the only combination that installs.
+        const state = engine.packs.resolveState({
+          catalogue: 'available',
+          dbPresent: true,
+          signature: 'valid',
+          integrity: 'ok',
+          audioBytesPresent: 1,
+          audioBytesExpected: 1,
+        });
+        if (state !== 'installed') {
+          ctx.refutations.push(
+            `day ${scripted.day}: a verified, intact, fully downloaded pack resolves to ` +
+              `"${state}", not "installed" — ${PORT_OWNER.packs}`,
+          );
+        }
+      }
+      return 0;
+    }
+
+    case 'set-goal':
+    case 'change-goal-mid-day': {
+      const tier = String(event.detail?.['to'] ?? event.detail?.['goal'] ?? 'regular');
+      if (engine.economy === null) {
+        // No numbers here: INV-ECO-01 says the goal ladder exists once, in economy's
+        // config, and its grep gate reads string literals too — a copy in this harness is
+        // a second copy. The tier NAMES are the economy module's to map to XP.
+        ctx.cannot('economy', 'the named daily-goal tiers');
+        return 0;
+      }
+      world.goalTier = tier;
+      world.goalXp = engine.economy.goalXp(tier);
+      // The goal in force on a day is the LOWER of the two when it changes mid-day: a
+      // goal already met cannot be un-met by raising the bar afterwards (EC-ECO-01).
+      const already = world.goalByDay.get(scripted.localDate);
+      world.goalByDay.set(scripted.localDate, Math.min(already ?? world.goalXp, world.goalXp));
+      return 0;
+    }
+
+    case 'buy-freeze': {
+      if (engine.freeze === null) {
+        ctx.cannot('freeze', 'buying a Streak Freeze with gems, clamped to the cap');
+        return 0;
+      }
+      const before = engine.freeze.held(world.freezeLedger);
+      const outcome = engine.freeze.grant(world.freezeLedger, {
+        grantKey: `purchase-${scripted.localDate}`,
+        channel: 'reward_chest',
+        ownedFromDay: scripted.localDate,
+        amount: 1,
+      });
+      world.freezeLedger = outcome.ledger;
+      world.state = { ...world.state, ledger: outcome.ledger } as DayStatePort;
+      world.freezesGranted += outcome.applied;
+      const after = engine.freeze.held(world.freezeLedger);
+      if (after - before !== outcome.applied) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the grant reported ${outcome.applied} applied but the balance ` +
+            `moved ${before} -> ${after} — ${PORT_OWNER.freeze}`,
+        );
+      }
+      // INV-FRZ-06: a zero-effect grant earns no ceremony screen.
+      if (outcome.applied === 0 && outcome.ceremony) {
+        ctx.refutations.push(
+          `day ${scripted.day}: a grant that changed nothing still asked for a ceremony ` +
+            `screen — ${PORT_OWNER.freeze}`,
+        );
+      }
+      return 0;
+    }
+
+    case 'activate-boost': {
+      const minutes = Number(event.detail?.['minutes'] ?? 15);
+      const multiplier = Number(event.detail?.['multiplier'] ?? 2);
+      const startMs = utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone);
+      world.activeBoost = {
+        kind: 'xpBoost',
+        multiplier,
+        startedAtUtc: new Date(startMs).toISOString(),
+        expiresAtUtc: new Date(startMs + minutes * 60_000).toISOString(),
+      };
+      return 0;
+    }
+
+    case 'idle':
+      return 0;
+
+    case 'park-session': {
+      const parked = startSession(ctx, courseId, Number(event.detail?.['stopAfter'] ?? 4));
+      if (parked === null) return 0;
+      const course = world.courses[courseId];
+      if (course === undefined) return 0;
+      if (course.parked !== null) {
+        ctx.refutations.push(
+          `day ${scripted.day}: ${courseId} already had a parked session — ` +
+            `count(session_state WHERE course_id) must be <= 1 — ${PORT_OWNER.session}`,
+        );
+      }
+      course.parked = parked;
+      return 0;
+    }
+
+    case 'switch-course': {
+      // Switching must not delete the other course's parked row (INV-SESS-07).
+      const parkedElsewhere = Object.entries(world.courses).filter(
+        ([id, course]) => id !== courseId && course.parked !== null,
+      );
+      if (parkedElsewhere.length === 0) {
+        ctx.refutations.push(
+          `day ${scripted.day}: switching to ${courseId} found no parked session on the other ` +
+            `course — the park either never happened or was deleted — ${PORT_OWNER.session}`,
+        );
+      }
+      return 0;
+    }
+
+    case 'resume-parked': {
+      const course = world.courses[courseId];
+      const parked = course?.parked ?? null;
+      if (course === undefined || parked === null) {
+        ctx.cannot('session', 'resuming a session parked on another course, after travel');
+        return 0;
+      }
+      checkResumeRoundTrip(ctx, parked, 'a park, a course switch and a zone change');
+      course.parked = null;
+      // The session was parked yesterday and is finished TODAY: the monotonic elapsed is a
+      // day, not seven minutes. Holding it for the default would credit the day it was
+      // started, leave today with no completed session, and silently break the streak on a
+      // day the trace says the learner practised.
+      const resumeAtMs = utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone);
+      return completeSession(ctx, courseId, parked, {
+        holdMs: Math.max(60_000, resumeAtMs - parked.startedAtUtcMs),
+      });
+    }
+
+    case 'kill-and-resume': {
+      const killAt = 1 + Math.floor(ctx.random() * (LESSON_ITEMS - 1));
+      const parked = startSession(ctx, courseId, killAt);
+      if (parked === null) return 0;
+      checkResumeRoundTrip(ctx, parked, `a kill at item ${killAt}`);
+      return completeSession(ctx, courseId, parked);
+    }
+
+    case 'lesson': {
+      const parked = startSession(ctx, courseId, LESSON_ITEMS);
+      if (parked === null) return 0;
+      return completeSession(ctx, courseId, parked);
+    }
+
+    case 'commit-after-boost-expiry': {
+      const parked = startSession(ctx, courseId, LESSON_ITEMS);
+      if (parked === null) return 0;
+      const grace = ctx.engine.economy?.boostGraceSeconds ?? 0;
+      const boost = parked.boostAtStart;
+      if (boost === null) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the boost-expiry event started with no boost in force — ` +
+            `the trace cannot prove EC-ECO-02 — ${PORT_OWNER.economy}`,
+        );
+        return completeSession(ctx, courseId, parked);
+      }
+      // Hold the session past expiry + grace, on the MONOTONIC clock.
+      const expiry = Date.parse(boost.expiresAtUtc);
+      const holdMs = expiry + (grace + 60) * 1000 - parked.startedAtUtcMs;
+      const expected = Number(event.detail?.['expectMultiplier'] ?? 1);
+      return completeSession(ctx, courseId, parked, { holdMs, expectMultiplier: expected });
+    }
+
+    case 'open-session-across-midnight': {
+      const startHour = Number(event.detail?.['startHour'] ?? 23);
+      const minutesHeld = Number(event.detail?.['minutesHeld'] ?? 40);
+      const startMs = utcForLocal(engine, scripted.localDate, startHour, scripted.zone);
+      const midnightMs = utcForLocal(engine, shiftDate(scripted.localDate, 1), 0, scripted.zone);
+      const nowMs = startMs + minutesHeld * 60_000;
+      const deferral = engine.day!.rolloverDeferral(nowMs, midnightMs, {
+        sessionInProgress: true,
+        lastCheckpointMs: nowMs - 60_000,
+      });
+      // INV-DAY-09: the deferral is bounded whatever the session does.
+      const ceilingMs = midnightMs + MAX_ROLLOVER_DEFERRAL_SECONDS * 1000;
+      if (deferral.untilMs > ceilingMs) {
+        ctx.refutations.push(
+          `day ${scripted.day}: rollover deferred to ${new Date(deferral.untilMs).toISOString()}, ` +
+            `past midnight + maxRolloverDeferralSeconds — a killed session starves rollover — ${PORT_OWNER.day}`,
+        );
+      }
+      const parked = startSession(ctx, courseId, LESSON_ITEMS, startHour);
+      if (parked === null) return 0;
+      return completeSession(ctx, courseId, parked, { holdMs: minutesHeld * 60_000 });
+    }
+
+    case 'recovery-lesson': {
+      const lesson = Number(event.detail?.['lesson'] ?? 1);
+      const of = Number(event.detail?.['of'] ?? 3);
+      if (engine.recovery === null) {
+        ctx.cannot('recovery', 'the 3-lesson recovery challenge inside its 2-local-day window');
+        const parked = startSession(ctx, courseId, LESSON_ITEMS);
+        return parked === null ? 0 : completeSession(ctx, courseId, parked);
+      }
+      if (lesson === 1) {
+        const offer = engine.recovery.offer(world.state, scripted.localDate);
+        if (!offer.challengeArmed) {
+          ctx.refutations.push(
+            `day ${scripted.day}: the recovery challenge is not armed after an uncovered break ` +
+              `(broken on ${offer.brokenOn ?? 'nothing'}) — ${PORT_OWNER.recovery}`,
+          );
+        }
+        world.state = engine.recovery.arm(world.state, scripted.localDate);
+      }
+      // The lesson pays full XP whatever happens to the challenge (INV-REC-05).
+      const parked = startSession(ctx, courseId, LESSON_ITEMS);
+      const committed = parked === null ? 0 : completeSession(ctx, courseId, parked);
+      world.state = engine.recovery.recordLesson(world.state, scripted.localDate);
+      if (lesson === of) {
+        const restore = engine.recovery.completeChallenge(world.state, scripted.localDate);
+        world.state = restore.state;
+        if (!restore.restored) {
+          ctx.refutations.push(
+            `day ${scripted.day}: ${of} recovery lessons inside the window did not restore the ` +
+              `streak — ${PORT_OWNER.recovery}`,
+          );
+        }
+      }
+      return committed;
+    }
+
+    case 'streak-repair': {
+      if (engine.recovery === null) {
+        ctx.cannot('recovery', 'the monthly Streak Repair, idempotent on (year, month)');
+        return 0;
+      }
+      const expected = event.detail?.['expectGranted'] === true;
+      const outcome = engine.recovery.repair(world.state, scripted.localDate);
+      world.state = outcome.state;
+      if (outcome.restored !== expected) {
+        ctx.refutations.push(
+          `day ${scripted.day}: Streak Repair restored=${outcome.restored}` +
+            `${outcome.declinedBecause === null ? '' : ` (${outcome.declinedBecause})`}, the ` +
+            `trace expects ${expected} (one per calendar month, INV-REC-01) — ${PORT_OWNER.recovery}`,
+        );
+      }
+      // A refusal must be refused for the RIGHT REASON. "No repair happened" is satisfied
+      // just as well by there being no break to repair, and a trace that accepted that
+      // would prove nothing about the monthly cap it claims to be testing.
+      const because = event.detail?.['expectDeclinedBecause'];
+      if (typeof because === 'string' && outcome.declinedBecause !== because) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the repair was declined because ` +
+            `"${outcome.declinedBecause ?? 'nothing'}", the trace expects "${because}" — ` +
+            `${PORT_OWNER.recovery}`,
+        );
+      }
+      return 0;
+    }
+
+    case 'pack-major-bump': {
+      const course = world.courses[courseId];
+      if (course === undefined) return 0;
+      const retiring = Number(event.detail?.['quarantined'] ?? 3);
+      if (engine.packs === null) {
+        ctx.cannot('packs', 'a pack major bump quarantining the rows whose items vanished');
+        return 0;
+      }
+      // Three items vanish in the bump. Their scheduler rows must be quarantined, not
+      // deleted: a learner's history is not the pack's to throw away.
+      const vanished = [...course.liveItemIds].slice(0, retiring);
+      for (const id of vanished) {
+        course.liveItemIds.delete(id);
+        course.quarantinedItemIds.add(id);
+      }
+      const rows: ScheduledItemPort[] = [
+        ...vanished.map((itemId) => ({ itemId, quarantined: false })),
+        ...[...course.liveItemIds].map((itemId) => ({ itemId, quarantined: false })),
+      ];
+      const update = engine.packs.applyPackUpdate(rows, {
+        fromMajor: 1,
+        toMajor: 2,
+        itemIds: course.liveItemIds,
+      });
+      if (update.retired !== retiring) {
+        ctx.refutations.push(
+          `day ${scripted.day}: ${update.retired} rows retired, ${retiring} items vanished — ` +
+            `${PORT_OWNER.packs}`,
+        );
+      }
+      if (update.rows.length !== rows.length) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the update returned ${update.rows.length} rows for ` +
+            `${rows.length} — a quarantined row is kept, never dropped — ${PORT_OWNER.packs}`,
+        );
+      }
+      course.packVersion = String(event.detail?.['to'] ?? '2.0.0');
+      return 0;
+    }
+
+    case 'export-wipe-import': {
+      if (engine.data === null) {
+        ctx.cannot('data', 'the export -> wipe -> import round trip');
+        return 0;
+      }
+      const streakBefore = engine.day!.streakFromDispositions(
+        world.state.dispositions,
+        scripted.localDate,
+      );
+      const lifetimeBefore = world.lifetimeXp;
+      const freezesBefore = engine.freeze?.held(world.freezeLedger) ?? 0;
+      const sessionsBefore = Object.values(world.courses).reduce((n, c) => n + c.sessions, 0);
+
+      const archive = {
+        streak: streakBefore,
+        gems: 0,
+        lifetimeXp: lifetimeBefore,
+        freezes: freezesBefore,
+        counters: {
+          sessionsCompleted: sessionsBefore,
+          lessonsCompleted: sessionsBefore,
+          perfectLessons: 0,
+          daysGoalMet: world.goalByDay.size,
+          wordsLearned: 0,
+        },
+        achievements: {},
+        historicalDays: [...world.state.dispositions.keys()],
+      };
+      const confirm = {
+        archiveLastDay: scripted.localDate,
+        deviceLastDay: scripted.localDate,
+        archiveSessionsSinceInstall: sessionsBefore,
+        deviceSessionsSinceInstall: 0,
+        producerId: 'journey',
+        producerAppVersion: '0.0.0',
+        replaceOnly: true as const,
+        undoWindowHours: 24,
+        gapDays: 0,
+        gapDayClassification: 'missed' as const,
+        freezeCost: 0,
+        streakWillBreak: false,
+        archiveMaxLocalDaySeen: scripted.localDate,
+        clampedMaxLocalDaySeen: scripted.localDate,
+        unresolvablePackIds: [],
+      };
+      const device = {
+        schemaVersion: 2,
+        manifestVersion: 1,
+        appVersion: '0.0.0',
+        today: scripted.localDate,
+        lastDay: null,
+        maxLocalDaySeen: scripted.localDate,
+        sessionsSinceInstall: 0,
+        freezesOwned: 0,
+        installedPackIds: Object.keys(world.courses),
+        freezeCap: 2,
+        freeBytes: 1_000_000_000,
+      };
+
+      const applied = engine.data.applyImport(archive, confirm, device);
+      if (applied.lifetimeXp !== lifetimeBefore) {
+        ctx.refutations.push(
+          `day ${scripted.day}: export -> wipe -> import moved lifetime XP ` +
+            `${lifetimeBefore} -> ${applied.lifetimeXp} — ${PORT_OWNER.data}`,
+        );
+      }
+      if (applied.streak !== streakBefore) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the import moved the streak ${streakBefore} -> ${applied.streak} ` +
+            `with no gap to explain it — ${PORT_OWNER.data}`,
+        );
+      }
+      // INV-DAT-04: imported gap days are MISSED, never `unlived`, and no day is restamped.
+      if (applied.unlivedDays.length !== 0 || applied.restampedDays.length !== 0) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the import produced ${applied.unlivedDays.length} unlived and ` +
+            `${applied.restampedDays.length} restamped days; both must be empty — ${PORT_OWNER.data}`,
+        );
+      }
+      // INV-SEC-02 / EC-PER-22: an archive never writes this build's economy constants.
+      const forbidden = applied.writtenFields.filter((field) =>
+        engine.data!.economyConfigFields.includes(field),
+      );
+      if (forbidden.length > 0) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the import wrote economy config fields ${forbidden.join(', ')} ` +
+            `— ${PORT_OWNER.data}`,
+        );
+      }
+      if (applied.provenance !== 'imported') {
+        ctx.refutations.push(
+          `day ${scripted.day}: the imported account region is stamped ` +
+            `"${applied.provenance}", not "imported" — ${PORT_OWNER.data}`,
+        );
+      }
+      return 0;
+    }
+
+    default:
+      return 0;
+  }
+}
+
+/**
+ * The nine-field resume round trip: checkpoint, serialise, deserialise, compare.
+ *
+ * Compared as the lane's own canonical serialisation rather than field by field, because
+ * the nine fields are that lane's list and a comparison written here would go stale the
+ * moment it grew a tenth (INV-SESS-01, INV-SESS-06).
+ */
+function checkResumeRoundTrip(ctx: EventContext, parked: ParkedSession, what: string): void {
+  const { engine, scripted } = ctx;
+  if (engine.session === null) {
+    ctx.cannot('session', `the nine-field resume row surviving ${what}`);
+    return;
+  }
+  const restored = engine.session.deserialise(parked.checkpoint);
+  const again = engine.session.serialise(restored);
+  if (again !== parked.checkpoint) {
+    ctx.refutations.push(
+      `day ${scripted.day}: the session restored after ${what} is not byte-identical to its ` +
+        `checkpoint (INV-SESS-01) — ${PORT_OWNER.session}`,
+    );
+  }
+}
+
+/**
+ * Start a session: generate the queue through the real generator, grade `answered` items,
+ * and checkpoint.
+ *
+ * The generator needs a whole `GenerationRequest` — authored candidates plus an audio,
+ * pack, modality and scheduler port. Those come from the session lane's own fixture
+ * builders and test doubles: `modality/` is P3 and does not exist, and a double that lane
+ * wrote is its answer to "what does absent look like" rather than this file's guess.
+ */
+function startSession(
+  ctx: EventContext,
+  courseId: string,
+  answered: number,
+  hour = USUAL_LESSON_HOUR,
+): ParkedSession | null {
+  const { engine, world, scripted } = ctx;
+  const course = world.courses[courseId];
+  if (course === undefined) {
+    ctx.refutations.push(
+      `day ${scripted.day}: a session on ${courseId}, which was never installed — driver bug`,
+    );
+    return null;
+  }
+
+  world.sequence += 1;
+  const sessionId = `s${String(world.sequence).padStart(3, '0')}-${courseId}`;
+  const startedAtUtcMs = utcForLocal(engine, scripted.localDate, hour, scripted.zone);
+  world.monotonicMs += 60_000;
+  const startedAtMonotonicMs = world.monotonicMs;
+
+  let queue: readonly { readonly id: string; readonly itemId: string }[] = [];
+  let checkpoint = '';
+  if (engine.session === null) {
+    ctx.cannot('session', 'generating a session queue from the authored candidates');
+  } else {
+    const doubles = engine.session.doubles;
+    const generated = engine.session.generate({
+      sessionId,
+      courseId,
+      nodeRef: NODE_REF,
+      flavour: 'lesson',
+      candidates: engine.session.items(CANDIDATE_POOL, { nodeRef: NODE_REF }),
+      audio: new doubles.audio(),
+      // A quarantined item does not resolve any more: the pack double is where that fact
+      // enters the generator, and the assertion below is that none of them is scheduled.
+      pack: new doubles.pack({ nodeRef: NODE_REF, unresolved: [...course.quarantinedItemIds] }),
+      modality: new doubles.modality(),
+      scheduler: new doubles.scheduler(),
+      seed: Math.floor(ctx.random() * 2 ** 31),
+    });
+    if (!generated.offered) {
+      ctx.refutations.push(
+        `day ${scripted.day}: the generator offered no session (${generated.reason}) from ` +
+          `${CANDIDATE_POOL} candidates — ${PORT_OWNER.session}`,
+      );
+    }
+    queue = generated.queue;
+    for (const item of queue) {
+      if (course.quarantinedItemIds.has(item.itemId)) {
+        ctx.refutations.push(
+          `day ${scripted.day}: a quarantined item (${item.itemId}) was scheduled — ${PORT_OWNER.packs}`,
+        );
+      }
+    }
+    const fresh = engine.session.freshSession({ sessionId, courseId, queue });
+    checkpoint = engine.session.serialise(
+      engine.session.checkpoint(fresh, startedAtMonotonicMs + answered * 1_000),
+    );
+  }
+
+  const wrong = Number(ctx.event.detail?.['wrong'] ?? 0);
+  if (engine.grading === null) {
+    ctx.cannot('grading', 'grading each answered item through the three-tier grader');
+  } else {
+    for (let i = 0; i < answered; i += 1) {
+      const answer = i < wrong ? WRONG_ANSWER : ACCEPTED_ANSWER;
+      const verdict = engine.grading.grade({
+        pack: engine.grading.pack,
+        unit: engine.grading.unit,
+        item: GRADED_ITEM,
+        answer,
+        learner: { introducedSurfaceIds: new Set<string>() },
+      });
+      const shouldBeWrong = i < wrong;
+      if (verdict.wrong !== shouldBeWrong) {
+        ctx.refutations.push(
+          `day ${scripted.day}: ${JSON.stringify(answer)} against ` +
+            `${JSON.stringify(ACCEPTED_ANSWER)} graded wrong=${verdict.wrong} ` +
+            `(tier ${verdict.tier}, class ${verdict.verdictClass}) — ${PORT_OWNER.grading}`,
+        );
+      }
+      // INV-GRD-06: a heart is charged exactly when the answer is wrong. Freelingo shows
+      // an infinite meter, but the cost is still what the ledger records.
+      if (verdict.heartCost > 0 !== verdict.wrong) {
+        ctx.refutations.push(
+          `day ${scripted.day}: heartCost ${verdict.heartCost} on a wrong=${verdict.wrong} ` +
+            `verdict — ${PORT_OWNER.grading}`,
+        );
+      }
+    }
+  }
+
+  if (engine.scheduler === null) {
+    ctx.cannot('scheduler', 'the FSRS attempt ledger, and a replayed commit writing nothing');
+  } else if (queue.length > 0) {
+    // INV-SCH-03: applying the same `(session_id, exercise_index)` twice writes nothing.
+    // Only the journey sees this across a whole trace of real sessions.
+    for (let i = 0; i < Math.min(answered, queue.length); i += 1) {
+      const encounter = {
+        sessionId,
+        exerciseIndex: i,
+        itemId: queue[i]!.itemId,
+        surface: ACCEPTED_ANSWER,
+        role: 'production',
+        grade: i < wrong ? 1 : 3,
+        at: new Date(startedAtUtcMs + i * 1_000),
+      };
+      const first = engine.scheduler.applyEncounter(world.schedulerState, encounter);
+      const replay = engine.scheduler.applyEncounter(first.state, encounter);
+      if (replay.wroteAttempt) {
+        ctx.refutations.push(
+          `day ${scripted.day}: replaying (${sessionId}, ${i}) wrote a second attempt row ` +
+            `— ${PORT_OWNER.scheduler}`,
+        );
+      }
+      world.schedulerState = first.state;
+    }
+  }
+
+  return {
+    sessionId,
+    courseId,
+    startedAtUtcMs,
+    startedAtMonotonicMs,
+    startZone: ctx.stamp,
+    checkpoint,
+    boostAtStart: world.activeBoost,
+    answeredIndex: answered,
+  };
+}
+
+/** Complete and commit a started session. Returns 1 when a row was committed. */
+function completeSession(
+  ctx: EventContext,
+  courseId: string,
+  parked: ParkedSession,
+  options: { readonly holdMs?: number; readonly expectMultiplier?: number } = {},
+): number {
+  const { engine, world, scripted } = ctx;
+  const course = world.courses[courseId];
+  if (course === undefined) return 0;
+
+  const holdMs = options.holdMs ?? LESSON_MINUTES * 60_000;
+  world.monotonicMs = parked.startedAtMonotonicMs + holdMs;
+  const completedAtUtcMs = parked.startedAtUtcMs + holdMs;
+  const committedAtUtc = new Date(completedAtUtcMs).toISOString();
+
+  let awardedXp = 0;
+  let appliedMultiplier = 1;
+  if (engine.economy === null) {
+    ctx.cannot('economy', 'the session award: base XP x ladder x boost, clamped to the cap');
+  } else {
+    const todaySoFar = world.sessionsByDay.get(scripted.localDate) ?? { count: 0, xp: 0 };
+    const award = engine.economy.awardForSession({
+      flavour: 'lesson',
+      outcome: 'completed',
+      boostAtSessionStart: parked.boostAtStart,
+      committedAtUtc,
+      ladderStateToday: { sessionsCompleted: todaySoFar.count, xpAwarded: todaySoFar.xp },
+    });
+    awardedXp = award.awardedXp;
+    appliedMultiplier = award.multiplierApplied;
+    if (options.expectMultiplier !== undefined && appliedMultiplier !== options.expectMultiplier) {
+      ctx.refutations.push(
+        `day ${scripted.day}: the commit applied x${appliedMultiplier}, the trace expects ` +
+          `x${options.expectMultiplier} (boost expiry + boostGraceSeconds, EC-ECO-02) — ${PORT_OWNER.economy}`,
+      );
+    }
+    // INV-ECO-30: the explanation exists exactly when the applied number is the smaller one.
+    if (award.explanation.length > 0 !== award.multiplierApplied < award.recordedMultiplier) {
+      ctx.refutations.push(
+        `day ${scripted.day}: recorded x${award.recordedMultiplier}, applied ` +
+          `x${award.multiplierApplied}, explanation ${JSON.stringify(award.explanation)} — the ` +
+          `explanation must appear exactly when the learner is paid less than promised — ${PORT_OWNER.economy}`,
+      );
+    }
+  }
+
+  const start = {
+    sessionId: parked.sessionId,
+    startedAtUtcMs: parked.startedAtUtcMs,
+    startedAtMonotonicMs: parked.startedAtMonotonicMs,
+    startZone: parked.startZone,
+  };
+  const row = engine.day!.commitSession(
+    start,
+    {
+      completedAtUtcMs,
+      completedAtMonotonicMs: world.monotonicMs,
+      completionZone: ctx.stamp,
+      earnedXp: awardedXp,
+      earnedGems: 0,
+    },
+    { satisfiedDays: world.completedDays, committed: world.committed },
+  );
+
+  // INV-CER-01 / INV-DAY-15: replaying the commit writes nothing and reproduces the row,
+  // even with a wall clock that has moved on since.
+  world.committed.set(row.sessionId, row);
+  const replayed = engine.day!.commitSession(
+    start,
+    {
+      completedAtUtcMs: completedAtUtcMs + 5_000,
+      completedAtMonotonicMs: world.monotonicMs + 5_000,
+      completionZone: ctx.stamp,
+      earnedXp: awardedXp,
+      earnedGems: 0,
+    },
+    { satisfiedDays: world.completedDays, committed: world.committed },
+  );
+  if (JSON.stringify(replayed) !== JSON.stringify(row)) {
+    ctx.refutations.push(
+      `day ${scripted.day}: replaying the commit for ${parked.sessionId} produced a different row ` +
+        `— the reward commit is not idempotent on session_id (INV-CER-01) — ${PORT_OWNER.day}`,
+    );
+  }
+
+  if (row.creditedLocalDay !== null) world.completedDays.add(row.creditedLocalDay);
+  const rewardDay = row.rewardLocalDay ?? scripted.localDate;
+  world.lifetimeXp += row.earnedXp;
+  course.xp += row.earnedXp;
+  course.sessions += 1;
+  world.xpByDay.set(rewardDay, (world.xpByDay.get(rewardDay) ?? 0) + row.earnedXp);
+  if (!world.goalByDay.has(rewardDay)) world.goalByDay.set(rewardDay, world.goalXp);
+  const ladder = world.sessionsByDay.get(scripted.localDate) ?? { count: 0, xp: 0 };
+  world.sessionsByDay.set(scripted.localDate, {
+    count: ladder.count + 1,
+    xp: ladder.xp + row.earnedXp,
+  });
+  return 1;
+}
