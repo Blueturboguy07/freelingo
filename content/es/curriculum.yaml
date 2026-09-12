@@ -1,0 +1,600 @@
+# Freelingo — Spanish (es) course curriculum
+#
+# ORIGINALLY AUTHORED FOR THIS REPOSITORY. CC BY-NC-SA 4.0 (`../LICENSE`).
+# See `README.md` beside this file for the provenance statement and what it is for.
+#
+# This is input 6 of the language kit (`scope2/00` §2.1): the A1 grammar-concept
+# inventory plus the unit titles, the one irreducible human input the corpus cannot
+# supply. Nothing here is derived from Cervantes' Plan Curricular, the Council of
+# Europe's descriptors, Duolingo's unit titles, or any course, lexicon or corpus.
+# It is the language-agnostic template of `scope2/00` §2.2 filled in for Spanish, and
+# it is also the D1 tagging contract: `grammar_concept` + `target_lexemes` are exactly
+# the tags every generated exercise inherits.
+#
+# What G3 READS from this file and what G3 DERIVES:
+#
+#   read      section order, `cefr_prose`, unit order, title, function,
+#             grammar_concept, register_slot, target_lexemes, the concept probes
+#   derived   unit_index (global), level_count (from the new-item rate),
+#             target_lemmas (target_lexemes ∩ the G2 lexicon, budgeted),
+#             recycled_lemmas (the recycling schedule V3 checks),
+#             section_cefr — the shipped CEFR claim
+#
+# `section_cefr` is a G3 OUTPUT, not a G2 lookup. The adversarial review's R23 found the
+# CEFR claim sourced at the wrong granularity: CEFRLex is a per-lemma lexicon and the
+# reference product attaches CEFR to SECTIONS (S023 `{{cefr_level}} • see details`,
+# S024 `CEFR {{cefr_level}}` + the prose blurb + the Grammar concepts list). So the
+# section label is decided by which grammar concepts a section contains and is then
+# CHECKED against the G2 lexicon's bands, never read out of it.
+#
+# `cefr_prose` values are constrained: only seven prose strings ship, and there is NO A2
+# string (deep/03 §review: the contiguous run is str:2325–2331 and `high A1` is
+# immediately followed by `early B1`). A section that derived an A2 chip therefore has no
+# prose to render, which G3 reports rather than inventing one. This course stops at
+# `high A1`, so it never hits that wall — but the rule is enforced, not assumed.
+
+schema: 1
+lang: es
+l1: en
+licence: CC-BY-NC-SA-4.0
+authored_for: freelingo
+authored_on: 2026-09-12
+originality: >-
+  Every unit title, function label, grammar-concept label and lexeme list below was
+  written for this repository. No national inventory, syllabus, course or commercial
+  reference was copied or paraphrased. Facts and levels are not protectable; specific
+  wording is, so none was taken.
+
+# ---------------------------------------------------------------------------
+# The A1 grammar-concept inventory — 30 concepts.
+# ---------------------------------------------------------------------------
+#
+# `probe` is how G4 decides whether a corpus sentence EXHIBITS the concept. A sentence
+# exhibits it when at least one analysed token satisfies every clause that is present:
+#
+#   lemma_any    the token's lemma is one of these
+#   pos_any      the token's UD POS tag is one of these
+#   morph_any    the token's morph bundle contains at least one of these features
+#   morph_all    the token's morph bundle contains all of these features
+#   suffix_any   the token's lemma ends with one of these
+#
+# A probe with no clause at all is refused by the loader: it would match every sentence
+# and make the grammar-concept constraint vacuous, which is the failure mode that looks
+# exactly like a working selector.
+
+grammar_concepts:
+  - id: subject_pronouns
+    label: Subject pronouns and who is speaking
+    cefr: A1
+    probe:
+      pos_any: [PRON]
+      morph_any: [PronType=Prs]
+
+  - id: numbers_quantity
+    label: Cardinal numbers and saying how many
+    cefr: A1
+    probe:
+      pos_any: [NUM]
+
+  - id: ser_identity
+    label: Ser for identity, origin and what something is
+    cefr: A1
+    probe:
+      lemma_any: [ser]
+      pos_any: [AUX, VERB]
+
+  - id: definite_articles
+    label: Definite articles and the gender of nouns
+    cefr: A1
+    probe:
+      pos_any: [DET]
+      morph_any: [Definite=Def]
+
+  - id: possessive_adjectives
+    label: Possessive adjectives before a noun
+    cefr: A1
+    probe:
+      pos_any: [DET, PRON]
+      morph_any: [Poss=Yes]
+
+  - id: tener_possession
+    label: Tener for what you have and how old you are
+    cefr: A1
+    probe:
+      lemma_any: [tener]
+      pos_any: [VERB]
+
+  - id: question_words
+    label: Question words that open a request for information
+    cefr: A1
+    probe:
+      morph_any: [PronType=Int]
+
+  - id: adjective_agreement
+    label: Adjectives agreeing in gender and number
+    cefr: A1
+    probe:
+      pos_any: [ADJ]
+      morph_any: [Gender=Fem, Gender=Masc]
+
+  - id: querer_poder_modals
+    label: Querer and poder followed by an infinitive
+    cefr: A1
+    probe:
+      lemma_any: [querer, poder]
+      pos_any: [VERB, AUX]
+
+  - id: estar_state_location
+    label: Estar for where something is and how it is right now
+    cefr: A1
+    probe:
+      lemma_any: [estar]
+      pos_any: [AUX, VERB]
+
+  - id: present_ar_verbs
+    label: Present tense of verbs ending in -ar
+    cefr: A1
+    probe:
+      pos_any: [VERB]
+      morph_all: [Tense=Pres]
+      suffix_any: [ar]
+
+  - id: present_er_ir_verbs
+    label: Present tense of verbs ending in -er and -ir
+    cefr: A1
+    probe:
+      pos_any: [VERB]
+      morph_all: [Tense=Pres]
+      suffix_any: [er, ir]
+
+  - id: hay_existence
+    label: Hay for saying something exists
+    cefr: A1
+    probe:
+      lemma_any: [haber]
+      pos_any: [VERB, AUX]
+
+  - id: gustar_liking
+    label: Gustar and the person who does the liking
+    cefr: A1
+    probe:
+      lemma_any: [gustar, encantar, interesar, importar, molestar]
+
+  - id: prepositions_place
+    label: Prepositions that place one thing next to another
+    cefr: A1
+    probe:
+      pos_any: [ADP, ADV]
+      lemma_any: [en, sobre, bajo, entre, cerca, lejos, dentro, fuera, junto, detrás, delante, encima, debajo]
+
+  - id: time_expressions
+    label: Saying the time, the day and how often
+    cefr: A1
+    probe:
+      lemma_any: [hora, día, semana, lunes, martes, miércoles, jueves, viernes, sábado, domingo, siempre, nunca, hoy, mañana, ayer]
+
+  - id: weather_impersonal
+    label: Impersonal weather expressions
+    cefr: A1
+    probe:
+      lemma_any: [hacer, llover, nevar, sol, lluvia, nieve, viento, calor, frío]
+
+  - id: noun_number_agreement
+    label: Plural nouns and the words that agree with them
+    cefr: A1
+    probe:
+      pos_any: [NOUN]
+      morph_all: [Number=Plur]
+
+  - id: ir_a_future
+    label: Ir a plus an infinitive for what you are going to do
+    cefr: A1
+    probe:
+      lemma_any: [ir]
+      pos_any: [VERB, AUX]
+
+  - id: negation_no
+    label: Saying no, and the words that go with it
+    cefr: A1
+    probe:
+      pos_any: [ADV, PRON, DET]
+      lemma_any: ['no', nada, nadie, ninguno, nunca, jamás, ni, tampoco]
+
+  - id: reflexive_daily_routine
+    label: Reflexive verbs for what you do to yourself
+    cefr: A1
+    probe:
+      pos_any: [PRON]
+      morph_any: [Reflex=Yes]
+
+  - id: demonstratives
+    label: This, that and the one over there
+    cefr: A1
+    probe:
+      morph_any: [PronType=Dem]
+
+  - id: formal_informal_address
+    label: Choosing between the familiar and the polite you
+    cefr: A1
+    probe:
+      pos_any: [PRON, DET, VERB]
+      morph_any: [Person=2, Polite=Form]
+
+  - id: contractions_al_del
+    label: The two contractions, al and del
+    cefr: A1
+    probe:
+      pos_any: [ADP]
+      lemma_any: [a, de]
+
+  - id: estar_gerund
+    label: Estar plus a gerund for what is happening now
+    cefr: A1
+    probe:
+      pos_any: [VERB, AUX]
+      morph_any: [VerbForm=Ger]
+
+  - id: stem_changing_verbs
+    label: Verbs whose stem vowel changes in the present
+    cefr: A1
+    probe:
+      pos_any: [VERB]
+      lemma_any: [pensar, perder, dormir, jugar, soñar, recordar, mostrar, encender, contar, volver, empezar, cerrar, entender, preferir, servir, pedir, repetir, probar]
+
+  - id: comparatives_basic
+    label: Comparing two things with más, menos and tan
+    cefr: A1
+    probe:
+      pos_any: [ADV, ADJ, SCONJ]
+      lemma_any: [más, menos, tan, tanto, como, mejor, peor, mayor, menor]
+
+  - id: direct_object_pronouns
+    label: Replacing the thing acted on with a pronoun
+    cefr: A1
+    probe:
+      pos_any: [PRON]
+      morph_any: [Case=Acc, PrepCase=Npr]
+
+  - id: yes_no_questions
+    label: Questions answered with yes or no
+    cefr: A1
+    probe:
+      pos_any: [PUNCT, VERB, AUX]
+      lemma_any: ['¿', '?', ser, estar, tener, querer, poder]
+
+  - id: indefinite_articles
+    label: Indefinite articles, and one of something
+    cefr: A1
+    probe:
+      pos_any: [DET]
+      morph_any: [Definite=Ind]
+
+# ---------------------------------------------------------------------------
+# Sections and units.
+# ---------------------------------------------------------------------------
+#
+# Three sections, thirty units, ~990 target lexemes — the A1 half of an eight-section
+# course. Sections 4-8 are authored with the A2/B1/B2 kits and are deliberately absent
+# rather than stubbed: an empty section renders a real screen (S023 shows FUTURE
+# sections) and a stub would ship a can-do promise nobody wrote.
+#
+# `cefr_prose` walks the three A1 rungs of the shipped prose ladder. There is no
+# positional section→CEFR rule here: deep/03's review measured the labels against Score
+# bands, not against section index, and the German course ships six sections. G3 derives
+# the chip from the concepts and checks the declared prose against it.
+
+sections:
+  - index: 1
+    cefr_prose: very early A1
+    summary: >-
+      Introduce yourself, count, name what is in front of you, and ask for one thing.
+    units:
+      - title: Say hello and give your name
+        function: greetings and self-introduction
+        grammar_concept: subject_pronouns
+        register_slot: binary_t_v
+        target_lexemes:
+          [hola, bueno, día, tarde, noche, adiós, gracias, por, favor, sí,
+           'no', yo, tú, usted, él, ella, nosotros, ellos, llamarse, ser,
+           nombre, apellido, señor, señora, mucho, gusto, encantado, cómo, bien, mal,
+           hasta, luego, y]
+
+      - title: Count the people and things around you
+        function: counting and stating quantity
+        grammar_concept: numbers_quantity
+        register_slot: n/a
+        target_lexemes:
+          [uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve, diez,
+           once, doce, trece, catorce, quince, veinte, treinta, cuarenta, cincuenta, cien,
+           número, cuánto, poco, todo, cada, otro, más, menos, primero, segundo,
+           tercero, último, contar]
+
+      - title: Say where you are from
+        function: stating origin and nationality
+        grammar_concept: ser_identity
+        register_slot: n/a
+        target_lexemes:
+          [de, en, país, ciudad, extranjero, frontera, mapa, bandera, costa, isla,
+           español, inglés, francés, alemán, italiano, idioma, lengua, hablar, vivir, nacer,
+           dónde, aquí, allí, nacionalidad, mundo, europeo, americano, capital, pueblo, región,
+           norte, sur, oeste]
+
+      - title: Name what is in the room
+        function: naming everyday objects
+        grammar_concept: definite_articles
+        register_slot: n/a
+        target_lexemes:
+          [el, mesa, silla, puerta, ventana, libro, cuaderno, lápiz, bolígrafo, papel,
+           teléfono, ordenador, llave, bolso, reloj, vaso, plato, cuchara, tenedor, cuchillo,
+           taza, cama, lámpara, espejo, caja, bolsa, cosa, cartera, mochila, pared,
+           suelo, techo, cajón]
+
+      - title: Introduce the people in your family
+        function: talking about family
+        grammar_concept: possessive_adjectives
+        register_slot: n/a
+        target_lexemes:
+          [mi, tu, su, nuestro, madre, padre, hermano, hermana, hijo, hija,
+           abuelo, abuela, tío, tía, primo, prima, familia, esposo, esposa, marido,
+           mujer, hombre, niño, niña, bebé, amigo, amiga, vecino, pareja, nieto,
+           sobrino, cuñado, gente]
+
+      - title: Say what you have and how old you are
+        function: stating possession and age
+        grammar_concept: tener_possession
+        register_slot: n/a
+        target_lexemes:
+          [tener, año, edad, viejo, joven, nuevo, cumpleaños, mayor, menor, adulto,
+           anciano, cumplir, nacimiento, fecha, mes, enero, febrero, marzo, abril, mayo,
+           junio, julio, agosto, septiembre, octubre, noviembre, diciembre, calendario, semana, hoy,
+           mañana, ayer, siempre]
+
+      - title: Ask a stranger a simple question
+        function: asking for information
+        grammar_concept: question_words
+        register_slot: binary_t_v
+        target_lexemes:
+          [qué, quién, cuál, cuándo, porque, para, con, sin, sobre, pregunta,
+           preguntar, responder, respuesta, decir, saber, conocer, entender, repetir, explicar, ayuda,
+           ayudar, perdón, disculpar, claro, seguro, quizá, vez, también, tampoco, entonces,
+           pues, cierto, duda]
+
+      - title: Describe what something looks like
+        function: describing objects and people
+        grammar_concept: adjective_agreement
+        register_slot: n/a
+        target_lexemes:
+          [grande, pequeño, alto, bajo, largo, corto, gordo, delgado, guapo, feo,
+           bonito, limpio, sucio, caliente, frío, fuerte, débil, rápido, lento, fácil,
+           difícil, caro, barato, lleno, vacío, blando, duro, ligero, pesado, ancho,
+           estrecho, redondo, cuadrado]
+
+      - title: Ask for a drink at the counter
+        function: making a simple request
+        grammar_concept: querer_poder_modals
+        register_slot: binary_t_v
+        target_lexemes:
+          [querer, poder, beber, café, té, agua, leche, zumo, cerveza, vino,
+           azúcar, hielo, cuenta, camarero, bar, propina, servir, traer, pedir, tomar,
+           necesitar, deber, probar, terminar, empezar, abrir, cerrar, esperar, pagar, precio,
+           euro, dinero, tarjeta]
+
+      - title: Say where something is
+        function: locating things and places
+        grammar_concept: estar_state_location
+        register_slot: n/a
+        target_lexemes:
+          [estar, cerca, lejos, dentro, fuera, arriba, abajo, delante, detrás, encima,
+           debajo, entre, junto, lado, izquierda, derecha, centro, esquina, calle, plaza,
+           parque, tienda, banco, mercado, estación, hospital, farmacia, escuela, oficina, edificio,
+           piso, planta, ascensor]
+
+  - index: 2
+    cefr_prose: early A1
+    summary: >-
+      Get through an ordinary day: work, food, shopping, the weather and a plan.
+    units:
+      - title: Talk about your working day
+        function: describing routine and work
+        grammar_concept: present_ar_verbs
+        register_slot: n/a
+        target_lexemes:
+          [trabajar, estudiar, llegar, entrar, llamar, buscar, encontrar, comprar, usar, mirar,
+           escuchar, descansar, cenar, desayunar, firmar, enviar, guardar, cambiar, arreglar, ganar,
+           trabajo, jefe, empresa, reunión, correo, informe, tarea, horario, sueldo, contrato,
+           compañero, proyecto, cliente]
+
+      - title: Say what you eat and drink
+        function: talking about food and meals
+        grammar_concept: present_er_ir_verbs
+        register_slot: n/a
+        target_lexemes:
+          [comer, escribir, leer, subir, salir, recibir, aprender, comprender, correr, vender,
+           partir, pan, queso, carne, pescado, huevo, arroz, fruta, manzana, naranja,
+           plátano, tomate, patata, verdura, ensalada, sopa, postre, sal, aceite, comida,
+           cena, desayuno, almuerzo]
+
+      - title: Buy food at the market
+        function: shopping for groceries
+        grammar_concept: hay_existence
+        register_slot: binary_t_v
+        target_lexemes:
+          [haber, supermercado, panadería, carnicería, frutería, pescadería, kilo, gramo, litro, botella,
+           paquete, lata, docena, oferta, descuento, cola, carro, estante, producto, marca,
+           fresco, maduro, caducar, pesar, elegir, llevar, costar, rebaja, efectivo, cambio,
+           moneda, billete, cesta]
+
+      - title: Say what you like and what you do not
+        function: expressing preference
+        grammar_concept: gustar_liking
+        register_slot: n/a
+        target_lexemes:
+          [gustar, encantar, interesar, importar, preferir, odiar, amar, molestar, parecer, música,
+           canción, serie, baile, bailar, cantar, pintar, dibujar, cocinar, viajar, nadar,
+           pasear, deporte, arte, teatro, cine, concierto, afición, favorito, divertido, aburrido,
+           entretenido, preferencia, interés]
+
+      - title: Give someone directions on the street
+        function: giving and following directions
+        grammar_concept: prepositions_place
+        register_slot: binary_t_v
+        target_lexemes:
+          [seguir, girar, cruzar, doblar, torcer, continuar, parar, volver, bajar, avanzar,
+           recto, semáforo, acera, paso, cruce, rotonda, puente, avenida, camino, carretera,
+           dirección, ruta, señal, bloque, salida, entrada, kilómetro, metro, minuto, distancia,
+           perdido, encontrarse, indicar]
+
+      - title: Tell the time and name the day
+        function: telling the time
+        grammar_concept: time_expressions
+        register_slot: n/a
+        target_lexemes:
+          [hora, media, cuarto, punto, temprano, pronto, antes, después, durante, mientras,
+           todavía, ya, nunca, frecuente, lunes, martes, miércoles, jueves, viernes, sábado,
+           domingo, fin, cita, plan, quedar, reservar, retraso, puntual, agenda, madrugada,
+           mediodía, medianoche, rato]
+
+      - title: Say what the weather is doing
+        function: talking about the weather
+        grammar_concept: weather_impersonal
+        register_slot: n/a
+        target_lexemes:
+          [hacer, llover, nevar, sol, lluvia, nieve, viento, nube, nublado, tormenta,
+           calor, helada, niebla, grado, temperatura, clima, primavera, verano, otoño, invierno,
+           soleado, lluvioso, ventoso, húmedo, seco, paraguas, abrigo, bufanda, guante, sombra,
+           cielo, granizo, brisa]
+
+      - title: Show someone around your home
+        function: describing a home
+        grammar_concept: noun_number_agreement
+        register_slot: n/a
+        target_lexemes:
+          [casa, habitación, cocina, baño, salón, dormitorio, garaje, jardín, terraza, balcón,
+           pasillo, escalera, mueble, sofá, armario, estantería, alfombra, cortina, almohada, manta,
+           sábana, toalla, jabón, ducha, bañera, grifo, nevera, horno, lavadora, fregadero,
+           basura, vecindario, alquiler]
+
+      - title: Say what you are going to do next
+        function: making plans
+        grammar_concept: ir_a_future
+        register_slot: n/a
+        target_lexemes:
+          [ir, venir, planear, organizar, decidir, invitar, aceptar, rechazar, avisar, confirmar,
+           cancelar, apuntar, próximo, siguiente, futuro, pasado, presente, idea, propuesta, invitación,
+           evento, encuentro, compromiso, disponible, ocupado, libre, listo, preparado, intención, objetivo,
+           meta, programa, actividad]
+
+      - title: Say no, and put a mistake right
+        function: refusing and correcting
+        grammar_concept: negation_no
+        register_slot: n/a
+        target_lexemes:
+          [nada, nadie, ninguno, ni, jamás, apenas, sino, error, equivocarse, corregir,
+           falso, verdadero, verdad, mentira, mentir, negar, negativo, positivo, contrario, diferente,
+           igual, mismo, similar, contra, aunque, pero, excepto, salvo, casi, bastante,
+           demasiado, suficiente, incorrecto]
+
+  - index: 3
+    cefr_prose: high A1
+    summary: >-
+      Handle yourself: a routine, a counter, a journey, a doctor, a match, a party.
+    units:
+      - title: Walk someone through your morning
+        function: describing a daily routine
+        grammar_concept: reflexive_daily_routine
+        register_slot: n/a
+        target_lexemes:
+          [levantarse, ducharse, vestirse, peinarse, lavarse, afeitarse, acostarse, dormirse, despertarse, sentarse,
+           quedarse, irse, ponerse, quitarse, prepararse, arreglarse, maquillarse, cepillarse, secarse, bañarse,
+           despedirse, reunirse, acordarse, olvidarse, alegrarse, enfadarse, cansarse, aburrirse, divertirse, moverse,
+           caerse, perderse, sentirse]
+
+      - title: Pick out clothes by colour
+        function: talking about clothes and colour
+        grammar_concept: demonstratives
+        register_slot: n/a
+        target_lexemes:
+          [este, ese, aquel, ropa, camisa, camiseta, pantalón, falda, vestido, chaqueta,
+           jersey, zapato, bota, calcetín, sombrero, cinturón, corbata, traje, blusa, color,
+           blanco, negro, rojo, azul, verde, amarillo, gris, marrón, rosa, morado,
+           talla, moda, tela]
+
+      - title: Ask for help at a service desk
+        function: asking for help politely
+        grammar_concept: formal_informal_address
+        register_slot: binary_t_v
+        target_lexemes:
+          [vosotros, ustedes, señorita, don, doña, tutear, formal, informal, cortés, amable,
+           educado, respeto, permiso, molestia, atención, atender, solicitar, rogar, agradecer, saludar,
+           despedir, presentar, tratar, dirigirse, recepción, mostrador, turno, fila, formulario, documento,
+           firma, trámite, gestión]
+
+      - title: Get yourself across a city
+        function: travelling and using transport
+        grammar_concept: contractions_al_del
+        register_slot: n/a
+        target_lexemes:
+          [a, al, del, viaje, maleta, equipaje, avión, tren, autobús, coche,
+           barco, bicicleta, taxi, aeropuerto, puerto, andén, vuelo, hotel, museo, playa,
+           montaña, excursión, vacaciones, pasaporte, turista, conducir, aparcar, gasolina, carnet, asiento,
+           ventanilla, transbordo, maletero]
+
+      - title: Say how you feel today
+        function: describing health and feelings
+        grammar_concept: estar_gerund
+        register_slot: n/a
+        target_lexemes:
+          [doler, dolor, enfermo, sano, salud, médico, enfermera, consulta, receta, medicina,
+           pastilla, fiebre, tos, gripe, resfriado, herida, cabeza, garganta, estómago, espalda,
+           brazo, pierna, mano, pie, ojo, oreja, boca, nariz, diente, corazón,
+           cuerpo, piel, hueso]
+
+      - title: Talk about what you are studying
+        function: talking about school and study
+        grammar_concept: stem_changing_verbs
+        register_slot: n/a
+        target_lexemes:
+          [pensar, perder, dormir, jugar, soñar, recordar, mostrar, encender, colgar, clase,
+           alumno, profesor, maestro, universidad, instituto, colegio, examen, nota, apunte, pizarra,
+           curso, asignatura, carrera, título, beca, biblioteca, aula, recreo, matrícula, diploma,
+           lección, ejercicio, resumen]
+
+      - title: Put two things side by side
+        function: comparing and measuring
+        grammar_concept: comparatives_basic
+        register_slot: n/a
+        target_lexemes:
+          [tanto, como, mejor, peor, superior, inferior, doble, mitad, cantidad, tamaño,
+           peso, altura, anchura, longitud, comparar, medir, aumentar, disminuir, crecer, reducir,
+           alcanzar, superar, nivel, escala, rango, promedio, máximo, mínimo, suma, resta,
+           total, parte, porcentaje]
+
+      - title: Follow a match with friends
+        function: talking about sport and hobbies
+        grammar_concept: direct_object_pronouns
+        register_slot: n/a
+        target_lexemes:
+          [lo, me, te, nos, os, se, fútbol, baloncesto, tenis, natación,
+           ciclismo, atletismo, equipo, partido, jugador, entrenador, árbitro, gol, campo, cancha,
+           gimnasio, entrenar, empatar, competir, marcar, lanzar, saltar, patinar, escalar, pelota,
+           red, raqueta, torneo]
+
+      - title: Order a coffee and settle the bill
+        function: ordering in a café
+        grammar_concept: yes_no_questions
+        register_slot: binary_t_v
+        target_lexemes:
+          [menú, carta, ración, tapa, bocadillo, tortilla, churro, magdalena, galleta, chocolate,
+           helado, tarta, bollo, servilleta, barra, cafetería, cucharilla, infusión, manzanilla, cortado,
+           capuchino, descafeinado, templado, encargar, compartir, recomendar, disfrutar, sabor, dulce, salado,
+           amargo, rico, merienda]
+
+      - title: Bring a present to a celebration
+        function: taking part in a celebration
+        grammar_concept: indefinite_articles
+        register_slot: n/a
+        target_lexemes:
+          [un, fiesta, boda, bautizo, aniversario, celebración, celebrar, regalo, regalar, felicitación,
+           felicitar, brindis, brindar, invitado, anfitrión, adorno, globo, vela, pastel, disfraz,
+           cohete, desfile, procesión, tradición, costumbre, navidad, feria, verbena, romería, recuerdo,
+           alegría, sorpresa, banquete]
