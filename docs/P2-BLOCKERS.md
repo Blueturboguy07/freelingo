@@ -33,7 +33,7 @@ So the status column distinguishes three things, and the distinction is the poin
 | **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision** | **DECIDED** — agent-scored gate; paid review → `docs/RELEASE.md`   |
 | **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                 | **RESOLVED 2026-09-12**                                            |
 | **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen             |
-| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, PART-BUILT** — 3/5 built here; 2 outstanding            |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, BUILT** — 5/5 at the round-3 integration                |
 | **B7**  | `mutation.yml` has never produced a score                                                | pre-existing         | **NON-GATING by ruling** — still no score, measured                |
 | **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                  |
 | **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision** | **DECIDED, NOT BUILT** — all three parts owed; the phase blocker   |
@@ -417,7 +417,7 @@ documentation lane claims **no** invariant id because it writes no test.
 
 ---
 
-## B6 — Azure is dead; Spanish bakes on Kokoro — DECIDED 2026-09-12, PART-BUILT
+## B6 — Azure is dead; Spanish bakes on Kokoro — DECIDED 2026-09-12, BUILT
 
 **What the plan says.** §Approval: "Approving this plan accepts the rulings tables, the
 phase order with a founder checkpoint between phases, **Azure as the voice vendor**, and
@@ -466,60 +466,67 @@ Accepted, and with one thing the question did not offer: the manifest **stops cl
 the locale**. `es-ES` does not become a soft claim, it is replaced by a fact
 (`language: es`) plus an explicit absence of a claim (`accent_claim: unverified`). That is
 a better answer than the one asked for — an unfalsifiable claim removed beats an
-unfalsifiable claim footnoted — and it means the ruling has five parts, of which
-**three** are built and **two** are not. The table below is the authority; both
-outstanding parts live in files outside this lane, and one of them has since landed on a
-sibling branch — see the note after the table.
+unfalsifiable claim footnoted — and it means the ruling has five parts. **All five are
+built**, as re-measured on `main` at the P2 round-3 integration: three landed in the
+lane that wrote this file, the manifest part landed with `p2r3/expand-bake-package`, and
+the `REVIEW_DIMENSIONS` constant landed at the integration itself. The table below is
+the authority.
 
 | Part of the ruling                                        | State          | Where / who                                                                           |
 | --------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------- |
 | Kokoro is the engine for es (fr/ja at P7)                 | **built**      | `content/es/cast.yaml` `D-CAST-ES-00`, `config/g8.py`                                 |
 | the two blended roles stay, declared in `cast.yaml`       | **built**      | `D-CAST-ES-02`: Rosa and Nico, with weights and rates                                 |
 | the reviewer rubric checks accent consistency             | **built here** | `content/es/review/RUBRIC.md` §`accent_consistency`                                   |
-| `accent_consistency` as a scoreable dimension in code     | **not built**  | `REVIEW_DIMENSIONS`, `config/sample.py` — the sample lane                             |
-| manifests carry `language` + `accent_claim`, not `locale` | **not built**  | `MANIFEST_EXTRA_FIELDS` has neither field; `cast.yaml` still declares `locale: es-ES` |
+| `accent_consistency` **declared** in code                 | **built**      | `REVIEW_DIMENSIONS`, `config/sample.py` — landed at the round-3 integration           |
+| manifests carry `language` + `accent_claim`, not `locale` | **built**      | `cast.yaml` (no `locale:` key), `config/g8.py::ACCENT_CLAIMS`, `packbuild/manifest.py` |
 
-Three notes on the unbuilt parts, because each fails in a way that is not obvious.
+Three notes, kept because each of these parts failed in a way that was not obvious, and
+because two of them were closed by the integration rather than by the lane that wrote
+them down.
 
-**1. The rubric and the constant must agree on one string, or the sheet is worthless.**
-`sample.py::read_scores` raises `ScoreError` on any `dimensions` key outside
-`REVIEW_DIMENSIONS`, and the caller turns that into exit 4. So a rubric that says
-`accent_consistency` against a constant that says `accent` does not produce a slightly
-wrong rate — it produces **no rate at all**, for the whole file, including the five text
-dimensions that were scored correctly. The rubric names `accent_consistency` and says so
-explicitly; `config/sample.py` is the authority and is not in this lane. Until the
-constant carries it, `RUBRIC.md` §"If the constant does not carry it yet" tells a scorer
-to record the finding in `note` instead, so a sheet scored in the gap is still usable.
+**1. The rubric and the constant had to agree on one string, or the sheet was worthless
+— and they did not.** `sample.py::read_scores` raises `ScoreError` on any `dimensions`
+key outside `REVIEW_DIMENSIONS`, and the caller turns that into exit 4. So a rubric that
+says `accent_consistency` against a constant that does not carry it does not produce a
+slightly wrong rate — it produces **no rate at all**, for the whole file, including the
+five text dimensions that were scored correctly. `RUBRIC.md` shipped the sixth dimension
+and `config/sample.py` did not, in two different lanes' file lists, and the reviewer lane
+was already drawing against the rubric.
 
-**2. `cast.yaml` still says `locale: es-ES` — on this branch, and not on the bake lane's.**
-Measured here 2026-09-12: `content/es/cast.yaml:12` reads `language: es` and **`:16` still
-reads `locale: es-ES`**, so both the fact and the withdrawn claim are in the file at once.
-`cast.yaml` is not in this lane.
+**Closed at the P2 round-3 integration**: `accent_consistency` is the sixth member of
+`REVIEW_DIMENSIONS`, with the spelling this file filed
+(`docs/owned/p2r3-provenance-docs.json` → `crossLaneContracts`) and for the reason it
+gives — `accent` alone reads as the orthographic diacritic in a Spanish rubric. Declaring
+it cannot move a published rate on its own: RUBRIC.md gives an `accent_consistency`-only
+failure the `awkward` verdict and `DEFECT_VERDICTS` counts only `wrong`. `RUBRIC.md`
+§"If the constant does not carry it yet" is kept as a fallback for a tree where the
+constant has been reverted or renamed, not as a description of this one.
 
-**It is already fixed on the sibling branch, and this table goes stale when that merges.**
-`git show p2r3/expand-bake-package:content/es/cast.yaml` carries `language: es` plus
-`accent_claim: unverified` with **no `locale:` key at all**, `config/g8.py` there defines
-`ACCENT_CLAIMS = ("unverified",)` with no `verified` member (the only thing that could
-produce that claim is B3's 300-item sample), `packbuild/manifest.py` writes `accentClaim`
-into the manifest's `audio` block and F2 refuses a manifest that still carries `locale`,
-and `content/es/audio-manifest.json` carries `"accent_claim": "unverified"`. So at the
-integrate pass the **manifest row of the table above becomes built**, the count becomes
-4/5, and this note is deleted rather than softened — the re-measurement commands are in
-`docs/owned/p2r3-provenance-docs.json` → `integratorMustRemeasure`. Prose that reports a
-build state is only true at the sha it was measured on, and the merge queue is where these
-four documents get re-measured.
+**2. `cast.yaml` said `locale: es-ES` on the lane that wrote this note, and does not on
+`main`.** Re-measured on `main` after `p2r3/expand-bake-package` merged, 2026-09-12:
+`content/es/cast.yaml:12` reads `language: es`, `:23` reads `accent_claim: unverified`,
+and there is **no `locale:` key** — `grep -n '^locale:' content/es/cast.yaml` matches
+nothing. `config/g8.py:61` defines `ACCENT_CLAIMS = ("unverified",)` with no `verified`
+member, because the only thing that could produce that claim is B3's 300-item sample.
+`packbuild/manifest.py:244` writes `"accentClaim": accent_claim_for(inputs.lang)` into
+the manifest's `audio` block and `:325` refuses a manifest whose `accentClaim` is outside
+`ACCENT_CLAIMS`. `content/es/audio-manifest.json:4` carries `"accent_claim":
+"unverified"`.
 
-One thing worth carrying forward when the note is deleted: `D-CAST-ES-01`'s text on this
-branch is _more_ generous to the project than the ruling is ("the declared locale is the
-course's claim" against a ruling that withdrew the claim), and that is the direction of
-drift to watch — a file that keeps a claim a ruling took away.
+The note the lane left here — that `cast.yaml` carried both the fact and the withdrawn
+claim at once — was true at that branch's sha and is false at this one. It is recorded as
+history rather than deleted because the thing it warns about is generic: prose that
+reports a build state is only true at the sha it was measured on, and the merge queue is
+where it gets re-measured. The commands used are in
+`docs/owned/p2r3-provenance-docs.json` → `integratorMustRemeasure`.
 
-**3. Neither field is in the manifest schema.** `MANIFEST_EXTRA_FIELDS` in
-`config/g9.py` carries `lang` (which is the `language: es` half, under a different name)
-and no `accent_claim` and no `locale`. So today a shipped manifest makes **no** accent
-claim, which is accidentally compliant: the ruling wants the absence _declared_, not
-merely absent. An unstated claim and a claim stated as unverified read the same to a
-validator and differently to a learner on S137.
+**3. The manifest declares the absence now.** The lane's measurement — `config/g9.py`'s
+`MANIFEST_EXTRA_FIELDS` carrying neither `accent_claim` nor `locale`, so a shipped
+manifest made **no** accent claim and was only accidentally compliant — is superseded by
+the same merge: the `audio` block carries `accentClaim`, and an absence _declared_ is
+what the ruling asked for. An unstated claim and a claim stated as unverified read the
+same to a validator and differently to a learner on S137, which is why the distinction
+was worth the field.
 
 **And the thing that makes all of this matter is B18**, below: even with the rubric, the
 constant and the manifest field all in place, the drawn sheet carries no clip reference

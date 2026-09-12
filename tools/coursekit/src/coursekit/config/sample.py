@@ -55,12 +55,40 @@ REVIEW_VERDICTS: Final[tuple[str, ...]] = ("ok", "awkward", "wrong")
 DEFECT_VERDICTS: Final[tuple[str, ...]] = ("wrong",)
 
 #: The dimensions a reviewer scores each item on. Defined here, spelled out in RUBRIC.md.
+#:
+#: `accent_consistency` is the sixth and it was added at the P2 round-3 integration, not
+#: by the lane that wrote the rubric: **founder ruling B6** made Kokoro the voice engine
+#: and replaced the `locale: es-ES` claim with `language: es` + `accent_claim:
+#: unverified`, and the ruling's own sentence — "the reviewer rubric checks accent
+#: consistency" — makes the review the only check on the accent there now is.
+#: `content/es/review/RUBRIC.md` §`accent_consistency` scores it and
+#: `docs/owned/p2r3-provenance-docs.json` filed the exact spelling as a cross-lane
+#: contract, because that lane could not edit this file.
+#:
+#: It is not cosmetic. `sample.py::read_scores` raises `ScoreError` on ANY `dimensions`
+#: key outside this tuple and the caller turns that into exit 4 — so a rubric and a
+#: constant that disagree do not produce a slightly wrong rate, they produce **no rate
+#: for the whole sheet**, including the five text dimensions that were scored correctly.
+#: The reviewer lane was already writing against the rubric when this landed.
+#:
+#: The spelling is the rubric's, deliberately: a dimension called `accent` in a file
+#: about Spanish text reads first as the orthographic diacritic (INV-PACK-10's own test
+#: is `a_candidate_one_accent_from_correct_is_discarded_not_corrected`), and the
+#: two-word snake form is already precedented by `answer_set`.
+#:
+#: An accent finding is not a wrong item: RUBRIC.md gives an
+#: `accent_consistency`-only failure the `awkward` verdict, and `DEFECT_VERDICTS` counts
+#: only `wrong`, so adding the dimension cannot move a published rate on its own. What it
+#: can still not do is be scored from the sheet at all — `SampleItem` carries no clip
+#: reference and no voice role (`docs/P2-BLOCKERS.md` B18) — which is why the rubric also
+#: documents a `note:`-prefixed fallback.
 REVIEW_DIMENSIONS: Final[tuple[str, ...]] = (
     "meaning",
     "grammar",
     "naturalness",
     "register",
     "answer_set",
+    "accent_consistency",
 )
 
 # ---------------------------------------------------------------------------

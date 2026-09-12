@@ -116,7 +116,9 @@ cast row to row. Two things about it are worth knowing here rather than in the r
 
 - the dimension's key must be in `REVIEW_DIMENSIONS` (`config/sample.py`) before it can
   appear in a scored row. `read_scores` raises on an unknown key, so a mismatched
-  spelling does not lower the rate, it destroys it;
+  spelling does not lower the rate, it destroys it. It is the sixth member of that tuple
+  since the P2 round-3 integration; the rubric shipped the dimension one lane ahead of
+  the constant, which is exactly the mismatch this bullet describes;
 - the drawn sheet carries **no clip reference and no voice role** today, so the dimension
   is defined and not yet scoreable. That is **B18** in `docs/P2-BLOCKERS.md`.
 
@@ -209,16 +211,19 @@ report, whose `summarise()` cannot emit a rate without it. Until the manifest ca
 note too, the rule "every rate carries its provenance" holds in the report and in these
 two documents, and the manifest is the gap.
 
-**`accent_claim` is a separate gap in the same file, and it closes first.** Measured on
-this branch: `MANIFEST_EXTRA_FIELDS` in `config/g9.py` contains neither `accent_claim`
-nor `locale`, so a manifest built here makes no accent claim at all — accidentally
-compliant rather than compliant, since B6 wants the absence _declared_. That is already
-fixed on the sibling branch `p2r3/expand-bake-package`, where
-`packbuild/manifest.py` writes `accentClaim` into the manifest's `audio` block and F2
-refuses a manifest still carrying `locale`. So at the integrate pass this paragraph splits
-in two: the accent half becomes built, and the **note** half — the `PROVISIONAL` string
-beside `defectRate` — stays future, because nothing on any branch has landed it. Keep the
-two apart; they are one sentence today only because they share a constant's neighbourhood.
+**`accent_claim` was a separate gap in the same file, and it closed first.**
+Re-measured on `main` after `p2r3/expand-bake-package` merged, 2026-09-12:
+`packbuild/manifest.py:244` writes `"accentClaim": accent_claim_for(inputs.lang)` into
+the manifest's `audio` block, `:325` refuses a manifest whose `accentClaim` is outside
+`config/g8.py::ACCENT_CLAIMS` (one member, `unverified`), and `content/es/cast.yaml`
+carries no `locale:` key at all. A manifest now **declares** the absence of an accent
+claim, which is what B6 asked for, rather than being accidentally compliant by saying
+nothing.
+
+The **note** half of the old sentence is untouched by that merge and stays future: the
+`PROVISIONAL` string beside `defectRate` has landed on no branch. The two were one
+sentence only because they share a constant's neighbourhood, and this is where they come
+apart.
 
 `tools/coursekit/tests/test_sample.py::test_the_honesty_string_is_exactly_what_the_docs_promise`
 opens the two committed carriers and asserts the constant appears verbatim in both — a

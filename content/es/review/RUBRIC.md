@@ -81,18 +81,21 @@ Score the six dimensions, then give one verdict.
 
 Each dimension is `pass` or `fail`.
 
-**Five of those six keys are declared in code; `accent_consistency` is not, yet.**
+**All six keys are declared in code**, as of the P2 round-3 integration.
 `REVIEW_DIMENSIONS` in `tools/coursekit/src/coursekit/config/sample.py` is
-`("meaning", "grammar", "naturalness", "register", "answer_set")` as measured on this
-branch, and the spelling is not free: a `dimensions` key that is not in that tuple makes
+`("meaning", "grammar", "naturalness", "register", "answer_set", "accent_consistency")`,
+and the spelling is not free: a `dimensions` key that is not in that tuple makes
 `read_scores` raise `ScoreError` and the **whole scored sheet produces no rate at all** —
-not a lower rate, no rate, including the five dimensions that were scored correctly.
+not a lower rate, no rate, including the dimensions that were scored correctly.
 
-So the sixth row of the table is a dimension you **judge and write into `note`**, not a
-key you put in `dimensions`, until the sample lane lands the constant. Read the constant
-before scoring a sheet and see §"If the constant does not carry it yet" below; the row
-format at the foot of this file shows the object to copy today and, separately, the one to
-copy afterwards.
+`accent_consistency` was the one cross-lane contract in this rubric that could break
+something, filed in `docs/owned/p2r3-provenance-docs.json` with its exact spelling
+because the lane that wrote this file could not edit `config/sample.py`. The integrator
+landed it. Read the constant before scoring a sheet anyway — §"If the constant does not
+carry it yet" below is kept for a tree where it has been reverted or renamed — and note
+that the dimension being *declared* is not the same as its being *scoreable*: the sheet
+still carries no clip reference and no voice role (B18), so on a sheet drawn today the
+honest value is `null`.
 
 ## `accent_consistency` — the dimension that is the only check there is
 
@@ -204,8 +207,10 @@ scored: it is `null` on every row, not `pass`. That gap is written up as **B18**
 ### If the constant does not carry it yet
 
 `read_scores` raises on a `dimensions` key outside `REVIEW_DIMENSIONS`, and the tuple in
-`config/sample.py` is owned by the validator/sample lane, not by this file. If you are
-scoring a sheet before that lane has added `accent_consistency`:
+`config/sample.py` is owned by the validator/sample lane, not by this file. It carries
+`accent_consistency` since the P2 round-3 integration, so this section is a fallback for
+a tree where it does not — check, rather than assume either way. If you are scoring a
+sheet whose `REVIEW_DIMENSIONS` has no `accent_consistency`:
 
 **do not put the key in `dimensions`** — it would throw away the whole sheet's rate.
 Record the finding in `note`, prefixed `accent:`, and take the `awkward` verdict as
