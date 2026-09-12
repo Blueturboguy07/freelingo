@@ -405,12 +405,12 @@ All three workflows ran on the integration sha **`86f2430`** — the merge queue
 first two integration fixes and the format sweep. The re-key (`2d16f5f`) and the blockers
 (`a81b729`) landed after it, so a **second round** is quoted below.
 
-| Workflow         | Run                                                                    | Result                                                                                            |
-| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20 |
-| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                              |
-| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | TBD-NATIVE-RESULT                                                                                 |
-| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                               |
+| Workflow         | Run                                                                    | Result                                                                                                 |
+| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20      |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                                   |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the round-2 push, not by a failure |
+| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                    |
 
 ### `ci.yml` — RED, twice on the same sha, with every test passing
 
@@ -493,11 +493,45 @@ artefact URLs and this round has neither.
 
 ### `native-e2e.yml`
 
-TBD-NATIVE
+```
+✓ flows exist                                                8s
+✓ INV-PLAT-02 — native trees are generated and reproducible  21s
+✓ Android emulator                                           17m
+X iOS simulator                                              CANCELLED
+```
+
+**The iOS job was cancelled, not failed**, and this is the hazard `docs/P2-REPORT-round2.md`
+already named: `pack-ci` and `native-e2e` share a concurrency group with the branch, so
+the push that carried the re-key (`2d16f5f` … `859f3fb`) killed a job that had been
+running for 27 minutes. Recorded as a cancellation. Round 2 of CI below re-runs it on the
+final sha, which is the only honest way to get the iOS half back.
+
+`flows exist` and `prebuild-determinism` are the two jobs that can lie cheaply and both
+are green: `maestro test` over an empty directory exits 0, and two `expo prebuild` runs
+agree up to a consistent renaming of Xcode object ids.
 
 ### Screenshots
 
-TBD-SHOTS
+One artefact from this round, CI-produced, downloaded with `gh run download 34704497731`:
+
+**`e2e-86f2430…-android/screenshots/p0-db-path-p0-db-path.png`** (25,224 B) — the app's
+**Diagnostics** sheet on an API 34 x86_64 `google_apis` emulator, Maestro 2.10.0. The
+title is in Freelingo green over an off-white ground, and the rows read
+`db-path file:///data/user/0/org.freelingo.app/files/freelingo-progress.db`,
+`journal-mode wal`, `user-version 2`,
+`packs-dir file:///data/user/0/org.freelingo.app/cache/packs/`, `packs-excluded true`,
+`platform android`, `db-path-persistent true`, `pre-migration-backup none`, with a green
+CLOSE at the foot. `report.xml` reads `tests="1" failures="0" time="15.921"`; `runner.txt`
+carries `api_level=34 arch=x86_64 target=google_apis flows=1 maestro=2.10.0`.
+
+There is **no iOS screenshot for this sha** because the job was cancelled mid-run. The
+round-2 artefacts below carry both platforms.
+
+**And there are no pack screenshots, as in round 2, because P2's product is a content pack
+and not a screen.** The first surfaces that render any of it — S001's course card with
+`{{n}}% machine-authored` and the measured wrong-item rate, S002's validator-report
+summary, S137's About, S152's credits — are P3's and P4's. `docs/pack-provenance.md`
+specifies their copy.
 
 ## Blockers
 
