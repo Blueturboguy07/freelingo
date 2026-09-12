@@ -20,6 +20,15 @@
  * FORWARD, which is the direction that inflates: measured on the same card, +10 years
  * takes stability from 499 to 1,622 and +274 years to 2,781. `MAX_HONEST_ELAPSED_DAYS`
  * (config.ts) is the ceiling, and crossing it writes its own anomaly kind.
+ *
+ * WHERE THAT CEILING SITS IS THE WHOLE POINT, and the first draft put it in the wrong
+ * place: at ts-fsrs's 36,500-day `default_maximum_interval`, where the jaw does not close
+ * until a clock is a century out — so the +10-year case measured two paragraphs up went
+ * through unclamped and was then declared honest by the INV-SCH-02 replay property, which
+ * cannot fail for a forward jump (it reproduces the adversarial state by construction; the
+ * clamp is what it really tests). The ceiling is now ten years, derived and dated in
+ * `config.ts`, and `fsrs.test.ts` asserts the ten-year case directly rather than through
+ * the replay.
  */
 import { MAX_HONEST_ELAPSED_MS } from './config.js';
 import type { AnomalyRow, FsrsRowKey } from './types.js';

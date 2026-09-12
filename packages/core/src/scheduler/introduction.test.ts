@@ -61,20 +61,27 @@ describe('scheduler/introduction', () => {
           arbInstant(),
           fc.array(
             fc.record({
-              ask: fc.integer({ min: 0, max: 12 }),
+              ask: fc.integer({ min: 0, max: 10 }),
               afterMinutes: fc.integer({ min: 0, max: 6 * 60 }),
               // Occasionally re-offer items already taught: a replayed node, a jump back.
               reoffer: fc.boolean(),
             }),
-            // Twelve lessons of up to twelve, not twenty of twenty-five. The cap still
-            // bites — 144 candidates against a budget of 40 — and the exact EC-SCH-11 case
+            // Eight lessons of up to ten, not twenty of twenty-five. The cap still bites
+            // — 80 candidates against a budget of 40 — and the exact EC-SCH-11 case
             // ("twenty frontier lessons in four hours") has its own deterministic test
-            // below. Measured 2026-09-11: the larger generator spent most of its 17 s per
-            // zone inside `localDayOf`, which builds a fresh `Intl.DateTimeFormat` on every
-            // call (28 us against 0.6 us for a reused one, 200k calls), and inside
-            // `recordIntroduction` copying a growing Map per introduction. Neither is a
-            // fact about the invariant. The first is recorded as a request against `day/`.
-            { minLength: 1, maxLength: 12 },
+            // below.
+            //
+            // WHAT COSTS TIME HERE IS NOT THE INVARIANT. Measured 2026-09-11: this file
+            // ran ~44 s of the suite's ~45 s, almost all of it inside `localDayOf`, which
+            // builds a fresh `Intl.DateTimeFormat` on every call (28 us against 0.6 us for
+            // one reused, 200k calls). The old shape called it once per lesson AND once
+            // per introduced item through `introductionRecordFor` — up to 52 formatter
+            // constructions per case, ~2M across the four zones. A lesson happens at ONE
+            // instant, so its items share one local day by construction: the loop below
+            // computes the day once and builds the records from it. Same ledger, same
+            // assertions, one `localDayOf` per lesson. (The `day/` formatter cache is
+            // filed as a request against that lane; this is the part that was ours.)
+            { minLength: 1, maxLength: 8 },
           ),
           (start, lessons) => {
             const clock = new VirtualClock(start);
@@ -102,7 +109,12 @@ describe('scheduler/introduction', () => {
               for (const id of planned) {
                 if (ledger.firstIntroducedAt.has(id))
                   violations.push(`${day}: ${id} re-introduced`);
-                ledger = recordIntroduction(ledger, introductionRecordFor(id, 'x', now, zone.id));
+                ledger = recordIntroduction(ledger, {
+                  itemId: id,
+                  surface: 'x',
+                  at: now,
+                  localDay: day,
+                });
               }
               if (!lesson.reoffer) nextFresh += lesson.ask;
             }
@@ -127,7 +139,7 @@ describe('scheduler/introduction', () => {
       fc.assert(
         fc.property(
           arbInstant(),
-          fc.array(fc.integer({ min: 0, max: 24 * 60 }), { minLength: 1, maxLength: 25 }),
+          fc.array(fc.integer({ min: 0, max: 24 * 60 }), { minLength: 1, maxLength: 8 }),
           (introducedAt, offsetsMinutes) => {
             const itemId = asItemId('lex:es:gato');
             const ledger = recordIntroduction(

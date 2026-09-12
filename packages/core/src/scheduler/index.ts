@@ -25,7 +25,9 @@
  *
  * Not re-exported from `packages/core/src/index.ts`: that barrel is outside this task's
  * file lane, so consumers import `@freelingo/core/src/scheduler/index.js` (or the paths
- * directly) until the integration task wires it up, exactly as `economy/` does.
+ * directly) until the integration task wires it up. (An earlier draft of this header said
+ * "exactly as `economy/` does". There is no `economy/` directory on this branch; the
+ * comparison was to a sibling task's planned layout, not to anything a reader could open.)
  */
 export * from './types.js';
 export * from './config.js';

@@ -13,10 +13,11 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { readFileSync } from 'node:fs';
-import { S_MAX, State } from 'ts-fsrs';
+import { S_MAX, State, fsrs } from 'ts-fsrs';
 import { PROPERTY_RUNS, VirtualClock, ZONES } from '@freelingo/testkit';
 import {
   EARLY_REVIEW_FRACTION,
+  FSRS_PARAMETERS,
   MAXIMUM_INTERVAL_DAYS,
   MAX_HONEST_ELAPSED_MS,
   MS_PER_DAY,
@@ -235,6 +236,43 @@ describe('scheduler/fsrs', () => {
     expect(result.rawElapsedMs).toBeLessThan(0);
     expect(result.anomalies.map((a) => a.kind)).toContain('negativeElapsed');
     expect(Number.isFinite(result.row.card.stability)).toBe(true);
+  });
+
+  it('[INV-SCH-02] a ten-year forward clock is clamped, on the record — and barely blunted', () => {
+    // The honest measurement behind MAX_HONEST_ELAPSED_DAYS's second paragraph. It is here
+    // rather than only in a comment because the number it reports is uncomfortable: the
+    // absolute ceiling is a backstop against absurdity, NOT a defence against a
+    // plausibly-sized forward clock, and a test that only asserted "the clamp fired" would
+    // read as though it were one.
+    const start = new Date('2026-03-01T09:00:00Z');
+    let row = seedRow(start);
+    let at = start;
+    for (let i = 0; i < 5; i += 1) {
+      row = reviewRow(row, { grade: 3, now: at }).row;
+      at = dueAt(row);
+    }
+    expect(row.card.stability).toBeCloseTo(162.9998, 3);
+    const lastReview = row.card.last_review!;
+    const engine = fsrs(FSRS_PARAMETERS);
+
+    // Ten years forward. The clamp fires, writes its row, and buys 0.2 of stability.
+    const tenYears = new Date(lastReview.getTime() + 3652.5 * MS_PER_DAY);
+    const clamped = reviewRow(row, { grade: 3, now: tenYears });
+    expect(clamped.effectiveElapsedMs).toBe(MAX_HONEST_ELAPSED_MS);
+    expect(clamped.anomalies.map((a) => a.kind)).toContain('implausibleElapsed');
+    const unclampedTenYears = engine.next(row.card, tenYears, 3).card.stability;
+    expect(unclampedTenYears).toBeCloseTo(1604.6682, 3);
+    expect(clamped.row.card.stability).toBeCloseTo(1604.4507, 3);
+    expect(unclampedTenYears - clamped.row.card.stability).toBeLessThan(1);
+
+    // A century forward is what the ceiling is actually for: 853 days of stability that a
+    // tampered clock does not get to invent.
+    const century = new Date(lastReview.getTime() + 36_525 * MS_PER_DAY);
+    const clampedCentury = reviewRow(row, { grade: 3, now: century });
+    const unclampedCentury = engine.next(row.card, century, 3).card.stability;
+    expect(unclampedCentury).toBeCloseTo(2457.8172, 3);
+    expect(clampedCentury.row.card.stability).toBe(clamped.row.card.stability);
+    expect(unclampedCentury - clampedCentury.row.card.stability).toBeGreaterThan(800);
   });
 
   for (const zone of ZONES) {

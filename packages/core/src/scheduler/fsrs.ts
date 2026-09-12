@@ -154,9 +154,21 @@ export function scheduledIntervalMs(row: FsrsRow): number {
 /**
  * Would this encounter be early? EC-SCH-01's `elapsed < 0.6 x scheduled_interval`.
  *
- * Only a card in the `Review` state has a scheduled interval worth the name: a card still
- * walking its learning steps is scheduled in minutes and is MEANT to come back inside the
- * hour, so applying the guard there would freeze it at step one forever.
+ * THE GUARD HAS A STATE PRECONDITION, and it is load-bearing enough to spell out rather
+ * than leave as a `State.Review` on the next line. Only a card in the `Review` state has a
+ * scheduled interval worth the name. `New` and `Learning` cards are scheduled in MINUTES
+ * and are meant to come back inside the hour, so applying a 0.6x guard to them would freeze
+ * them at step one forever.
+ *
+ * `Relearning` is exempt for the same reason and it is the interesting case, because it is
+ * the one where the exemption can be argued with: an item the learner JUST LAPSED is back
+ * on minute-scale steps, so EC-SCH-01's "20 sessions a day" farmer can re-answer it inside
+ * the hour at full credit until it graduates out of relearning. That is standard FSRS step
+ * behaviour and it is the right call — the steps exist precisely to be walked quickly after
+ * a failure, and a lapsed item is the one thing that genuinely does need seeing again
+ * today. It is recorded here because "the guard covers every review" would be false, and
+ * the harm EC-SCH-01 is about (intervals collapsing toward zero) is a REVIEW-state effect:
+ * a relearning card cannot inflate its interval, it can only climb back to where it was.
  */
 export function isEarlyReview(row: FsrsRow, effectiveElapsedMs: number): boolean {
   if (row.card.state !== State.Review) return false;
