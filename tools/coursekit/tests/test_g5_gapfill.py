@@ -45,6 +45,10 @@ import coursekit.config as coursekit_config
 from coursekit.adapters import ADAPTERS
 from coursekit.artifacts import read_records, write_records
 from coursekit.config.g5 import (
+    AUTHORED_CANDIDATES_FILENAME,
+    CONTENT_ROOT_ENV_VAR,
+    GAPFILL_RUBRIC_FILENAME,
+    LEDGER_DIGEST_CHARS,
     MAX_TOKENS,
     MIN_CANDIDATES_PER_SLOT,
     MIN_TOKENS,
@@ -53,13 +57,36 @@ from coursekit.config.g5 import (
 from coursekit.inputs import MissingInput
 from coursekit.runlog import RunLog, UpstreamStageMissing, read_entries
 from coursekit.stages import STAGES, StageContext, StageResult
-from coursekit.stages.g5_gapfill import Slot, authored_candidates_path
+from coursekit.stages.g5_gapfill import (
+    Slot,
+    authored_candidates_path,
+    authored_candidates_paths,
+    authored_shard_dir,
+    ledger_digest,
+)
 from coursekit.validators import VALIDATORS
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src" / "coursekit"
 FALSIFIERS = Path(__file__).parent / "falsifiers"
 REPO_ROOT = Path(__file__).resolve().parents[3]
-REAL_CANDIDATES = REPO_ROOT / "content" / "es" / "candidates.jsonl"
+#: The G5 reject-axis fixture. **A fixture, not course content** — the name is kept
+#: because `test_g6_validate_language.py` imports it, and the path moved.
+#:
+#: It sat at `content/es/candidates.jsonl` for a phase and was counted there as course
+#: content ("8 of 918 gap slots covered"). It covered none: it numbers lessons PER UNIT
+#: where G4 numbers them globally, its `allowed_lemmas` hold surface forms beside lemmas
+#: (`llama`, `salgo`, `quier` — nothing lemmatised them), and its `new_lemmas` carry two
+#: entries where a real gap reserves at most one. See `content/es/authoring/README.md`.
+#:
+#: What it IS good for is the only thing it is used for here: 160 rows whose
+#: `authoring_intent` field makes four of G5's five reject axes fire on purpose. A test
+#: that only ever feeds a filter things that pass is a test of nothing.
+REAL_CANDIDATES = REPO_ROOT / "content" / "es" / "authoring" / "axis-fixture.jsonl"
+
+#: The committed authoring brief — a DERIVED SNAPSHOT of one real es build, written by
+#: `coursekit gaps es`. `test_gaps_command.py` owns it; it is named here so this file can
+#: assert the one thing the fixture cannot: the fixture's slots are NOT real gaps.
+COMMITTED_BRIEF = REPO_ROOT / "content" / "es" / "authoring" / "gap-brief.jsonl"
 
 #: The two stages candidate text actually flows through. Scanned by BOTH halves of the
 #: gate: repair-shaped identifiers and string-mutating calls. G6 narrows the surviving
@@ -284,39 +311,63 @@ def test_INV_PACK_10_the_scanner_is_walking_something() -> None:
 
 @lru_cache(maxsize=1)
 def _spacy_analyser() -> Any:
-    """The pinned `es_core_news_md`, wrapped in the shape G5 asks an adapter for.
+    """THE REGISTERED SPANISH ADAPTER, not a stand-in for it.
+
+    This used to build a local `Analyser` class with `analyse(self, text)`. G5 called it
+    that way, every test passed, and the contract every real adapter implements — the one
+    `g1_analyze` calls and `SpacyEsAdapter` declares — is `analyse(*, sentence_id, text)`.
+    So G5 raised `TypeError: SpacyEsAdapter.analyse() takes 1 positional argument but 2
+    were given` the first time it was run against a registered adapter, on a real build,
+    after eleven green tests. A shim that is allowed to have its own signature is a shim
+    that tests itself.
 
     Loaded once per session: a model load is two seconds, and a per-test load turns a
     twenty-case parametrisation into a minute of nothing.
     """
-    spacy = pytest.importorskip("spacy", reason="the 'nlp' dependency group is not installed")
-    nlp = spacy.load("es_core_news_md")
-
-    class Analyser:
-        name = "spacy"
-        version = "3.8.0"
-        model = "es_core_news_md"
-
-        def analyse(self, text: str) -> dict[str, Any]:
-            doc = nlp(text)
-            words = [token for token in doc if not token.is_punct and not token.is_space]
-            return {
-                "lemmas": [token.lemma_ for token in words],
-                "tokens": [token.text for token in words],
-                "display_tokens": [token.text for token in words],
-            }
-
-    return Analyser()
+    pytest.importorskip("spacy", reason="the 'nlp' dependency group is not installed")
+    factory = ADAPTERS.get("es")
+    assert factory is not None, "no Spanish adapter is registered; G1's lane owns it"
+    return factory()
 
 
 @pytest.fixture
-def es_adapter() -> Iterator[None]:
-    """Register the Spanish analyser G5 will look up, then put the registry back."""
+def es_adapter(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """The Spanish test environment: the analyser G5 looks up, and a staged `content/`.
+
+    The staged content root carries the axis fixture as `candidates.jsonl` plus the
+    rubric beside it, which is the layout G5 and G6 both expect. It is staged rather than
+    read from the repository because the fixture deliberately does not live on G5's read
+    path any more — it is not course content, and `content/es/authoring/README.md` says
+    why. G6's back-translation engine reads the authored file too, so the staging has to
+    outlive the G5 call and belongs here rather than inside `run_g5`.
+
+    A test that wants a different `content/` monkeypatches `COURSEKIT_CONTENT_ROOT` over
+    this one; nothing here fights that.
+    """
     analyser = _spacy_analyser()
     ADAPTERS.reset_for_tests()
     ADAPTERS.add("es", lambda: analyser)
-    yield
-    ADAPTERS.reset_for_tests()
+
+    root = tmp_path_factory.mktemp("content")
+    staged = root / "es"
+    staged.mkdir(parents=True, exist_ok=True)
+    (staged / AUTHORED_CANDIDATES_FILENAME).write_text(
+        REAL_CANDIDATES.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (staged / GAPFILL_RUBRIC_FILENAME).write_text(
+        (REPO_ROOT / "content" / "es" / GAPFILL_RUBRIC_FILENAME).read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    # `monkeypatch`, not `os.environ` with a `finally`. Measured: the hand-rolled version
+    # leaked the staged root into thirteen later tests in a full-suite run and into none
+    # of them when they were run alone — the most expensive shape a test fixture has.
+    monkeypatch.setenv(CONTENT_ROOT_ENV_VAR, str(root))
+    try:
+        yield
+    finally:
+        ADAPTERS.reset_for_tests()
 
 
 #: The modules this lane registers, and the registry each lands in.
@@ -354,12 +405,33 @@ def authored_rows(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def gap_list(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The G4 gap list the authored file was written against.
+@lru_cache(maxsize=1)
+def brief_by_slot() -> dict[Slot, dict[str, Any]]:
+    """The committed gap brief, keyed by slot. One parse per session."""
+    out: dict[Slot, dict[str, Any]] = {}
+    for line in COMMITTED_BRIEF.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        row = json.loads(line)
+        if "slot_index" not in row:  # the header line
+            continue
+        out[Slot.of(row)] = row
+    return out
 
-    Derived from the file rather than committed separately, because G3/G4 have not
-    landed: the authored rows carry the window they were written against and the
-    `stale_ledger` axis is what catches the day the real G4 disagrees with them.
+
+def gap_list(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The gap list `rows` was written against, derived from the fixture's own ledgers.
+
+    This IS circular — the gaps agree with the candidates because they were built from
+    them — and for the axis tests that is the right shape: they are about what G5 does
+    with a candidate inside a given window, and the window has to be a parameter.
+
+    The circularity is only dangerous when the file it reads is mistaken for course
+    content, which is exactly what happened: an authored file whose gap list is derived
+    from itself is consistent with a gap list that does not exist, so nothing here could
+    ever have noticed that G4 numbers lessons globally. That check is not this function's
+    job any more. It lives in `test_gaps_command.py`, against the ledger a real G4
+    emitted, and in `test_the_fixture_is_not_mistaken_for_course_content` below.
     """
     windows: dict[Slot, tuple[list[str], list[str]]] = {}
     for row in rows:
@@ -392,6 +464,14 @@ def stage_g4(lang: str, gaps: list[dict[str, Any]]) -> None:
 
 
 def run_g5(lang: str = "es", options: dict[str, str] | None = None) -> StageResult:
+    """Run the registered G5 over whatever `content/` currently holds.
+
+    Callers get the staged content root from the `es_adapter` fixture, or point
+    `COURSEKIT_CONTENT_ROOT` somewhere of their own. This helper never stages anything
+    itself: a test that writes shards, an empty tree or a starved file is testing exactly
+    that, and a helper that quietly supplied a fallback would make those tests pass over
+    the wrong input.
+    """
     ensure_registered()
     stage = STAGES.get("g5")
     assert stage is not None, "g5 is not registered"
@@ -407,7 +487,7 @@ def run_g5(lang: str = "es", options: dict[str, str] | None = None) -> StageResu
 
 @pytest.fixture
 def es_course(es_adapter: None) -> Iterator[list[dict[str, Any]]]:
-    """The committed Spanish candidates, with a matching gap list and a G4 entry."""
+    """The axis fixture on G5's read path (staged by `es_adapter`), plus its gap list."""
     rows = authored_rows(REAL_CANDIDATES)
     stage_g4("es", gap_list(rows))
     yield rows
@@ -448,8 +528,7 @@ def test_INV_PACK_10_a_candidate_one_accent_from_correct_is_discarded_not_correc
     corpus = json.loads((FALSIFIERS / "INV-PACK-10.json").read_text(encoding="utf-8"))
     case = corpus["behavioural_falsifier"]
 
-    rows = [row for row in authored_rows(REAL_CANDIDATES) if row["slot"]["unit_index"] == 2]
-    rows = [row for row in rows if row["slot"]["lesson_index"] == 1]
+    rows = _one_slot(2)
     planted = dict(rows[0])
     planted["text"] = case["text"]
     planted["translation"] = "The garden is big."
@@ -539,8 +618,7 @@ def test_a_candidates_file_written_against_a_different_ledger_is_refused(
     Every axis below this one would otherwise be measured against a vocabulary the build
     no longer has, and would pass for the wrong reason.
     """
-    rows = [row for row in authored_rows(REAL_CANDIDATES) if row["slot"]["unit_index"] == 1]
-    rows = [row for row in rows if row["slot"]["lesson_index"] == 1]
+    rows = _one_slot(1)
     _write_authored(tmp_path, monkeypatch, rows)
 
     gaps = gap_list(rows)
@@ -558,7 +636,7 @@ def test_a_slot_authored_below_the_overgeneration_floor_fails_the_stage(
     es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Three candidates cannot survive five axes, and the alternative to failing is patching."""
-    rows = [row for row in authored_rows(REAL_CANDIDATES) if row["slot"]["unit_index"] == 1][:3]
+    rows = _one_slot(1)[:3]
     _write_authored(tmp_path, monkeypatch, rows)
     stage_g4("es", gap_list(rows))
 
@@ -570,23 +648,33 @@ def test_a_slot_authored_below_the_overgeneration_floor_fails_the_stage(
 def test_a_slot_whose_candidates_all_fail_is_unfilled_never_least_bad(
     es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Exhausting the pool is a failed stage with the slot named."""
-    rows = [row for row in authored_rows(REAL_CANDIDATES) if row["slot"]["unit_index"] == 3]
-    rows = [row for row in rows if row["slot"]["lesson_index"] == 1]
-    # A window that admits nothing: same lemma count, none of them the authored ones.
-    starved = []
+    """Exhausting the pool is a failed stage with the slot named.
+
+    The slot is starved on the G4 SIDE — a gap whose ledger is one word nobody wrote a
+    sentence about — and the authored rows are re-stamped with that ledger's digest so
+    they clear `stale_ledger` and are judged on vocabulary. Starving the authored side
+    instead would only prove `stale_ledger` fires, which has its own test above.
+    """
+    rows = _one_slot(3)
+    gaps = gap_list(rows)
+    gaps[0]["known_lemmas"] = ["telescopio"]
+    gaps[0]["new_lemmas"] = []
+    starved_digest = ledger_digest(gaps[0]["known_lemmas"], gaps[0]["new_lemmas"])
+    restamped = []
     for row in rows:
         copy = dict(row)
-        copy["allowed_lemmas"] = ["telescopio"]
+        copy["ledger_digest"] = starved_digest
         copy["new_lemmas"] = []
-        starved.append(copy)
-    _write_authored(tmp_path, monkeypatch, starved)
-    stage_g4("es", gap_list(starved))
+        restamped.append(copy)
+    _write_authored(tmp_path, monkeypatch, restamped)
+    stage_g4("es", gaps)
 
     result = run_g5()
     assert not result.ok
-    assert "u3/l1/s4" in result.message
-    assert all(not row["accepted"] for row in read_records("candidate", lang="es"))
+    assert str(Slot.of(rows[0]["slot"])) in result.message
+    emitted = list(read_records("candidate", lang="es"))
+    assert all(not row["accepted"] for row in emitted)
+    assert {row["reject_reason"] for row in emitted} == {"out_of_vocabulary"}
 
 
 def test_the_runlog_records_the_author_and_the_reject_rate(es_course: list[dict[str, Any]]) -> None:
@@ -738,3 +826,334 @@ def test_every_committed_candidate_is_machine_authored_with_a_rubric_score() -> 
     assert {row["provenance"] for row in rows} == {"llm"}
     assert all(isinstance(row["backtranslation"]["score"], int) for row in rows)
     assert all(row["backtranslation"]["judged_by"] == "agent" for row in rows)
+
+
+# ---------------------------------------------------------------------------
+# Sharding — four authoring lanes, four files, one gap list
+# ---------------------------------------------------------------------------
+
+
+def _write_shards(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    shards: dict[str, list[dict[str, Any]]],
+    *,
+    legacy: list[dict[str, Any]] | None = None,
+) -> Path:
+    """Point `content/` at a tmp tree carrying one file per shard name."""
+    monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path / "content"))
+    if legacy is not None:
+        target = authored_candidates_path("es")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in legacy) + "\n",
+            encoding="utf-8",
+        )
+    directory = authored_shard_dir("es")
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, rows in shards.items():
+        (directory / name).write_text(
+            "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+    return directory
+
+
+def _one_slot(index: int) -> list[dict[str, Any]]:
+    """Every authored row for the `index`-th distinct slot in the committed file (1-based).
+
+    By POSITION, not by unit number. The slots this file names are whatever the last
+    `coursekit gaps es` said they are, and a fixture that hard-coded `unit_index == 2`
+    would start selecting nothing the first time the course is rebuilt at a different
+    ingest cap — silently, because "no rows" reads as a passing filter.
+    """
+    rows = authored_rows(REAL_CANDIDATES)
+    slots = list(dict.fromkeys(Slot.of(row["slot"]) for row in rows))
+    assert len(slots) >= index, f"the committed file names {len(slots)} slot(s), not {index}"
+    wanted = slots[index - 1]
+    return [row for row in rows if Slot.of(row["slot"]) == wanted]
+
+
+def test_shards_are_read_in_sorted_filename_order_and_the_legacy_file_first(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Read order is fill order: the first survivor fills the slot.
+
+    So an unsorted `iterdir()` would make the shipped sentence depend on the order the
+    filesystem happened to hand back, and two machines would build different courses
+    from identical inputs. The legacy single file is always first, because it is the
+    file that existed before anybody sharded.
+    """
+    slot_rows = _one_slot(1)
+    half = len(slot_rows) // 2
+    directory = _write_shards(
+        tmp_path,
+        monkeypatch,
+        {"b-second.jsonl": slot_rows[half:], "a-first.jsonl": slot_rows[:half]},
+        legacy=[],
+    )
+    paths = authored_candidates_paths("es")
+    assert paths == [
+        authored_candidates_path("es"),
+        directory / "a-first.jsonl",
+        directory / "b-second.jsonl",
+    ]
+
+
+def test_a_readme_in_the_shard_directory_is_not_read_as_content(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only `*.jsonl`. A lane's notes beside its shard must not fail the build."""
+    directory = _write_shards(tmp_path, monkeypatch, {"lane.jsonl": _one_slot(1)})
+    (directory / "README.md").write_text("how this lane splits its slots\n", encoding="utf-8")
+    (directory / ".gitkeep").write_text("", encoding="utf-8")
+    assert authored_candidates_paths("es") == [directory / "lane.jsonl"]
+
+
+def test_the_legacy_file_and_a_shard_are_read_as_one_pool(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Twenty candidates split across two files is still twenty, not two pools of ten."""
+    slot_rows = _one_slot(1)
+    half = len(slot_rows) // 2
+    _write_shards(
+        tmp_path,
+        monkeypatch,
+        {"lane.jsonl": slot_rows[half:]},
+        legacy=slot_rows[:half],
+    )
+    stage_g4("es", gap_list(slot_rows))
+    result = run_g5()
+    assert result.ok, result.message
+    assert len(list(read_records("candidate", lang="es"))) == len(slot_rows)
+    entry = read_entries("es", stage="g5")[-1]
+    assert len(entry["notes"]["authoring_files"]) == 2
+
+
+def test_INV_PACK_51_two_shards_naming_the_same_slot_and_text_is_a_loud_error(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-51] no two ledger items share a key; here the key is (slot, text).
+
+    Not a dedup. Both lanes believe they supplied one of that slot's twenty candidates,
+    so collapsing the pair silently leaves the slot NINETEEN deep while
+    `MIN_CANDIDATES_PER_SLOT` still reads twenty — and the floor is the only thing
+    standing between a thin slot and a slot filled by the least-bad option. The message
+    has to name both files, because "which of my four lanes wrote this" is the reader's
+    only question.
+    """
+    slot_rows = _one_slot(1)
+    _write_shards(
+        tmp_path,
+        monkeypatch,
+        {"lane-a.jsonl": slot_rows, "lane-b.jsonl": [slot_rows[0]]},
+    )
+    stage_g4("es", gap_list(slot_rows))
+
+    with pytest.raises(MissingInput) as excinfo:
+        run_g5()
+    message = str(excinfo.value)
+    assert "lane-a.jsonl" in message
+    assert "lane-b.jsonl" in message
+    assert str(MIN_CANDIDATES_PER_SLOT) in message
+
+
+def test_INV_PACK_51_the_same_text_for_two_different_slots_is_allowed(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-51] the key is (slot, text), not text.
+
+    A gate widened to "no sentence twice anywhere" would reject content the ledger
+    permits: the same short sentence can legitimately be a candidate for two slots, and
+    V9's real rule is one occurrence per UNIT, which the `duplicate` axis already owns.
+    """
+    first = _one_slot(1)
+    second = [dict(row) for row in _one_slot(3)]
+    for row in second:
+        row["text"] = first[0]["text"]
+        row["translation"] = first[0]["translation"]
+    _write_shards(tmp_path, monkeypatch, {"a.jsonl": first, "b.jsonl": second})
+    rows = [*first, *second]
+    assert len(_read_authored_for_test()) == len(rows)
+
+
+def _read_authored_for_test() -> list[dict[str, Any]]:
+    from coursekit.stages.g5_gapfill import _read_authored
+
+    return _read_authored(authored_candidates_paths("es"), "es")
+
+
+# ---------------------------------------------------------------------------
+# INV-PACK-40 — one ledger, and a candidate that names a slot G4 never emitted
+# ---------------------------------------------------------------------------
+
+
+def test_INV_PACK_40_a_candidate_for_a_slot_that_is_not_a_gap_fails_the_stage(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-40] a consumer with its own notion of the ledger is refused by name.
+
+    THE FALSIFIER, measured. G4 numbers lessons GLOBALLY across the course — unit 2 is
+    lessons 7-12 — and the file that shipped for a whole phase numbered them per unit, so
+    it named `u2/l1/s1` where the gap list said `u2/l7/s1`. The two key spaces never
+    intersected. G5 read all 160 rows, filled nothing with them, recorded the orphans in
+    a runlog note, and reported success on the gaps it did have; the phase then reported
+    "8 of 918 slots covered" when the true figure was zero.
+
+    So: an authored slot that is not in G4's gap list is a FAILED stage that names the
+    slot, and the message says which key space is the real one.
+    """
+    real = _one_slot(1)
+    stray = [dict(row) for row in real]
+    for row in stray:
+        row["slot"] = {"unit_index": 2, "lesson_index": 1, "slot_index": 1}
+    _write_shards(tmp_path, monkeypatch, {"lane.jsonl": [*real, *stray]})
+    stage_g4("es", gap_list(real))
+
+    result = run_g5()
+    assert not result.ok
+    assert "u2/l1/s1" in result.message
+    assert "GLOBAL lesson index" in result.message
+    entry = read_entries("es", stage="g5")[-1]
+    assert entry["notes"]["orphan_authored_slots"] == ["u2/l1/s1"]
+
+
+def test_INV_PACK_40_the_orphan_check_does_not_fire_on_a_file_that_matches(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-40] a gate that always fires is a gate nobody can satisfy."""
+    rows = _one_slot(1)
+    _write_shards(tmp_path, monkeypatch, {"lane.jsonl": rows})
+    stage_g4("es", gap_list(rows))
+    result = run_g5()
+    assert result.ok, result.message
+    assert read_entries("es", stage="g5")[-1]["notes"]["orphan_authored_slots"] == []
+
+
+def test_INV_PACK_40_the_ledger_a_row_names_is_a_digest_not_a_copy_of_the_set() -> None:
+    """[INV-PACK-40] one declaration of the ledger, and a witness rather than a copy.
+
+    The allowed set at a late unit is 928 lemmas — measured on the committed brief. The
+    axis used to demand that every candidate spell that list out, which is the same list
+    written 9,800 times (~47 MB of candidate files) and, worse, a list a hurried author
+    edits until the row passes. `ledger_digest` is 16 characters, it is what
+    `coursekit gaps` prints, and it cannot be edited into agreement with a ledger it does
+    not describe.
+
+    Asserted on the CONTRACT, not on a file: `_AUTHORED_REQUIRED` is what G5 demands of
+    every row it will ever read, including the ones the four authoring lanes have not
+    written yet.
+    """
+    from coursekit.stages.g5_gapfill import _AUTHORED_REQUIRED
+
+    assert "ledger_digest" in _AUTHORED_REQUIRED
+    assert "allowed_lemmas" not in _AUTHORED_REQUIRED
+    for row in authored_rows(REAL_CANDIDATES):
+        assert len(row["ledger_digest"]) == LEDGER_DIGEST_CHARS
+        assert row["ledger_digest"] == ledger_digest(
+            set(row["allowed_lemmas"]) - set(row["new_lemmas"]), row["new_lemmas"]
+        )
+
+
+def test_the_fixture_is_not_mistaken_for_course_content() -> None:
+    """The fixture names no real gap slot, and it must not live where G5 looks.
+
+    THIS IS THE REGRESSION TEST FOR THE PHASE'S MOST EXPENSIVE BUG. 160 hand-written rows
+    sat at `content/es/candidates.jsonl` and were reported as 0.9% of the course's
+    authoring done. They were 0%: they key lessons per unit where G4 keys them globally,
+    their `allowed_lemmas` hold surface forms (`llama`, `salgo`, `quier`) that no
+    lemmatiser produced, and their `new_lemmas` carry two entries where a real gap
+    reserves at most one.
+
+    So two claims: the file is not on G5's read path, and its slots are not gaps.
+    """
+    from coursekit.stages.g5_gapfill import (
+        AUTHORED_CANDIDATES_DIRNAME,
+        AUTHORED_CANDIDATES_FILENAME,
+        content_root,
+    )
+
+    es = content_root() / "es"
+    assert es / AUTHORED_CANDIDATES_FILENAME != REAL_CANDIDATES
+    assert REAL_CANDIDATES.parent != es / AUTHORED_CANDIDATES_DIRNAME
+
+    rows = authored_rows(REAL_CANDIDATES)
+    fixture_slots = {Slot.of(row["slot"]) for row in rows}
+    brief = brief_by_slot()
+    assert brief, "the committed brief is empty"
+
+    # Most of its keys name nothing — it numbers lessons per unit, G4 numbers them
+    # globally — and a couple collide with a real gap by coincidence, because unit 1's
+    # lessons ARE lessons 1 and 2 in both schemes. Coincidence is not coverage.
+    assert not fixture_slots <= set(brief), (
+        "every fixture slot is a real gap; the file is course content after all and the "
+        "reasoning in content/es/authoring/README.md needs redoing"
+    )
+
+    # For the ones that do collide, the ledger settles it. The fixture's window is not
+    # the window G4 emits for that slot, so G5 rejects those rows as `stale_ledger`
+    # rather than filling a real slot from a file nobody built against a real corpus.
+    for slot in sorted(fixture_slots & set(brief), key=str):
+        declared = next(row for row in rows if Slot.of(row["slot"]) == slot)["ledger_digest"]
+        assert declared != brief[slot]["ledger_digest"], (
+            f"{slot}: the fixture's ledger matches the real one, so these rows would "
+            f"fill a shipping slot"
+        )
+
+    assert any(len(row["new_lemmas"]) > 1 for row in rows), (
+        "the fixture no longer carries a two-new-lemma row, so it no longer exercises "
+        "the budget axis and its incompatibility with a real gap is no longer visible"
+    )
+
+
+def test_INV_PACK_12_no_authored_file_at_all_names_both_places_it_looked(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-12] the missing input is NAMED — both the legacy path and the shards.
+
+    "no authored candidates" with one path in it sends an author who sharded to the
+    wrong file, which is a slower failure than no message at all.
+    """
+    monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path / "content"))
+    stage_g4("es", gap_list(_one_slot(1)))
+    with pytest.raises(MissingInput) as excinfo:
+        run_g5()
+    message = str(excinfo.value)
+    assert "candidates.jsonl" in message
+    assert "candidates/*.jsonl" in message
+    assert "coursekit gaps es" in message
+
+
+def test_INV_PACK_12_g5_calls_the_adapter_the_way_every_other_stage_does(
+    es_adapter: None,
+) -> None:
+    """[INV-PACK-12] the analyser is a per-language INPUT, and its contract is one contract.
+
+    THE REGRESSION TEST FOR A BUG THAT SURVIVED ELEVEN GREEN TESTS. G5 called
+    `analyser.analyse(text)`; `g1_analyze` calls `adapter.analyse(sentence_id=..., text=...)`,
+    which is what `SpacyEsAdapter` declares. No registered adapter accepts the first form,
+    so G5 raised `TypeError: SpacyEsAdapter.analyse() takes 1 positional argument but 2
+    were given` the first time it met one — found by running the stage against a real
+    build, not by the suite, because the suite supplied a shim with G5's signature.
+
+    Two claims, because the fixture alone only proves today's adapter works: `analyse` is
+    keyword-only over exactly `sentence_id` and `text`, and the record it returns carries
+    the two keys G5 reads.
+    """
+    import inspect
+
+    factory = ADAPTERS.get("es")
+    assert factory is not None
+    adapter = factory()
+    parameters = inspect.signature(adapter.analyse).parameters
+    assert list(parameters) == ["sentence_id", "text"]
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in parameters.values()
+    ), "a positional `text` lets a stage call it the way G5 used to and be right by accident"
+
+    record = adapter.analyse(sentence_id="a" * 16, text="Mi hermano tiene un libro.")
+    assert record["lemmas"]
+    assert record["display_tokens"]
+    # `display_tokens` is the word count G5's `length` axis uses; `tokens` carries
+    # punctuation with offsets and would make the 3-12 window a different window.
+    assert len(record["display_tokens"]) <= len(record["tokens"])

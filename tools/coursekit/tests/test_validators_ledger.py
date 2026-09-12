@@ -5,8 +5,9 @@
 The registry's claim is "V1-V4 pass at 100% on the built pack. Japanese runs the ledger
 on Mode-A segmentation" (`docs/invariants.md`:262). The only pack P2 can build today is
 the one G3 and G4 produce from the 200-sentence `es-mini` fixture over the 30-unit Spanish
-curriculum, and **G4's own gate rejects that pack**: 756 slots, 98 filled, 658 gaps, a gap
-fraction of 0.8704 against `MAX_GAP_FRACTION` 0.60 (measured 2026-09-12; asserted in
+curriculum, and **G4's own gate rejects that pack**: 756 slots, 105 filled, 651 gaps, a gap
+fraction of 0.8611 against `MAX_GAP_FRACTION` 0.60 (re-measured 2026-09-12 after G4 began
+emitting a ledger on each gap; asserted in
 `test_g4_select.py::test_the_stage_refuses_the_es_mini_pack_and_names_the_ceiling`). 200
 sentences cannot carry 756 slots, and no arrangement of them can.
 
@@ -344,8 +345,10 @@ def test_the_stage_that_built_this_pack_rejects_it_and_the_claim_says_so(
     This assertion exists because the previous version of this file did not make it. The
     pack half called `select()` and never reached the stage, so the ledger it certified
     "clean" is one `g4_select.run()` returns `ok=False` on. Measured 2026-09-12 at this
-    commit: 756 slots, 98 filled, 658 gaps, gap_fraction 0.8704, against
-    `MAX_GAP_FRACTION` 0.60 — 87.04% of the course is a gap list for G5.
+    commit: 756 slots, 105 filled, 651 gaps, gap_fraction 0.8611, against
+    `MAX_GAP_FRACTION` 0.60 — 86.11% of the course is a gap list for G5. (98/658/0.8704
+    until G4 started reserving a named lemma on each gap and recording it as shown,
+    which lets seven slots take the practice path instead of gapping.)
 
     So the claim this file carries for INV-PACK-06 is the narrow one, and it is written
     here as well as in the module docstring and in `docs/owned/p2-g3-g4.json`:
@@ -362,9 +365,9 @@ def test_the_stage_that_built_this_pack_rejects_it_and_the_claim_says_so(
     verdict, _ = run_g4_over_es_mini()
     assert verdict.ok is False
     assert verdict.detail["slots"] == 756
-    assert verdict.detail["filled"] == 98
-    assert verdict.detail["gaps"] == 658
-    assert verdict.detail["gap_fraction"] == pytest.approx(0.8704, abs=5e-5)
+    assert verdict.detail["filled"] == 105
+    assert verdict.detail["gaps"] == 651
+    assert verdict.detail["gap_fraction"] == pytest.approx(0.8611, abs=5e-5)
     assert MAX_GAP_FRACTION == 0.60
     assert "over the 60% ceiling" in verdict.message
 
@@ -555,7 +558,9 @@ def test_the_built_pack_is_not_empty() -> None:
     """The other way INV-PACK-06 could be green for nothing: a pack with no exercises."""
     ledger, g4 = es_mini_pack()
     assert len(ledger.exercises) > 0
-    assert len(ledger.exercises) == g4.report.filled
+    assert len(ledger.exercises) == g4.report.filled + sum(
+        1 for item in g4.items if item["gap"] and item["new_lemmas"]
+    )
     assert len(ledger.introduction_unit) > 0
 
 

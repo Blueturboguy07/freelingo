@@ -377,16 +377,42 @@ def select(
                     report.gaps += 1
                     key = str(unit_index)
                     report.per_unit_gaps[key] = report.per_unit_gaps.get(key, 0) + 1
+                    # THE GAP CARRIES THE LEDGER. A gap row used to be emitted with
+                    # `new_lemmas: []` and `known_lemmas: []`, and G5's allowed set is
+                    # `known | new` — so every gap reserved by this stage was a slot
+                    # whose permitted vocabulary was EMPTY. No sentence in any language
+                    # can be authored inside an empty vocabulary, so no authored
+                    # candidate could ever have passed `out_of_vocabulary`, and the
+                    # 918-slot gap list G4 emitted on 2026-09-12 (run 34684986287) was
+                    # unfillable by construction. The ledger a gap slot is authored
+                    # against has to be written ON the gap, because G5 runs in a
+                    # different process, days later, from a file a person wrote offline.
+                    #
+                    # `index.known` is exactly V1's allowance: every lemma whose
+                    # introduction unit is <= this one. `pending` is what this unit still
+                    # owes the learner, and the head of it is what this slot is reserved
+                    # to teach — capped at the per-exercise new-item budget, which is
+                    # V2's rule and the same number `_pick` enforces on a corpus choice.
+                    gap_new = pending[:MAX_NEW_LEMMAS_PER_EXERCISE]
                     items.append(
                         _item(
                             unit=unit,
                             lesson_index=lesson_index,
                             slot_index=slot_index,
                             sentence_id=None,
-                            new_lemmas=[],
-                            known_lemmas=[],
+                            new_lemmas=gap_new,
+                            known_lemmas=sorted(index.known - set(gap_new)),
                         )
                     )
+                    # A reserved gap teaches its lemma as surely as a filled slot does —
+                    # G5 fills it and G6/G7 carry it into an exercise. Not recording that
+                    # would hand the same pending lemma to all nine gap slots of a
+                    # lesson, so a lesson with nine gaps would declare one new word nine
+                    # times and the unit's other words would never be reserved at all.
+                    shown.update(gap_new)
+                    lesson_new.update(gap_new)
+                    for lemma in gap_new:
+                        owed.setdefault(lemma, RECYCLE_MIN_OCCURRENCES)
                     continue
 
                 new_lemmas = sorted((choice.lemmas & unit_new) - shown)

@@ -42,9 +42,14 @@ permissions:
   contents: read
 
 env:
-  # The plan's ingest cap. G0 streams OPUS shards through the API and never downloads
-  # the 94 GB set; ~250k raw candidates is far more than the ledger needs.
-  COURSEKIT_MAX_PAIRS: '200000'
+  # THE INGEST CAP IS NOT HERE ANY MORE, ON PURPOSE. It used to be `COURSEKIT_MAX_PAIRS:
+  # '200000'`, passed as `--set max_pairs=...`, while `config/g0.py MAX_PAIRS_DEFAULT`
+  # said 2,000,000 — so the number the pipeline shipped with had never been run and the
+  # number that had been run was in a workflow file. Whichever of the two is wrong, the
+  # bug is that there were two. The cap is now one constant in `config/g0.py`, this job
+  # exercises the default, and the measurements behind the value are in
+  # `docs/owned/p2fix-ledger-freeze.json`.
+  #
   # Named here because two jobs assert against it and one of them is a shell script.
   AUDIO_BUDGET_MB: '120'
   # Where `build-es` puts the Kokoro weights. Same path shape as `pack-bake.yml`.
@@ -221,7 +226,34 @@ jobs:
         run: df -h .
 
       - name: Build es (G0-G9)
-        run: uv run coursekit build es --set max_pairs="$COURSEKIT_MAX_PAIRS"
+        run: uv run coursekit build es
+
+      # The gap list this build produced, as the authoring lanes read it. Uploaded, never
+      # asserted against the committed `content/es/authoring/gap-brief.jsonl`: G0 reads a
+      # LIVE Tatoeba export that rebuilds every Saturday 06:30 UTC, so the ledger legitimately
+      # moves between runs and a digest gate here would be a weekly red for a correct build.
+      # What it IS for: diff this artefact against the committed brief and you know whether
+      # the 9,800 authored candidates are still keyed to slots that exist. A stale one is not
+      # silent either way - G5 rejects every candidate written against it as `stale_ledger`.
+      #
+      # `continue-on-error` and `if-no-files-found: warn`, against this repo's usual rule,
+      # because this step runs on `always()`: a build that died in G0 has no gap list to
+      # print, `coursekit gaps` exits 3 saying so, and a diagnostic that turns one red job
+      # into two red jobs hides which failure came first.
+      - name: The gap brief this build produced
+        if: always()
+        continue-on-error: true
+        run: uv run coursekit gaps es --no-write > "$GITHUB_WORKSPACE/gap-brief-built.jsonl"
+
+      - name: Upload the gap brief
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: es-gap-brief-${{ github.sha }}
+          path: gap-brief-built.jsonl
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Assert the audio bank is inside the declared budget
         run: |

@@ -281,6 +281,16 @@ def test_the_archive_host_is_the_only_one_a_permit_reaches() -> None:
     assert OPUS_HOSTS == ("opus.nlpl.eu", "object.pouta.csc.fi")
 
 
-def test_the_caps_are_the_plans_caps() -> None:
-    assert MAX_PAIRS_DEFAULT == 2_000_000
+def test_the_caps_are_the_measured_caps() -> None:
+    """The ingest cap is 200,000, and it is a MEASUREMENT, not the plan's estimate.
+
+    The plan wrote 2,000,000 and nothing ever ran it; `pack-ci.yml` ran 200,000 on every
+    push via `--set max_pairs=...`. Two numbers, one of them never exercised. Three full
+    G0-G4 runs on the real corpora settled it (the table is at the constant): 3x the cap
+    is +44% wall clock for -13% gaps, because only Tatoeba is `shippable` and the extra
+    pairs are overwhelmingly NLLB, which G4 rejects by verdict and G1 still lemmatises.
+    CI now exercises this constant instead of overriding it, so a change here is a change
+    everywhere.
+    """
+    assert MAX_PAIRS_DEFAULT == 200_000
     assert ZIP_RANGE_SLICE_BYTES == 8 * 1024 * 1024
