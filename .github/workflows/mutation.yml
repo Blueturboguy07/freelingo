@@ -1,8 +1,17 @@
 name: mutation
 
 # Nightly Stryker on packages/core. A green unit suite that survives every mutant is not
-# a suite. Allowed to fail for now: the threshold becomes a gate at P1, when the engine
-# modules exist and the score means something.
+# a suite.
+#
+# At P0 this job reported and was allowed to fail. At P1 the plan makes it a gate —
+# "Stryker score >= threshold nightly" — so `continue-on-error` is gone and the threshold
+# lives in stryker.config.json (`thresholds.break`), which is what actually fails the run.
+#
+# The job also PRINTS THE SCORE. "The mutation job is green" is not a measurement: a run
+# whose config stopped matching any file is green, and so is a run whose threshold was
+# quietly lowered. The summary step below writes the score, the threshold, and the number
+# of mutants in each state into the run summary, so the number a report quotes can be read
+# off the run rather than taken on trust.
 
 on:
   schedule:
@@ -16,8 +25,7 @@ jobs:
   stryker:
     name: stryker (packages/core)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
@@ -31,8 +39,53 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # A mutate glob that matches nothing produces a 100% score and a green tick, which
+      # is the most expensive way this workflow could lie. Counted before Stryker runs.
+      - name: The mutate globs match engine sources
+        run: |
+          set -euo pipefail
+          count=$(find packages/core/src -name '*.ts' \
+            ! -name '*.test.ts' ! -name 'index.ts' ! -path 'packages/core/src/journey/*' | wc -l)
+          echo "engine sources in scope: $count"
+          test "$count" -ge 3
+
       - name: Run Stryker
         run: pnpm exec stryker run stryker.config.json
+
+      - name: Record the score
+        if: always()
+        run: |
+          set -euo pipefail
+          report=reports/mutation/mutation.json
+          if [ ! -f "$report" ]; then
+            echo "no mutation report at $report — Stryker did not get far enough to score" \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module -e '
+            import { readFileSync, appendFileSync } from "node:fs";
+            const report = JSON.parse(readFileSync("reports/mutation/mutation.json", "utf8"));
+            const config = JSON.parse(readFileSync("stryker.config.json", "utf8"));
+            const mutants = Object.values(report.files).flatMap((f) => f.mutants);
+            const count = (status) => mutants.filter((m) => m.status === status).length;
+            const killed = count("Killed") + count("Timeout");
+            const covered = killed + count("Survived");
+            const score = covered === 0 ? 0 : (killed / covered) * 100;
+            const rows = ["Killed", "Timeout", "Survived", "NoCoverage", "CompileError", "RuntimeError", "Ignored"]
+              .map((s) => `| ${s} | ${count(s)} |`).join("\n");
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+              `## Mutation score: **${score.toFixed(2)}%**`,
+              ``,
+              `threshold (\`thresholds.break\`): **${config.thresholds.break}%**`,
+              `mutants: ${mutants.length} across ${Object.keys(report.files).length} files`,
+              ``,
+              `| state | n |`,
+              `| --- | --- |`,
+              rows,
+              ``,
+            ].join("\n"));
+            console.log(`mutation score ${score.toFixed(2)}% (threshold ${config.thresholds.break}%)`);
+          '
 
       - name: Upload the mutation report
         if: always()
@@ -40,5 +93,5 @@ jobs:
         with:
           name: mutation-${{ github.sha }}
           path: reports/mutation/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

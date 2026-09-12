@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Nightly mutation testing over the pure engine. The threshold becomes a release gate at P1; today it reports.",
+  "_comment": "Nightly mutation testing over the pure engine (packages/core). A green unit suite that survives every mutant is not a suite: it pins behaviour nobody asserted. At P0 this reported; at P1 it is a gate, so `thresholds.break` is a number and .github/workflows/mutation.yml no longer carries continue-on-error. The recorded score and the threshold are in docs/P1-REPORT.md — 'the mutation job is green' is not a measurement.",
   "packageManager": "pnpm",
   "plugins": ["@stryker-mutator/vitest-runner"],
   "testRunner": "vitest",
@@ -8,21 +8,43 @@
     "configFile": "vitest.config.ts",
     "dir": "packages/core"
   },
+  "mutate_comment": "Every engine module under packages/core/src, and nothing else. The three exclusions are deliberate: *.test.ts is the suite doing the killing; index.ts is a barrel of re-exports whose mutants are all equivalent; journey/** is the phase gate's own harness (it scans the repo and drives a 30-day trace — it is test infrastructure that happens to live in a .ts file, and mutating it measures the gate, not the engine).",
   "mutate": [
     "packages/core/src/**/*.ts",
     "!packages/core/src/**/*.test.ts",
-    "!packages/core/src/index.ts"
+    "!packages/core/src/**/index.ts",
+    "!packages/core/src/journey/**"
   ],
-  "reporters": ["html", "clear-text", "progress"],
+  "reporters": ["html", "json", "clear-text", "progress"],
   "htmlReporter": {
     "fileName": "reports/mutation/index.html"
   },
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
+  "clearTextReporter": {
+    "allowColor": false,
+    "maxTestsToLog": 2
+  },
   "coverageAnalysis": "perTest",
+  "thresholds_comment": "high/low colour the report. `break` is the gate: below it the run exits non-zero. It is set from a measured baseline (docs/P1-REPORT.md records the number and the date) and is raised, never lowered, when the engine grows a well-tested module. A threshold above the measured score would make the first nightly red for a reason nobody would read.",
   "thresholds": {
     "high": 90,
     "low": 80,
-    "break": null
+    "break": 70
   },
+  "timeout_comment": "A mutant that loops forever must be reported as a timeout rather than hanging the job. The engine's slowest unit tests are the four-zone properties at 10,000 cases per zone (~3.5 s locally, ~2.5x that on ubuntu-latest), so the factor is generous on purpose: a timeout counted as 'killed' is free score.",
+  "timeoutMS": 120000,
+  "timeoutFactor": 3,
   "tempDirName": ".stryker-tmp",
-  "cleanTempDir": true
+  "cleanTempDir": true,
+  "ignorePatterns": [
+    "apps/mobile/ios",
+    "apps/mobile/android",
+    "apps/mobile/.expo",
+    "e2e/artifacts",
+    "reports",
+    "tools/coursekit/.venv",
+    "**/*.db"
+  ]
 }

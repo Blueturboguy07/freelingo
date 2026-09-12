@@ -1,0 +1,8 @@
+{
+  "$comment": "Invariant ids owned by the P1 task `p1-journey-and-gate`, and the phase declarations the roster gate needs. This task owns no invariant id of its own: it is the gate, and a gate that also owns invariants can pass itself. `owned` is therefore empty on purpose and must stay empty. `engineParts` names the §14 PACK/AUD ids a P1 lane genuinely owns (the plan says 'engine parts' and does not enumerate them, so each one is written down here as it lands, with the reason it is engine and not a P2 pack gate). `deferred` names roster ids P1 does NOT own, each with the reason — a deferral is a decision that shows up in docs/P1-REPORT.md, never a silent gap. The roster itself is derived from docs/invariants.md in packages/core/src/journey/ownership.ts; see that file's header for why it is derived and not typed out.",
+  "task": "p1-journey-and-gate",
+  "phase": "P1",
+  "owned": [],
+  "engineParts": [],
+  "deferred": []
+}
