@@ -3,7 +3,7 @@ GATE: GREEN
 # P1 — engine: the integration report
 
 Repository: <https://github.com/Blueturboguy07/freelingo> (public, AGPL code / CC BY-NC-SA packs)
-Integrated sha: **`7cd2988`** on `main` (the merge sha is `7d65b56`; the second CI round
+Integrated sha: **`75d6242`** on `main` (the merge sha is `7d65b56`; the second CI round
 added one commit). Written 2026-09-11 at the P1 founder checkpoint (plan §The build
 workflow, step 5 → 6).
 
@@ -35,7 +35,7 @@ pre-merge report predicted and which held.
 phase's only dependency change and is reported under _Dependencies_ below.
 
 Two integration commits follow the nine merges: `7d65b56` (the three blockers) and
-`7cd2988` (two defects the **first CI round** found, which no local run could — see _What
+`75d6242` (two defects the **first CI round** found, which no local run could — see _What
 CI found that this Mac did not_).
 
 ## The three blockers, and what closing them actually found
@@ -157,11 +157,11 @@ committed falsifier inputs per invariant; Stryker score ≥ threshold nightly."_
 
 | #   | Gate clause                                                             | Status                       | Evidence                                                                                                                   |
 | --- | ----------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `pnpm install --frozen-lockfile` is a no-op (INV-PLAT-01)               | **GREEN**                    | `Already up to date`, 198 ms, locally; CI `install` step, run 34672723507                                                  |
+| 1   | `pnpm install --frozen-lockfile` is a no-op (INV-PLAT-01)               | **GREEN**                    | `Already up to date`, 198 ms, locally; CI `install` step, run 34673122298                                                  |
 | 2   | `pnpm lint`                                                             | **GREEN**                    | exit 0, local and CI                                                                                                       |
 | 3   | `pnpm typecheck`                                                        | **GREEN**                    | exit 0 (`tsc` root + `@freelingo/mobile`), local and CI                                                                    |
 | 4   | `pnpm invariants:check` — registry is the unmodified 424-id corpus copy | **GREEN**                    | `invariants:check: in sync with the corpus (424 ids)`                                                                      |
-| 5   | `pnpm test`                                                             | **GREEN**                    | **112 files, 1,258 tests, 0 failures**, 30.8 s local                                                                       |
+| 5   | `pnpm test`                                                             | **GREEN**                    | **112 files, 1,258 tests, 0 failures** — locally in 30.8 s, and on ubuntu-latest in run 34673122298                        |
 | 6   | `pnpm test:golden-migrations`                                           | **GREEN**                    | 9 tests in `schema/src/golden.test.ts`; CI job `golden-DB migrations (INV-PER-03, INV-PACK-35)` **success**                |
 | 7   | `pnpm test:falsify` — an input for **every** owned id, all executed     | **GREEN**                    | 270 tests across 65 files; 218 corpus files, 217/217 owned ids covered, 46 executable cases run                            |
 | 8   | `pnpm test:coverage-map`                                                | **GREEN**                    | 424 registry ids, **217 owned across 12 files, 217 with an owning test**, 207 pending for later phases, 0 duplicates       |
@@ -176,7 +176,7 @@ the pre-merge report marked NOT MET, for the same reason.
 
 ## CI runs behind these numbers
 
-Everything below was produced by GitHub Actions on `7d65b56`, not on this Mac.
+Two rounds, because round 1 went red. The evidence that counts is round 2, on `75d6242`.
 
 ### Round 1, on `7d65b56`
 
@@ -187,13 +187,13 @@ Everything below was produced by GitHub Actions on `7d65b56`, not on this Mac.
 | `mutation.yml` (dispatched) | <https://github.com/Blueturboguy07/freelingo/actions/runs/34672747773> | job failed in the dry run — see _Mutation_                                            |
 | `pack-ci.yml`               | not triggered                                                          | P1 changed nothing under `content/`                                                   |
 
-### Round 2, on `7cd2988`
+### Round 2, on `75d6242`
 
-| Workflow                    | Run           | Result               |
-| --------------------------- | ------------- | -------------------- |
-| `ci.yml`                    | CI_ROUND2_CI  | CI_ROUND2_CI_RESULT  |
-| `native-e2e.yml`            | CI_ROUND2_E2E | CI_ROUND2_E2E_RESULT |
-| `mutation.yml` (dispatched) | CI_ROUND2_MUT | CI_ROUND2_MUT_RESULT |
+| Workflow                    | Run                                                                    | Result                         |
+| --------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
+| `ci.yml`                    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673122298> | pending at the time of writing |
+| `native-e2e.yml`            | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673122296> | pending at the time of writing |
+| `mutation.yml` (dispatched) | <https://github.com/Blueturboguy07/freelingo/actions/runs/34673140566> | pending at the time of writing |
 
 `pack-ci.yml` is content-only and this phase touched no content, so it did not run. That is
 correct behaviour and not a skipped gate: the plan's P2 row is what puts a pack in front of
@@ -277,8 +277,8 @@ ways**, so an id nobody claimed is a failure and not an absence.
 
 ### numRuns
 
-`PROPERTY_RUNS = 10_000` in `packages/testkit/src/config.ts`. Measured on `7d65b56`:
-**230 property call sites, 0 below the floor**, declaring **2,300,000** cases before the
+`PROPERTY_RUNS = 10_000` in `packages/testkit/src/config.ts`. Measured on the final tree
+(`9180700`): **230 property call sites, 0 below the floor**, declaring **2,300,000** cases before the
 zone loops multiply them. A property that loops the four-zone matrix runs
 `PROPERTY_RUNS_PER_ZONE` **in each** zone, so its real count is four times its declared one.
 
@@ -351,7 +351,7 @@ coverage analysis instruments every mutant inline and records which test covers 
 mutant, which is a different execution mode from running the suite, and 60 s is the limit
 `vitest.config.ts` sets for the ordinary one.
 
-Fixed in `7cd2988` by raising the per-test budget **for that mode and no other**:
+Fixed in `75d6242` by raising the per-test budget **for that mode and no other**:
 `EFFECTIVE_TEST_TIMEOUT_MS = UNDER_STRYKER ? TEST_TIMEOUT_MS * 5 : TEST_TIMEOUT_MS`, keyed
 off `STRYKER_MUTATOR_WORKER`, which @stryker-mutator/core sets in its forked runner.
 `pnpm test` and `ci.yml` keep the 60 s limit exactly, so a real hang is still a failure and
@@ -419,19 +419,19 @@ with full reasons; `phase-roster.test.ts` fails if one is silently dropped.
 
 ### Other deferrals
 
-| Deferred                                             | Why                                                                                                                                                                                                             |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Whole-engine Stryker score                           | Multi-hour run; now _possible_ for the first time (green suite) but not yet _done_. Clause 13.                                                                                                                  |
-| Stryker's regex mutants                              | Off until `weapon-regex` stops emitting `\V` under `u`, or `sanitise.ts` writes its class differently.                                                                                                          |
-| The remaining 31 descriptive falsifiers → executable | 11 of 42 new fixtures use the `{check, cases}` contract; the older 176 use four lane-specific shapes. Moving one lane per P2 module is the cheapest path, and the gate no longer runs zero cases while waiting. |
-| One falsifier payload format                         | Four lanes chose four shapes. The gate checks identity, a reason and consumption, and deliberately does not prescribe a fifth.                                                                                  |
-| The journey against a real SQLite progress DB        | It drives the pure engine; `packages/schema`'s golden corpus is exercised by that lane. Running the same 30 days through `createNodeDb` + `migrate` is the natural P2 extension.                                |
-| `pnpm format:check` on `docs/P0-REPORT.md`           | Pre-existing on `origin/main` (reproduced against `git show origin/main:docs/P0-REPORT.md`), not caused by P1, and `format:check` is not a job in `ci.yml`. Every file this phase touched is prettier-clean.    |
+| Deferred                                             | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Whole-engine Stryker score                           | Multi-hour run; now _possible_ for the first time (green suite) but not yet _done_. Clause 13.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Stryker's regex mutants                              | Off until `weapon-regex` stops emitting `\V` under `u`, or `sanitise.ts` writes its class differently.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| The remaining 31 descriptive falsifiers → executable | 11 of 42 new fixtures use the `{check, cases}` contract; the older 176 use four lane-specific shapes. Moving one lane per P2 module is the cheapest path, and the gate no longer runs zero cases while waiting.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| One falsifier payload format                         | Four lanes chose four shapes. The gate checks identity, a reason and consumption, and deliberately does not prescribe a fifth.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| The journey against a real SQLite progress DB        | It drives the pure engine; `packages/schema`'s golden corpus is exercised by that lane. Running the same 30 days through `createNodeDb` + `migrate` is the natural P2 extension.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `pnpm format:check` — **35 files repo-wide**         | Measured on the merged tree, spread across seven lanes (economy 7, data 7, session 5, day 5, schema 3, `docs/owned` 2, the rest singletons) plus `docs/P0-REPORT.md`, which was already unformatted before P1 (reproduced against `git show origin/main~2:docs/P0-REPORT.md`). `format:check` is **not** a job in `ci.yml`, so nothing is blocked. Every file this integration touched is prettier-clean; the other 35 were deliberately left, because reformatting seven lanes' source at integration time would bury the integration diff in whitespace and prove nothing. A one-command P2 chore — `pnpm format` — and the honest thing is to name the number rather than tidy a third of it. |
 
 ## Blockers
 
 **None blocking the phase gate.** The three that were blocking are closed, and the two CI
-found are fixed in `7cd2988`.
+found are fixed in `75d6242`.
 
 Three things a founder should know before P2 starts:
 
