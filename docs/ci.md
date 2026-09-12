@@ -9,7 +9,7 @@ slow one that proves the app exists on real devices; `mutation.yml` is nightly a
 | `ci.yml`         | ubuntu-latest          | lint, typecheck, `pnpm test`, registry digest, coverage map, gitleaks         |
 | `native-e2e.yml` | ubuntu + macos-15      | flows exist, they pass on a simulator and an emulator, INV-PLAT-02            |
 | `mutation.yml`   | ubuntu-latest, nightly | Stryker, reporting only — no score has ever printed; see below                |
-| `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests; the whole es pack is built, baked, validated and signed |
+| `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests. build-es/validate-es have never got past G5 — see below |
 
 (`cla.yml` is the CLA bot on pull requests and proves nothing about the code.)
 
@@ -74,6 +74,21 @@ teaches one workflow over: when a job can be skipped, something must fail if it 
 for the wrong reason. Here that something is `pnpm test` — `test_validators_freelingo.py`
 asserts `VALIDATORS.missing(VALIDATOR_IDS) == ()`, on every push, with no conditional in
 front of it.
+
+**Neither pack job has ever succeeded, and the table says so rather than describing the
+design.** At P2 integration (`281b623`) `pipeline-ready` went green for the first time —
+10/10 stages, 17/17 validators — both jobs went live, and `build-es` **failed at G5**:
+G4 emitted 918 gap slots and `content/es/candidates.jsonl` covers a handful. `validate-es`
+then skipped on `needs:`. Reproduced locally 2026-09-12 outside CI (920 gaps, 918 at
+zero), so it is not a runner artefact. Two consequences worth stating plainly:
+
+- `coursekit validate es` **has never run**. V1–V4 at 100%, V5–V12, the V8 engine record,
+  the licence sweep, the 120 MB bank measured on real bytes, `coursekit sample es` and
+  `coursekit sign es` are all unproven on real data.
+- Even once the content lands, **`validate-es` still cannot exit 0 today**: `build-es`
+  names no grammar engine and no KenLM model, so V8 blocks on "zero errors from nothing".
+  `docs/P2-BLOCKERS.md` B8 carries the one-step remedy and the live measurement that
+  proves it.
 
 `build-es` carries the `tts` dependency group and the cached Kokoro weights, unlike the
 `coursekit` job. A stage whose group is absent exits 3 rather than degrading, G8 needs
