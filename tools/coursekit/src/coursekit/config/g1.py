@@ -26,10 +26,12 @@ either. They read `coursekit.ledger`. That is the whole of INV-PACK-40, and
 
 Owner: p2-g1-g2-analyze-band.
 
-**Naming note for the integrate lane.** `p2-deps-scaffold` scaffolded empty
-`config/analyze.py` and `config/band.py`; this task's file lane names `config/g1.py` and
-`config/g2.py`. These two are the live files. The two scaffolded ones are empty and
-should be deleted by whoever merges, not filled in — the constants must not exist twice.
+**Naming note.** `p2-deps-scaffold` scaffolded empty `config/analyze.py` and
+`config/band.py` beside these; this lane's constants live in `config/g1.py` and
+`config/g2.py`, so the two empty twins were DELETED rather than filled in. Two plausible
+homes for a ledger constant is how the second declaration gets written, and INV-PACK-40's
+"declared exactly once" test greps for the name `LEDGER_UNIT_BY_LANGUAGE` — it would not
+have caught a window or a budget landing in the twin.
 """
 
 from __future__ import annotations

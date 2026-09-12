@@ -11,6 +11,7 @@ research corpus:
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -21,17 +22,20 @@ from coursekit.artifacts import ARTIFACTS, read_records
 from coursekit.config import CEFR_LANGUAGES
 from coursekit.config.g2 import (
     BAND_BY_DECILE,
+    BAND_BY_DECILE_CALIBRATION,
+    BAND_SOURCE_CEFRLEX_POS_RELAXED,
     DECILE_COUNT,
     ELELEX_ENTRY_COUNT,
     ELELEX_LICENCE,
     ELELEX_MIN_DOCS_FOR_LEVEL,
+    ELELEX_POS_MUST_MATCH,
     FREELING_TO_UD,
     FREQUENCY_DERIVED_ORDERING_LICENCE,
     FREQUENCY_FILENAME_BY_LANGUAGE,
     FREQUENCY_IS_SURFACE_FORMS,
     FREQUENCY_MIN_ROWS,
 )
-from coursekit.inputs import MissingInput, group_is_installed
+from coursekit.inputs import MissingInput, group_is_installed, resolve
 from coursekit.ledger import LedgerItem, assert_unique_keys
 from coursekit.runlog import UpstreamStageMissing, read_entries
 from coursekit.stages.g1_analyze import adapter_for, analyze
@@ -41,6 +45,7 @@ from coursekit.stages.g2_band import (
     decile_for,
     first_level,
     freeling_to_ud,
+    lemma_only_index,
     lemmatise_frequency,
     rank,
     read_elelex,
@@ -206,6 +211,69 @@ def test_the_deciles_are_the_arithmetic_the_fixture_is_derived_under() -> None:
     assert BAND_BY_DECILE[9] == "B1"
     assert BAND_BY_DECILE[DECILE_COUNT] == "B2"
 
+    # The fixture was derived under exactly this table, and four other P2 lanes test
+    # against it. Asserted here so a change to the table is a change somebody had to make
+    # on purpose, with the fixture in front of them.
+    fixture = [json.loads(line) for line in (ES_MINI / "banded.jsonl").read_text().splitlines()]
+    assert len(fixture) == total
+    for row in fixture:
+        if row["band_source"] == "frequency_decile":
+            assert row["band"] == BAND_BY_DECILE[row["decile"]], row
+
+
+def test_the_decile_proxy_records_its_deviation_from_the_spec() -> None:
+    """scope2/00 line 110 asks for a proxy "calibrated against fr/es/de/en". This one is
+    hand-picked, and the deviation is recorded rather than hidden.
+
+    The gap is invisible in a green build by construction — the proxy is only read where
+    the lexicon is absent, so nothing ever compares the two — which is why the measurement
+    is a committed script and its result is a constant rather than a sentence in a commit
+    message. This test is what stops the constant and the table drifting apart.
+    """
+    script = Path(__file__).resolve().parents[1] / "scripts" / "calibrate_band_deciles.py"
+    assert script.exists(), "the calibration must be reproducible, not a remembered number"
+    assert BAND_BY_DECILE_CALIBRATION["script"] == "scripts/calibrate_band_deciles.py"
+
+    # Measured, not aspirational: a decile explains about two fifths of a CEFR band.
+    assert BAND_BY_DECILE_CALIBRATION["agreement"] == pytest.approx(0.380)
+    assert BAND_BY_DECILE_CALIBRATION["best_monotone_fit_agreement"] == pytest.approx(0.412)
+    assert (
+        BAND_BY_DECILE_CALIBRATION["best_monotone_fit_agreement"]
+        > BAND_BY_DECILE_CALIBRATION["agreement"]
+    ), "keeping the shipped table is only a decision if the fit is actually better"
+
+    # The spec names four calibration languages; one of them is what we have.
+    assert BAND_BY_DECILE_CALIBRATION["calibrated_against"] == ("es",)
+    # ...and these two ship on it anyway, which is the founder-visible half.
+    assert BAND_BY_DECILE_CALIBRATION["applied_to"] == ("de", "ja")
+    assert set(BAND_BY_DECILE_CALIBRATION["applied_to"]) & set(CEFR_LANGUAGES) == set()
+    assert "calibrated against fr/es/de/en" in BAND_BY_DECILE_CALIBRATION["deviation_from_spec"]
+
+    # The fit is monotone, or it would be at odds with V11 over a ledger-ordered course.
+    fit = BAND_BY_DECILE_CALIBRATION["best_monotone_fit"]
+    order = ["A1", "A2", "B1", "B2", "C1"]
+    ranks = [order.index(fit[decile]) for decile in sorted(fit)]
+    assert ranks == sorted(ranks)
+    assert [order.index(BAND_BY_DECILE[d]) for d in sorted(BAND_BY_DECILE)] == sorted(
+        order.index(BAND_BY_DECILE[d]) for d in sorted(BAND_BY_DECILE)
+    )
+    assert fit != BAND_BY_DECILE, "a recorded deviation with no deviation is a stale record"
+
+
+def test_the_frequency_filename_and_the_source_url_cannot_drift() -> None:
+    """The hermitdave filename is knowledge in two places. Tie them together.
+
+    `config/g2.FREQUENCY_FILENAME_BY_LANGUAGE` names the file G2 reads and
+    `config/base.SOURCES["hermitdave"].url` is the one the error message tells an operator
+    to curl. Nothing made them agree, so a language could be told to fetch one file and
+    read another — and the failure surfaces as "the frequency list is not at <path>" with
+    a curl line that just wrote it.
+    """
+    for lang, filename in FREQUENCY_FILENAME_BY_LANGUAGE.items():
+        assert resolve("hermitdave", lang).url.endswith(f"/{filename}"), lang
+    # And the language deep/10 says has no 50k list must have no entry here either.
+    assert "ja" not in FREQUENCY_FILENAME_BY_LANGUAGE
+
 
 # ---------------------------------------------------------------------------
 # ELELex — the licence, the mapping, and R23
@@ -351,7 +419,7 @@ def test_R23_a_banded_lemma_cannot_carry_a_section_cefr_label() -> None:
     assert "section_cefr" not in banded
     assert "section_index" not in banded
 
-    rows = list(build_rows("es", [("casa", "NOUN", 100), ("gato", "NOUN", 10)], {}))
+    rows, _ = build_rows("es", [("casa", "NOUN", 100), ("gato", "NOUN", 10)], {})
     for row in rows:
         assert "section_cefr" not in row
         assert row["band"] in BAND_BY_DECILE.values()
@@ -361,13 +429,86 @@ def test_a_cefrlex_band_carries_its_licence_and_a_decile_band_does_not() -> None
     """G9 needs the NC attribution for exactly the rows that came from ELELex, and must
     not put one in the manifest of a pack that contains nothing derived from it."""
     ordered = [("casa", "NOUN", 100), ("gato", "NOUN", 10)]
-    rows = list(build_rows("es", ordered, {("casa", "NOUN"): "A1"}))
+    rows, _ = build_rows("es", ordered, {("casa", "NOUN"): "A1"})
     by_lemma = {row["lemma"]: row for row in rows}
 
     assert by_lemma["casa"]["band_source"] == "cefrlex"
     assert by_lemma["casa"]["band_source_licence"] == ELELEX_LICENCE
     assert by_lemma["gato"]["band_source"] == "frequency_decile"
     assert by_lemma["gato"]["band_source_licence"] is None
+
+
+def test_a_pos_mismatch_refuses_the_band_and_is_counted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ELELEX_POS_MUST_MATCH` is True: lemma in the lexicon, wrong POS, no CEFR band.
+
+    This is where spaCy and FreeLing actually differ — `ser` is AUX to one and VS to the
+    other — so it is not a rare path, and a disagreement is indistinguishable from "the
+    lexicon never carried this lemma" unless somebody counts it.
+    """
+    assert ELELEX_POS_MUST_MATCH is True
+    ordered = [("ser", "AUX", 100), ("casa", "NOUN", 10)]
+    lexicon = {("ser", "VERB"): "A1", ("casa", "NOUN"): "A1"}
+
+    rows, stats = build_rows("es", ordered, lexicon)
+    by_lemma = {row["lemma"]: row for row in rows}
+
+    assert by_lemma["ser"]["band_source"] == "frequency_decile"
+    assert by_lemma["ser"]["band"] == BAND_BY_DECILE[by_lemma["ser"]["decile"]]
+    assert by_lemma["ser"]["band_source_licence"] is None
+    assert by_lemma["casa"]["band_source"] == "cefrlex"
+
+    assert stats["cefr_pos_disagreements"] == 1
+    assert stats["cefr_pos_relaxed"] == 0
+
+
+def test_relaxing_the_pos_match_bands_the_lemma_under_a_weaker_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ELELEX_POS_MUST_MATCH = False` relaxes the POS match. It used to do the opposite.
+
+    The lexicon is keyed by `(lemma, POS)`, so the original
+    `lexicon.get(key) if ELELEX_POS_MUST_MATCH else None` switched the whole lexicon OFF:
+    every es/fr pack silently fell back to the decile proxy while `band_source` truthfully
+    read `frequency_decile` and the course card still read "A1 - CEFR-checked". The flag's
+    other branch is pinned here because a branch nobody has executed is a branch that does
+    not work.
+    """
+    monkeypatch.setattr("coursekit.stages.g2_band.ELELEX_POS_MUST_MATCH", False)
+    ordered = [("ser", "AUX", 100), ("casa", "NOUN", 10), ("xyzzy", "NOUN", 1)]
+    lexicon = {("ser", "VERB"): "A1", ("casa", "NOUN"): "A2"}
+
+    rows, stats = build_rows("es", ordered, lexicon)
+    by_lemma = {row["lemma"]: row for row in rows}
+
+    # Relaxed: banded from ELELex, under a source name that says the match was weaker,
+    # and still carrying the NC licence because the band still came from ELELex.
+    assert by_lemma["ser"]["band"] == "A1"
+    assert by_lemma["ser"]["band_source"] == BAND_SOURCE_CEFRLEX_POS_RELAXED
+    assert by_lemma["ser"]["band_source"] != "cefrlex"
+    assert by_lemma["ser"]["band_source_licence"] == ELELEX_LICENCE
+
+    # An exact match is untouched, and a lemma the lexicon has never heard of is not
+    # dragged in by the relaxation.
+    assert by_lemma["casa"]["band_source"] == "cefrlex"
+    assert by_lemma["xyzzy"]["band_source"] == "frequency_decile"
+
+    assert stats["cefr_pos_disagreements"] == 1
+    assert stats["cefr_pos_relaxed"] == 1
+
+    # The falsifier for the old semantics: with the flag off, the lexicon must still band.
+    assert any(row["band_source"] != "frequency_decile" for row in rows), (
+        "turning the POS match off must not turn ELELex banding off"
+    )
+
+
+def test_the_lemma_only_index_takes_the_lowest_level() -> None:
+    """Same conservative direction as the tag collapse in `read_elelex`: teaching a lemma
+    earlier than the lexicon's hardest reading of it never asserts a word is harder than
+    it is."""
+    folded = lemma_only_index({("bajo", "ADP"): "B1", ("bajo", "ADJ"): "A2"})
+    assert folded == {"bajo": "A2"}
 
 
 # ---------------------------------------------------------------------------

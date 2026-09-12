@@ -264,6 +264,21 @@ def test_INV_PACK_40_a_row_whose_adapter_disagrees_with_the_declaration_is_refus
     with pytest.raises(LedgerError, match="no split"):
         units(spanish_with_a_split_mode)
 
+    # The reported mean is the ONE figure from this invariant that reaches the manifest,
+    # so it must refuse the same row the counter refuses. It did not: `content_units` read
+    # `analysed["tokens"]` directly and averaged a Mode-C row that `count_units` had
+    # already rejected, which is a manifest number computed over a segmentation the pack
+    # does not declare.
+    with pytest.raises(LedgerError, match="split_mode"):
+        content_units(mode_c)
+    with pytest.raises(LedgerError, match="split_mode"):
+        mean_content_words_per_sentence([mode_c])
+    with pytest.raises(LedgerError, match="split_mode"):
+        mean_content_words_per_sentence([mode_a, mode_c])
+    with pytest.raises(LedgerError, match="no split"):
+        mean_content_words_per_sentence([spanish_with_a_split_mode])
+    assert mean_content_words_per_sentence([mode_a]) == 3.0
+
 
 # ---------------------------------------------------------------------------
 # INV-PACK-40 — the grep gate over the whole tree
@@ -460,11 +475,20 @@ def test_INV_PACK_51_the_same_item_twice_is_a_merge_not_a_collision() -> None:
 
 
 def test_INV_PACK_51_for_spanish_the_reading_form_is_the_orthographic_form() -> None:
-    """[INV-PACK-51] Spanish spelling determines pronunciation, so the key degenerates."""
+    """[INV-PACK-51] Spanish spelling determines pronunciation, so the key degenerates.
+
+    Both elements are case-folded, and that is the load-bearing half. When only
+    `normalized_form` folded case, `ledger_key("es", "Casa", ...)` and
+    `ledger_key("es", "casa", ...)` were two keys — two rows in the learner's Words list
+    for one word — and nothing in the ledger prevented it: the "one item" guarantee rested
+    on the spaCy adapter remembering to lower-case every lemma, which is a second
+    definition of the ledger's identity living in an adapter (INV-PACK-40).
+    """
     key = ledger_key("es", "Capital", "NOUN")
-    assert key == ("capital", "Capital", "NOUN")
+    assert key == ("capital", "capital", "NOUN")
     assert normalized_form("es", "Capital") == "capital"
-    assert reading_form("es", "Capital") == "Capital"
+    assert reading_form("es", "Capital") == "capital"
+    assert ledger_key("es", "Casa", "NOUN") == ledger_key("es", "casa", "NOUN")
 
     # Passing a reading for Spanish is a bug upstream, not a value to drop quietly.
     with pytest.raises(LedgerError, match="no separate reading"):

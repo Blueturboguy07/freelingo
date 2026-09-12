@@ -210,17 +210,21 @@ def is_content_pos(pos: str) -> bool:
     return pos in CONTENT_POS
 
 
-def units(analysed: Mapping[str, Any]) -> tuple[str, ...]:
-    """The ledger units of one `analysed_sentence` record, in order.
+def _declared_tokens(analysed: Mapping[str, Any]) -> tuple[list[Mapping[str, Any]], str]:
+    """The row's tokens, once the row's segmentation has been checked against the pack's.
 
-    This is the function INV-PACK-40 is about. Nothing else in the tree may answer this
-    question another way.
+    The guard lives here rather than inside `units()` so that every function which reads
+    `analysed['tokens']` passes through it. That is not tidiness either: the mean this
+    module reports is the one INV-PACK-40 asks the validator to put in the manifest, and a
+    `ja` row carrying Mode-C tokens was being refused by `count_units` and silently
+    averaged by `mean_content_words_per_sentence` — the single figure that leaves the
+    build was the single figure the check did not cover.
 
     There is no second tokenisation here and there must not be: the adapter already
-    segmented the sentence, and the declaration says which of its segmentations counts.
-    So the only work is to check that the two agree — a Japanese pack declaring Mode-A
-    morphemes and handed Mode-C tokens would count compounds as single items, which is
-    the V1 hole Mode A exists to close, and it is invisible in the row.
+    segmented the sentence, and the declaration says which of its segmentations counts. A
+    Japanese pack declaring Mode-A morphemes and handed Mode-C tokens would count
+    compounds as single items, which is the V1 hole Mode A exists to close, and it is
+    invisible in the row.
     """
     unit = ledger_unit(analysed["lang"])
     split_mode = analysed["adapter"].get("split_mode")
@@ -237,7 +241,17 @@ def units(analysed: Mapping[str, Any]) -> tuple[str, ...]:
             f"modes, but the row carries split_mode {split_mode!r}. A row whose adapter "
             f"disagrees with the declaration is counted by neither (INV-PACK-40)."
         )
-    return tuple(token["lemma"] for token in analysed["tokens"] if is_lexical_pos(token["pos"]))
+    return list(analysed["tokens"]), unit
+
+
+def units(analysed: Mapping[str, Any]) -> tuple[str, ...]:
+    """The ledger units of one `analysed_sentence` record, in order.
+
+    This is the function INV-PACK-40 is about. Nothing else in the tree may answer this
+    question another way.
+    """
+    tokens, _unit = _declared_tokens(analysed)
+    return tuple(token["lemma"] for token in tokens if is_lexical_pos(token["pos"]))
 
 
 def count_units(analysed: Mapping[str, Any]) -> int:
@@ -246,8 +260,13 @@ def count_units(analysed: Mapping[str, Any]) -> int:
 
 
 def content_units(analysed: Mapping[str, Any]) -> tuple[str, ...]:
-    """The content-word ledger units, in order. The per-pack mean is computed over these."""
-    return tuple(token["lemma"] for token in analysed["tokens"] if is_content_pos(token["pos"]))
+    """The content-word ledger units, in order. The per-pack mean is computed over these.
+
+    Through the same guard as `units()`: the mean is a manifest figure, and a row the
+    counter refuses must not be a row the mean accepts.
+    """
+    tokens, _unit = _declared_tokens(analysed)
+    return tuple(token["lemma"] for token in tokens if is_content_pos(token["pos"]))
 
 
 def length_ok(analysed: Mapping[str, Any]) -> bool:
@@ -306,6 +325,15 @@ def normalized_form(lang: str, form: str) -> str:
 def reading_form(lang: str, form: str, *, reading: str | None = None) -> str:
     """The second element of the ledger key: how the item is READ.
 
+    **Case-folded and NFC-normalised, on both branches**, so it is the same relation as
+    `normalized_form`. The alternative was measured and rejected: normalising only the
+    first element made `ledger_key("es", "Casa", "NOUN")` and `ledger_key("es", "casa",
+    "NOUN")` two different keys, which is two rows in the learner's Words list for one
+    word — and the "one item" guarantee then rested on the spaCy adapter remembering to
+    lower-case every lemma rather than on the ledger, which is exactly the second
+    definition INV-PACK-40 exists to forbid. Case-folding katakana is a no-op, so the
+    Japanese branch is unaffected.
+
     For Spanish (and French and German) this is the orthographic form: the spelling
     determines the pronunciation, so there is no separate reading to store and the key
     degenerates to `(normalized_form, orthographic_form, POS)`. Passing a `reading` for
@@ -327,14 +355,14 @@ def reading_form(lang: str, form: str, *, reading: str | None = None) -> str:
                 f"orthographic form collapses homographs into one Words row "
                 f"(INV-PACK-51)."
             )
-        return unicodedata.normalize("NFC", reading)
+        return unicodedata.normalize("NFC", reading).casefold()
     if reading is not None:
         raise LedgerError(
             f"{lang!r} stores no separate reading: its spelling determines its "
             f"pronunciation, so reading_form IS the orthographic form. Got "
             f"reading={reading!r} for {form!r}."
         )
-    return unicodedata.normalize("NFC", form)
+    return normalized_form(lang, form)
 
 
 @dataclass(frozen=True, slots=True)

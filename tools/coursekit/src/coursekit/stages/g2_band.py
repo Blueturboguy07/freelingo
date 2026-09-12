@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +40,8 @@ from ..artifacts import read_records, write_records
 from ..config import ARTIFACT_SCHEMA_VERSION, CEFR_LANGUAGES
 from ..config.g2 import (
     BAND_BY_DECILE,
+    BAND_BY_DECILE_CALIBRATION,
+    BAND_SOURCE_CEFRLEX_POS_RELAXED,
     DECILE_COUNT,
     ELELEX_ATTRIBUTION,
     ELELEX_DOC_COUNT_COLUMN,
@@ -116,7 +118,7 @@ def band(ctx: StageContext) -> StageResult:
     assert_unique_keys(items)
 
     lexicon, lexicon_stats = load_lexicon(ctx)
-    rows = list(build_rows(ctx.lang, ordered, lexicon))
+    rows, band_stats = build_rows(ctx.lang, ordered, lexicon)
 
     written = write_records("banded_lemma", rows, lang=ctx.lang)
     ctx.entry.record_output("banded_lemma")
@@ -143,8 +145,10 @@ def band(ctx: StageContext) -> StageResult:
         },
         # R23, restated where a reader of the run will see it.
         section_cefr_is_a_g3_output=True,
+        band_by_decile_calibration=dict(BAND_BY_DECILE_CALIBRATION),
         **frequency_stats,
         **lexicon_stats,
+        **band_stats,
     )
     if lexicon:
         # Only when a band actually came from it. A licence row recorded for a lexicon
@@ -504,39 +508,91 @@ def first_level(row: dict[str, str]) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def lemma_only_index(lexicon: dict[tuple[str, str], str]) -> dict[str, str]:
+    """`lemma -> level`, folding the POS away, lowest level wins.
+
+    The index the POS-relaxed fallback reads. Lowest level for the same reason
+    `read_elelex` takes the lowest across two tags mapping to one UD tag: teaching a lemma
+    earlier than the lexicon's hardest reading of it never asserts a word is harder than
+    it is.
+    """
+    folded: dict[str, str] = {}
+    for (lemma, _pos), level in lexicon.items():
+        seen = folded.get(lemma)
+        if seen is None or ELELEX_LEVELS.index(level.casefold()) < ELELEX_LEVELS.index(
+            seen.casefold()
+        ):
+            folded[lemma] = level
+    return folded
+
+
 def build_rows(
     lang: str,
     ordered: list[tuple[str, str, int]],
     lexicon: dict[tuple[str, str], str],
-) -> Iterator[dict[str, Any]]:
-    """One `banded_lemma` per ranked lemma.
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """One `banded_lemma` per ranked lemma, plus how each band was arrived at.
 
-    A row banded by ELELex carries `band_source: "cefrlex"` and the NC licence string, so
-    G9 can put it in the attribution table and so nobody downstream has to guess which of
-    the two produced a band. A row banded by decile carries a null licence, which is what
-    `tests/test_artifacts.py` already asserts about the fixture.
+    Three ways a row can get its band, and the row says which:
+
+    - **`cefrlex`** — the lexicon carries this exact `(lemma, POS)`. Carries the NC licence
+      string so G9 can put it in the manifest's attribution table.
+    - **`cefrlex_pos_relaxed`** — the lexicon carries the lemma under a different part of
+      speech, and `ELELEX_POS_MUST_MATCH` is False. Also carries the licence, because the
+      band still came from ELELex; a weaker claim, named as one.
+    - **`frequency_decile`** — no lexicon entry, or a POS disagreement under the default
+      `ELELEX_POS_MUST_MATCH = True`. Null licence, which is what `tests/test_artifacts.py`
+      already asserts about the fixture.
+
+    The POS disagreements are COUNTED either way. They are where spaCy and FreeLing
+    actually differ (AUX/VERB, DET/PRON), so a count that jumps is a tagger change or a
+    lexicon change, and it is otherwise invisible: a disagreement looks exactly like a
+    lemma the lexicon never carried.
     """
+    by_lemma = lemma_only_index(lexicon) if lexicon else {}
+    stats = {"cefr_pos_disagreements": 0, "cefr_pos_relaxed": 0}
+    rows: list[dict[str, Any]] = []
     total = len(ordered)
     for position, (lemma, pos, frequency) in enumerate(ordered):
         decile = decile_for(position, total)
-        level = lexicon.get((lemma.casefold(), pos)) if ELELEX_POS_MUST_MATCH else None
+        folded = lemma.casefold()
+        level = lexicon.get((folded, pos))
         if level is not None:
             band_value, band_source, band_licence = level, "cefrlex", ELELEX_LICENCE
+        elif folded in by_lemma:
+            # The lemma is in the lexicon; only the part of speech disagrees.
+            stats["cefr_pos_disagreements"] += 1
+            if ELELEX_POS_MUST_MATCH:
+                band_value, band_source, band_licence = (
+                    BAND_BY_DECILE[decile],
+                    "frequency_decile",
+                    None,
+                )
+            else:
+                stats["cefr_pos_relaxed"] += 1
+                band_value, band_source, band_licence = (
+                    by_lemma[folded],
+                    BAND_SOURCE_CEFRLEX_POS_RELAXED,
+                    ELELEX_LICENCE,
+                )
         else:
             band_value, band_source, band_licence = (
                 BAND_BY_DECILE[decile],
                 "frequency_decile",
                 None,
             )
-        yield {
-            "schema_version": ARTIFACT_SCHEMA_VERSION,
-            "lang": lang,
-            "lemma": lemma,
-            "pos": pos,
-            "rank": position + 1,
-            "frequency": frequency,
-            "decile": decile,
-            "band": band_value,
-            "band_source": band_source,
-            "band_source_licence": band_licence,
-        }
+        rows.append(
+            {
+                "schema_version": ARTIFACT_SCHEMA_VERSION,
+                "lang": lang,
+                "lemma": lemma,
+                "pos": pos,
+                "rank": position + 1,
+                "frequency": frequency,
+                "decile": decile,
+                "band": band_value,
+                "band_source": band_source,
+                "band_source_licence": band_licence,
+            }
+        )
+    return rows, stats

@@ -6,6 +6,13 @@
  * Parses every invariant id out of docs/invariants.md, scans every test file for test
  * names carrying an id in brackets (`it('[INV-DAY-01] ...')`), and prints the map.
  *
+ * Two languages of test, because the invariants are owned in two. A TypeScript test
+ * claims in its name; a Python test claims in the bracketed ids LEADING its docstring
+ * (`def test_x(...): """[INV-PACK-40] ..."""`), since a Python function name cannot
+ * carry brackets. The content pipeline under `tools/coursekit` owns every `C`-kind
+ * invariant in the registry, so before `tools/` was scanned those ids were unownable by
+ * construction — INV-PACK-13/15/17/40/51 all sat outside the only gate that can see them.
+ *
  * It FAILS when an owned id has no owning test, when a test claims an id that is not in
  * the registry (a typo is otherwise invisible), when an owned id is not in the registry,
  * and when two ownership files claim the same id.
@@ -30,10 +37,26 @@ const REGISTRY_PATH = 'docs/invariants.md';
 const OWNED_PATH = 'docs/invariants-owned.json';
 /** One file per task, unioned with OWNED_PATH. See the header. */
 const OWNED_DIR = 'docs/owned';
-const TEST_ROOTS = ['packages', 'apps', 'e2e'];
-const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$/;
-/** Directory names the walk never enters, wherever they appear. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'artifacts']);
+const TEST_ROOTS = ['packages', 'apps', 'e2e', 'tools'];
+const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$|^test_.*\.py$|_test\.py$/;
+/** A test file the Python claim reader handles rather than the JavaScript one. */
+const PYTHON_TEST_FILE = /\.py$/;
+/**
+ * Directory names the walk never enters, wherever they appear.
+ *
+ * The last four arrived with `tools/`. A coursekit `.venv` carries thousands of installed
+ * `test_*.py` files — spaCy's own suite among them — and whether some vendored test
+ * mentions an invariant id is not a thing this gate may have an opinion about.
+ */
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'artifacts',
+  '.venv',
+  '.ruff_cache',
+  '.pytest_cache',
+  '__pycache__',
+]);
 /**
  * The generated native trees (INV-PLAT-02), skipped by PATH rather than by name.
  *
@@ -68,20 +91,65 @@ function walk(dir: string): string[] {
   return out;
 }
 
+function addClaim(claims: Map<string, string[]>, id: string, name: string): void {
+  const list = claims.get(id) ?? [];
+  list.push(name);
+  claims.set(id, list);
+}
+
 /** Ids as they appear in a test NAME, e.g. `it('[INV-DAY-01] ...')`. */
-function claimedIdsIn(source: string): Map<string, string[]> {
+export function claimedIdsInTypeScript(source: string): Map<string, string[]> {
   const claims = new Map<string, string[]>();
   const testName = /\b(?:it|test)(?:\.\w+)*\s*\(\s*(['"`])([\s\S]*?)\1/g;
   let match: RegExpExecArray | null;
   while ((match = testName.exec(source)) !== null) {
     const name = match[2] ?? '';
-    for (const id of name.match(INVARIANT_ID) ?? []) {
-      const list = claims.get(id) ?? [];
-      list.push(name);
-      claims.set(id, list);
+    for (const id of name.match(INVARIANT_ID) ?? []) addClaim(claims, id, name);
+  }
+  return claims;
+}
+
+/** A `def test_…` and the string literal that immediately follows it, if any. */
+const PYTHON_TEST_DEF =
+  /^[ \t]*(?:async[ \t]+)?def[ \t]+(test_\w+)[ \t]*\([\s\S]*?\)[ \t]*(?:->[^:\n]*)?:[ \t]*\r?\n[ \t]*[rRuUbB]{0,2}("""|'{3}|"|')([\s\S]*?)\2/gm;
+/** Bracketed ids at the very START of a docstring: `[INV-A]`, `[INV-A][INV-B]`. */
+const LEADING_CLAIM = /^[ \t]*\[(INV-[A-Z0-9]+-\d+)\]/;
+
+/**
+ * Ids a Python test claims: the bracketed ids LEADING its docstring.
+ *
+ * A Python function name cannot carry brackets, so the docstring is the only place the
+ * convention can live — `def test_x(...): """[INV-PACK-40] …"""` is the direct analogue of
+ * `it('[INV-DAY-01] …')`.
+ *
+ * **Leading only, and that is the whole design.** Scanning the docstring for ids anywhere
+ * would make prose into coverage: `tools/coursekit/tests/test_ledger_unit.py` has a test
+ * whose docstring reads `"""[INV-PACK-40] INV-MOD-13 stores speaking tokens …"""`, which
+ * cites INV-MOD-13 to explain why the test exists and does not test it. A whole-docstring
+ * scan would report INV-MOD-13 as having an owning test — silently, in a green run, which
+ * is the exact failure this gate exists to prevent. Module docstrings and assertion
+ * messages are outside a `def` and are never read at all, for the same reason.
+ */
+export function claimedIdsInPython(source: string): Map<string, string[]> {
+  const claims = new Map<string, string[]>();
+  let match: RegExpExecArray | null;
+  PYTHON_TEST_DEF.lastIndex = 0;
+  while ((match = PYTHON_TEST_DEF.exec(source)) !== null) {
+    const name = match[1] ?? '';
+    let rest = match[3] ?? '';
+    let leading: RegExpExecArray | null;
+    while ((leading = LEADING_CLAIM.exec(rest)) !== null) {
+      addClaim(claims, leading[1]!, `${name} :: ${rest.split('\n')[0]!.trim()}`);
+      rest = rest.slice(leading[0].length);
     }
   }
   return claims;
+}
+
+function claimedIdsIn(source: string, file: string): Map<string, string[]> {
+  return PYTHON_TEST_FILE.test(file)
+    ? claimedIdsInPython(source)
+    : claimedIdsInTypeScript(source);
 }
 
 const registry = new Set(
@@ -171,7 +239,7 @@ const testFiles = TEST_ROOTS.flatMap((r) => walk(join(ROOT, r)));
 const ownerOf = new Map<string, string[]>();
 for (const file of testFiles) {
   const source = readFileSync(file, 'utf8');
-  for (const [id, names] of claimedIdsIn(source)) {
+  for (const [id, names] of claimedIdsIn(source, file)) {
     const where = ownerOf.get(id) ?? [];
     for (const name of names) where.push(`${relative(ROOT, file)} :: ${name}`);
     ownerOf.set(id, where);
@@ -253,9 +321,55 @@ function selfTest(): void {
     failures.push('an id absent from the registry must fail');
   }
 
+  // The Python reader. Its failure mode is the opposite of the ownership gate's: it
+  // over-reports, turning a citation in prose into coverage — and an over-reporting
+  // coverage gate is green and useless. Built line by line rather than as a template
+  // literal so the fixture can contain Python triple quotes.
+  const q3 = '"'.repeat(3);
+  const python = [
+    'import pytest',
+    '',
+    `${q3}[INV-ECO-99] a MODULE docstring is not a test.${q3}`,
+    '',
+    '',
+    'def helper_not_a_test() -> None:',
+    `    ${q3}[INV-ECO-99] not a test function.${q3}`,
+    '',
+    '',
+    'def test_one(tmp_path: Path) -> None:',
+    `    ${q3}[INV-ECO-01] the committed table is the one that ships.`,
+    '',
+    '    Prose citing INV-ECO-99 to explain why this test exists.',
+    `    ${q3}`,
+    '    assert "INV-ECO-99" not in message',
+    '',
+    '',
+    'def test_two() -> None:',
+    "    '''[INV-ECO-02][INV-DAY-01] two ids, both claimed.'''",
+    '',
+    '',
+    'def test_three() -> None:',
+    '    assert True  # no docstring, claims nothing',
+    '',
+  ].join('\n');
+  const claimed = claimedIdsInPython(python);
+  const gotPython = [...claimed.keys()].sort().join(',');
+  if (gotPython !== 'INV-DAY-01,INV-ECO-01,INV-ECO-02') {
+    failures.push(
+      `python claims must be the LEADING bracketed ids of a test docstring, got ${gotPython}`,
+    );
+  }
+  if (claimedIdsInTypeScript(python).size !== 0) {
+    failures.push('the JavaScript reader must find nothing in a Python file');
+  }
+  const typescript = claimedIdsInTypeScript(`it('[INV-DAY-01] streak', () => {});`);
+  if ([...typescript.keys()].join(',') !== 'INV-DAY-01') {
+    failures.push('the JavaScript reader regressed');
+  }
+
   if (failures.length > 0) {
     console.error(`coverage-map --self-test FAILED\n  ${failures.join('\n  ')}`);
     process.exit(1);
   }
-  console.log('coverage-map --self-test: ownership union, duplicate and unknown-id gates OK');
+  console.log('coverage-map --self-test: ownership union, duplicate/unknown-id gates, and the TypeScript + Python claim readers OK');
 }
