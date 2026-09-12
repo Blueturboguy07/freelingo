@@ -63,7 +63,13 @@ ledger:
   this stage fails loudly rather than whitespace-splitting — a whitespace "lemma" makes
   V1 pass vacuously, and for Japanese it makes a whole sentence one unknown token.
 - the length window is G0's 3-12 token A1 filter, from the shared config, not a second
-  looser number for authored text.
+  looser number for authored text — with ONE derived exception, founder ruling B9(b): a
+  slot whose permitted window holds no lemma the G2 lexicon tags `VERB` or `AUX` takes
+  `MIN_TOKENS_VERBLESS_LESSON` instead of `MIN_TOKENS`, because the first lesson of the
+  Spanish course permits five lemmas and none of them is a verb, and at three tokens the
+  only strings inside that window are word lists. The upper bound never moves, the
+  relaxation is computed from the gap row rather than declared by the author, and G0's
+  ingest window is untouched: a corpus sentence is still filtered at three tokens.
 - the ledger is the one G4 emitted on the row, not the one the author had in mind, which
   is what the `stale_ledger` axis is for: authoring happens offline, and a candidates
   file written against last week's curriculum must fail rather than fill. The authored
@@ -103,8 +109,10 @@ from ..config.g5 import (
     MAX_TOKENS,
     MIN_CANDIDATES_PER_SLOT,
     MIN_TOKENS,
+    MIN_TOKENS_VERBLESS_LESSON,
     OVERGENERATION_TARGET,
     REJECT_AXES,
+    min_tokens_for_slot,
 )
 from ..inputs import MissingInput
 from ..runlog import require_successful
@@ -118,6 +126,7 @@ __all__ = [
     "content_root",
     "gapfill",
     "ledger_digest",
+    "pos_by_lemma",
 ]
 
 
@@ -190,6 +199,35 @@ def authored_candidates_paths(lang: str) -> list[Path]:
             sorted(path for path in shards.iterdir() if path.suffix == AUTHORED_SHARD_SUFFIX)
         )
     return paths
+
+
+def pos_by_lemma(lang: str) -> dict[str, str]:
+    """G2's consolidated UD tag per ledger lemma, or `{}` when G2 has not run.
+
+    The input to `config.g5.min_tokens_for_slot`, which needs to know whether a slot's
+    permitted vocabulary can hold a verb (founder ruling B9(b)). `banded_lemma` carries
+    exactly one row per lemma — `g2_band.consolidate_pos` collapses a lemma's tags to the
+    most frequent one and `assert_unique_keys` enforces the key — so this is a lookup and
+    not a vote.
+
+    **An empty map is not an error and it is not a silent degradation either.** Every
+    caller treats an unknown tag as "this lemma could be a verb" and keeps the strict
+    `MIN_TOKENS`, so a build with no G2 artefact gets the same length axis G5 has always
+    had; the only thing it loses is the relaxation. The alternative — `require_successful`
+    on g2 — would be a new upstream dependency for a stage whose product does not depend
+    on G2 at all, and it would make every G5 test stage a banded lexicon to test an axis
+    that has nothing to do with banding. The runlog records the row count so a reader can
+    tell "no verb in the window" from "no lexicon to ask".
+    """
+    try:
+        # `list(...)`, inside the `try`. `read_records` is a GENERATOR: it raises
+        # `FileNotFoundError` on the first `next`, not at the call, so a `try` around the
+        # call alone catches nothing and every G5 test that stages no G2 dies on the
+        # comprehension instead. Measured, once, on this change.
+        rows = list(read_records("banded_lemma", lang=lang))
+    except FileNotFoundError:
+        return {}
+    return {str(row["lemma"]): str(row["pos"]) for row in rows}
 
 
 def ledger_digest(known_lemmas: Iterable[str], new_lemmas: Iterable[str]) -> str:
@@ -372,12 +410,20 @@ def _axis(
     analyser: Any,
     seen_in_unit: set[str],
     sentence_id: str,
+    min_tokens: int,
 ) -> tuple[str | None, dict[str, Any] | None]:
     """The first axis this candidate fails (or `None`), and the analysis behind it.
 
     Evaluated in `REJECT_AXES` order and short-circuited: `stale_ledger` has to come
     first, because every axis below it would otherwise be measured against a vocabulary
     the build no longer has and would pass for the wrong reason.
+
+    `min_tokens` is the slot's lower bound, not the module's: `config.g5.
+    min_tokens_for_slot` returns `MIN_TOKENS_VERBLESS_LESSON` for a window that cannot
+    hold a verb (founder ruling B9(b)). It is a PARAMETER rather than a lookup inside
+    here so that the relaxation is decided once per slot, in front of the reader, next to
+    the gap row it was derived from — a per-candidate lookup would let two candidates for
+    one slot be measured against two different windows.
 
     The second element is what the row's `analysis` field gets, and it is `None` for
     exactly the rows the analyser never ran on — the two `stale_ledger` returns above
@@ -408,7 +454,7 @@ def _axis(
     if len(introduced) > MAX_NEW_LEMMAS_PER_ITEM:
         return "new_lemma_budget", carried
 
-    if not MIN_TOKENS <= token_count <= MAX_TOKENS:
+    if not min_tokens <= token_count <= MAX_TOKENS:
         return "length", carried
 
     if dedup_hash(authored["text"]) in seen_in_unit:
@@ -454,15 +500,22 @@ def gapfill(ctx: StageContext) -> StageResult:
         by_slot.setdefault(Slot.of(row["slot"]), []).append(row)
 
     gaps = list(_gaps(ctx.lang))
+    lexicon_pos = pos_by_lemma(ctx.lang)
     records: list[dict[str, Any]] = []
     rejected_by_axis = dict.fromkeys(REJECT_AXES, 0)
     seen_by_unit: dict[int, set[str]] = {}
     filled: list[str] = []
     unfilled: list[str] = []
     thin: list[str] = []
+    verbless: list[str] = []
 
     for gap in gaps:
         slot = Slot.of(gap)
+        # Per slot, once, before any candidate is measured. B9(b): a lesson whose
+        # permitted window holds no VERB or AUX may be words and fixed phrases.
+        min_tokens = min_tokens_for_slot(gap["known_lemmas"], gap["new_lemmas"], lexicon_pos)
+        if min_tokens != MIN_TOKENS:
+            verbless.append(str(slot))
         pool = by_slot.get(slot, [])
         if len(pool) < MIN_CANDIDATES_PER_SLOT:
             thin.append(f"{slot} ({len(pool)})")
@@ -472,7 +525,7 @@ def gapfill(ctx: StageContext) -> StageResult:
         slot_filled = False
         for row in pool:
             candidate_id = _candidate_id(ctx.lang, slot, row["text"])
-            axis, analysis = _axis(row, gap, analyser, seen, candidate_id)
+            axis, analysis = _axis(row, gap, analyser, seen, candidate_id, min_tokens)
             accepted = axis is None
             if accepted:
                 seen.add(dedup_hash(row["text"]))
@@ -521,6 +574,13 @@ def gapfill(ctx: StageContext) -> StageResult:
         filled_slots=len(filled),
         unfilled_slots=unfilled,
         thin_slots=thin,
+        # B9(b), in the artefact. Three numbers rather than one, because "no verb in the
+        # window" and "no G2 lexicon to ask" produce the same strict floor and must not
+        # read the same afterwards: `lexicon_pos_rows: 0` is the second one.
+        token_window=[MIN_TOKENS, MAX_TOKENS],
+        min_tokens_verbless_lesson=MIN_TOKENS_VERBLESS_LESSON,
+        verbless_slots=verbless,
+        lexicon_pos_rows=len(lexicon_pos),
         orphan_authored_slots=orphans,
         rejected_by_axis=rejected_by_axis,
         reject_rate=round(sum(rejected_by_axis.values()) / written, 4) if written else 0.0,
