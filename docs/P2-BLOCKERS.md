@@ -1313,8 +1313,15 @@ before calling it a regression" rule assumes and does not get.
 summary row used to read "not a flake any more", which contradicted this section's own
 conclusion two paragraphs up ("So it is a flake") — the row was written in the hour when
 both attempts on `86f2430` had failed and no later sha had passed yet, and nothing updated
-it when `859f3fb` went green. The measured rate over seven attempts on four shas is
-**3 failures in 7**.
+it when `859f3fb` went green.
+
+**The count is quoted as a floor, not a rate, and that is deliberate.** Three failures had
+been seen across this round's shas when this paragraph was written. The denominator cannot
+be kept current by a document that is itself delivered by a push: every commit to this file
+triggers `ci.yml`, which adds an attempt, so any "N of M" written here is stale before it
+lands — the previous two revisions of this row ("not a flake any more", then "2 of 4") were
+each invalidated by the very push that carried them. What is stable and worth quoting is the
+mechanism below, not the tally.
 
 **The wall-clock correlation is now the one real finding, and it held up out of sample.**
 Ranking every attempt by duration:
