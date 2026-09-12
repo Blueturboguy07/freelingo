@@ -121,7 +121,11 @@ def main() -> int:
     gaps = gap_rows(Path(args.build_root), lang)
     orphan_dir = Path(args.orphan_dir) if args.orphan_dir else content / "candidates-orphaned"
     stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-    run_id = next(iter(gaps.values()), {}).get("run_id")
+    # From the RUNLOG, not from a gap row: `selected_item` carries no `run_id`, and the
+    # first pass of this script read one off a gap row and wrote `g4_run_id: null` into
+    # 9,269 rows at the P2 round-3 integration. The field is the whole point of the audit
+    # trail, so it reads the runlog's last successful `g4` entry instead.
+    run_id = _g4_run_id(Path(args.build_root), lang)
 
     census: Counter[str] = Counter()
     orphan_slots: set[Slot] = set()
@@ -204,6 +208,21 @@ def main() -> int:
     if not args.apply:
         print("\nDRY RUN — nothing written. Re-run with --apply.")
     return 0
+
+
+def _g4_run_id(build_root: Path, lang: str) -> str | None:
+    """The `run_id` of the last successful G4 entry in the build's runlog, or `None`."""
+    runlog = build_root / lang / "runlog.jsonl"
+    if not runlog.is_file():
+        return None
+    found: str | None = None
+    for line in runlog.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get("stage") == "g4" and row.get("status") == "ok":
+            found = row.get("run_id") or found
+    return found
 
 
 def _authored_slots(shards: list[Path]) -> set[Slot]:
