@@ -43,6 +43,7 @@ from .config import MAX_DEFECT_RATE, REVIEWER_SAMPLE_ITEMS
 from .config.sample import (
     DEFECT_VERDICTS,
     PROVISIONAL_DEFECT_RATE_NOTE,
+    RECORDED_REVIEWER_KINDS,
     REVIEW_DIMENSIONS,
     REVIEW_DIR_TEMPLATE,
     REVIEW_VERDICTS,
@@ -76,6 +77,7 @@ __all__ = [
     "review_summary",
     "read_scores",
     "sample_path",
+    "sheet_exercise_ids",
     "write_sample",
 ]
 
@@ -387,28 +389,76 @@ def read_scores(lang: str, repo_root: Path | None = None) -> list[dict[str, Any]
     return rows
 
 
+def sheet_exercise_ids(lang: str, requested: int) -> tuple[str, ...] | None:
+    """The exercise ids on THIS build's drawn sheet, or `None` if no sheet is on disk.
+
+    `None` and `()` are different answers and the difference is the point: no sheet means
+    the intersection below cannot be computed at all, while an empty sheet means it was
+    computed and is empty. Both refuse the gate; only one of them is a missing file.
+    """
+    path = sample_path(lang, requested)
+    if not path.exists():
+        return None
+    ids: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        ids.append(str(json.loads(line)["exercise_id"]))
+    return tuple(ids)
+
+
 def review_summary(
     *,
     scores: Sequence[Mapping[str, Any]],
     sample_size: int,
     reviewer_kind: str = REVIEWER_KIND_AGENT,
+    sheet_item_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """The `review` block of `validator-report.json` and of the pack manifest.
 
     The note is not decoration. §2.6 makes trust marking a rendered surface, and the plan
     puts the measured rate on the S001 card and in S137. A rate whose provenance is not
     attached to it makes the same claim as a rate a paid native speaker produced.
+
+    **The rate is computed over the JOIN, not over the scores file.** `content/<lang>/
+    review/scores.jsonl` is committed and a sheet is not: the draw is reproducible under
+    `SAMPLE_SEED` only for a fixed population, and G0 reads a **live Tatoeba export that
+    rebuilds every Saturday 06:30 UTC** (`docs/ci.md`, why `pack-ci` never digests the gap
+    brief). So a scores file written against last week's sheet names exercise ids this
+    build does not have, and a rate over `len(scores)` is then a rate over rows belonging
+    to no population this pack can show anybody — a number that looks like a measurement
+    and is an average of two different builds.
+
+    Hence three published counts instead of one: `sample_size` (what was drawn),
+    `scored` (what a reviewer scored), and `joined` (how many scored rows are actually on
+    this build's sheet). The rate's denominator is `joined`. With no sheet on disk there
+    is no intersection to take, so `joined` is `None` and the rate is `None` — which the
+    gate refuses, the same way it refuses an unscored sample.
     """
     scored = len(scores)
-    wrong = sum(1 for row in scores if row["verdict"] in DEFECT_VERDICTS)
-    awkward = sum(1 for row in scores if row["verdict"] == "awkward")
     note = "" if reviewer_kind == REVIEWER_KIND_PAID_NATIVE else PROVISIONAL_DEFECT_RATE_NOTE
+
+    if sheet_item_ids is None:
+        joined_rows: list[Mapping[str, Any]] = []
+        joined: int | None = None
+        unjoined: int | None = None
+    else:
+        sheet = set(sheet_item_ids)
+        joined_rows = [row for row in scores if row["exercise_id"] in sheet]
+        joined = len(joined_rows)
+        unjoined = scored - joined
+
+    wrong = sum(1 for row in joined_rows if row["verdict"] in DEFECT_VERDICTS)
+    awkward = sum(1 for row in joined_rows if row["verdict"] == "awkward")
+    denominator = joined or 0
     return {
         "reviewer_kind": reviewer_kind,
         "sample_size": sample_size,
         "scored": scored,
-        "wrong_item_rate": (wrong / scored) if scored else None,
-        "awkward_rate": (awkward / scored) if scored else None,
+        "joined": joined,
+        "unjoined": unjoined,
+        "wrong_item_rate": (wrong / denominator) if denominator else None,
+        "awkward_rate": (awkward / denominator) if denominator else None,
         "note": note,
     }
 
@@ -416,9 +466,24 @@ def review_summary(
 def gate_passed(summary: Mapping[str, Any]) -> bool:
     """Is the measured rate at or below `MAX_DEFECT_RATE`?
 
-    `None` is not a pass. An unscored sample has no rate, and the plan's non-negotiable 5
-    gates on a measurement, not on the absence of one.
+    **Founder ruling B3, 2026-09-12**: P3 proceeds on an agent-scored sample, so an
+    `REVIEWER_KIND_AGENT` rate at or under the gate is a pass — the paid native review
+    moves to `docs/RELEASE.md` as a release prerequisite. Three things the ruling does
+    NOT do, each of which was one line away from being lost:
+
+    * **`None` is still never a pass.** An unscored sample has no rate, and the plan's
+      non-negotiable 5 gates on a measurement rather than on the absence of one.
+    * **The reviewer kind must be recorded.** A block whose kind is `""` or some string
+      nobody defined has no measurer, and B3 is a ruling about who measured.
+    * **The rate must rest on a real join.** `joined` is the denominator (see
+      `review_summary`); `None` or `0` means the scored rows are not on this build's
+      sheet, so there is nothing this pack can show that the rate describes.
     """
+    if summary.get("reviewer_kind") not in RECORDED_REVIEWER_KINDS:
+        return False
+    joined = summary.get("joined")
+    if not isinstance(joined, int) or isinstance(joined, bool) or joined <= 0:
+        return False
     rate = summary["wrong_item_rate"]
     return rate is not None and rate <= MAX_DEFECT_RATE
 
@@ -444,8 +509,18 @@ def derive_review(lang: str, repo_root: Path | None = None) -> dict[str, Any] | 
     scores = read_scores(lang, repo_root)
     summary_file = run_dir(lang) / SAMPLE_SUMMARY_FILENAME
     sample_size = 0
+    requested = REVIEWER_SAMPLE_ITEMS
     if summary_file.exists():
-        sample_size = int(json.loads(summary_file.read_text(encoding="utf-8"))["drawn"])
+        drawn = json.loads(summary_file.read_text(encoding="utf-8"))
+        sample_size = int(drawn["drawn"])
+        # The sheet is named by what was REQUESTED, not by what was drawn: a short draw
+        # still writes `sample-300.jsonl`. Reading `drawn` here would look for a file
+        # that does not exist and report every scored row as unjoined.
+        requested = int(drawn["requested"])
     if not scores and not sample_size:
         return None
-    return review_summary(scores=scores, sample_size=sample_size)
+    return review_summary(
+        scores=scores,
+        sample_size=sample_size,
+        sheet_item_ids=sheet_exercise_ids(lang, requested),
+    )

@@ -71,6 +71,24 @@ REVIEW_DIMENSIONS: Final[tuple[str, ...]] = (
 REVIEWER_KIND_PAID_NATIVE: Final[str] = "paid-native-speaker"
 REVIEWER_KIND_AGENT: Final[str] = "opus-agent-reviewer"
 
+#: The kinds `gate_passed()` will accept a rate from, and the only two that exist.
+#:
+#: **Founder ruling B3, 2026-09-12**: *"P3 proceeds. The 300-item sample is scored by an
+#: Opus reviewer as `REVIEWER_KIND_AGENT`; the manifest and S001 card carry
+#: `PROVISIONAL (unreviewed by a paid native speaker)` verbatim; `gate_passed()` accepts
+#: an agent-scored rate ≤ 2 % for the automated run; the paid native review is a release
+#: prerequisite listed in `docs/RELEASE.md`."*
+#:
+#: So the gate no longer refuses an agent-scored rate — and it is a MEMBERSHIP test, not
+#: a truthy one. A block whose `reviewer_kind` is `""`, `None` or some third string
+#: nobody defined is a rate whose measurer is unrecorded, and the ruling turns on WHO
+#: measured it: a rate that passes while its provenance is unknown is the same lie as a
+#: rate with the provisional note stripped off.
+RECORDED_REVIEWER_KINDS: Final[tuple[str, ...]] = (
+    REVIEWER_KIND_PAID_NATIVE,
+    REVIEWER_KIND_AGENT,
+)
+
 #: The exact string `docs/pack-provenance.md` and the coursekit README carry today, and
 #: the pack card (S001) and the manifest's `review` block will carry, while the rate has
 #: not been measured by a paid native speaker. Not a paraphrase, not a tooltip: this run

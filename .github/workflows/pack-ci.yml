@@ -52,10 +52,13 @@ env:
   #
   # Named here because two jobs assert against it and one of them is a shell script.
   AUDIO_BUDGET_MB: '120'
-  # Where `build-es` puts the Kokoro weights. This is the only workflow that bakes:
-  # `pack-bake.yml` was deleted at the P2 fix round (docs/ci.md), because a dispatch on a
-  # fresh checkout has no G7 output to bake.
+  # Where `build-es` puts the Kokoro weights. This is the only workflow that bakes, and
+  # the only one that can be: G8 reads G7's output, so a bake needs a build in front of
+  # it (docs/ci.md argues why a dispatch-only bake job was deleted instead of fixed).
   COURSEKIT_KOKORO_WEIGHTS: ${{ github.workspace }}/.kokoro
+  # Node 24 for the built-in `node:sqlite` the pack loader reads a pack with. Mirrors
+  # `ci.yml`'s NODE_VERSION; `validate-es` opens the built pack with `packages/core`.
+  NODE_VERSION: '24'
 
 jobs:
   coursekit:
@@ -340,10 +343,11 @@ jobs:
           uv run coursekit sign es
 
       # `retention-days: 7`, raised from 1 at the P2 fix integration. This artefact is
-      # `validate-es`'s input AND, since `pack-bake.yml` was deleted, the only place the
-      # baked voice bank (`g8/bank/`, `g8/clips.jsonl`) is downloadable from. One day made
-      # a bank re-derivable only by re-running the build; docs/ci.md named that as the one
-      # thing the deletion did not fix, and this is the fix.
+      # `validate-es`'s input AND the only place the baked voice bank (`g8/bank/`,
+      # `g8/clips.jsonl`) is downloadable from, because the bake happens here and nowhere
+      # else. One day made a bank re-derivable only by re-running the build; docs/ci.md
+      # named that as the one thing the dispatch job's deletion did not fix, and this is
+      # the fix.
       - name: Upload the build tree for validate-es
         uses: actions/upload-artifact@v4
         with:
@@ -412,6 +416,44 @@ jobs:
               print(f"::error::{problem}")
           sys.exit(1 if problems else 0)
           PY
+
+      # THE GATE CLAUSE THIS STEP EXISTS FOR: "the pack loads in `packages/core`'s pack
+      # loader tests". Until now that was discharged against the committed
+      # `packages/core/src/packs/__fixtures__/es-mini` pack — a real G9 output, and the
+      # right fixture for a unit test, and 30 rows built by a different invocation on a
+      # different day. The pack THIS workflow builds was uploaded as `es-pack-<sha>` and
+      # never opened by anything, so "the loader can read a coursekit pack" was true of a
+      # fixture and unproven of the artefact a learner would install.
+      #
+      # `packages/core/src/packs/real-pack.test.ts` reads `FREELINGO_REAL_PACK` and FAILS
+      # — never skips — when the variable is set and the pack is absent. That is the
+      # difference between a step that proves something and a step that is green on a
+      # missing file, which is the failure `pipeline-ready` and `flows-present` are both
+      # about (docs/ci.md). With the variable unset the file skips, so `ci.yml` and every
+      # developer run are unaffected: there is no 90-minute build tree on a laptop.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install (frozen lockfile — INV-PLAT-01)
+        working-directory: ${{ github.workspace }}
+        run: pnpm install --frozen-lockfile
+
+      - name: The built pack loads in packages/core's pack loader
+        working-directory: ${{ github.workspace }}
+        env:
+          FREELINGO_REAL_PACK: ${{ github.workspace }}/build/es/g9/pack.sqlite
+          # Turns "this manifest carries no signature block" from an accepted state into a
+          # failure, but only where the secret exists. `build-es` signs when
+          # `PACK_SIGNING_KEY` is available and prints a notice when it is not (it is not
+          # exposed to pull requests from forks), and an unsigned pack is legitimately
+          # `unverified` — so the assertion is conditional on the same secret rather than
+          # on a guess about which event is running.
+          FREELINGO_REAL_PACK_SIGNED: ${{ secrets.PACK_SIGNING_KEY != '' && '1' || '0' }}
+        run: pnpm vitest run --project core src/packs/real-pack.test.ts
 
       - name: Collect the pack artefacts
         run: |
