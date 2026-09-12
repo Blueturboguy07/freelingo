@@ -630,6 +630,11 @@ whose last line is the `MORFOLOGIK_RULE_ES` probe on a planted misspelling. Then
 **The same eighteen slots this Mac named, in the same order, on a runner that streamed the
 corpus itself.** Defect 3 is CI-confirmed, not corroborated.
 
+The stage timings are worth one line for whoever budgets the next job: G1 is **15 m 12 s**
+on the runner against 7 m 06 s here, and G0–G5 together are 22 m on the runner against
+13 m 36 s here. The runner is roughly 1.6× slower through the analyse stage, which is the
+number to multiply when the bake budget is next argued about.
+
 #### The artefact that settles it — CI-produced
 
 `build-es` uploads `es-gap-brief-<sha>` on `always()`, so it survived the failure.
