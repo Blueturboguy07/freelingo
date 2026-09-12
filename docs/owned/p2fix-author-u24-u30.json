@@ -1,0 +1,73 @@
+{
+  "lane": "p2fix-author-u24-u30",
+  "branch": "p2fix/author-u24-u30",
+  "phase": "P2",
+  "owns": ["content/es/candidates/u24-u30.jsonl", "docs/owned/p2fix-author-u24-u30.json"],
+  "invariants": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
+  "authored_at": "2026-09-12",
+  "author": "claude-opus-5 (agent; Freelingo p2fix-author-u24-u30 lane)",
+
+  "deliverable": {
+    "rows": 4420,
+    "slots": 221,
+    "candidates_per_slot": 20,
+    "slots_per_unit": { "24": 14, "25": 47, "26": 29, "27": 35, "28": 35, "29": 26, "30": 35 },
+    "lesson_index_space": "G4's GLOBAL lesson index. Unit 24 = 137-140, 25 = 141-146, 26 = 148-152, 27 = 153-158, 28 = 159-164, 29 = 165-170, 30 = 171-176. The committed 160-row content/es/candidates.jsonl keys its slots per unit and therefore fills nothing; this shard copies its field shape and none of its slot keys.",
+    "distinct_texts": 2517,
+    "reuse_note": "Practice slots (new_lemmas == []) draw from one pool of review sentences. G5's V9 duplicate axis is scoped per UNIT (seen_by_unit), so one sentence may serve a slot in unit 25 and a slot in unit 28; the verifier below confirms zero `duplicate` rejections.",
+    "bytes": 2392435
+  },
+
+  "row_contract": {
+    "version": "ledger_digest (p2fix-ledger-freeze), not allowed_lemmas",
+    "why": "The task brief specifies `allowed_lemmas` as a required key. The p2fix-ledger-freeze lane replaces that key with `ledger_digest` in tools/coursekit/src/coursekit/config/g5.py and stages/g5_gapfill.py, for the reason its own comment gives: the allowed set at a late unit is 730-928 lemmas, so spelling it out on all 20 candidates of all 918 slots is the same list written 18,360 times. Units 24-30 are exactly where that bites, so this shard writes the 16-hex digest of the sorted union and carries `allowed_lemmas_count` as a human-readable cross-check.",
+    "keys": ["slot", "ledger_digest", "new_lemmas", "text", "translation", "author", "generated_at", "provenance", "backtranslation", "allowed_lemmas_count", "grammar_concept"],
+    "provenance": "llm",
+    "if_ledger_freeze_is_refuted": "Re-key mechanically: every row already carries its slot, and `allowed_lemmas` for that slot is `known_lemmas | new_lemmas` off the same G4 row the digest was taken from. No Spanish changes."
+  },
+
+  "derivation": {
+    "gap_list": "Reproduced locally by running `coursekit build es --only g0..g4 --set max_pairs=200000` — the same cap pack-ci.yml uses (COURSEKIT_MAX_PAIRS). 276,203 ingested rows, 920 gap slots course-wide, of which 221 are in units 24-30 and match the 281b623 CI measurement exactly, per unit.",
+    "gap_row_ledger": "G4 at 78cfae3 emits `known_lemmas: []` and `new_lemmas: []` on every gap row, so G5's allowed set for a gap is EMPTY and no authored candidate can pass `out_of_vocabulary`. p2fix-ledger-freeze fixes this: `new_lemmas = pending[:MAX_NEW_LEMMAS_PER_EXERCISE]`, `known_lemmas = sorted(index.known - set(new_lemmas))`, and `shown.update(gap_new)`. This shard was authored against that rule, replayed verbatim from build/es/g3/units.jsonl + build/es/g4/selected.jsonl.",
+    "new_lemma_per_slot": "106 of the 221 slots are reserved to introduce one lemma (the head of `pending`); the other 115 have `new_lemmas: []` because the corpus already introduced every target lemma of that unit, and are therefore practice slots whose candidates introduce nothing.",
+    "authoring_window": "Each candidate was written inside the slot's own allowed set (730 lemmas at unit 24 rising to 928 at unit 30) and validated against it, not against a proxy."
+  },
+
+  "verification": {
+    "script": "scratchpad/verify_shard.py — re-derives the ledger from build/es/g3 + build/es/g4 independently of the assembler, re-runs the G1 adapter (es_core_news_md 3.8.0) over every text, and applies REJECT_AXES in order.",
+    "result": {
+      "shard_rows": 4420,
+      "rows_missing_a_required_key": 0,
+      "provenance": { "llm": 4420 },
+      "slots_in_shard": 221,
+      "gap_slots_u24_u30": 221,
+      "orphan_slots": 0,
+      "uncovered_gap_slots": 0,
+      "slots_below_MIN_CANDIDATES_PER_SLOT": 0,
+      "rejected_by_axis": {},
+      "accepted_rows": 4420,
+      "token_count_range": [4, 10],
+      "backtranslation_scores": { "3": 670, "4": 3750 },
+      "scores_below_BACKTRANSLATION_MIN_SCORE": 0
+    }
+  },
+
+  "backtranslation_scoring": {
+    "rubric": "content/es/gapfill-rubric.md v1",
+    "judged_by": "agent (the same agent that wrote the Spanish; the rubric's own 'Honest limits' section says this is a floor on quality, not a measurement of it)",
+    "distribution": "3: 670, 4: 3750 — 15.2% at 3. A 3 is recorded wherever the English a learner is shown differs from a literal round trip in article, register, or a fixed-phrase choice: `de` rendered as a possessive, `mucho` as 'a lot of' before a mass noun, `hacer ciclismo` as 'to cycle', `superior/inferior` as 'upper/lower' where the Spanish word is the Latinate one. No row is a uniform 4 by default and one row scored 2 during authoring was replaced rather than shipped."
+  },
+
+  "blockers_for_integration": [
+    "This shard's `ledger_digest` values are taken from a LOCAL reproduction of G0-G4 at max_pairs=200000. They are correct only if the frozen build the brief is a snapshot of produces the same ledger. The per-unit gap counts match 281b623 exactly (14/47/29/35/35/26/35), which is strong corroboration, but p2fix-ledger-freeze also makes G4 record a reserved gap's lemma as `shown`, which changes what `_pick` selects downstream — so the frozen gap list may differ from this one. Regenerate the digests from the committed content/es/authoring/gap-brief.jsonl before merging; the Spanish does not change, only the 16-hex field and possibly the slot keys.",
+    "content/es/authoring/gap-brief.jsonl did not exist at any point during this lane's run (the p2fix-ledger-freeze worktree had uncommitted edits to g4_select.py, g5_gapfill.py, config/g5.py, cli.py and a new commands/gaps.py, but no commit and no brief).",
+    "SECOND G5 DEFECT, not in this lane's file ownership: stages/g5_gapfill.py `_lemmas()` calls `analyser.analyse(text)` positionally, and adapters/spacy_es.py `analyse` is keyword-only with a REQUIRED `sentence_id` matching `^[0-9a-f]{16}$`. Reproduced: `TypeError: SpacyEsAdapter.analyse() takes 1 positional argument but 2 were given`. G5 therefore raises on the first candidate it evaluates, whatever the candidates file contains. G5 needs to pass a synthesised 16-hex id (it already computes one in `_candidate_id`) or the adapter needs a sentence-level entry point that does not demand an artefact id."
+  ],
+
+  "notes_for_the_next_author": [
+    "es_core_news_md lemmatises some forms outside the curriculum's lexeme set, and the ledger is the curriculum's lexemes, not the model's vocabulary. Confirmed traps: `buena`/`buenos` -> `buen` (only masculine singular `bueno` is in the ledger), `gracias` -> `gracia`, `mala` -> `malo`, `enferma` -> `enferma`, `derecha`/`izquierda` as adjectives -> `derecho`/`izquierdo`, `euros` -> `euros`, `cuántas` -> `cuántos`, conjugated `comer` -> `come`/`como`, and `felicita`, `patina`, `salta`, `apuntes` -> `apunt`.",
+    "A sentence-initial conjugated verb is frequently mis-lemmatised after capitalisation (`Llego`, `Busco`, `Guardo`, `Bebo`, `Vas`, `Quieres`, `Estudias`). Lead with a subject or a determiner.",
+    "`ahora`, `desde`, `asi`, `malo`, `mejor` (before unit 27), `problema`, `normal`, `importante`, `tiempo`, `parte`, `cuerpo` and `ver` are NOT in the units 1-23 ledger. `que`, `a`, `al` and `del` are.",
+    "Token count is spaCy's and includes punctuation: `¿` and `?` are one token each, so a five-word question is seven tokens."
+  ]
+}
