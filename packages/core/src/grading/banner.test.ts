@@ -38,6 +38,45 @@ const JA_REGISTER_ITEM: GradableItem = {
 const ANSWERS = ['el gato', 'El gato', 'el ga to', 'perro', 'casa'] as const;
 
 describe('the result banner', () => {
+  it('[INV-GRD-11] the correct pool is the EIGHT headlines of S044, and `Nice try!` is not one', () => {
+    // `deep/00-PRODUCT-MAP.md:109` (S044) lists exactly these eight, in this order. The
+    // ninth that `deep/01` §S13 carried was deleted by that spec's own adversarial review:
+    // `deep/01-lesson-state-machine.md:369` (§A7) — "*Correction:* move `Nice try!` to the
+    // wrong/consolation pool". `Nice try!` is the S085 failure headline (`Nice try! You
+    // earned {{xp}} XP`), and `bannerFor` indexes this pool modulo its length, so a ninth
+    // member is a string shown to a learner who answered CORRECTLY.
+    expect(CORRECT_HEADLINES).toEqual([
+      'Nice!',
+      'Nicely done!',
+      'Awesome!',
+      'Great job!',
+      'Excellent!',
+      'Correct!',
+      'Great!',
+      'Amazing!',
+    ]);
+    expect(CORRECT_HEADLINES).toHaveLength(8);
+    expect(CORRECT_HEADLINES).not.toContain('Nice try!');
+    // And no index into the pool can reach it, for any index a caller could pass.
+    for (let i = -20; i <= 20; i += 1) {
+      const banner = bannerFor(
+        gradeTypedAnswer({
+          pack: ES_PACK,
+          unit: ES_UNIT,
+          item: ES_ITEM,
+          answer: 'el gato',
+          learner: NO_SURFACES_INTRODUCED,
+        }),
+        'el gato',
+        'el gato',
+        ES_PACK,
+        { motivationalMessages: true, headlineIndex: i },
+      );
+      expect(banner.headline).not.toBe('Nice try!');
+      expect(CORRECT_HEADLINES).toContain(banner.headline);
+    }
+  });
+
   it('[INV-GRD-11] every verdict class × every toggle state carries a non-empty headline', () => {
     fc.assert(
       fc.property(

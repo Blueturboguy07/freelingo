@@ -100,27 +100,68 @@ const VOICING: Readonly<Record<string, string>> = Object.freeze({
  * Punctuation is deliberately absent: every punctuation decision is the UNIT's
  * (INV-GRD-29, `foldEquivalentPunctuation`), so this function never strips a mark and
  * cannot be the place a global regex quietly appears.
+ *
+ * The rewrites are three local rules over the NFKC form:
+ *
+ *  - every member of the dash-fold set becomes `ー`, unconditionally (EC-GRD-30): a hyphen,
+ *    a minus or any Unicode dash in a Japanese answer is a chōonpu the keyboard got wrong;
+ *  - an iteration mark becomes what it repeats — `々` the preceding kanji, `ゝ`/`ヽ` the
+ *    preceding kana, `ゞ`/`ヾ` the preceding kana voiced;
+ *  - `一` becomes `ー`, and ONLY between two katakana. Folding it unconditionally would
+ *    destroy the numeral one, which is why the rule is positional at all.
+ *
+ * ## Why this is a bounded fixed point and not a single pass
+ *
+ * INV-GRD-19 asks for ONE pure IDEMPOTENT function, and idempotence is what forces the
+ * shape. The three rules read each other's output, in both directions, so no single pass in
+ * any order is stable. `normalise.test.ts` drew both halves of that:
+ *
+ *  - `-一-` — one pass folds the leading dash, then meets `一` whose LEFT is already `ー`
+ *    but whose RIGHT is still an unfolded `-`, so `一` survives and the answer is `ー一ー`.
+ *    Normalise it again and `一` now sits between two chōonpu: `ーーー`.
+ *  - `アゝ一ア` — fold `一` first and it survives (its left is the hiragana `ゝ`); expand the
+ *    iteration mark and the left becomes `ア`, so the next pass folds it after all.
+ *
+ * So the pipeline is applied until it stops changing the string, which makes the result a
+ * fixed point of the pipeline — and `normaliseJa` of a fixed point is that fixed point.
+ * Idempotence is then a property of the construction rather than of an ordering argument
+ * that the next rule would quietly invalidate.
+ *
+ * The loop terminates, and the bound is not a guess. Every rule maps one code point to one
+ * code point, so the length never changes; and each round that changes anything strictly
+ * decreases the pair (number of dashes and iteration marks, number of `一`) in lexicographic
+ * order — a dash or a mark is consumed, or a `一` is, and no rule ever produces a dash or a
+ * mark. `一` can be produced (`一々` expands to `一一`), which is why the pair is ordered the
+ * way it is. Both components are bounded by the length, so `2 * length + 2` rounds cannot be
+ * reached; the bound exists so a future rule that breaks the argument hangs no caller, and
+ * `normalise.test.ts` is what would catch it.
  */
 export function normaliseJa(text: string): string {
+  let current = text.normalize('NFKC');
+  const limit = 2 * [...current].length + 2;
+  for (let round = 0; round < limit; round += 1) {
+    const next = normaliseJaOnce(current);
+    if (next === current) return current;
+    current = next;
+  }
+  return current;
+}
+
+/** One application of the three rules, left to right. Not exported: the fold is one function. */
+function normaliseJaOnce(text: string): string {
   const confusables = new Set(JA_CHOONPU_CONFUSABLES);
   const iteration = new Set(JA_ITERATION_MARKS);
-
-  // 1. NFKC. Halfwidth katakana, fullwidth latin and the halfwidth chōonpu all fold here.
   const compatible = [...text.normalize('NFKC')];
 
   const out: string[] = [];
   for (let i = 0; i < compatible.length; i += 1) {
     const ch = compatible[i]!;
 
-    // 2. The dash-fold set. Unconditional: a hyphen, a minus or any Unicode dash in a
-    //    Japanese answer is a chōonpu the keyboard got wrong (EC-GRD-30).
     if (confusables.has(ch)) {
       out.push(JA_CHOONPU);
       continue;
     }
 
-    // 3. `一` ONLY between katakana. Folding it anywhere else would destroy the numeral.
-    //    The left neighbour is read from `out`, so a dash already folded in step 3 counts.
     if (ch === JA_KANJI_ONE) {
       const left = out[out.length - 1];
       const right = compatible[i + 1];
@@ -130,7 +171,6 @@ export function normaliseJa(text: string): string {
       }
     }
 
-    // 4. Iteration marks expand against what precedes them.
     if (iteration.has(ch)) {
       const left = out[out.length - 1];
       if (ch === '々' && isKanji(left)) {

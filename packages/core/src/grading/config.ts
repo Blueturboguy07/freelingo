@@ -2,13 +2,24 @@
  * Every grading constant, named, in one file.
  *
  * Nothing in this package may inline one of these values. That is not a style rule:
- * INV-GRD-02 says "a build where the guards are inlined fails this test", and
- * `guards-are-named.test.ts` enforces it by scanning the sources of this directory for
- * numeric literals and for the note strings. If you need a number in `typo.ts`, it comes
- * from here or from the active pack.
+ * INV-GRD-02 says "a build where the guards are inlined fails this test". Two gates in
+ * `typo-guards.test.ts` enforce it, and this is exactly what they do — no more:
+ *
+ *  - "no threshold lives outside the config" strips the comments from `typo-guards.ts`
+ *    (the ONLY file allowed to read a guard field) and fails on any numeric literal but
+ *    `0`, on any comparison against a numeral, and on any other file in this directory
+ *    reading `rejectRealTargetWord`, `rejectEditOnTargetLexeme` or `minimumLength`;
+ *  - "no copy string lives outside the config" strips the comments from every non-test
+ *    source in this directory and fails if any of them spells one of the note, banner or
+ *    re-prompt strings below. Comments may quote them; executable code may not.
+ *
+ * If you need a number or a copy string anywhere in this package, it comes from here or
+ * from the active pack.
  *
  * Sources: `deep/01-lesson-state-machine.md` §S5, §S13 and §Rules and constants;
- * `deep/00-EDGE-CASES.md` EC-GRD-01…EC-GRD-42; the plan's EC-GRD-03 ruling.
+ * `deep/00-EDGE-CASES.md` EC-GRD-01…EC-GRD-42; the plan's EC-GRD-03 ruling. Where `deep/01`
+ * has been corrected by its own adversarial review, the correction wins and is cited at the
+ * constant (see `CORRECT_HEADLINES`).
  */
 import type { Tier2Class } from './types.js';
 
@@ -121,7 +132,23 @@ export const BELOW_GATE_REPROMPT = 'Write a little more.';
 // Banner copy (INV-GRD-11, INV-GRD-12)
 // ---------------------------------------------------------------------------
 
-/** Correct-verdict headlines (`deep/01` §S13). Never gated by Motivational messages. */
+/**
+ * The EIGHT correct-verdict headlines. Never gated by Motivational messages.
+ *
+ * Source: `deep/00-PRODUCT-MAP.md:109` (S044), which lists exactly these eight. `deep/01`
+ * §S13 listed a ninth, `Nice try!`, and its own adversarial review deleted it:
+ * `deep/01-lesson-state-machine.md:369` (§A7) — "`Nice try!` listed in the **correct**-banner
+ * headline pool (S13). **Unsupported and probably wrong.** … In-bundle, `Nice try!` (660) is
+ * paired with `Nice try! You earned {{xp}} XP` (1208), the shape of a *failed* challenge/test
+ * result screen … *Correction:* move `Nice try!` to the wrong/consolation pool."
+ *
+ * That correction supersedes §S13 and this pool follows it. It is load-bearing rather than
+ * cosmetic: `bannerFor` indexes this pool modulo its length, so a ninth member is a string a
+ * learner who answered CORRECTLY can be shown — and `Nice try!` is the failure headline of
+ * S085 (`Nice try! You earned {{xp}} XP`). `banner.test.ts` pins the pool to these eight and
+ * asserts the absence of `Nice try!` by name, so a re-read of the stale §S13 list cannot put
+ * it back in silence.
+ */
 export const CORRECT_HEADLINES: readonly string[] = Object.freeze([
   'Nice!',
   'Nicely done!',
@@ -131,7 +158,6 @@ export const CORRECT_HEADLINES: readonly string[] = Object.freeze([
   'Correct!',
   'Great!',
   'Amazing!',
-  'Nice try!',
 ]);
 
 /** The red banner's lead-in when the answer is simply wrong. */

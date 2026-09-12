@@ -37,6 +37,11 @@ function sources(): { file: string; text: string }[] {
   return out;
 }
 
+/** Strip comments, so a doc comment that names a path is not read as an import. */
+function executableCodeOf(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 const NEKO: GradableItem = {
   itemId: 'neko',
   family: 'typed-translate',
@@ -65,6 +70,26 @@ describe('the three-tier checker', () => {
       /generateAlternat|deriveAlternat|expandAlternat|synthesiseAlternat|inflectSurface/i;
     const offenders = sources().filter(({ text }) => forbidden.test(text));
     expect(offenders.map((o) => o.file)).toEqual([]);
+  });
+
+  it("[INV-GRD-03] the fixture packs are not on the engine's public surface", () => {
+    // `packs/index.ts`: "These are FIXTURES, not content." A barrel export would ship the
+    // es/ja/de word lists in the app bundle and — the part that matters — make them
+    // importable, which is how a fixture becomes what an app reads when the real pack is
+    // late. Test support is imported by relative path, the way `testing/arbitraries.ts` is.
+    const barrel = sources().find(({ file }) => file === 'index.ts');
+    expect(barrel, 'grading/index.ts must exist').toBeDefined();
+    expect(executableCodeOf(barrel!.text)).not.toMatch(/\.\/packs\//);
+    expect(executableCodeOf(barrel!.text)).not.toMatch(/\.\/testing\//);
+
+    // Every OTHER module in this directory is exported, so the barrel cannot rot the other
+    // way either: a module nobody re-exports is a module nobody outside can reach.
+    const modules = sources()
+      .filter(({ file }) => !file.includes('/') && file !== 'index.ts')
+      .map(({ file }) => file.replace(/\.ts$/, ''));
+    for (const name of modules) {
+      expect(barrel!.text, `grading/index.ts must export ${name}`).toContain(`'./${name}.js'`);
+    }
   });
 
   it('[INV-GRD-03] tier 1 accepts EXACTLY the authored set, modulo tier-1 normalisation', () => {

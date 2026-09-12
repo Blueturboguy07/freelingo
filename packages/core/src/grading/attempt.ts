@@ -14,7 +14,8 @@
  *
  * The flags are independent in the type and in the values: `soft_corrected` is true only
  * for tier 2, `wrong` only for tier 3 and `register`, and the pair `(true, true)` never
- * occurs. `attempt.test.ts` asserts that over every verdict the grader can produce.
+ * occurs. `grade.test.ts:141` asserts that as a property over every verdict the grader can
+ * produce from a near-miss, for each fixture pack.
  */
 import type { AttemptOutcome, AttemptRow, GradableItem, Verdict } from './types.js';
 

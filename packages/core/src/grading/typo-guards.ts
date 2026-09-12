@@ -4,7 +4,7 @@
  * This file is the whole of the decision "may a single edit be forgiven?". It exists on
  * its own because INV-GRD-02 says "a build where the guards are inlined fails this test",
  * and the only way to assert that mechanically is to have ONE file that decides the
- * guards and to scan it. `guards-are-named.test.ts` fails if any threshold is compared
+ * guards and to scan it. `typo-guards.test.ts` fails if any threshold is compared
  * against a literal here or read anywhere else: every threshold arrives through `guards`,
  * which the caller resolved from the ACTIVE pack (INV-GRD-15 — "the three typo guards
  * resolve per pack").

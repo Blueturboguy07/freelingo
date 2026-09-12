@@ -287,8 +287,23 @@ const HARNESSES: Record<string, (c: Record<string, unknown>, label: string) => v
     if (expected.idempotent === true) {
       for (const s of normalised) expect(normaliseJa(s), `${label} :: idempotent`).toBe(s);
     }
+    if (expected.equalsAll !== undefined) {
+      for (const s of normalised) expect(s, `${label} :: equalsAll`).toBe(expected.equalsAll);
+    }
     if (expected.mora !== undefined) {
       expect(moraCount(inputs[0] ?? ''), `${label} :: mora`).toBe(expected.mora);
+    }
+    // The ja fold is only half of tier 1: `tier1Normalise` also strips whitespace for a
+    // spaceless pack, and the two stages feed each other. A case that pins the ja fold
+    // alone would have missed the が + U+3000 + ヾ regression entirely.
+    if (expected.tier1IdempotentInJaPack === true) {
+      for (const input of inputs) {
+        const once = tier1Normalise(input, JA_PACK);
+        expect(tier1Normalise(once, JA_PACK), `${label} :: tier1 idempotent`).toBe(once);
+        if (expected.tier1EqualsAll !== undefined) {
+          expect(once, `${label} :: tier1EqualsAll`).toBe(expected.tier1EqualsAll);
+        }
+      }
     }
   },
 

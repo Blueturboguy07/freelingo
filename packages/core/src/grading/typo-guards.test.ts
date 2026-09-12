@@ -24,6 +24,16 @@
  *    holds no numeric literal — so a threshold cannot be written there;
  *  - the verdict MOVES when a pack changes a guard. An inlined build passes the first gate
  *    by accident and fails the second, and vice versa.
+ *
+ * ## The copy-string gate
+ *
+ * `config.ts`'s header promises the same discipline for the note, banner and re-prompt
+ * strings: "Nothing in this package may inline one of these values." That is asserted here
+ * rather than in `banner.test.ts` because it is the same gate over the same file set — the
+ * executable code of every non-test source in this directory, comments stripped, must spell
+ * none of them. A comment may quote a note (several do, and should); a string literal may
+ * not. Without this, `TIER2_NOTE_POOL` is a list that documents the notes rather than the
+ * list that produces them, and the six-note pool of INV-GRD-01 can quietly become seven.
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
@@ -33,11 +43,19 @@ import { fileURLToPath } from 'node:url';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 
 import {
+  ANOTHER_CORRECT_SOLUTION,
+  BELOW_GATE_REPROMPT,
+  CONSOLATION_COPY,
+  CORRECT_HEADLINES,
+  PROMPT_COPY_REPROMPT,
+  REGISTER_HEADLINE,
   TIER2_NOTE_POOL,
   TYPO_GUARD_MIN_LENGTH_CHARACTERS,
   TYPO_GUARD_MIN_LENGTH_MORA,
   TYPO_GUARD_REJECT_EDIT_ON_TARGET_LEXEME,
   TYPO_GUARD_REJECT_REAL_TARGET_WORD,
+  WRONG_HEADLINE,
+  WRONG_WORD_HEADLINE,
 } from './config.js';
 import { gradeTypedAnswer, NO_SURFACES_INTRODUCED } from './grade.js';
 import { applyTypoGuards, type TypoGuardName } from './typo-guards.js';
@@ -138,6 +156,41 @@ describe('the three typo guards', () => {
         /\.(rejectRealTargetWord|rejectEditOnTargetLexeme|minimumLength)\b/.test(text),
     );
     expect(readers.map((r) => r.file)).toEqual([]);
+  });
+
+  it('[INV-GRD-01] no copy string lives outside the config: the note pool is the only pool', () => {
+    // Built from the exported constants, so a string that is renamed in `config.ts` is
+    // renamed here too and a constant that is deleted stops being scanned. `null` is
+    // skipped: `capitalisation` is the silent class and has no note by design.
+    const copy: string[] = [
+      ...Object.values(TIER2_NOTE_POOL).filter((n): n is string => n !== null),
+      ...CORRECT_HEADLINES,
+      WRONG_HEADLINE,
+      WRONG_WORD_HEADLINE,
+      REGISTER_HEADLINE,
+      CONSOLATION_COPY,
+      ANOTHER_CORRECT_SOLUTION,
+      PROMPT_COPY_REPROMPT,
+      BELOW_GATE_REPROMPT,
+    ];
+    // The pool is six classes and five notes; `capitalisation` is silent (INV-GRD-01).
+    expect(Object.keys(TIER2_NOTE_POOL)).toHaveLength(6);
+    expect(Object.values(TIER2_NOTE_POOL).filter((n) => n !== null)).toHaveLength(5);
+
+    const offenders: string[] = [];
+    for (const { file, text } of sourceFiles()) {
+      if (file === 'config.ts') continue;
+      const code = executableCode(text);
+      for (const string of copy) {
+        if (code.includes(string)) offenders.push(`${file} inlines ${JSON.stringify(string)}`);
+      }
+    }
+    expect(offenders, 'a copy string in executable code is an inlined note').toEqual([]);
+
+    // And the gate is not vacuous: config.ts itself spells every one of them.
+    const config = sourceFiles().find(({ file }) => file === 'config.ts');
+    expect(config, 'config.ts must exist').toBeDefined();
+    for (const string of copy) expect(executableCode(config!.text)).toContain(string);
   });
 
   it('[INV-GRD-02] the shipped config makes both recorded failures hard wrong', () => {

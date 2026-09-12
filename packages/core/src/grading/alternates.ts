@@ -11,8 +11,19 @@
  *
  * There is no generator in this file and no generator in this package. `grade.ts` matches
  * the answer against `item.accepted` and nothing else, so the set of strings that can ever
- * be accepted is exactly the set the pack shipped — `alternates.test.ts` asserts that as a
- * property over random answers, and `no-runtime-generator.test.ts` greps for one.
+ * be accepted is exactly the set the pack shipped. Two gates in `grade.test.ts` hold that
+ * down, and each covers only one direction:
+ *
+ *  - `grade.test.ts:63` greps every source in this directory, comments included, for the
+ *    generator names its own `forbidden` pattern lists, and fails if one appears. The names
+ *    are deliberately not repeated here: the grep is over raw text, so a file that spells
+ *    one in a comment fails it — which is the right strictness and is how this sentence was
+ *    first written wrong;
+ *  - `grade.test.ts:70` draws arbitrary text against each fixture pack and asserts that a
+ *    tier-1 verdict names a member of `item.accepted`. That is a guard against
+ *    OVER-acceptance only — random text essentially never equals an accepted surface, so
+ *    the acceptance direction is carried by the hand-written cases (`heisst` in
+ *    `grade.test.ts`, the tapped-tile cases in `wordbank.test.ts:118`), not by the property.
  *
  * The `iff` in INV-GRD-27 is the whole rule. EC-GRD-39: an A1 learner who types `ねこ`
  * must not be shown `猫`, because they have never seen it. The note therefore names the

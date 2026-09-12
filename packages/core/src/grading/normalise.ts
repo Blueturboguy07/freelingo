@@ -7,9 +7,10 @@
  * composes them, and a test can drive any one of them alone.
  *
  * Every function here is pure and idempotent: `f(f(x)) === f(x)` for every input.
- * `normalise.test.ts` asserts that as a property over generated strings, because a fold
- * that is not idempotent makes "exact after normalisation" depend on how many times the
- * answer happened to be normalised on its way through the engine.
+ * `normalise.test.ts` asserts that as a property over generated strings, one case per
+ * exported fold per fixture pack, because a fold that is not idempotent makes "exact after
+ * normalisation" depend on how many times the answer happened to be normalised on its way
+ * through the engine.
  */
 import type { GradingPack, GradingUnit } from './types.js';
 import { normaliseJa } from './ja.js';
@@ -24,16 +25,28 @@ const CURLY_QUOTE_FOLDS: readonly (readonly [RegExp, string])[] = Object.freeze(
 ] as const);
 
 /**
- * Trivial normalisation (EC-GRD-24): NFC, strip every format/zero-width character,
- * fold curly quotes to straight, collapse whitespace runs, trim.
+ * Trivial normalisation (EC-GRD-24): strip every format/zero-width character, fold curly
+ * quotes to straight, collapse whitespace runs, trim, and NFC **last**.
  *
  * `\p{Cf}` covers U+200B…U+200F, U+202A…U+202E and U+FEFF — the pasted bidi controls and
  * zero-width spaces that otherwise make an identical-looking answer fail hard.
+ *
+ * NFC runs last, and the order is load-bearing rather than a preference. Composing first
+ * breaks idempotence, because stripping a format character can JOIN a base and a combining
+ * mark that the format character was keeping apart: `a` + U+200D + U+0301 composes to
+ * itself, then loses the ZWJ, and comes out as the two-code-point `a` + U+0301 — while a
+ * second pass over that output yields the one-code-point `á`. Two strings that render
+ * identically then compare unequal depending on how many times the answer was normalised on
+ * its way through the engine, which is exactly the failure the idempotence property in
+ * `normalise.test.ts` exists to catch. It caught this one.
  */
 export function trivialNormalise(text: string): string {
-  let out = text.normalize('NFC').replace(/\p{Cf}/gu, '');
+  let out = text.replace(/\p{Cf}/gu, '');
   for (const [pattern, replacement] of CURLY_QUOTE_FOLDS) out = out.replace(pattern, replacement);
-  return out.replace(new RegExp(`[\\s${IDEOGRAPHIC_SPACE}]+`, 'gu'), ' ').trim();
+  return out
+    .replace(new RegExp(`[\\s${IDEOGRAPHIC_SPACE}]+`, 'gu'), ' ')
+    .trim()
+    .normalize('NFC');
 }
 
 /**
@@ -139,8 +152,44 @@ export function foldDiacritics(text: string, pack: GradingPack): string {
  * (INV-GRD-29's punctuation equivalence is the only one), so a unit cannot change whether
  * an answer matches exactly — and a parameter that is accepted and ignored is an invitation
  * to start reading it.
+ *
+ * ## Why the pipeline runs to a fixed point
+ *
+ * The four stages feed each other backwards as well as forwards, so one pass is not stable
+ * and `normalise.test.ts` drew the case: `が` + IDEOGRAPHIC SPACE + `ヾ` in the ja pack.
+ * Stage 1 collapses U+3000 to a space; stage 2 leaves `ヾ` alone, because the thing to its
+ * left is a space and not a kana; stage 4 then deletes the space, and the answer that comes
+ * out is `がヾ`. Normalise THAT and `ヾ` finally repeats the `が` it is now adjacent to:
+ * `がが`. Two answers that differ only in how many times the engine normalised them stop
+ * matching, which is the failure the idempotence property exists to catch.
+ *
+ * Reordering does not fix it — stage 4 cannot simply run first, because stage 2's NFKC
+ * *creates* whitespace: 52 code points expand to a string containing a space, U+309B and
+ * U+309C (the standalone voiced sound marks a Japanese IME emits) among them. Whichever of
+ * the two runs first, the other can hand it new work.
+ *
+ * So the pipeline is applied until it stops changing the string, exactly as `normaliseJa`
+ * is, and for the same reason: the result is then a fixed point, and normalising a fixed
+ * point returns it unchanged. Convergence is fast and bounded — a round that changes
+ * anything consumes at least one pending rewrite (a format character, a curly quote, a run
+ * of whitespace, a dash, an iteration mark, a `一`, an equivalence source), and after the
+ * first round no stage creates one, because NFKC and NFC are themselves idempotent. The
+ * explicit bound is there so a future stage that breaks that argument hangs no caller; it
+ * returns a non-fixed point instead, and the idempotence property fails loudly.
  */
 export function tier1Normalise(text: string, pack: GradingPack): string {
+  const limit = 2 * [...text].length + 4;
+  let current = text;
+  for (let round = 0; round < limit; round += 1) {
+    const next = tier1NormaliseOnce(current, pack);
+    if (next === current) return current;
+    current = next;
+  }
+  return current;
+}
+
+/** One application of the four tier-1 stages, in order. */
+function tier1NormaliseOnce(text: string, pack: GradingPack): string {
   let out = trivialNormalise(text);
   if (pack.japaneseNormalisation) out = normaliseJa(out);
   out = applyOrthographicEquivalences(out, pack.orthographicEquivalences);
