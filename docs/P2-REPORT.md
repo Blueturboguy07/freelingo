@@ -52,20 +52,20 @@ had already been merged and its handoff discharged by the previous integrate pas
 four commits are on `main` ahead of this round (`52f411a`, `d73d295`, `61bc272`,
 `b9a68eb`).
 
-| #   | Branch                      | Tip       | Merge commit                      | Textual conflicts |
-| --- | --------------------------- | --------- | --------------------------------- | ----------------- |
-| 0   | `p2r3/deps-contract`        | `52f411a` | already on `main`                 | —                 |
-| 1   | `p2r3/lemma-reachability`   | `b8e2900` | `796d412`                         | none              |
-| 2   | `p2r3/gapfill-lesson1`      | `31885ce` | `366565f`                         | none              |
-| 3   | `p2r3/expand-bake-package`  | `f80d556` | `3740196`                         | none              |
-| 4   | `p2r3/validators-ci-loader` | `5f8bd57` | `553be5f`                         | none              |
-| 5   | `p2r3/provenance-docs`      | `ca76cce` | `1b2ad66`                         | none              |
-| 6   | `p2r3/reviewer-sample-300`  | `a4e7f8b` | **not merged — nothing to merge** | —                 |
+| #   | Branch                      | Tip       | Merge commit      | Textual conflicts |
+| --- | --------------------------- | --------- | ----------------- | ----------------- |
+| 0   | `p2r3/deps-contract`        | `52f411a` | already on `main` | —                 |
+| 1   | `p2r3/lemma-reachability`   | `b8e2900` | `796d412`         | none              |
+| 2   | `p2r3/gapfill-lesson1`      | `31885ce` | `366565f`         | none              |
+| 3   | `p2r3/expand-bake-package`  | `f80d556` | `3740196`         | none              |
+| 4   | `p2r3/validators-ci-loader` | `5f8bd57` | `553be5f`         | none              |
+| 5   | `p2r3/provenance-docs`      | `ca76cce` | `1b2ad66`         | none              |
+| 6   | `p2r3/reviewer-sample-300`  | `f9a9b16` | `034f14d`         | none              |
 
 **No textual conflict in any of the six.** `git merge-tree` over each branch against
 `main` reported none before the queue ran and none appeared inside it. Every defect below
 is a **semantic** conflict or a thing only a real run could find: each branch was green
-alone, and three of the four defects were found by a test one lane wrote against a state
+alone, and two of the five defects were found by a test one lane wrote against a state
 another lane changed.
 
 ### `p2r3/reviewer-sample-300`
@@ -117,6 +117,17 @@ reachable from here and 0% is not. And **the near-equal wrong rates hide opposit
 modes**: both corpus defects are English-side mis-glosses of natural Spanish, while the
 authored bank is correctly glossed Spanish nobody would say (26.83% awkward against
 3.70%). A course built from this bank would read as grammatical and empty.
+
+**Its diagnostic re-key and this integration's differ, and the difference is instructive.**
+The lane's throwaway re-key reported 5,100 rows accepted and **407 of 494** slots filled,
+leaving "~87 to re-author"; the script committed here reports **465 of 494** filled, 22
+thin and 7 unfilled. The gap is 58 slots, and the likely reason is which fields the re-key
+touches: `_axis` has **two** `stale_ledger` returns, one on the digest and one on
+`set(new_lemmas) != set(gap["new_lemmas"])`, and 63 of the surviving slots had their
+reserved lemma set move as well as their digest. A digest-only re-key leaves those 63 to
+be rejected by the second check. 58 against 63 is close enough to be the explanation and
+not close enough to be proof, and the committed script updates both fields, which is why
+its number is the one in §The pipeline.
 
 **`scores.jsonl` still has no scored rows, on purpose, and the published rate is still
 `None`.** A row there needs an `exercise_id`; these verdicts are keyed by `candidate_id`
