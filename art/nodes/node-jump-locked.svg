@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo node — jump here, locked</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Flat plate with the measured 3D lip (deep/08 §2): the lip disc sits 16 units below the face disc, which is the 4 px lip at the 64 px node size. This is the state before a jump-here test is offered on the node; S019's `failed` returns to `offered`, because failure is non-punitive and retryable. Product map: S019.</desc>
+
+  <circle cx="120" cy="140" r="88" fill="#2A363D"/>
+  <circle cx="120" cy="124" r="88" fill="#37464F"/>
+
+  <polyline points="76,124 120,80 164,124" fill="none" stroke="#6B7C87" stroke-width="24"/>
+  <polyline points="76,172 120,128 164,172" fill="none" stroke="#6B7C87" stroke-width="24"/>
+</svg>

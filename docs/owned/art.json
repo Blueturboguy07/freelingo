@@ -1,0 +1,23 @@
+{
+  "$comment": "Invariant ids owned by the P1 art-and-sound lane. The list is EMPTY, and that is the correct state, not an oversight. This lane produces assets; it renders nothing. The ids that will govern these assets are \u00a712 SND (cue classes, the sound-effects gate, haptics as a non-sole carrier) and \u00a711 TYP/A11Y, and every one of them is a property of a *component* \u2014 which cue bus was active in a frame, what a screen reader announced, what the banner said with sound off. Those components land at P3, where the plan makes this lane an entry criterion rather than a dependency. Claiming an id here would mean writing a test that asserts a file exists and naming it INV-SND-01, which is exactly the 'owning test that proves nothing' the plan's rule 4 is written against.",
+  "phase": "P1",
+  "task": "p1-art-and-sound",
+  "owned": [],
+  "willBeOwnedAt": {
+    "P3": [
+      "INV-SND-01",
+      "INV-SND-02",
+      "INV-SND-03",
+      "INV-SND-04",
+      "INV-SND-05",
+      "INV-SND-06",
+      "INV-SND-07"
+    ]
+  },
+  "heldWithoutAnInvariantId": [
+    "art/**: every committed asset is re-rendered from its own SVG at 64 px and 240 px on every test run and held to a stated ink / colour-survival / region floor (packages/ui/src/mascot/legibility.test.ts), with a falsifier that fails if the floor is ever relaxed into decoration",
+    "art/sound/**: the bank is re-synthesised and compared byte for byte against art/sound/manifest.json (tools/soundbank/tests/test_soundbank.py); the EC-COM-09 -6 dB shimmer relation and \u00a712's -3 dB word-bank relation are asserted on the measured loudness of the shipped files; and test_the_bank_covers_every_spec_row iterates deep/08 \u00a712's twelve rows rather than the bank, so a missing cue fails instead of simply not being iterated",
+    "EC-PLAT-09: no .riv file enters the repository. Asserted by walking the filesystem from the repo root, not by inspecting the art registry - the registry version was true by construction and a planted .riv left it green. A second test plants one and requires the same walk to find it",
+    "EC-ECO-36 / INV-ECO-31 name MascotRenderer as the place a cosmetic outfit is applied. The seam carries an `outfit` input and a neutral fallback so the interface can express it (packages/ui/src/mascot/poses.test.ts); the id itself stays unclaimed because the equip behaviour and the widget snapshot field are the economy lane's, not this one's"
+  ]
+}

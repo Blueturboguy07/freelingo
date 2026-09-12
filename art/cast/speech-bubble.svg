@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 152" width="240" height="152">
+  <title>Freelingo speech bubble</title>
+  <desc>Original work for Freelingo (AGPL-3.0). The S034 bubble an avatar speaks from,
+  built as the two-layer primitive scope/10 measured across this UI: an outer box carrying
+  the border colour and an inner face inset from it, rather than one box with a stroke.
+  Radius 12 matches the measured card token; the tail points left, at the avatar.</desc>
+
+  <path d="M40 0 L228 0 C234 0 240 6 240 12 L240 128 C240 134 234 140 228 140 L40 140 C34 140 28 134 28 128 L28 96 L2 76 L28 56 L28 12 C28 6 34 0 40 0 Z" fill="#37464F"/>
+  <path d="M44 6 L224 6 C230 6 234 10 234 16 L234 124 C234 130 230 134 224 134 L44 134 C38 134 34 130 34 124 L34 94 L14 76 L34 58 L34 16 C34 10 38 6 44 6 Z" fill="#FFFFFF"/>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo node — chest, active</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Flat plate with the measured 3D lip (deep/08 §2): the lip disc sits 16 units below the face disc, which is the 4 px lip at the 64 px node size. Product map: S016.</desc>
+
+  <circle cx="120" cy="140" r="88" fill="#58A700"/>
+  <circle cx="120" cy="124" r="88" fill="#58CC02"/>
+
+  <path d="M60 112 C60 72 180 72 180 112 Z" fill="#FFFFFF"/>
+  <rect x="60" y="122" width="120" height="62" rx="12" fill="#FFFFFF"/>
+  <rect x="60" y="108" width="120" height="16" rx="6" fill="#58CC02"/>
+  <rect x="102" y="100" width="36" height="42" rx="8" fill="#58CC02"/>
+  <rect x="112" y="132" width="16" height="24" rx="8" fill="#58CC02"/>
+</svg>

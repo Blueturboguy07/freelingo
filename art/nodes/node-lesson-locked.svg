@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo node — lesson, locked</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Flat plate with the measured 3D lip (deep/08 §2): the lip disc sits 16 units below the face disc, which is the 4 px lip at the 64 px node size. Product map: S013-S015.</desc>
+
+  <circle cx="120" cy="140" r="88" fill="#2A363D"/>
+  <circle cx="120" cy="124" r="88" fill="#37464F"/>
+
+  <polygon points="120.0,60.0 135.9,100.2 179.0,102.8 145.7,130.3 156.4,172.2 120.0,149.0 83.6,172.2 94.3,130.3 61.0,102.8 104.1,100.2" fill="#6B7C87"/>
+</svg>

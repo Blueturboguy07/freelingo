@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo parrot — sleepy</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Head tilted, eyes closed, crest folded,
+  three Z marks. The Zs are stroked polylines at 9 units — 2.4 px at the 64 px widget
+  size — rather than letterforms, because type does not survive that reduction.</desc>
+
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#00CD9C" transform="rotate(-38 120 188)"/>
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#CE82FF" transform="rotate(38 120 188)"/>
+  <ellipse cx="120" cy="218" rx="15" ry="29" fill="#49C0F8"/>
+
+  <g transform="rotate(-11 120 190)">
+    <!-- crest folded back over the tilt -->
+    <ellipse cx="74" cy="56" rx="10" ry="20" fill="#FFC700" transform="rotate(-70 88 62)"/>
+    <ellipse cx="82" cy="42" rx="10" ry="20" fill="#FFC700" transform="rotate(-52 96 56)"/>
+    <ellipse cx="108" cy="34" rx="11" ry="21" fill="#FFC700" transform="rotate(-28 114 50)"/>
+
+    <path d="M120 48 C166 48 194 86 194 126 C194 174 162 204 120 204 C78 204 46 174 46 126 C46 86 74 48 120 48 Z" fill="#58CC02"/>
+    <ellipse cx="120" cy="160" rx="42" ry="37" fill="#72D627"/>
+
+    <!-- wings tucked in tight -->
+    <ellipse cx="58" cy="150" rx="16" ry="34" fill="#58A700" transform="rotate(4 58 126)"/>
+    <ellipse cx="182" cy="150" rx="16" ry="34" fill="#58A700" transform="rotate(-4 182 126)"/>
+
+    <rect x="86" y="202" width="28" height="17" rx="7" fill="#FFAB33"/>
+    <rect x="126" y="202" width="28" height="17" rx="7" fill="#FFAB33"/>
+
+    <!-- closed eyes: two down-curving lids -->
+    <path d="M74 96 C84 116 110 116 120 96" fill="none" stroke="#3C3C3C" stroke-width="11"/>
+    <path d="M122 96 C132 116 158 116 168 96" fill="none" stroke="#3C3C3C" stroke-width="11"/>
+
+    <path d="M101 126 L139 126 C139 148 131 160 120 160 C109 160 101 148 101 126 Z" fill="#FFAB33"/>
+    <path d="M107 150 C111 157 129 157 133 150 C133 166 127 176 120 176 C113 176 107 166 107 150 Z" fill="#E08A00"/>
+  </g>
+
+  <!-- zzz, rising to the right -->
+  <polyline points="176,80 204,80 176,106 204,106" fill="none" stroke="#3C3C3C" stroke-width="9"/>
+  <polyline points="196,36 218,36 196,58 218,58" fill="none" stroke="#3C3C3C" stroke-width="9"/>
+  <polyline points="212,6 229,6 212,23 229,23" fill="none" stroke="#3C3C3C" stroke-width="8"/>
+</svg>

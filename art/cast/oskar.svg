@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo cast — oskar</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Speech-bubble avatar for S034 and tableau sprite for S020. Identity is carried by plate hue, silhouette and garment together, so losing any one channel still leaves two.</desc>
+
+  <circle cx="120" cy="120" r="116" fill="#58CC02"/>
+  <path d="M120 150 C160 150 190 180 196 218 C176 232 150 240 120 240 C90 240 64 232 44 218 C50 180 80 150 120 150 Z" fill="#49C0F8"/>
+  <ellipse cx="120" cy="112" rx="54" ry="58" fill="#F1C9A0"/>
+  <circle cx="98" cy="110" r="24" fill="none" stroke="#3C3C3C" stroke-width="9"/>
+  <circle cx="146" cy="110" r="24" fill="none" stroke="#3C3C3C" stroke-width="9"/>
+  <rect x="118" y="105" width="12" height="9" fill="#3C3C3C"/>
+  <circle cx="100" cy="110" r="8" fill="#3C3C3C"/>
+  <circle cx="140" cy="110" r="8" fill="#3C3C3C"/>
+  <path d="M104 140 C112 150 128 150 136 140" fill="none" stroke="#3C3C3C" stroke-width="8"/>
+</svg>

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo parrot — happy</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Crest spread, eyes squinted into a smile,
+  beak open, wings lifted. Same silhouette as idle so the poses read as one bird.</desc>
+
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#00CD9C" transform="rotate(-38 120 188)"/>
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#CE82FF" transform="rotate(38 120 188)"/>
+  <ellipse cx="120" cy="218" rx="15" ry="29" fill="#49C0F8"/>
+
+  <!-- crest: spread wider than idle -->
+  <ellipse cx="92" cy="40" rx="11" ry="21" fill="#FFC700" transform="rotate(-38 92 58)"/>
+  <ellipse cx="148" cy="40" rx="11" ry="21" fill="#FFC700" transform="rotate(38 148 58)"/>
+  <ellipse cx="120" cy="30" rx="12" ry="23" fill="#FFC700"/>
+
+  <path d="M120 46 C166 46 194 84 194 124 C194 172 162 202 120 202 C78 202 46 172 46 124 C46 84 74 46 120 46 Z" fill="#58CC02"/>
+  <ellipse cx="120" cy="158" rx="42" ry="38" fill="#72D627"/>
+
+  <!-- wings lifted -->
+  <ellipse cx="48" cy="132" rx="19" ry="40" fill="#58A700" transform="rotate(-32 48 114)"/>
+  <ellipse cx="192" cy="132" rx="19" ry="40" fill="#58A700" transform="rotate(32 192 114)"/>
+
+  <rect x="86" y="200" width="28" height="17" rx="7" fill="#FFAB33"/>
+  <rect x="126" y="200" width="28" height="17" rx="7" fill="#FFAB33"/>
+
+  <!-- eyes smiled shut.
+       The first draft kept the open eyes of idle and covered their tops with a
+       body-coloured lid. Rendered, that read as sunglasses, not as joy: the lid met the
+       pupil and the pair fused into one dark bar. Two thick upward arcs cannot be
+       misread, and at 13 units the stroke is 3.5 px at the widget size. -->
+  <path d="M72 112 C82 84 106 84 116 112" fill="none" stroke="#3C3C3C" stroke-width="13"/>
+  <path d="M124 112 C134 84 158 84 168 112" fill="none" stroke="#3C3C3C" stroke-width="13"/>
+  <circle cx="78" cy="130" r="13" fill="#72D627"/>
+  <circle cx="162" cy="130" r="13" fill="#72D627"/>
+
+  <!-- open beak -->
+  <ellipse cx="120" cy="150" rx="20" ry="15" fill="#3C3C3C"/>
+  <path d="M99 112 L141 112 C141 132 132 144 120 144 C108 144 99 132 99 112 Z" fill="#FFAB33"/>
+  <path d="M104 156 C110 150 130 150 136 156 C136 170 129 178 120 178 C111 178 104 170 104 156 Z" fill="#E08A00"/>
+</svg>
