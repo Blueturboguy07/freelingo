@@ -12,10 +12,12 @@ Written at the P2 founder checkpoint (plan §The build workflow, step 5 → 6).
 
 **The gate is RED, and for the third round the headline is a different thing.** Round 1
 was red because ~18,200 authored sentences did not exist. Round 2 was red because the last
-two stages had never seen the ones that did. This round the stages work — G7 completes,
-G8 bakes, G9 builds a pack, `coursekit validate es` runs over it — and the pipeline stops
-at **G5**, because the content is keyed to a course that the phase's own founder ruling
-changed underneath it.
+two stages had never seen the ones that did. **Those stages now work** — on the expand
+lane's own tree G7 completed over the whole course, G8 baked units 1–3, G9 built the first
+pack this project has ever made from real content, and `coursekit validate es` ran over it
+(11/17 green, 210 blocking) — and none of that happened on `main`, because on `main` the
+pipeline stops at **G5**: the content is keyed to a course that the phase's own founder
+ruling changed underneath it.
 
 B9(a) and B9(c) are right and they landed: the course now teaches what it declares
 (`unreachable_lexemes []`, 945 of 952 lexemes assigned against 928 of 990 before). The
@@ -518,7 +520,7 @@ assumes. Recorded as **B20** with all three attempts and the levers, and not fix
 the same suite is 26 s on this Mac against 227 s on the runner, so no fix could have been
 measured before pushing it.
 
-### `pack-ci.yml`
+### `pack-ci.yml` on `86f2430`
 
 ```
 ✓ pipeline-ready (which stages and validators exist)   10s
@@ -574,7 +576,7 @@ Artefact: `es-gap-brief-86f243011bec2c4a067201acb6f9712a03e8674f` (35,723 B) on
 uploaded after the build, and the build exits 4 at G5. The gate asks for those two
 artefact URLs and this round has neither.
 
-### `native-e2e.yml`
+### `native-e2e.yml` on `86f2430`
 
 ```
 ✓ flows exist                                                8s
