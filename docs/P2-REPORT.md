@@ -616,6 +616,14 @@ Artefact: `es-gap-brief-86f243011bec2c4a067201acb6f9712a03e8674f` (35,723 B) on
 uploaded after the build, and the build exits 4 at G5. The gate asks for those two
 artefact URLs and this round has neither.
 
+**The per-stage counters from CI are therefore not available either**, and this is worth
+stating rather than substituting: `read`/`rejected`/`written` per stage live in
+`build/es/runlog.jsonl`, which travels inside `es-build-<sha>`, which is uploaded after
+the build. What CI produced is the stage _timeline_ above, the failure message, and the
+gap brief. Every G0–G9 counter in §The pipeline is this Mac's, and the two places where
+CI and this Mac can be compared — `ingested 276,203` and the 494-slot gap list with its
+digest — agree exactly.
+
 ### `native-e2e.yml` on `86f2430`
 
 ```
