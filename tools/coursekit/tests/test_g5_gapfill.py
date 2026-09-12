@@ -311,29 +311,23 @@ def test_INV_PACK_10_the_scanner_is_walking_something() -> None:
 
 @lru_cache(maxsize=1)
 def _spacy_analyser() -> Any:
-    """The pinned `es_core_news_md`, wrapped in the shape G5 asks an adapter for.
+    """THE REGISTERED SPANISH ADAPTER, not a stand-in for it.
+
+    This used to build a local `Analyser` class with `analyse(self, text)`. G5 called it
+    that way, every test passed, and the contract every real adapter implements — the one
+    `g1_analyze` calls and `SpacyEsAdapter` declares — is `analyse(*, sentence_id, text)`.
+    So G5 raised `TypeError: SpacyEsAdapter.analyse() takes 1 positional argument but 2
+    were given` the first time it was run against a registered adapter, on a real build,
+    after eleven green tests. A shim that is allowed to have its own signature is a shim
+    that tests itself.
 
     Loaded once per session: a model load is two seconds, and a per-test load turns a
     twenty-case parametrisation into a minute of nothing.
     """
-    spacy = pytest.importorskip("spacy", reason="the 'nlp' dependency group is not installed")
-    nlp = spacy.load("es_core_news_md")
-
-    class Analyser:
-        name = "spacy"
-        version = "3.8.0"
-        model = "es_core_news_md"
-
-        def analyse(self, text: str) -> dict[str, Any]:
-            doc = nlp(text)
-            words = [token for token in doc if not token.is_punct and not token.is_space]
-            return {
-                "lemmas": [token.lemma_ for token in words],
-                "tokens": [token.text for token in words],
-                "display_tokens": [token.text for token in words],
-            }
-
-    return Analyser()
+    pytest.importorskip("spacy", reason="the 'nlp' dependency group is not installed")
+    factory = ADAPTERS.get("es")
+    assert factory is not None, "no Spanish adapter is registered; G1's lane owns it"
+    return factory()
 
 
 @pytest.fixture
@@ -1128,3 +1122,38 @@ def test_INV_PACK_12_no_authored_file_at_all_names_both_places_it_looked(
     assert "candidates.jsonl" in message
     assert "candidates/*.jsonl" in message
     assert "coursekit gaps es" in message
+
+
+def test_INV_PACK_12_g5_calls_the_adapter_the_way_every_other_stage_does(
+    es_adapter: None,
+) -> None:
+    """[INV-PACK-12] the analyser is a per-language INPUT, and its contract is one contract.
+
+    THE REGRESSION TEST FOR A BUG THAT SURVIVED ELEVEN GREEN TESTS. G5 called
+    `analyser.analyse(text)`; `g1_analyze` calls `adapter.analyse(sentence_id=..., text=...)`,
+    which is what `SpacyEsAdapter` declares. No registered adapter accepts the first form,
+    so G5 raised `TypeError: SpacyEsAdapter.analyse() takes 1 positional argument but 2
+    were given` the first time it met one — found by running the stage against a real
+    build, not by the suite, because the suite supplied a shim with G5's signature.
+
+    Two claims, because the fixture alone only proves today's adapter works: `analyse` is
+    keyword-only over exactly `sentence_id` and `text`, and the record it returns carries
+    the two keys G5 reads.
+    """
+    import inspect
+
+    factory = ADAPTERS.get("es")
+    assert factory is not None
+    adapter = factory()
+    parameters = inspect.signature(adapter.analyse).parameters
+    assert list(parameters) == ["sentence_id", "text"]
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in parameters.values()
+    ), "a positional `text` lets a stage call it the way G5 used to and be right by accident"
+
+    record = adapter.analyse(sentence_id="a" * 16, text="Mi hermano tiene un libro.")
+    assert record["lemmas"]
+    assert record["display_tokens"]
+    # `display_tokens` is the word count G5's `length` axis uses; `tokens` carries
+    # punctuation with offsets and would make the 3-12 window a different window.
+    assert len(record["display_tokens"]) <= len(record["tokens"])

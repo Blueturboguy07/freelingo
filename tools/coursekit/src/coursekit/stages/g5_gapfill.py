@@ -319,12 +319,25 @@ def _candidate_id(lang: str, slot: Slot, text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _lemmas(analyser: Any, text: str) -> tuple[list[str], int]:
-    """Lemmas and token count from the G1 adapter. Never a whitespace split."""
-    analysis = analyser.analyse(text)
+def _lemmas(analyser: Any, sentence_id: str, text: str) -> tuple[list[str], int]:
+    """Lemmas and word count from the G1 adapter. Never a whitespace split.
+
+    `analyse(*, sentence_id, text)` is the adapter contract — the one `g1_analyze` calls
+    and the one `SpacyEsAdapter` implements. This function used to call `analyse(text)`
+    positionally, which no registered adapter accepts, so G5 raised `TypeError:
+    SpacyEsAdapter.analyse() takes 1 positional argument but 2 were given` the first time
+    it met a real one. It had never met one: the test fixture supplied a shim with the
+    wrong signature, so eleven green tests were testing the shim. The fixture now builds
+    the registered adapter.
+
+    The count is `display_tokens`, the lexical surfaces — punctuation is in `tokens[]`
+    with its offsets because the grader needs the spans, and counting it would make "the
+    same 3-12 window as a corpus sentence" a different window in practice.
+    """
+    analysis = analyser.analyse(sentence_id=sentence_id, text=text)
     lemmas = list(analysis["lemmas"])
-    tokens = analysis.get("tokens")
-    return lemmas, len(tokens) if tokens is not None else len(lemmas)
+    words = analysis.get("display_tokens")
+    return lemmas, len(words) if words is not None else len(lemmas)
 
 
 def _axis(
@@ -332,6 +345,7 @@ def _axis(
     gap: dict[str, Any],
     analyser: Any,
     seen_in_unit: set[str],
+    sentence_id: str,
 ) -> str | None:
     """The first axis this candidate fails, or `None`.
 
@@ -348,7 +362,7 @@ def _axis(
         # budget axis below would be measured against the wrong thing.
         return "stale_ledger"
 
-    lemmas, token_count = _lemmas(analyser, authored["text"])
+    lemmas, token_count = _lemmas(analyser, sentence_id, authored["text"])
 
     unknown = [lemma for lemma in lemmas if lemma not in allowed]
     if unknown:
@@ -421,7 +435,8 @@ def gapfill(ctx: StageContext) -> StageResult:
         seen = seen_by_unit.setdefault(int(gap["unit_index"]), set())
         slot_filled = False
         for row in pool:
-            axis = _axis(row, gap, analyser, seen)
+            candidate_id = _candidate_id(ctx.lang, slot, row["text"])
+            axis = _axis(row, gap, analyser, seen, candidate_id)
             accepted = axis is None
             if accepted:
                 seen.add(dedup_hash(row["text"]))
@@ -434,7 +449,7 @@ def gapfill(ctx: StageContext) -> StageResult:
                 {
                     "schema_version": 1,
                     "lang": ctx.lang,
-                    "candidate_id": _candidate_id(ctx.lang, slot, row["text"]),
+                    "candidate_id": candidate_id,
                     "unit_index": slot.unit_index,
                     "lesson_index": slot.lesson_index,
                     "slot_index": slot.slot_index,
