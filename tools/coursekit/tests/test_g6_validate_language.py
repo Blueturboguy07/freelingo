@@ -62,9 +62,42 @@ from coursekit.engines.kenlm import band_from_scores
 from coursekit.engines.mock_lt import MockLanguageTool, mock_languagetool_server
 from coursekit.runlog import RunLog, StageEntry, read_entries, tool_fingerprint
 from coursekit.stages import STAGES, StageContext, StageResult
+from coursekit.stages.g6_validate_language import _axis
 from coursekit.validators import VALIDATORS, ValidatorContext
 
 FALSIFIERS = Path(__file__).parent / "falsifiers"
+
+
+@pytest.mark.parametrize(
+    ("text", "translation"),
+    [
+        ("No encuentro mi cartera.", "I lost my wallet."),
+        ("Hoy tendremos pescado de cena.", "We have fish for dinner today."),
+    ],
+)
+def test_INV_PACK_10_b3_exact_corpus_mistranslations_are_rejected_before_g7(
+    text: str, translation: str
+) -> None:
+    """[INV-PACK-10] reviewed bad pairs are discarded, never broadly rewritten."""
+    row = {"text": text, "translation": translation}
+
+    axis, detail = _axis(row, "es", None, None, None, [])
+
+    assert axis == "review_defect"
+    assert detail == {"text": text, "translation": translation, "review": "P2 B3 2026-09-12"}
+
+
+def test_INV_PACK_10_b3_rejection_is_exact_not_a_lexical_ban() -> None:
+    """[INV-PACK-10] nearby valid wallet/fish pairs remain eligible for engine checks."""
+    for row in (
+        {"text": "No encuentro mi cartera.", "translation": "I can't find my wallet."},
+        {
+            "text": "Hoy tendremos pescado de cena.",
+            "translation": "We will have fish for dinner today.",
+        },
+        {"text": "Perdí mi cartera.", "translation": "I lost my wallet."},
+    ):
+        assert _axis(row, "es", None, None, None, []) == (None, {})
 
 
 # ---------------------------------------------------------------------------

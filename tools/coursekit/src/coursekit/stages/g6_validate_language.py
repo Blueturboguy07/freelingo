@@ -56,6 +56,7 @@ from typing import Any
 from ..artifacts import artifact_path, read_records, write_records
 from ..config.g5 import GAPFILL_RUBRIC_FILENAME
 from ..config.g6 import (
+    B3_REVIEW_DEFECT_PAIRS,
     BACKTRANSLATION_AUTHORSHIP,
     BACKTRANSLATION_ENGINE_OPTION,
     BACKTRANSLATION_MIN_SCORE,
@@ -275,6 +276,14 @@ def _axis(
     perplexities: list[float],
 ) -> tuple[str | None, dict[str, Any]]:
     """The first G6 axis this candidate fails, or `None`. Never modifies the row."""
+    pair = (str(row["text"]), str(row["translation"]))
+    if pair in B3_REVIEW_DEFECT_PAIRS:
+        return "review_defect", {
+            "text": pair[0],
+            "translation": pair[1],
+            "review": "P2 B3 2026-09-12",
+        }
+
     if perplexity is not None:
         inside, score = perplexity.in_band(row["text"])
         perplexities.append(score)
