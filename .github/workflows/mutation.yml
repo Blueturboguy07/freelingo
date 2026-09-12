@@ -11,6 +11,24 @@ name: mutation
 # run. So the job REPORTS: `continue-on-error` stays until a whole-engine score exists, and
 # the commit that records that score in docs/P1-REPORT.md is the one that takes it off.
 #
+# WHY NO SCORE HAS EVER PRINTED (measured, 2026-09-12 — docs/P2-BLOCKERS.md B7).
+# Stryker instruments 118 of 844 files with 10,765 mutants and then dies in the DRY RUN,
+# on a fast-check property in packages/core/src/data/import.test.ts, with
+# `Test timed out in 300000ms`. Stryker refuses to score a tree whose initial run is red,
+# so there is no report to record. Three things that follow, so nobody re-derives them:
+#
+#   * 300,000 ms is VITEST's per-test timeout under Stryker, not Stryker's dry-run budget:
+#     vitest.config.ts multiplies TEST_TIMEOUT_MS (60_000) by STRYKER_TIMEOUT_FACTOR (5)
+#     when STRYKER_MUTATOR_WORKER is set. Raising `dryRunTimeoutMinutes` changes NOTHING —
+#     the local dry run died at 13 m 29 s, well inside the 30 minutes already configured.
+#   * The property is 4,350 ms un-instrumented and >300 s under `perTest`. That is a
+#     >69x execution-mode cost, not a property that got slower.
+#   * PROPERTY_RUNS is NOT the lever. packages/testkit/src/property-gates.test.ts fails if
+#     any numRuns in the tree drops below 10,000, deliberately: buying a mutation score by
+#     weakening every property buys the wrong number.
+#
+# The fix is a cheaper generator for that property, in packages/core/src/data/.
+#
 # The job also PRINTS THE SCORE. "The mutation job is green" is not a measurement: a run
 # whose config stopped matching any file is green, and so is a run whose threshold was
 # quietly lowered. The summary step below writes the score, the threshold, and the number

@@ -378,3 +378,68 @@ def test_a_drawn_but_unscored_sample_still_appears_in_the_report(
     assert review["scored"] == 0
     assert review["wrong_item_rate"] is None
     assert review["note"] == PROVISIONAL_DEFECT_RATE_NOTE
+
+
+# ---------------------------------------------------------------------------
+# The spelling the briefs used, and the exit code it collides with (B4)
+# ---------------------------------------------------------------------------
+
+
+def test_the_phantom_n_flag_is_rejected_and_collides_with_exit_2() -> None:
+    """`coursekit sample es --n 300` is not a spelling this CLI has, and never was.
+
+    The P2 task briefs and `docs/P2-REPORT.md` §B4 both wrote it. Per-stage options ride
+    on `--set` for all seven verbs — `cli.py`'s docstring argues why — and a bare
+    `coursekit sample es` already draws `REVIEWER_SAMPLE_ITEMS` at `SAMPLE_SEED`, which
+    is what the plan's P2 row asks for. Nothing is missing.
+
+    This test pins the rejection rather than the absence, because the failure that would
+    actually hurt is the flag being ACCEPTED AND IGNORED: a command line reading
+    `--n 300` that quietly draws some other number of items puts a sheet size in the
+    shell history that is not the sheet size in `sample-summary.json`.
+
+    It also pins the collision that came out of measuring it. `config/base.py` defines
+    exit 2 as EXIT_NOT_REGISTERED — "the verb exists, the stage behind it is not
+    registered" — and Click exits 2 for ANY usage error, before a command body runs. So
+    a mistyped flag and an unwritten stage are the same number to a caller. `coursekit`
+    cannot change that: Click owns the code it exits with. Written down here, in
+    `tools/coursekit/README.md` and in `docs/P2-BLOCKERS.md` §B4 rather than silently
+    lived with, and if `--n` is ever added to `cli.py` this test fails and sends whoever
+    added it to those two paragraphs.
+    """
+    from typer.testing import CliRunner
+
+    from coursekit.cli import app
+    from coursekit.config import EXIT_NOT_REGISTERED
+
+    result = CliRunner().invoke(app, ["sample", "es", "--n", "300"])
+
+    # Rejected, not silently ignored.
+    assert result.exit_code != 0, "`--n` was accepted; the README and B4 are now wrong"
+    assert "No such option" in result.output
+
+    # And the code it is rejected with is this CLI's "stage not registered".
+    assert result.exit_code == EXIT_NOT_REGISTERED, (
+        "Click's usage-error exit changed; docs/P2-BLOCKERS.md §B4 describes the old one"
+    )
+
+
+def test_the_sanctioned_spellings_are_the_ones_the_readme_documents() -> None:
+    """The two spellings in `tools/coursekit/README.md`, asserted against the code.
+
+    A README that says `--set n=300` while the stage reads a differently named option is
+    a README that has drifted, and B4 was a drift of exactly that shape one level up.
+    """
+    readme = (REPO_ROOT / "tools" / "coursekit" / "README.md").read_text(encoding="utf-8")
+
+    assert "uv run coursekit sample es " in readme
+    assert "--set n=300" in readme
+
+    # And it corrects the phantom spelling rather than leaving a reader to find out.
+    assert "coursekit sample es --n 300" in readme
+    assert "not a spelling this CLI has" in readme
+
+    # The bare draw is REVIEWER_SAMPLE_ITEMS at SAMPLE_SEED, which is what the README
+    # and the plan's P2 row both claim.
+    assert REVIEWER_SAMPLE_ITEMS == 300
+    assert SAMPLE_SEED == 20260911

@@ -62,6 +62,25 @@ Every validator runs even after one produces a blocking finding: the suite runs 
 human review, and a reviewer handed "V1 failed" and nothing else waits a whole build to
 learn V6 failed too.
 
+**A fourth refusal lives in V8, and it is the one CI trips over today.** V8 blocks a run
+in which `grammar_engine` and `perplexity_engine` are both `none` — "zero errors from
+nothing", the exact reading INV-PACK-14 exists to fail. `pack-ci.yml`'s `build-es` runs
+`coursekit build es --set max_pairs=…` and names neither a LanguageTool URL nor a KenLM
+model, so that is the state every CI build is in, for any content whatsoever. It is a gap
+in the workflow, not in the pipeline, and it is written up with its measured remedy in
+`docs/P2-BLOCKERS.md` §B8. Locally:
+
+```bash
+java -cp LanguageTool-6.6/languagetool-server.jar \
+     org.languagetool.server.HTTPServer --port 8081 &
+uv run coursekit build es --set languagetool_url=http://localhost:8081
+```
+
+The URL is the server **base** — the engine appends `/v2/languages` and `/v2/check`
+itself, so `…/v2/check` 404s. With a sidecar and no KenLM, V8 warns `grammar_only`
+instead of blocking; measured 2026-09-12 against LanguageTool 6.6 by the two
+`COURSEKIT_LANGUAGETOOL_URL`-gated tests in `tests/test_g6_validate_language.py`.
+
 The run writes `build/<lang>/validator-report.json`, validated on write and on read.
 `validators/report.py::summarise()` is what S002's "validator-report summary" and S137's
 provenance block render; it never emits a defect rate without the note that says who
@@ -101,8 +120,30 @@ So every per-stage option rides on `--set`, for all seven verbs, and the sample 
 reads `n` and `seed` out of `ctx.options`. A bare `coursekit sample es` is already the
 300-item draw the plan's P2 row asks for — `REVIEWER_SAMPLE_ITEMS` is 300 — and
 `tests/test_sample.py::test_the_default_sheet_is_the_three_hundred_the_plan_asks_for`
-pins it. If the `--n 300` spelling is wanted, it is a one-line change to `cli.py` owned
-by whoever owns the dispatch table, not by this lane.
+pins it.
+
+`coursekit sample es --n 300` appeared in the P2 task briefs and in
+`docs/P2-REPORT.md` §B4. **It is not a spelling this CLI has, and it never was.** The
+sanctioned spellings are the two in the block above; nothing is missing and nothing needs
+adding. Measured on this tree, 2026-09-12:
+
+```
+$ uv run coursekit sample es --n 300
+Error: No such option: --n            (exit 2)
+$ uv run coursekit sample es
+sample failed: no exercise artefact at build/es/g7/exercises.jsonl … run `coursekit build es` first   (exit 4)
+```
+
+Note the **2**, and note that it is not this CLI's 2. `config/base.py` defines exit 2 as
+"the verb exists, the stage behind it is not registered"; Click writes 2 for any usage
+error, so a mistyped flag and an unwritten stage are the same number to a caller. Nothing
+in `coursekit` can change that — Click owns the code it exits with before any command
+body runs — so the guard is a test rather than a fix:
+`tests/test_sample.py::test_the_phantom_n_flag_is_rejected_and_collides_with_exit_2`
+pins **both** exit codes and the collision, so if `--n` is ever added to `cli.py` that
+test fails and tells whoever adds it that this paragraph is now wrong. The one thing that
+must never happen is the flag being accepted and ignored, which would draw some other
+number of items under a command line that says 300.
 
 Stratified over `(unit_index, exercise_type, provenance)` and deterministic under the
 recorded seed. A sheet that cannot be redrawn belongs to no measurable population, so the
