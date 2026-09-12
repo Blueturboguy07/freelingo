@@ -1,0 +1,28 @@
+[project]
+name = "soundbank"
+version = "0.1.0"
+description = "Freelingo sound bank synthesis: pure-numpy cue synthesis written to WAV, encoded to Opus by the system ffmpeg."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "AGPL-3.0-only" }
+dependencies = [
+    "numpy>=2.5.3",
+    "soundfile>=0.14.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.4.0", "ruff>=0.14.0"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# A virtual project, not an installed package: the synthesis scripts sit at the root of
+# tools/soundbank and are imported by path, so pytest puts that directory on sys.path.
+pythonpath = ["."]
