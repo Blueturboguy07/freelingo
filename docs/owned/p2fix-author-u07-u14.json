@@ -5,11 +5,7 @@
   "branch": "p2fix/author-u07-u14",
   "module": "content/es",
   "owned": [],
-  "claimedButNotYetGreen": [
-    "INV-PACK-06",
-    "INV-PACK-08",
-    "INV-PACK-10"
-  ],
+  "claimedButNotYetGreen": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
   "whyOwnedIsEmpty": "An authoring lane owns no test. INV-PACK-06 is V1-V4 at 100%, INV-PACK-08 is V6, INV-PACK-10 is the no-repair-path scan over the generator; all three are asserted by tools/coursekit tests that p2-g5-g6-gapfill-language already owns (docs/owned/p2-g5-g6.json), and all three are measured over a BUILT pack. This lane turns them green by supplying the content those validators run on, not by adding a test. Claiming the ids here with a test that asserts a JSONL file parses would be the 'owning test that proves nothing' the plan's rule 4 is written against.",
   "blocked": {
     "on": "content/es/authoring/gap-brief.jsonl (lane p2fix-ledger-freeze) does not exist, and until G4 is fixed it cannot exist with a usable ledger.",
@@ -58,91 +54,35 @@
     "windowSizes": {
       "u7": {
         "lessons": "37-42",
-        "allowedLemmas": [
-          198,
-          204,
-          210,
-          216,
-          222,
-          225
-        ]
+        "allowedLemmas": [198, 204, 210, 216, 222, 225]
       },
       "u8": {
         "lessons": "43-48",
-        "allowedLemmas": [
-          231,
-          237,
-          243,
-          249,
-          255,
-          258
-        ]
+        "allowedLemmas": [231, 237, 243, 249, 255, 258]
       },
       "u9": {
         "lessons": "49-54",
-        "allowedLemmas": [
-          264,
-          270,
-          276,
-          282,
-          288,
-          291
-        ]
+        "allowedLemmas": [264, 270, 276, 282, 288, 291]
       },
       "u10": {
         "lessons": "55-60",
-        "allowedLemmas": [
-          297,
-          303,
-          309,
-          315,
-          321,
-          324
-        ]
+        "allowedLemmas": [297, 303, 309, 315, 321, 324]
       },
       "u11": {
         "lessons": "61-66",
-        "allowedLemmas": [
-          330,
-          336,
-          342,
-          348,
-          354,
-          357
-        ]
+        "allowedLemmas": [330, 336, 342, 348, 354, 357]
       },
       "u12": {
         "lessons": "67-72",
-        "allowedLemmas": [
-          363,
-          369,
-          375,
-          381,
-          387,
-          390
-        ]
+        "allowedLemmas": [363, 369, 375, 381, 387, 390]
       },
       "u13": {
         "lessons": "73-78",
-        "allowedLemmas": [
-          396,
-          402,
-          408,
-          414,
-          420,
-          422
-        ]
+        "allowedLemmas": [396, 402, 408, 414, 420, 422]
       },
       "u14": {
         "lessons": "79-84",
-        "allowedLemmas": [
-          428,
-          434,
-          440,
-          446,
-          452,
-          455
-        ]
+        "allowedLemmas": [428, 434, 440, 446, 452, 455]
       }
     },
     "authoringConstraintsMeasuredAgainstThePinnedLemmatiser": [

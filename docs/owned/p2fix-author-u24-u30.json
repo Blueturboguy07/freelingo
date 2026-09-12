@@ -2,15 +2,8 @@
   "lane": "p2fix-author-u24-u30",
   "branch": "p2fix/author-u24-u30",
   "phase": "P2",
-  "owns": [
-    "content/es/candidates/u24-u30.jsonl",
-    "docs/owned/p2fix-author-u24-u30.json"
-  ],
-  "invariants": [
-    "INV-PACK-06",
-    "INV-PACK-08",
-    "INV-PACK-10"
-  ],
+  "owns": ["content/es/candidates/u24-u30.jsonl", "docs/owned/p2fix-author-u24-u30.json"],
+  "invariants": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
   "authored_at": "2026-09-12",
   "author": "claude-opus-5 (agent; Freelingo p2fix-author-u24-u30 lane)",
   "authority": {
@@ -184,10 +177,7 @@
       "slots_above_20": 0,
       "rejected_by_axis": {},
       "accepted_rows": 2120,
-      "token_count_range": [
-        4,
-        10
-      ],
+      "token_count_range": [4, 10],
       "backtranslation_scores": {
         "3": 493,
         "4": 1627

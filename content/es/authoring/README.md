@@ -1,12 +1,12 @@
 # `content/es/authoring/`
 
-Two files, and they are opposites. One is generated and authoritative about *what to
-write*; the other is hand-made and authoritative about *nothing*.
+Two files, and they are opposites. One is generated and authoritative about _what to
+write_; the other is hand-made and authoritative about _nothing_.
 
-| File | What it is |
-| --- | --- |
-| `gap-brief.jsonl` | a **derived snapshot** of one build's gap list, written by `coursekit gaps es`. Input for the four authoring lanes. |
-| `axis-fixture.jsonl` | a **test fixture** for G5's five reject axes. Not course content, not read by any build. |
+| File                 | What it is                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `gap-brief.jsonl`    | a **derived snapshot** of one build's gap list, written by `coursekit gaps es`. Input for the four authoring lanes. |
+| `axis-fixture.jsonl` | a **test fixture** for G5's five reject axes. Not course content, not read by any build.                            |
 
 ## `gap-brief.jsonl`
 
@@ -24,7 +24,7 @@ cd tools/coursekit && uv run coursekit build es --only g4 && uv run coursekit ga
 
 **G5 does not read this file, and must never be made to.** The enforcer is G5's
 `stale_ledger` axis, which compares a candidate's `ledger_digest` against the ledger G4
-emits *in the build being run*. If the brief could also enforce, a stale brief and a
+emits _in the build being run_. If the brief could also enforce, a stale brief and a
 stale candidates file would agree with each other and disagree with the course — the
 second inlined notion of the ledger INV-PACK-40 forbids.
 `tools/coursekit/tests/test_gaps_command.py` fails if any stage imports the command or
@@ -46,7 +46,7 @@ Each row:
 
 ```json
 {
-  "slot": {"unit_index": 5, "lesson_index": 27, "slot_index": 4},
+  "slot": { "unit_index": 5, "lesson_index": 27, "slot_index": 4 },
   "ledger_digest": "606cd3f645af7b27",
   "new_lemmas": ["hermano"],
   "text": "Mi hermano vive en Madrid.",
@@ -54,7 +54,12 @@ Each row:
   "author": "claude-opus-5 (agent; <lane>)",
   "generated_at": "2026-09-12",
   "provenance": "llm",
-  "backtranslation": {"back_translation": "...", "score": 4, "judged_by": "agent", "rubric_version": "1"}
+  "backtranslation": {
+    "back_translation": "...",
+    "score": 4,
+    "judged_by": "agent",
+    "rubric_version": "1"
+  }
 }
 ```
 
@@ -81,7 +86,7 @@ reasons, each fatal on its own:
    `días`, `salgo`, `quier` — beside the lemmas. Nothing lemmatised them; they were
    written by hand.
 3. **Its `new_lemmas` carry two entries.** A real gap reserves at most one new item,
-   because that is V2's per-exercise budget. Seven of its rows exist *specifically* to
+   because that is V2's per-exercise budget. Seven of its rows exist _specifically_ to
    introduce two and be rejected, which only makes sense against a two-lemma gap.
 
 So it is a fixture, and it is now filed as one. Deleting it would have been a loss: it is
