@@ -41,9 +41,15 @@ from typing import Any
 from .artifacts import artifact_path, read_records, run_dir
 from .config import MAX_DEFECT_RATE, REVIEWER_SAMPLE_ITEMS
 from .config.sample import (
+    ACCENT_DIMENSION,
+    ACCENT_UNSCOREABLE_NO_BAKE,
+    ACCENT_UNSCOREABLE_NO_SHEET,
+    ACCENT_UNSCOREABLE_UNSCORED,
+    AUDIO_ENGINE_NONE,
     DEFECT_VERDICTS,
     PROVISIONAL_DEFECT_RATE_NOTE,
     RECORDED_REVIEWER_KINDS,
+    REVIEW_DIMENSION_VALUES,
     REVIEW_DIMENSIONS,
     REVIEW_DIR_TEMPLATE,
     REVIEW_VERDICTS,
@@ -72,11 +78,15 @@ __all__ = [
     "SampleItem",
     "SampleSheet",
     "ScoreError",
+    "accent_scoring_violations",
+    "accent_summary",
+    "derive_accent",
     "allocate",
     "draw_sample",
     "review_summary",
     "read_scores",
     "sample_path",
+    "sheet_audio_ids",
     "sheet_exercise_ids",
     "write_sample",
 ]
@@ -88,7 +98,33 @@ class ScoreError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SampleItem:
-    """One row a reviewer scores."""
+    """One row a reviewer scores.
+
+    The last six fields are the clip, and they exist because of founder ruling **B6**:
+    Spanish bakes on Kokoro, whose Spanish voices declare no region, so the manifest says
+    `language: es` + `accent_claim: unverified` and NOTHING in `coursekit` listens to the
+    bank. `RUBRIC.md` §`accent_consistency` is the only accent check the project has, and
+    until this lane it was a column a reviewer could not fill in: the sheet named no clip
+    and no role (`docs/P2-BLOCKERS.md` B18), so `cast.yaml`'s `D-CAST-ES-02` question —
+    does Rosa read as a different speaker from Plumas, when 70% of her style vector IS
+    Plumas — could not be put to anybody.
+
+    Every one of the six is `None` together or set together, and the join that sets them
+    is three-legged, which is the point:
+
+    * the exercise's `audio_ref` (G7) says which clip this row WOULD be spoken by;
+    * the `baked_clip` record (G8) says which clips a bake actually produced, with the
+      engine and the voice spec that produced them;
+    * the cast (`content/<lang>/cast.yaml`) turns that voice spec back into a role and
+      the display name the rubric asks about by name.
+
+    A promise from G7 is not a clip. `audio_ref` is present on every audio-bearing
+    exercise the moment G7 runs, months before any bake, so a sheet that copied it would
+    hand a reviewer sixteen hex characters and no bytes — and `"pass"` on a clip nobody
+    played is the one lie this sheet exists to prevent. So `clip_path` is set only when
+    the file is on disk at draw time, and `has_audio` reads `clip_path`, never
+    `clip_id`.
+    """
 
     exercise_id: str
     unit_index: int
@@ -100,10 +136,36 @@ class SampleItem:
     distractors: tuple[str, ...]
     source_text: str
     source_translation: str
+    #: The baked clip id (16 hex), or `None` when no bake produced this row's clip.
+    #: Content-addressed over the engine, its pin, the voice spec, the codec, the
+    #: bitrate, the loudness target and the text (INV-AUD-08 via `tts.cast.rebake_key`),
+    #: so a row re-drawn after an engine swap carries a DIFFERENT id and last bake's
+    #: accent verdict cannot join onto it.
+    clip_id: str | None = None
+    #: Where to listen, relative to the language's run directory (`g8/bank/<id>.opus`).
+    #: `None` means the bytes are not there, whatever the exercise promised.
+    clip_path: str | None = None
+    #: The cast role speaking it (`narrator`), and its display name (`Plumas`).
+    voice_role: str | None = None
+    voice_name: str | None = None
+    #: The engine that ACTUALLY synthesised the clip, recorded per row rather than
+    #: assumed from the cast file, in the spirit of INV-PACK-14: a bank half-baked by a
+    #: second engine is visible on the rows, not only in a header nobody re-reads.
+    clip_engine: str | None = None
+    #: What the clip SAYS. Not always the prompt or the first accepted answer — a
+    #: `listen_for_the_missing_word` row plays the whole sentence while accepting one
+    #: token (`config/g8.py::SPOKEN_TEXT_SOURCE`), and a reviewer judging "is this the
+    #: same accent" needs the line they are hearing.
+    clip_text: str | None = None
 
     @property
     def stratum(self) -> tuple[int, str, str]:
         return (self.unit_index, self.exercise_type, self.provenance)
+
+    @property
+    def has_audio(self) -> bool:
+        """Is there something to listen to? The only licence for an accent score."""
+        return self.clip_path is not None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -117,6 +179,13 @@ class SampleItem:
             "distractors": list(self.distractors),
             "source_text": self.source_text,
             "source_translation": self.source_translation,
+            "clip_id": self.clip_id,
+            "clip_path": self.clip_path,
+            "voice_role": self.voice_role,
+            "voice_name": self.voice_name,
+            "clip_engine": self.clip_engine,
+            "clip_text": self.clip_text,
+            "has_audio": self.has_audio,
             "stratum": f"{self.unit_index}|{self.exercise_type}|{self.provenance}",
         }
 
@@ -137,6 +206,21 @@ class SampleSheet:
     def drawn(self) -> int:
         return len(self.items)
 
+    @property
+    def audio_rows(self) -> int:
+        """How many drawn rows a reviewer can actually listen to."""
+        return sum(1 for item in self.items if item.has_audio)
+
+    @property
+    def audio_engines(self) -> tuple[str, ...]:
+        """The engines that baked this sheet's clips. Empty when none did.
+
+        A tuple rather than a string because the failure worth seeing is TWO: a bank
+        half re-baked by a second synthesiser under one `accent_claim` is EC-PACK-52,
+        and it is invisible in a header that names one engine.
+        """
+        return tuple(sorted({item.clip_engine for item in self.items if item.clip_engine}))
+
     def summary(self) -> dict[str, Any]:
         return {
             "lang": self.lang,
@@ -147,7 +231,78 @@ class SampleSheet:
             "strata": list(self.strata),
             "distinct_strata": len(self.allocation),
             "allocation": dict(sorted(self.allocation.items())),
+            # The accent half of the sheet, written down at draw time so that a rate
+            # quoted later can be checked against what the reviewer was actually given.
+            "audio_rows": self.audio_rows,
+            "audio_engines": list(self.audio_engines),
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _Clip:
+    """One baked clip, as the sheet needs it: where it is, who said it, what it says."""
+
+    clip_id: str
+    path: str | None
+    role: str | None
+    name: str | None
+    engine: str
+    text: str
+
+
+def _roles_by_voice(lang: str) -> dict[str, tuple[str, str]]:
+    """`voice_id -> (role id, display name)`, from the cast file. `{}` when there is none.
+
+    Imported inside the function on purpose. `tts.cast` is cheap (yaml and hashlib), but
+    `coursekit sample` must keep working on a checkout whose `tts` dependency group was
+    never synced, and a module-level import here would make the whole command's fate
+    depend on a neighbour's imports. A missing or unreadable cast costs the sheet the
+    ROLE NAMES and nothing else: the clip, its path and its engine still come from the
+    bake, so a reviewer can still listen. They just cannot be asked the Rosa question.
+    """
+    try:
+        from .tts.cast import CastError, load_cast
+    except ImportError:  # pragma: no cover - the tts module has no optional imports today
+        return {}
+    try:
+        cast = load_cast(lang)
+    except (CastError, FileNotFoundError, OSError):
+        return {}
+    return {role.voice_id: (role.id, role.display_name) for role in cast.roles}
+
+
+def _clips(lang: str) -> dict[str, _Clip]:
+    """Every clip THIS build baked, keyed by clip id. `{}` when G8 never ran.
+
+    The emptiness is load-bearing. "No bake existed" has to reach the sheet as `null` on
+    every clip field, which the accent dimension then reports as unscoreable — rather
+    than as an absent key a reader mistakes for a clean result, which is the reading
+    INV-PACK-14 exists to fail on the grammar engine and this is the same sentence about
+    the voice engine.
+    """
+    path = artifact_path(lang, "baked_clip")
+    if not path.exists():
+        return {}
+    roles = _roles_by_voice(lang)
+    root = run_dir(lang) / "g8"
+    clips: dict[str, _Clip] = {}
+    for record in read_records("baked_clip", lang=lang):
+        role, name = roles.get(record["voice_id"], (None, None))
+        relative = str(record["path"])
+        # A record without bytes is not a clip a reviewer can score. The bank is
+        # gitignored and CI uploads it as an artefact with a one-day retention
+        # (`docs/ci.md`), so "the manifest remembers it" and "it is here to play" come
+        # apart routinely, and only the second one licenses a verdict.
+        on_disk = (root / relative).exists()
+        clips[record["clip_id"]] = _Clip(
+            clip_id=record["clip_id"],
+            path=f"g8/{relative}" if on_disk else None,
+            role=role,
+            name=name,
+            engine=record["engine"],
+            text=record["text"],
+        )
+    return clips
 
 
 def _population(lang: str) -> tuple[SampleItem, ...]:
@@ -172,10 +327,16 @@ def _population(lang: str) -> tuple[SampleItem, ...]:
             provenance[item.item_id] = item.provenance
             texts[item.item_id] = item
 
+    clips = _clips(lang)
     rows: list[SampleItem] = []
     for record in read_records("exercise", lang=lang):
         source = record["source_sentence_id"]
         origin = texts.get(source) if source else None
+        # `audio_ref` is G7's promise; `clips` is G8's fact. The row gets the clip only
+        # where the two agree, so an exercise naming a clip that was never baked —
+        # exactly the state G9 refused a pack over on 2026-09-12 — reaches the reviewer
+        # as "nothing to listen to" rather than as a broken path.
+        clip = clips.get(record["audio_ref"]) if record["audio_ref"] else None
         rows.append(
             SampleItem(
                 exercise_id=record["exercise_id"],
@@ -188,6 +349,12 @@ def _population(lang: str) -> tuple[SampleItem, ...]:
                 distractors=tuple(record["distractors"]),
                 source_text=origin.text if origin else "",
                 source_translation=origin.translation if origin else "",
+                clip_id=clip.clip_id if clip else None,
+                clip_path=clip.path if clip else None,
+                voice_role=clip.role if clip else None,
+                voice_name=clip.name if clip else None,
+                clip_engine=clip.engine if clip else None,
+                clip_text=clip.text if clip else None,
             )
         )
     return tuple(rows)
@@ -379,11 +546,23 @@ def read_scores(lang: str, repo_root: Path | None = None) -> list[dict[str, Any]
                 f"{path.name} line {number}: verdict {row['verdict']!r} is not one of "
                 f"{', '.join(REVIEW_VERDICTS)} (see {RUBRIC_FILENAME})"
             )
-        for dimension in row.get("dimensions", {}):
+        for dimension, value in row.get("dimensions", {}).items():
             if dimension not in REVIEW_DIMENSIONS:
                 raise ScoreError(
                     f"{path.name} line {number}: {dimension!r} is not a rubric dimension "
                     f"({', '.join(REVIEW_DIMENSIONS)})"
+                )
+            # `null` is legal and it is not a score: it is how a reviewer says "this
+            # dimension could not be judged on this row", which for `accent_consistency`
+            # is every row on a sheet drawn before a bake. Anything else that is not
+            # `pass` or `fail` is a value nothing downstream can count, and it is
+            # refused here rather than silently read as truthy by the first caller that
+            # asks "how many passed?".
+            if value is not None and value not in REVIEW_DIMENSION_VALUES:
+                raise ScoreError(
+                    f"{path.name} line {number}: {dimension} is {value!r}, which is not "
+                    f"{' or '.join(REVIEW_DIMENSION_VALUES)} — or null, which means the "
+                    f"dimension could not be scored on this row (see {RUBRIC_FILENAME})"
                 )
         rows.append(row)
     return rows
@@ -405,6 +584,151 @@ def sheet_exercise_ids(lang: str, requested: int) -> tuple[str, ...] | None:
             continue
         ids.append(str(json.loads(line)["exercise_id"]))
     return tuple(ids)
+
+
+def sheet_audio_ids(lang: str, requested: int) -> tuple[str, ...] | None:
+    """The ids on this build's sheet that a reviewer could LISTEN to, or `None`.
+
+    Read back off the written sheet rather than recomputed, for the same reason
+    `sheet_exercise_ids` is: the sheet is the artefact the reviewer was handed, and a
+    recomputation six weeks later would answer for a bank that may since have been
+    re-baked. `None` (no sheet) and `()` (a sheet, no audio on it) are different
+    answers and `accent_summary` reports them as different reasons.
+    """
+    path = sample_path(lang, requested)
+    if not path.exists():
+        return None
+    ids: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        # `clip_path` is the field, not `clip_id`: a clip id with no bytes behind it is
+        # a promise G7 made, and the sheet's whole job is to keep those two apart.
+        if row.get("clip_path"):
+            ids.append(str(row["exercise_id"]))
+    return tuple(ids)
+
+
+def accent_scoring_violations(
+    *,
+    scores: Sequence[Mapping[str, Any]],
+    sheet_item_ids: Iterable[str] | None,
+    sheet_audio_ids: Iterable[str] | None,
+) -> tuple[str, ...]:
+    """Rows that scored the accent dimension on a clip nobody could have played.
+
+    The one lie the sheet exists to prevent, checked rather than asked for politely.
+    `RUBRIC.md` says it in words — *"`pass` on a clip nobody played would be the one lie
+    this sheet exists to prevent"* — and a rule that lives only in prose is a rule that
+    holds until somebody is in a hurry. A sheet of 300 rows where the accent column is
+    filled in with `pass` all the way down is indistinguishable, in every number this
+    module publishes, from a bank a native speaker checked.
+
+    Returns the offending exercise ids. Empty when nothing is wrong, and empty when the
+    question cannot be asked: with no sheet on disk (`sheet_audio_ids is None`) there is
+    nothing to check a row against, and `accent_summary` reports THAT as the reason it
+    has no rate rather than inventing a violation.
+    """
+    if sheet_audio_ids is None:
+        return ()
+    audio = set(sheet_audio_ids)
+    on_sheet = set(sheet_item_ids) if sheet_item_ids is not None else None
+    offenders: list[str] = []
+    for row in scores:
+        identifier = str(row["exercise_id"])
+        if on_sheet is not None and identifier not in on_sheet:
+            # Not on this build's sheet at all: it is already out of the denominator
+            # (`review_summary`), and judging a row that belongs to another build's
+            # population is a different finding with its own count, `unjoined`.
+            continue
+        value = (row.get("dimensions") or {}).get(ACCENT_DIMENSION)
+        if value is not None and identifier not in audio:
+            offenders.append(identifier)
+    return tuple(offenders)
+
+
+def accent_summary(
+    *,
+    scores: Sequence[Mapping[str, Any]],
+    sheet_item_ids: Iterable[str] | None = None,
+    sheet_audio_ids: Iterable[str] | None = None,
+    engines: Sequence[str] = (),
+) -> dict[str, Any]:
+    """What the accent question was answered with, beside the wrong-item rate.
+
+    Beside, never inside. `RUBRIC.md` is explicit that an accent finding is not a wrong
+    item — a learner meeting a clip in the wrong accent is not taught something false —
+    so it takes the `awkward` verdict and `MAX_DEFECT_RATE` never sees it. This block is
+    the other half of that decision: the dimension founder ruling B6 made the project's
+    ONLY accent check has to be reported somewhere, or the ruling bought a column nobody
+    reads.
+
+    Three states, three different sentences, and the whole design is that they cannot be
+    confused with each other:
+
+    * no sheet on disk — the question cannot be put, `rows_with_audio` is `None`;
+    * a sheet with no clips (no bake, or a bake whose bytes are gone) — the question was
+      put to zero rows, `audio_engine` is `none`, and `pass_rate` is `None`;
+    * a sheet with clips — `pass_rate` over the rows that HAVE audio and were scored.
+
+    `pass_rate` is never 1.0 by default and never 0.0 by default. An unscored accent
+    column reads `None` with a reason attached, because "consistent" and "nobody
+    listened" are the two answers a pack card must not merge — the same failure
+    INV-PACK-14 names when a validator reports zero findings from an engine that never
+    ran.
+
+    Raises `ScoreError` when a row scored the dimension without a clip; the caller turns
+    that into exit 4.
+    """
+    offenders = accent_scoring_violations(
+        scores=scores,
+        sheet_item_ids=sheet_item_ids,
+        sheet_audio_ids=sheet_audio_ids,
+    )
+    if offenders:
+        shown = ", ".join(offenders[:5]) + (" ..." if len(offenders) > 5 else "")
+        raise ScoreError(
+            f"{len(offenders)} row(s) scored {ACCENT_DIMENSION} on a sheet row with no "
+            f"clip: {shown}. The sheet's `clip_path` is null for those rows, so there "
+            f"were no bytes to listen to — score them null, which is what null is for."
+        )
+
+    audio = None if sheet_audio_ids is None else set(sheet_audio_ids)
+    on_sheet = set(sheet_item_ids) if sheet_item_ids is not None else None
+    judged = [
+        row
+        for row in scores
+        if (on_sheet is None or str(row["exercise_id"]) in on_sheet)
+        and audio is not None
+        and str(row["exercise_id"]) in audio
+        and (row.get("dimensions") or {}).get(ACCENT_DIMENSION) is not None
+    ]
+    passed = sum(
+        1 for row in judged if (row.get("dimensions") or {})[ACCENT_DIMENSION] == "pass"
+    )
+    rows_with_audio = None if audio is None else len(audio)
+
+    if audio is None:
+        reason: str | None = ACCENT_UNSCOREABLE_NO_SHEET
+    elif not audio:
+        reason = ACCENT_UNSCOREABLE_NO_BAKE
+    elif not judged:
+        reason = ACCENT_UNSCOREABLE_UNSCORED
+    else:
+        reason = None
+
+    return {
+        # Which voice engine actually spoke to the reviewer. `none` is a recorded state,
+        # not an absent key (INV-PACK-14); two names here is EC-PACK-52 on the sheet.
+        "audio_engine": "+".join(sorted(set(engines))) if engines else AUDIO_ENGINE_NONE,
+        "rows_with_audio": rows_with_audio,
+        "scored": len(judged),
+        "passed": passed,
+        "failed": len(judged) - passed,
+        "pass_rate": (passed / len(judged)) if judged else None,
+        "unscoreable_reason": reason,
+    }
 
 
 def review_summary(
@@ -510,6 +834,7 @@ def derive_review(lang: str, repo_root: Path | None = None) -> dict[str, Any] | 
     summary_file = run_dir(lang) / SAMPLE_SUMMARY_FILENAME
     sample_size = 0
     requested = REVIEWER_SAMPLE_ITEMS
+    engines: list[str] = []
     if summary_file.exists():
         drawn = json.loads(summary_file.read_text(encoding="utf-8"))
         sample_size = int(drawn["drawn"])
@@ -517,10 +842,46 @@ def derive_review(lang: str, repo_root: Path | None = None) -> dict[str, Any] | 
         # still writes `sample-300.jsonl`. Reading `drawn` here would look for a file
         # that does not exist and report every scored row as unjoined.
         requested = int(drawn["requested"])
+        engines = [str(name) for name in drawn.get("audio_engines", [])]
     if not scores and not sample_size:
         return None
-    return review_summary(
+    on_sheet = sheet_exercise_ids(lang, requested)
+    # Raises `ScoreError` on an accent verdict against a row with no clip, which
+    # `commands/_run.py` turns into exit 4. It runs HERE, on the path `coursekit
+    # validate` takes, because the report is where such a verdict would otherwise be
+    # published — the check belongs where the number leaves the tool, not where it is
+    # written down.
+    accent_summary(
         scores=scores,
-        sample_size=sample_size,
+        sheet_item_ids=on_sheet,
+        sheet_audio_ids=sheet_audio_ids(lang, requested),
+        engines=engines,
+    )
+    return review_summary(scores=scores, sample_size=sample_size, sheet_item_ids=on_sheet)
+
+
+def derive_accent(lang: str) -> dict[str, Any]:
+    """The accent block for one language, from what is on disk.
+
+    Separate from `derive_review` and not folded into its return value, for a reason
+    that is a cross-lane fact rather than a preference: `validators/report.py` declares
+    the `review` block with `additionalProperties: false`, so an extra key there makes
+    `write_report` refuse the whole report — and that file belongs to the validator
+    lane, not this one. Filed as contract **C1** in
+    `docs/owned/p2r4-sample-accent-rate.json`: the report schema needs an optional
+    `review.accent` object before this block can be published beside the rate on S023
+    and S024. Until then it is computed, checked, and available to a caller.
+    """
+    summary_file = run_dir(lang) / SAMPLE_SUMMARY_FILENAME
+    requested = REVIEWER_SAMPLE_ITEMS
+    engines: list[str] = []
+    if summary_file.exists():
+        drawn = json.loads(summary_file.read_text(encoding="utf-8"))
+        requested = int(drawn["requested"])
+        engines = [str(name) for name in drawn.get("audio_engines", [])]
+    return accent_summary(
+        scores=read_scores(lang),
         sheet_item_ids=sheet_exercise_ids(lang, requested),
+        sheet_audio_ids=sheet_audio_ids(lang, requested),
+        engines=engines,
     )

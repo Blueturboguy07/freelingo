@@ -78,10 +78,17 @@ DEFECT_VERDICTS: Final[tuple[str, ...]] = ("wrong",)
 #:
 #: An accent finding is not a wrong item: RUBRIC.md gives an
 #: `accent_consistency`-only failure the `awkward` verdict, and `DEFECT_VERDICTS` counts
-#: only `wrong`, so adding the dimension cannot move a published rate on its own. What it
-#: can still not do is be scored from the sheet at all — `SampleItem` carries no clip
-#: reference and no voice role (`docs/P2-BLOCKERS.md` B18) — which is why the rubric also
-#: documents a `note:`-prefixed fallback.
+#: only `wrong`, so adding the dimension cannot move a published rate on its own.
+#:
+#: **B18 is closed as of `p2r4/sample-accent-rate`.** `SampleItem` now carries the clip
+#: the row is spoken by — `clip_id`, `clip_path`, `voice_role`, `voice_name`,
+#: `clip_engine`, `clip_text` — joined from the exercise's `audio_ref` (G7) to the
+#: `baked_clip` record (G8) to the cast (`content/<lang>/cast.yaml`), so a reviewer has
+#: something to listen to and knows which role is speaking. What did NOT change is the
+#: rule underneath it: a row whose join produced no clip carries `clip_path: null`, the
+#: honest score for it is `null`, and `accent_summary` REFUSES a `pass` or a `fail` on
+#: such a row. The rubric's `note:`-prefixed fallback is kept for a tree where this
+#: constant has been reverted.
 REVIEW_DIMENSIONS: Final[tuple[str, ...]] = (
     "meaning",
     "grammar",
@@ -89,6 +96,45 @@ REVIEW_DIMENSIONS: Final[tuple[str, ...]] = (
     "register",
     "answer_set",
     "accent_consistency",
+)
+
+#: The one dimension that cannot be scored from text. Named rather than spelled out at
+#: each use: `sample.py` has to treat it differently in three places (the sheet carries
+#: the clip it needs, `read_scores` lets it be `null`, and `accent_summary` refuses a
+#: verdict on a row with no clip), and three string literals is three chances to drift
+#: from the rubric's spelling.
+ACCENT_DIMENSION: Final[str] = "accent_consistency"
+
+#: What a scored dimension may SAY. `null` is the third legal value and is deliberately
+#: not a member: it is the absence of a score, not a score, and `read_scores` accepts it
+#: by name so that the difference stays visible in the reader as well as in the rubric.
+#:
+#: This tuple is why the sheet can now be trusted. Before it, `read_scores` checked the
+#: KEYS of a `dimensions` object and never its values, so `"accent_consistency": "yes"`,
+#: `"pass "` or `true` all read as a score, and any of them would have been counted by
+#: the first thing that asked "how many passed?".
+REVIEW_DIMENSION_VALUES: Final[tuple[str, ...]] = ("pass", "fail")
+
+#: What the accent block records when no bake produced the clips the sheet points at.
+#:
+#: The spelling mirrors `engines/languagetool.py`'s `ENGINE_NONE` on purpose. INV-PACK-14
+#: is the rule that an engine which did not run is RECORDED as not having run, because
+#: "zero findings" from a validator nothing drove reads exactly like a clean bill of
+#: health. An accent pass rate over a bank nobody baked is the same sentence in the same
+#: shape, so it gets the same word.
+AUDIO_ENGINE_NONE: Final[str] = "none"
+
+#: Why an accent question has no answer, when it has none. One of these strings, never
+#: an empty block and never a rate of 1.0: a reader of the pack card has to be able to
+#: tell "the bank is consistent" from "nobody listened".
+ACCENT_UNSCOREABLE_NO_BAKE: Final[str] = (
+    "no bake: the sheet carries no clip, so no row could be listened to"
+)
+ACCENT_UNSCOREABLE_NO_SHEET: Final[str] = (
+    "no sheet on disk: which rows had a clip cannot be established"
+)
+ACCENT_UNSCOREABLE_UNSCORED: Final[str] = (
+    "the sheet carries clips and no row was scored on accent"
 )
 
 # ---------------------------------------------------------------------------
