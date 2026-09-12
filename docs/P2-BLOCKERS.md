@@ -9,21 +9,21 @@ with the one question each needs answered and nothing else: they are not answere
 file, and an agent answering them would be inventing the decision rather than recording
 it.
 
-| Id      | What                                                                                     | Kind                     | Status                            |
-| ------- | ---------------------------------------------------------------------------------------- | ------------------------ | --------------------------------- |
-| **B1**  | the candidate sentences do not exist                                                     | authoring                | **RESOLVED 2026-09-12** — 481/490 |
-| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                     | **RESOLVED** — p2fix/ledger-freeze |
-| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision          | **RESOLVED** — fixture re-filed    |
-| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                     | **RESOLVED 2026-09-12** — deleted |
-| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision**     | **OPEN**                          |
-| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                     | **RESOLVED 2026-09-12**           |
-| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision**     | **OPEN**                          |
-| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision**     | **OPEN**                          |
-| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing, non-gating | **OPEN, measured**                |
-| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)                | **RESOLVED 2026-09-12** — sidecar |
-| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision**     | **OPEN — the phase blocker**      |
+| Id      | What                                                                                     | Kind                     | Status                              |
+| ------- | ---------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------- |
+| **B1**  | the candidate sentences do not exist                                                     | authoring                | **RESOLVED 2026-09-12** — 481/490   |
+| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                     | **RESOLVED** — p2fix/ledger-freeze  |
+| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision          | **RESOLVED** — fixture re-filed     |
+| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                     | **RESOLVED 2026-09-12** — deleted   |
+| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision**     | **OPEN**                            |
+| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                     | **RESOLVED 2026-09-12**             |
+| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision**     | **OPEN**                            |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision**     | **OPEN**                            |
+| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing, non-gating | **OPEN, measured**                  |
+| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)                | **RESOLVED 2026-09-12** — sidecar   |
+| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision**     | **OPEN — the phase blocker**        |
 | **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)            | content                  | **RESOLVED 2026-09-12** — rewritten |
-| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                     | **RESOLVED 2026-09-12**           |
+| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                     | **RESOLVED 2026-09-12**             |
 
 ---
 
@@ -469,3 +469,56 @@ candidates: without it, the first green G5 buys a red V8.
 (`test_INV_PACK_14_a_mock_engine_is_a_warning_and_never_a_silent_pass`); a pack validated
 against a stand-in is a pack whose grammar was checked by nothing, wearing a label that
 says so. That is a worse outcome than the block.
+
+---
+
+## B9 — unit 1 lesson 1 cannot hold a sentence — FOUNDER DECISION, the phase blocker
+
+**This is the only thing between `coursekit build es` and G6.** 481 of 490 gap slots are
+filled. The nine that are not are `u1/l1/s0` … `u1/l1/s8`, and no amount of authoring
+changes that, so it is written up here as a decision rather than as work.
+
+### What the ledger permits in lesson 1
+
+G4 emits the first lesson of the first unit with a permitted vocabulary of **five
+lemmas** — `bueno`, `día`, `hola`, `noche`, `tarde` — because `index.known` at that point
+holds only what `_split_new_lemmas` has dealt to that lesson. There is **no verb** (`ser`
+arrives at lesson 3), **no article** (`el` at lesson 19), no preposition, and no proper
+noun anywhere in the course ledger. A Spanish sentence needs at least one of those.
+
+### And the one greeting that should have worked does not
+
+`es_core_news_md` 3.8.0, which is pinned and which G1, G5 and the validators all read,
+lemmatises every **prenominal** form of `bueno` to something that is not `bueno`:
+
+```
+'Hola, buenos días.'    -> ['hola', 'buen', 'día']      buen  is not a ledger lemma
+'Hola, buenas noches.'  -> ['hola', 'buena', 'noche']   buena is not a ledger lemma
+'Buenas tardes.'        -> ['buenas', 'tarde']          2 display tokens, under MIN_TOKENS
+```
+
+So `Buenos días.` is **out of vocabulary in the lesson that teaches both `bueno` and
+`día`**, and the only surface that reaches the lemma `bueno` is the bare discourse marker
+(`Bueno, hola.` → `['bueno', 'hola']`, two tokens, under the floor).
+
+What is left inside the window is word lists: `Hola, hola, hola.`, `Día, tarde, noche.`,
+`Hola, bueno, día.` Eleven such strings exist, `p2fix-author-u01-u06` found the same
+eleven independently, and **this lane will not ship them as the first lesson of a Spanish
+course.** Padding nine slots with them would turn the gate green and teach nobody
+anything, which is the failure mode the ≤2% reviewer gate exists to catch two months
+later and at a native speaker's expense.
+
+### The three ways out, with what each costs
+
+| Option                                                                                                               | What it changes                                                                 | Cost                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Re-chunk unit 1** so lesson 1 also deals a verb (`ser`)                                                         | `content/es/curriculum.yaml` unit 1 target order, or `_split_new_lemmas`'s deal | Unit 1's lesson windows move, so unit 1's gap SET and its `ledger_digest`s move with them. Units 2-30 keep their windows (the unit total is unchanged), so the blast radius is the ~40 unit-1 slots `p2fix-author-u01-u06` authored, which must be re-keyed against a regenerated brief.                                                            |
+| **2. Declare the lemmas the model actually produces** — add `buen`/`buena` beside `bueno` in unit 1's target lexemes | `content/es/curriculum.yaml`                                                    | `index.known` gains an element from lesson 1 onward, so **every** slot's `ledger_digest` changes and all 9,682 authored rows go `stale_ledger` at once. Needs a full re-key, and the wider window may also un-gap slots that are currently authored, which G5 treats as a hard error (orphans). The most correct fix and by far the most expensive. |
+| **3. Let lesson 1 be phrases, not sentences** — a per-lesson `MIN_TOKENS` of 1 for a lesson whose window has no verb | `config/g0.py` / G5's length axis                                               | Cheapest, and it makes `Hola.` and `Buenas tardes.` shippable items, which is what lesson 1 of a real course is. It does not fix `buenos → buen`: `Buenos días.` stays out of vocabulary, so lesson 1 would teach `hola`, `día`, `tarde`, `noche` as bare words and `bueno` not at all.                                                             |
+
+**Nothing here is decided.** Option 2 is the one that makes the course right and is a
+re-key of every authored row; option 3 is a config constant and half a fix. The general
+defect behind all three — **a curriculum may declare a target lemma the pinned lemmatiser
+never produces for the forms the course intends to teach** — has no validator today and
+should get one at G3 whichever option is taken, because it is silent until the first time
+somebody tries to author against the window.
