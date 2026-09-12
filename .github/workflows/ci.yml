@@ -47,7 +47,7 @@ jobs:
         # Vitest duration without repainting every completed task. Serial files keep one
         # worker's task update from waiting behind concurrent slow property updates. Bash
         # `time` records wall/user/sys time so a slow green run remains measurable.
-        run: time pnpm test -- --reporter=dot --no-file-parallelism
+        run: time pnpm exec vitest run --reporter=dot --no-file-parallelism
 
       - name: Invariant registry is the verbatim corpus copy, not hand-edited
         run: pnpm invariants:check

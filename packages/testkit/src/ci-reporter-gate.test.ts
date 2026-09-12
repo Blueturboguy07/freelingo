@@ -9,7 +9,9 @@ describe('CI reporter regression gate', () => {
   it('runs the property suite with the quiet dot reporter and records wall time', () => {
     const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
 
-    expect(workflow).toContain('time pnpm test -- --reporter=dot --no-file-parallelism');
+    expect(workflow).toContain(
+      'time pnpm exec vitest run --reporter=dot --no-file-parallelism',
+    );
     expect(workflow).not.toMatch(/run:\s+pnpm test\s*(?:\n|$)/);
   });
 });
