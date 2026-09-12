@@ -28,7 +28,21 @@ from typing import Final, Literal
 #: Languages with a v1 course, in ship order (plan P2, P7).
 LANGUAGES: Final[tuple[str, ...]] = ("es", "fr", "de", "ja")
 
-#: One locale per course (EC-PACK-17 ruling).
+#: A URL TEMPLATE VARIABLE, and nothing else any more.
+#:
+#: It was the EC-PACK-17 "one locale per course" ruling, and it was a voice-and-accent
+#: claim: `cast.yaml` declared `locale: es-ES` and the audio manifest copied it. Founder
+#: ruling B6 (2026-09-12) deleted that use — Azure published a locale sub-tag per voice
+#: and Kokoro publishes none, so after the vendor swap nothing in the toolchain could
+#: falsify the tag — and what replaced it is `language` + `accent_claim` (see
+#: `config/g8.py::ACCENT_CLAIMS`). `tts/cast.py` now REFUSES a cast that carries a
+#: `locale:` key at all.
+#:
+#: The two remaining readers both substitute `{locale}` into a source URL, where the
+#: string is a fact about somebody else's file naming and not a claim about this course:
+#: `packbuild/attribution.py::source_url` and `inputs.resolve`. Adding a third reader
+#: that treats this as a property of the audio or the curriculum re-creates the claim
+#: B6 removed.
 LOCALE_BY_LANGUAGE: Final[dict[str, str]] = {
     "es": "es-ES",
     "fr": "fr-FR",

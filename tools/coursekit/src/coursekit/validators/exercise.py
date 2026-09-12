@@ -55,6 +55,7 @@ __all__ = [
     "check_v6",
     "item_key",
     "item_keys",
+    "pos_sets",
     "register_of",
 ]
 
@@ -242,16 +243,57 @@ def _quoted_span(instruction: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def pos_sets(
+    banded: Iterable[Mapping[str, Any]] = (),
+    analysed: Iterable[Mapping[str, Any]] = (),
+) -> dict[str, set[str]]:
+    """`normalised string -> every UD tag this course has ever attested for it`.
+
+    EVERY tag, which is the whole point, and `pos_of`'s single tag per key is what made
+    V5 contradict the generator over real content. Two facts about a real ledger:
+
+    * a lemma carries more than one row (`frío` is ADJ and NOUN; `prima` is a NOUN and a
+      form of `primar`), and `{row["lemma"]: row["pos"]}` keeps whichever came first —
+      `distractors.py::DistractorPool` says so in as many words and refuses to decide
+      POS agreement from it;
+    * a distractor from the `wrong_form` strategy is an attested SURFACE, not a citation
+      form, and looking a surface up in a lemma table answers a different question. When
+      the surface happens to be some other word's lemma, the answer is confidently wrong.
+
+    Measured on the real Spanish course, 2026-09-12: G7's own V5 gate reported 232
+    blocking POS findings, among them `'Cuántos' is DET and the answer is PRON`,
+    `'prima' is NOUN and the answer is VERB` and `'viajas' is PROPN and the answer is
+    VERB` — every one of them a form the rule core had already guaranteed to share the
+    answer lemma's POS bucket. A homograph is not "eliminable without knowing the word";
+    it is the best distractor in the pool.
+
+    So the oracle is a SET per string, gathered from the banded ledger (all rows) and
+    from every token G1 tagged in context, and the clause below blocks only when the two
+    sets are non-empty and disjoint.
+    """
+    sets: dict[str, set[str]] = {}
+    for row in banded:
+        sets.setdefault(_normalise(str(row["lemma"])), set()).add(str(row["pos"]))
+    for sentence in analysed:
+        for token in sentence["tokens"]:
+            sets.setdefault(_normalise(str(token["surface"])), set()).add(str(token["pos"]))
+            sets.setdefault(_normalise(str(token["lemma"])), set()).add(str(token["pos"]))
+    return sets
+
+
 def check_v5(
     records: Iterable[Mapping[str, Any]],
     *,
     pos_of: Mapping[str, str],
+    attested_pos: Mapping[str, set[str]] | None = None,
 ) -> list[Finding]:
     """A distractor is never an accepted answer, always shares POS, never an alternative.
 
-    `pos_of` maps a surface or lemma to its UD tag (G1/G2's output). A distractor whose
-    POS is unknown is a **finding**, not a pass: V5's whole content is the POS
-    agreement, and "we could not tell" reported as green is the vacuous pass this
+    `pos_of` maps a lemma to its UD tag (G2's output, one tag per key). `attested_pos` is
+    the multi-tag oracle from `pos_sets` and is what the POS clause actually compares —
+    see that function for why a single tag per string is not enough to block a pack with.
+    A distractor whose POS is unknown is a **finding**, not a pass: V5's whole content is
+    the POS agreement, and "we could not tell" reported as green is the vacuous pass this
     project keeps writing gates against.
 
     The third clause — not a valid alternative translation — is decided over the whole
@@ -261,6 +303,7 @@ def check_v5(
     """
     records = [dict(record) for record in records]
     accepted_by_item: dict[str, set[str]] = {}
+    l1_options = 0
     for record in records:
         for key in item_keys(record):
             bucket = accepted_by_item.setdefault(key, set())
@@ -292,40 +335,56 @@ def check_v5(
                     )
                 )
                 continue
-            distractor_pos = pos_of.get(distractor) or pos_of.get(_normalise(distractor))
-            if answer_pos is None or distractor_pos is None:
+            if shape_of_record(record).options_in_l1:
+                # The POS clause is about an option list in the COURSE language. These
+                # options are ENGLISH (S034's glosses, S035's reverse bank), and the
+                # course-language ledger has nothing honest to say about an English
+                # word — it only ever has an entry for one because a Spanish corpus
+                # contains the occasional English token and the tagger calls it PROPN.
+                # Their POS guarantee is upstream, in `L1DecoyPool`, which draws them
+                # from this course's own translations.
+                l1_options += 1
+                continue
+            distractor_tags = _tags(distractor, pos_of, attested_pos)
+            answer_tags = (
+                {answer_pos}
+                if answer_pos is not None and not attested_pos
+                else _answer_tags(record["accepted_answers"], pos_of, attested_pos)
+            )
+            if not answer_tags or not distractor_tags:
                 # Not a pass. The POS clause is about option lists in ONE language and
-                # `pos_of` is the course language's ledger, so an English-gloss option
+                # the oracle is the course language's ledger, so an English-gloss option
                 # (S034) has no entry in it and never will. Recorded and counted rather
                 # than asserted either way: the POS guarantee for these is upheld
                 # upstream, where `rule_core_distractors` only ever returns a candidate
                 # whose POS equals the answer lemma's.
                 unchecked += 1
                 continue
-            if distractor_pos != answer_pos:
+            if not (distractor_tags & answer_tags):
                 findings.append(
                     _v5(
                         record,
                         distractor,
-                        f"is {distractor_pos} and the answer is {answer_pos}; a "
-                        "distractor of a different POS is eliminable without knowing "
-                        "the word",
+                        f"is {'/'.join(sorted(distractor_tags))} and the answer is "
+                        f"{'/'.join(sorted(answer_tags))}; a distractor of a different "
+                        "POS is eliminable without knowing the word",
                     )
                 )
-    if unchecked:
+    if unchecked or l1_options:
         findings.append(
             Finding(
                 validator_id="V5",
                 severity="info",
                 message=(
                     f"{unchecked} distractor(s) could not be POS-checked against the "
-                    "course-language ledger (option lists rendered in English). Their "
-                    "POS agreement is held by construction in "
-                    "exercises/distractors.py::rule_core_distractors, not by this "
-                    "validator."
+                    f"course-language ledger and {l1_options} are options rendered in "
+                    "English (a shape whose `options_in_l1` is set), where the clause "
+                    "does not apply. Their POS agreement is held by construction in "
+                    "exercises/distractors.py — `rule_core_distractors` for the course "
+                    "language and `L1DecoyPool` for English — not by this validator."
                 ),
                 subject=f"{len(records)} exercises",
-                detail={"unchecked_distractors": unchecked},
+                detail={"unchecked_distractors": unchecked, "l1_options": l1_options},
             )
         )
     return findings
@@ -343,6 +402,41 @@ def _v5(record: Mapping[str, Any], distractor: str, why: str) -> Finding:
 
 def _normalise(text: str) -> str:
     return unicodedata.normalize("NFC", text).casefold().strip()
+
+
+def _tags(
+    text: str,
+    pos_of: Mapping[str, str],
+    attested_pos: Mapping[str, set[str]] | None,
+) -> set[str]:
+    """Every UD tag the course attests for one string. Empty means "cannot tell"."""
+    folded = _normalise(text)
+    tags: set[str] = set()
+    if attested_pos:
+        tags |= set(attested_pos.get(folded, ()))
+    single = pos_of.get(text) or pos_of.get(folded)
+    if single:
+        tags.add(single)
+    return tags
+
+
+def _answer_tags(
+    answers: Sequence[str],
+    pos_of: Mapping[str, str],
+    attested_pos: Mapping[str, set[str]] | None,
+) -> set[str]:
+    """The tags of a SINGLE-WORD accepted answer. Empty for a sentence.
+
+    Asserting a POS for `Yo como pan` would be a category error, which is the same rule
+    `_dominant_pos` follows and the reason V5's POS clause is about option lists.
+    """
+    for answer in answers:
+        if len(surface_tokens(answer)) != 1:
+            return set()
+        tags = _tags(answer, pos_of, attested_pos)
+        if tags:
+            return tags
+    return set()
 
 
 def _dominant_pos(answers: Sequence[str], pos_of: Mapping[str, str]) -> str | None:
@@ -477,11 +571,23 @@ def _exercise_records(lang: str) -> list[dict[str, Any]]:
 
 @register_validator("V5")
 def v5_distractors(ctx: ValidatorContext) -> list[Finding]:
-    """V5 over the written pack. POS comes from G2's banded lemmas."""
+    """V5 over the written pack. The POS oracle is G2's ledger AND G1's tagged tokens.
+
+    Both, because the strings being checked are of both kinds: a `same_pos_same_band`
+    distractor is a citation form the ledger knows, and a `wrong_form` distractor is an
+    attested surface that only G1 ever tagged. `pos_sets` is why the clause does not
+    contradict the generator over real content — see its docstring for the measurement.
+    """
     records = _exercise_records(ctx.lang)
-    pos_of = {row["lemma"]: row["pos"] for row in read_records("banded_lemma", lang=ctx.lang)}
-    ctx.entry.note(v5_exercises=len(records), v5_pos_entries=len(pos_of))
-    return check_v5(records, pos_of=pos_of)
+    banded = list(read_records("banded_lemma", lang=ctx.lang))
+    pos_of = {row["lemma"]: row["pos"] for row in banded}
+    attested = pos_sets(banded, read_records("analysed_sentence", lang=ctx.lang))
+    ctx.entry.note(
+        v5_exercises=len(records),
+        v5_pos_entries=len(pos_of),
+        v5_attested_pos_entries=len(attested),
+    )
+    return check_v5(records, pos_of=pos_of, attested_pos=attested)
 
 
 @register_validator("V6")

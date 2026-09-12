@@ -32,11 +32,13 @@ from typing import Any
 
 import yaml
 
-from ..config import LOCALE_BY_LANGUAGE, OPUS_BITRATE_KBPS
+from ..config import OPUS_BITRATE_KBPS
 from ..config.g8 import (
+    ACCENT_CLAIMS,
     AUDIO_MANIFEST_VERSION,
     BAKE_ENGINE_BY_LANGUAGE,
     CAST_FILENAME,
+    CAST_FORBIDDEN_KEYS,
     CAST_ROLES,
     CONTENT_DIRNAME,
     CONTENT_ROOT_ENV_VAR,
@@ -87,7 +89,10 @@ class Cast:
     """One language's cast, as loaded and checked."""
 
     language: str
-    locale: str
+    #: What this cast claims about the accent of its voices. One of `ACCENT_CLAIMS`,
+    #: which today has one member: `unverified`. It replaces the `locale` field, which
+    #: was a regional claim nothing could check after the vendor swap (ruling B6).
+    accent_claim: str
     engine: str
     engine_pin: str
     engine_licence: str
@@ -143,8 +148,9 @@ def load_cast(lang: str, *, path: Path | None = None) -> Cast:
       or a voice nothing will ever use;
     - weights that do not sum to 1 produce a style vector whose magnitude, and
       therefore whose timbre, depends on how many voices somebody listed;
-    - a locale that disagrees with the EC-PACK-17 ruling means two files claim
-      different things about the same course;
+    - a `locale:` key at all means the file is still making a regional claim that
+      nothing downstream can falsify (ruling B6), and an `accent_claim` outside
+      `ACCENT_CLAIMS` means it is making a stronger one than anybody has evidence for;
     - an engine that disagrees with `BAKE_ENGINE_BY_LANGUAGE` is how a German cast
       ends up pointed at a voice tree that has no German, or a Japanese one at the
       CC BY-NC-SA Piper voice review R7 ruled out.
@@ -163,13 +169,19 @@ def load_cast(lang: str, *, path: Path | None = None) -> Cast:
     if raw.get("language") != lang:
         raise CastError(f"{target}: declares language {raw.get('language')!r}, loaded as {lang!r}")
 
-    locale = raw.get("locale")
-    expected_locale = LOCALE_BY_LANGUAGE[lang]
-    if locale != expected_locale:
+    for key, ruling in CAST_FORBIDDEN_KEYS.items():
+        if key in raw:
+            raise CastError(f"{target}: remove `{key}:` — {ruling}")
+
+    accent_claim = raw.get("accent_claim")
+    if accent_claim not in ACCENT_CLAIMS:
         raise CastError(
-            f"{target}: locale {locale!r} contradicts the EC-PACK-17 ruling of one "
-            f"locale per course ({expected_locale}). The ruling is a plan line, so "
-            f"changing it is a founder decision, not a YAML edit."
+            f"{target}: accent_claim {accent_claim!r} is not one of "
+            f"{', '.join(ACCENT_CLAIMS)}. Ruling B6: a cast declares `language` and how "
+            f"much is known about the accent, and the only thing that can raise this "
+            f"claim is the 300-item native-reviewer sample (B3). A missing key is not a "
+            f"pass: the field is what a reader of the manifest and the pack-detail "
+            f"screen is told."
         )
 
     engine = raw.get("engine")
@@ -189,7 +201,7 @@ def load_cast(lang: str, *, path: Path | None = None) -> Cast:
 
     return Cast(
         language=lang,
-        locale=str(locale),
+        accent_claim=str(accent_claim),
         engine=str(engine),
         engine_pin=_nonempty(raw, "engine_version_pin", target),
         engine_licence=_nonempty(raw, "engine_licence", target),
@@ -324,9 +336,9 @@ def rebake_key(cast: Cast, role_id: str, text: str) -> str:
       these does, and the manifest asserts sizes against the bitrate.
     - `text` — so one edited line re-renders one file and leaves 7,999 alone.
 
-    `locale` is deliberately NOT in the key: it is a claim about the course, not an
-    input to synthesis (see D-CAST-ES-01), and hashing it would re-bake a whole bank
-    for a label change.
+    `accent_claim` is deliberately NOT in the key (nor was `locale`, which it replaced):
+    it is a claim about the course, not an input to synthesis (see D-CAST-ES-01), and
+    hashing it would re-bake a whole bank for a label change.
     """
     role = cast.role(role_id)
     payload = json.dumps(
