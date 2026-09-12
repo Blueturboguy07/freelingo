@@ -208,26 +208,30 @@ function utcForLocal(engine: Engine, localDate: string, hour: number, tzId: stri
   return instant;
 }
 
-/** An independent streak reference: the maximal run of preserving days ending at today. */
+/**
+ * An independent streak reference.
+ *
+ * The engine walks BACKWARDS from today through the decided days. This walks FORWARDS in
+ * one pass from the earliest decided date, accumulating a run and resetting it to zero on
+ * any day that neither contributes nor preserves. Same rule, stated from INV-DAY-01's
+ * text; different traversal, so an off-by-one in either direction shows up as a
+ * disagreement rather than as two copies of the same mistake.
+ *
+ * It is a cross-check and not a second implementation of the day engine: it knows nothing
+ * about freezes, breaks, recovery or the tamper guard. What it catches is a disposition
+ * ledger and a reported streak that do not describe the same thirty days.
+ */
 function referenceStreak(dispositions: ReadonlyMap<Day, Disposition>, today: Day): number {
-  const contributes = (d: Disposition | undefined): boolean =>
-    d === 'completed' || d === 'recovered';
-  const preserves = (d: Disposition | undefined): boolean =>
-    d === 'completed' || d === 'frozen' || d === 'recovered' || d === 'unlived';
-
-  // Anchor at today-or-yesterday (INV-DAY-01), then walk back while the day preserves.
-  const yesterday = shiftDate(today, -1);
-  let cursor = contributes(dispositions.get(today))
-    ? today
-    : contributes(dispositions.get(yesterday))
-      ? yesterday
-      : null;
-  if (cursor === null) return 0;
-
+  const decided = [...dispositions.keys()].sort();
+  if (decided.length === 0) return 0;
   let run = 0;
-  while (preserves(dispositions.get(cursor))) {
-    if (contributes(dispositions.get(cursor))) run += 1;
-    cursor = shiftDate(cursor, -1);
+  for (let cursor = decided[0]!; cursor <= today; cursor = shiftDate(cursor, 1)) {
+    const disposition = dispositions.get(cursor);
+    if (disposition === 'completed' || disposition === 'recovered') run += 1;
+    else if (disposition === 'frozen' || disposition === 'unlived') continue;
+    else if (cursor === today && disposition === undefined)
+      continue; // today is not over
+    else run = 0;
   }
   return run;
 }
@@ -359,6 +363,10 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
     freezesConsumedTotal += first.freezesConsumed;
 
     /* -- the day's events ------------------------------------------------------ */
+    // A boost is minutes long; none of them survives a local day. Clearing it here keeps
+    // every later session's recorded multiplier honest instead of carrying one long-dead
+    // boost through the whole trace and calling the lapse "expected".
+    world.activeBoost = null;
     const xpBefore = world.lifetimeXp;
     let sessionsToday = 0;
     for (const event of scripted.events) {
@@ -375,7 +383,7 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
     }
 
     /* -- the snapshot ---------------------------------------------------------- */
-    const streak = day.streakFromDispositions(world.state, scripted.localDate);
+    const streak = day.streakFromDispositions(world.state.dispositions, scripted.localDate);
     const reference = referenceStreak(world.state.dispositions, scripted.localDate);
     if (streak !== reference) {
       refutations.push(
@@ -417,10 +425,18 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
   }
 
   return {
-    days,
+    // The disposition is filled in RETROSPECTIVELY. `rolloverTo` decides everything
+    // strictly before today and never today itself — today is not over — so at the moment
+    // a day's snapshot is taken its own disposition is always undecided. Reading it during
+    // the loop would have recorded thirty nulls and the "every day is decided" assertion
+    // would have been vacuous.
+    days: days.map((snapshot) => ({
+      ...snapshot,
+      disposition: world.state.dispositions.get(snapshot.localDay) ?? null,
+    })),
     account: {
       lifetimeXp: world.lifetimeXp,
-      streakAtEnd: day.streakFromDispositions(world.state, lastDay.localDate),
+      streakAtEnd: day.streakFromDispositions(world.state.dispositions, lastDay.localDate),
       freezesGranted: freezesGrantedAtStart + world.freezesGranted,
       freezesConsumed: freezesConsumedTotal,
       goalChestDays,
@@ -524,7 +540,7 @@ function applyEvent(ctx: EventContext): number {
     case 'activate-boost': {
       const minutes = Number(event.detail?.['minutes'] ?? 15);
       const multiplier = Number(event.detail?.['multiplier'] ?? 2);
-      const startMs = utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR - 1, scripted.zone);
+      const startMs = utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone);
       world.activeBoost = {
         kind: 'xpBoost',
         multiplier,
@@ -585,7 +601,14 @@ function applyEvent(ctx: EventContext): number {
         ctx.cannot('session', 'the nine-field resume row surviving a park and a zone change');
       }
       course.parked = null;
-      return completeSession(ctx, courseId, parked);
+      // The session was parked yesterday and is finished TODAY: the monotonic elapsed is
+      // a day, not seven minutes. Holding it for the default would credit the day it was
+      // started, leave today with no completed session, and silently break the streak on
+      // a day the trace says the learner practised.
+      const resumeAtMs = utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone);
+      return completeSession(ctx, courseId, parked, {
+        holdMs: Math.max(60_000, resumeAtMs - parked.startedAtUtcMs),
+      });
     }
 
     case 'kill-and-resume': {

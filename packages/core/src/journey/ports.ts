@@ -101,7 +101,8 @@ export interface DayPort {
     today: Day,
     ctx: { readonly completedDays: ReadonlySet<Day>; readonly unlivedDays?: ReadonlySet<Day> },
   ): RolloverResultPort;
-  streakFromDispositions(state: DayStatePort, today: Day): number;
+  /** The streak as of `today`, over the disposition ledger. Today may be undecided. */
+  streakFromDispositions(dispositions: ReadonlyMap<Day, Disposition>, today: Day): number;
   commitSession(
     start: {
       readonly sessionId: string;
