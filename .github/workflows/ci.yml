@@ -42,7 +42,11 @@ jobs:
         run: pnpm typecheck
 
       - name: Unit + property tests
-        run: pnpm test
+        # B20: the default reporter's per-task rendering amplified worker RPC stalls on
+        # the slowest hosted runners. The dot reporter keeps failure detail and the final
+        # Vitest duration without repainting every completed task. Bash `time` records
+        # wall/user/sys time alongside it so a slow green run remains measurable.
+        run: time pnpm test -- --reporter=dot
 
       - name: Invariant registry is the verbatim corpus copy, not hand-edited
         run: pnpm invariants:check

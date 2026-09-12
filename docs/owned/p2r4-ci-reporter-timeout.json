@@ -1,0 +1,10 @@
+{
+  "$comment": "Infrastructure-only P2 round-4 lane. It owns no product invariant; the regression gate asserts the CI reporter and timing contract without weakening PROPERTY_RUNS.",
+  "phase": "P2",
+  "round": 4,
+  "task": "p2r4-ci-reporter-timeout",
+  "module": "ci + testkit",
+  "branch": "p2r4/ci-reporter-timeout",
+  "owned": [],
+  "tests": ["packages/testkit/src/ci-reporter-gate.test.ts"]
+}
