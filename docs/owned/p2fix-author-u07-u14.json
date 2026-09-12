@@ -170,13 +170,22 @@
       "passVocabularyAndLengthAxes": 130,
       "rate": "90.3%",
       "note": "Texts only. They are NOT committed as candidates, because a candidate needs the slot's ledger_digest and new_lemmas, and both are outputs of a build that has not run. The 9.7% that reject are the trap table above, which is the reason a text bank has to be analysed before it is dressed as a row."
-    }
+    },
+    "ledgerFixVerifiedAgainstThePrecomputedWindows": "p2fix-ledger-freeze's in-progress g4_select.py was run in a scratchpad copy of the package against this worktree's build. Before it, 1,456 of 1,456 gap rows carried an empty ledger. After it, 0 do, and the emitted `known | new` set EQUALS this lane's precomputed window on every gap row — 1,339 of 1,339 on the first run and 490 of 490 on a rebuilt one, zero mismatches either time. The claim that allowed_lemmas is computable without a corpus is therefore measured, not argued. G2's resolution of units 1-7 was also identical across two independent runs (unit 1 loses gracias/ella/nosotros/ellos/llamarse, unit 4 loses cuchara, units 2/3/5/6/7 lose nothing), so the lesson-37 window of 198 lemmas is reproducible."
   },
   "shardState": {
     "file": "content/es/candidates/u07-u14.jsonl",
-    "rowsAuthored": 0,
+    "rowsAuthored": 180,
+    "slotsCovered": "9 of 222 — every slot of unit 7 lesson 37 (u7/l37/s0..s8), 20 candidates each",
     "rowsRequired": "222 slots x 20 = 4,440 at the 281b623 measurement (u7 54, u8 24, u9 23, u10 21, u11 21, u12 8, u13 40, u14 31)",
-    "why": "Not one valid row can be written before the gap brief exists. G5 evaluates `stale_ledger` FIRST and by SET EQUALITY on both allowed_lemmas and new_lemmas, so a row authored against a guessed ledger fails whole, and a file of 4,440 guessed rows would fail 4,440 times while looking exactly like a finished lane. The file is left empty rather than filled with rows that cannot pass — which is the same rule INV-PACK-10 states for a single candidate, applied to a shard."
+    "verification": {
+      "how": "scratchpad/lane-u07-u14/verify_shard.py, which reproduces G5's REJECT_AXES in order over the shard against a real G4 gap list, reading G5's own constants",
+      "againstWhat": "a G4 run carrying p2fix-ledger-freeze's gap-ledger fix, in a private build root, over the 2,823-sentence local Tatoeba corpus",
+      "result": "180 rows, 9/9 lesson-37 slots FILLED, rejected_by_axis {stale_ledger: 0, out_of_vocabulary: 0, new_lemma_budget: 0, length: 0, duplicate: 0}, 180 distinct texts, backtranslation {3: 80, 4: 100}",
+      "note": "The verifier still reports FAIL overall, correctly: the other 122 gap slots of units 7-14 in that build have no candidates. FAIL is the honest verdict for a shard that covers one lesson."
+    },
+    "whyOnlyLesson37": "Every row needs the slot's new_lemmas, and G4 draws those from `pending` — the unit's target lemmas not yet SHOWN. A filled slot consumes pending lemmas in a corpus-dependent way, so for a unit that is only partly gaps the per-slot new lemma cannot be known without the frozen build. Unit 7 is the exception: it is 100% gaps (54 of 54 slots) in the 281b623 CI measurement and in all three local runs, and a unit's own target lemmas can never be in `shown` before that unit, so its pending walk is deterministic. Lesson 37 was authored against that determinism: slots 0-5 take qué, quién, cuál, cuándo, porque, para in curriculum order and slots 6-8 take none, which is exactly what the patched G4 emits.",
+    "eachRowCarriesBothContracts": "allowed_lemmas (the contract as committed) AND ledger_digest (the contract landing in p2fix-ledger-freeze), so the shard is readable under either. If the frozen build's corpus cap moves G2's lexicon, the window moves, the digest moves with it, and these rows fail by name on the stale_ledger axis rather than filling a slot they no longer fit."
   },
   "gatesRun": {
     "pnpm lint": "clean (eslint .)",
