@@ -617,3 +617,25 @@ integration patch:
 Until it is fixed, **G7 has never completed a run over authored content**, so G8, G9,
 `coursekit validate`, `coursekit sample` and `coursekit sign` are still unproven on a real
 course — the same list as round 1, now for a different and much narrower reason.
+
+## B17 — the course gets easier 13 times — OPEN, measured
+
+`coursekit validate es` ran here for the first time (diagnostic tree, so G7-dependent
+validators raised; V8, V11 and F5 are independent of G7 and did measure something). V11
+reports **13 unit boundaries where mean difficulty falls**:
+
+```
+V11 [u18->u19]: mean difficulty falls from 12.032 in unit 18 to 8.810 in unit 19 (-3.222)
+V11 [u22->u23]: 10.491 -> 8.702 (-1.789)
+V11 [u15->u16]: 10.265 ->  8.945 (-1.320)
+… ten more, the smallest -0.188
+```
+
+It is not obviously wrong and it is certainly not random: an authored gap-fill sentence is
+shorter and plainer than a corpus sentence that happened to fit the same window, so a unit
+with many gaps reads _easier_ than the unit before it even though its vocabulary is
+strictly larger. Units 19, 23 and 16 are the gap-heavy ones.
+
+What to do with it is a content question this round did not have the budget to answer, and
+it needs the reviewer sample (B3) to say whether the learner experiences it as a
+regression. It is written down because the run measured it, not because it is decided.
