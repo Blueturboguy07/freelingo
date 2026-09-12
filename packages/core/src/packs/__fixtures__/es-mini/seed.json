@@ -2,6 +2,7 @@
   "candidates": [
     {
       "accepted": true,
+      "analysis": null,
       "author": "opus-5 (agent-authored, no API key in this environment)",
       "candidate_id": "9abf1889f7f35a9c",
       "generated_at": "2026-09-12T00:00:00+00:00",

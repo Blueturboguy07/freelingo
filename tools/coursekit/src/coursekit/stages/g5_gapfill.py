@@ -84,7 +84,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -319,8 +319,8 @@ def _candidate_id(lang: str, slot: Slot, text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _lemmas(analyser: Any, sentence_id: str, text: str) -> tuple[list[str], int]:
-    """Lemmas and word count from the G1 adapter. Never a whitespace split.
+def _analyse(analyser: Any, sentence_id: str, text: str) -> dict[str, Any]:
+    """The G1 adapter's analysis of one authored sentence. Never a whitespace split.
 
     `analyse(*, sentence_id, text)` is the adapter contract — the one `g1_analyze` calls
     and the one `SpacyEsAdapter` implements. This function used to call `analyse(text)`
@@ -330,14 +330,40 @@ def _lemmas(analyser: Any, sentence_id: str, text: str) -> tuple[list[str], int]
     wrong signature, so eleven green tests were testing the shim. The fixture now builds
     the registered adapter.
 
-    The count is `display_tokens`, the lexical surfaces — punctuation is in `tokens[]`
-    with its offsets because the grader needs the spans, and counting it would make "the
-    same 3-12 window as a corpus sentence" a different window in practice.
+    It used to return `(lemmas, len(display_tokens))` and throw the rest away. The whole
+    record is returned now because G7 needs it: `candidate.analysis` carries this pass
+    forward across the G5 -> G7 boundary so that G7 resolves a gap by the lemma rather
+    than by the surface at the gap index (founder ruling B16, option 2). Analysing once
+    and carrying it is both cheaper than a second pass inside G7 and unable to disagree
+    with itself.
     """
-    analysis = analyser.analyse(sentence_id=sentence_id, text=text)
-    lemmas = list(analysis["lemmas"])
+    return analyser.analyse(sentence_id=sentence_id, text=text)
+
+
+def _token_count(analysis: Mapping[str, Any]) -> int:
+    """The length axis's unit: `display_tokens`, the lexical surfaces.
+
+    Punctuation is in `tokens[]` with its offsets because the grader needs the spans, and
+    counting it would make "the same 3-12 window as a corpus sentence" a different window
+    in practice.
+    """
     words = analysis.get("display_tokens")
-    return lemmas, len(words) if words is not None else len(lemmas)
+    return len(words) if words is not None else len(analysis["lemmas"])
+
+
+def _candidate_analysis(analysis: Mapping[str, Any]) -> dict[str, Any]:
+    """G1's `analysed_sentence` narrowed to the four fields `CandidateAnalysis` holds.
+
+    `adapter` is called `analyser` on a candidate and the record's own identity fields
+    (`schema_version`, `sentence_id`, `lang`) are dropped: the candidate already carries
+    its own. `CandidateAnalysis` is closed, so this is a projection and not a copy.
+    """
+    return {
+        "analyser": analysis["adapter"],
+        "tokens": list(analysis["tokens"]),
+        "lemmas": list(analysis["lemmas"]),
+        "display_tokens": list(analysis["display_tokens"]),
+    }
 
 
 def _axis(
@@ -346,39 +372,49 @@ def _axis(
     analyser: Any,
     seen_in_unit: set[str],
     sentence_id: str,
-) -> str | None:
-    """The first axis this candidate fails, or `None`.
+) -> tuple[str | None, dict[str, Any] | None]:
+    """The first axis this candidate fails (or `None`), and the analysis behind it.
 
     Evaluated in `REJECT_AXES` order and short-circuited: `stale_ledger` has to come
     first, because every axis below it would otherwise be measured against a vocabulary
     the build no longer has and would pass for the wrong reason.
+
+    The second element is what the row's `analysis` field gets, and it is `None` for
+    exactly the rows the analyser never ran on — the two `stale_ledger` returns above
+    the `_analyse` call. That is why `candidate.analysis` is nullable rather than
+    optional: a stale row is still WRITTEN, because the reject rate is the number that
+    says the ledger window is too tight, and no schema keyword can say "non-null exactly
+    when G7 will read it".
     """
     allowed = set(gap["known_lemmas"]) | set(gap["new_lemmas"])
     if authored["ledger_digest"] != ledger_digest(gap["known_lemmas"], gap["new_lemmas"]):
-        return "stale_ledger"
+        return "stale_ledger", None
     if set(authored["new_lemmas"]) != set(gap["new_lemmas"]):
         # Same window, different idea of which lemmas are the NEW ones. The author
         # wrote to a budget of one new lemma per item against a different set, so the
         # budget axis below would be measured against the wrong thing.
-        return "stale_ledger"
+        return "stale_ledger", None
 
-    lemmas, token_count = _lemmas(analyser, sentence_id, authored["text"])
+    analysis = _analyse(analyser, sentence_id, authored["text"])
+    carried = _candidate_analysis(analysis)
+    lemmas = list(analysis["lemmas"])
+    token_count = _token_count(analysis)
 
     unknown = [lemma for lemma in lemmas if lemma not in allowed]
     if unknown:
-        return "out_of_vocabulary"
+        return "out_of_vocabulary", carried
 
     introduced = {lemma for lemma in lemmas if lemma in set(gap["new_lemmas"])}
     if len(introduced) > MAX_NEW_LEMMAS_PER_ITEM:
-        return "new_lemma_budget"
+        return "new_lemma_budget", carried
 
     if not MIN_TOKENS <= token_count <= MAX_TOKENS:
-        return "length"
+        return "length", carried
 
     if dedup_hash(authored["text"]) in seen_in_unit:
-        return "duplicate"
+        return "duplicate", carried
 
-    return None
+    return None, carried
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +472,7 @@ def gapfill(ctx: StageContext) -> StageResult:
         slot_filled = False
         for row in pool:
             candidate_id = _candidate_id(ctx.lang, slot, row["text"])
-            axis = _axis(row, gap, analyser, seen, candidate_id)
+            axis, analysis = _axis(row, gap, analyser, seen, candidate_id)
             accepted = axis is None
             if accepted:
                 seen.add(dedup_hash(row["text"]))
@@ -460,6 +496,7 @@ def gapfill(ctx: StageContext) -> StageResult:
                     "accepted": accepted,
                     "reject_reason": None if accepted else axis,
                     "provenance": AUTHORED_PROVENANCE,
+                    "analysis": analysis,
                 }
             )
         if not slot_filled:

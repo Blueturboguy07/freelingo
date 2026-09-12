@@ -151,6 +151,10 @@ def make_es_build():
                             "accepted": True,
                             "reject_reason": None,
                             "provenance": "llm",
+                            # Nullable, not optional: this fixture's rows are never
+                            # expanded by G7, so the analysis it would read is absent
+                            # rather than wrong.
+                            "analysis": None,
                         }
                     )
                     selected.append(

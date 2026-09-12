@@ -632,6 +632,61 @@ def test_a_candidates_file_written_against_a_different_ledger_is_refused(
     assert all(row["reject_reason"] == "stale_ledger" for row in emitted)
 
 
+def test_an_emitted_candidate_carries_the_analysis_g7_will_read(
+    es_course: list[dict[str, Any]],
+) -> None:
+    """`analysis` is G5's own adapter pass, not a shape G7 has to reconstruct.
+
+    Founder ruling B16 option 2. G7 used to resolve a gap by the SURFACE at the gap
+    index, which for an authored sentence meant no analysis at all — empty POS, band
+    `unbanded`, zero distractors, stage stopped on `tardes` (a surface) where `tarde`
+    (the lemma) was wanted. So every row the analyser actually ran on carries the pass
+    forward, and `write_records` would already have refused the row if the field were
+    absent; what this test adds is that the field is the REAL analysis and not a
+    schema-shaped filler. Asserted against a second, independent call to the same
+    registered adapter over the same text.
+    """
+    run_g5()
+    analyser = ADAPTERS.get("es")()
+    for row in read_records("candidate", lang="es"):
+        if row["reject_reason"] == "stale_ledger":
+            continue
+        carried = row["analysis"]
+        assert carried is not None, row["candidate_id"]
+        expected = analyser.analyse(sentence_id=row["candidate_id"], text=row["text"])
+        assert carried["analyser"] == expected["adapter"]
+        assert carried["tokens"] == expected["tokens"]
+        assert carried["lemmas"] == expected["lemmas"]
+        assert carried["display_tokens"] == expected["display_tokens"]
+        # The projection is exactly `CandidateAnalysis`: G1's identity fields are the
+        # candidate's own and must not be duplicated onto it.
+        assert set(carried) == {"analyser", "tokens", "lemmas", "display_tokens"}
+
+
+def test_a_stale_row_carries_a_null_analysis_because_the_analyser_never_ran(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nullable, not optional — and null for a reason, not as a default.
+
+    `stale_ledger` short-circuits above the adapter call, so there is no pass to carry.
+    The row is still WRITTEN (the reject rate is the number that says the ledger window
+    is too tight), which is why the field is `null` here rather than missing, and why no
+    downstream consumer may treat a present `analysis` key as a non-null one.
+    """
+    rows = _one_slot(1)
+    _write_authored(tmp_path, monkeypatch, rows)
+
+    gaps = gap_list(rows)
+    gaps[0]["known_lemmas"] = sorted({*gaps[0]["known_lemmas"], "telescopio"})
+    stage_g4("es", gaps)
+
+    run_g5()
+    emitted = list(read_records("candidate", lang="es"))
+    assert emitted
+    assert all(row["reject_reason"] == "stale_ledger" for row in emitted)
+    assert all(row["analysis"] is None for row in emitted)
+
+
 def test_a_slot_authored_below_the_overgeneration_floor_fails_the_stage(
     es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

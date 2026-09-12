@@ -180,6 +180,7 @@ def _minimal_candidates(lang: str, accepted: bool) -> None:
                 "accepted": accepted,
                 "reject_reason": None if accepted else "length",
                 "provenance": "llm",
+                "analysis": None,
             }
         ],
         lang=lang,
