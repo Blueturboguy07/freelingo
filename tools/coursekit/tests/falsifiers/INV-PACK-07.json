@@ -1,0 +1,127 @@
+{
+  "$comment": "The committed falsifier for INV-PACK-07, per the plan's rule that every invariant carries an input that FAILS it. `falsifier` is a pack whose sentence item `La casa es blanca.` can be missed (word_bank_forward is punitive) and has exactly one authored punitive form, so the mid-lesson recycle EC-MIS-04 requires has nothing to schedule. `repair` is the same pack with the second form added, and must pass. The third block `non_punitive_second_form` is the subtler failure the invariant is really about: a second form EXISTS, but it is `speak_this_sentence`, and EC-MIS-11 rules that a non-punitive replay can never clear a mistake — so it must still fail.",
+  "invariant": "INV-PACK-07",
+  "source": "EC-MIS-04, EC-PACK-05, EC-MIS-11",
+  "falsifier": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000701",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "word_bank",
+        "prompt": "Write this in Spanish\nThe house is white.",
+        "accepted_answers": ["La casa es blanca."],
+        "distractors": ["negro", "grande", "perro"],
+        "alignment": [
+          [0, 0],
+          [1, 1],
+          [2, 2],
+          [3, 3]
+        ],
+        "item_tags": {
+          "lemmas": ["el", "casa", "ser", "blanco"],
+          "grammar_concepts": ["adjective agreement"]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0001"
+      }
+    ]
+  },
+  "repair": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000701",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "word_bank",
+        "prompt": "Write this in Spanish\nThe house is white.",
+        "accepted_answers": ["La casa es blanca."],
+        "distractors": ["negro", "grande", "perro"],
+        "alignment": [
+          [0, 0],
+          [1, 1],
+          [2, 2],
+          [3, 3]
+        ],
+        "item_tags": {
+          "lemmas": ["el", "casa", "ser", "blanco"],
+          "grammar_concepts": ["adjective agreement"]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0001"
+      },
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000702",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "translate",
+        "prompt": "Translate this sentence\nThe house is white.",
+        "accepted_answers": ["La casa es blanca."],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": ["el", "casa", "ser", "blanco"],
+          "grammar_concepts": ["adjective agreement"]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0001"
+      }
+    ]
+  },
+  "non_punitive_second_form": {
+    "exercises": [
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000701",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "word_bank",
+        "prompt": "Write this in Spanish\nThe house is white.",
+        "accepted_answers": ["La casa es blanca."],
+        "distractors": ["negro", "grande", "perro"],
+        "alignment": [
+          [0, 0],
+          [1, 1],
+          [2, 2],
+          [3, 3]
+        ],
+        "item_tags": {
+          "lemmas": ["el", "casa", "ser", "blanco"],
+          "grammar_concepts": ["adjective agreement"]
+        },
+        "audio_ref": null,
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0001"
+      },
+      {
+        "schema_version": 1,
+        "lang": "es",
+        "exercise_id": "0000000000000703",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "speak",
+        "prompt": "Speak this sentence\nLa casa es blanca.",
+        "accepted_answers": ["La casa es blanca."],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {
+          "lemmas": ["el", "casa", "ser", "blanco"],
+          "grammar_concepts": ["adjective agreement"]
+        },
+        "audio_ref": "bbbbbbbbbbbb0001",
+        "register": "tu",
+        "source_sentence_id": "aaaaaaaaaaaa0001"
+      }
+    ]
+  }
+}
