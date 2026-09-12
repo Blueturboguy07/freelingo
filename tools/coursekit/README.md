@@ -165,6 +165,79 @@ verbatim in both, rather than comparing the literal to itself. `awkward` verdict
 reported separately and never folded into the wrong-item rate. An **unscored** sample has a rate of `None`, and
 `None` does not pass the 2% gate.
 
+Founder ruling **B3** (2026-09-12) settled what an agent-scored rate unblocks:
+`gate_passed()` accepts `REVIEWER_KIND_AGENT` at ≤ 2% **for the automated run**, so P3
+may build on the pack, and the **paid** native review is a release prerequisite — item 1
+of `docs/RELEASE.md`, ahead of signing and the manual checklist, because a defect rate
+above 2% discovered after P3 invalidates P3–P6. Two reviewer classes exist as two
+constants (`REVIEWER_KIND_AGENT`, `REVIEWER_KIND_PAID_NATIVE`) rather than a boolean for
+exactly that reason, and only the paid one clears the note.
+
+The rubric grew a sixth dimension in the same round, `accent_consistency`, because ruling
+**B6** made it the only check there is on how the bank sounds — see "Voices" below.
+`REVIEW_DIMENSIONS` in `config/sample.py` is the authority on the spelling: `read_scores`
+raises `ScoreError` on a `dimensions` key outside that tuple, so a rubric and a constant
+that disagree do not produce a wrong rate, they produce **no rate**.
+
+## Where these numbers are rendered
+
+`coursekit` produces provenance for four surfaces, and the reason each figure exists is
+that something renders it. `docs/pack-provenance.md` is the full account; this is the map.
+
+| Screen   | Reads                                                                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S001** | course-picker card: `A1 · CEFR-aligned` / `Beginner · frequency-ordered`, `{{n}}% machine-authored`, `measured wrong-item rate {{n}}%`, size |
+| **S002** | pack detail: sample sentence + speaker, item count, size, the **validator-report summary** (`validators/report.py::summarise()`)             |
+| **S137** | About: licences, content provenance, measured defect rate, version, and `Content credits` into S152                                          |
+| **S152** | Credits: per row the **sentence text** then `Source: {{source}}` · `Licence: {{licence}}` · `By {{owner}}`; the derived-list and voice declarations; the pack's licence |
+
+S152 is the surface INV-PACK-17 and validator **F3** enforce: every sentence, voice and
+derived list whose licence requires attribution must be **reachable** from it, and the
+build fails otherwise. It was a screen id in an invariant with no product-map row until
+founder ruling **B5** gave it one (Surface 16: states `list · filtered · sentence-detail ·
+empty · pack-missing`, entered from S137 `Content credits` and S045 `Credits for this
+sentence`). P4 builds it; the pack half is already gated here.
+
+`docs/pack-provenance.md` carries the full slot list. The one to not lose is the **per-row
+sentence text**, which Surface 16 writes without backticks among nine backticked strings:
+a credited row renders the sentence, then its source, licence and owner, and the whole-pack
+state is searchable by that text.
+
+## Voices — Kokoro, and the three licences a reader must not conflate
+
+The approved plan named **Azure Neural** as the voice vendor. No cloud credential exists
+in this environment, so founder ruling **B6** replaced it: **Kokoro** bakes es/fr/ja, and
+Piper stays a build-time-only tool held for German at P7. The override is recorded in
+`content/es/cast.yaml` as `D-CAST-ES-00` — the file the bake actually reads — and in
+`docs/owned/p2-g8.json` as `OVERRIDE-VOICE-VENDOR`.
+
+Two things follow, and both are founder-visible rather than internal:
+
+- **the accent claim lost its backing.** Azure publishes a locale sub-tag per voice;
+  Kokoro's three Spanish vectors are tagged `e` and nothing finer. So the manifest says
+  `language: es` + `accent_claim: unverified` instead of `locale: es-ES`, and the reviewer
+  sample's `accent_consistency` dimension is the only thing that can contradict it;
+- **two of four cast roles are blends.** Three Spanish voices, four roles, one female
+  vector against two female roles: `adult_female` and `young` are deterministic weighted
+  blends of stock vectors at declared weights (`D-CAST-ES-02`). Pinned by the re-bake key,
+  which includes the **engine** (INV-AUD-08), so an engine swap re-bakes rather than
+  silently reusing the bank.
+
+| Artefact                              | Licence             | Where it goes                                             |
+| ------------------------------------- | ------------------- | --------------------------------------------------------- |
+| `kokoro-onnx`, the synthesiser code   | **Apache-2.0**      | build time only; never links into the app                 |
+| Kokoro v1.0 weights and style vectors | **Apache-2.0**      | build time only                                           |
+| the baked Opus clips in the pack      | **CC BY-NC-SA 4.0** | pack content, so the **pack's** licence, not the engine's |
+| `piper`                               | GPL-3.0-only        | build-time tool, de only, P7; never shipped               |
+
+Apache-2.0 on **both** the code and the weights is why Kokoro can bake a CC BY-NC-SA pack
+with no licence question at all. The rule underneath the table — **a voice engine's code
+licence is not its voices' licence, and neither is the pack's** — is enforced rather than
+advised: Piper's single Japanese voice is CC BY-NC-SA and `tts/piper.py` refuses it in
+code. Kokoro's allow-list entry sets `attribution_required: false`, so the
+`Voices: Kokoro (Apache-2.0)` line on S152 is a declaration the project chose to make,
+not an obligation it owes.
+
 ## `coursekit sign`
 
 ed25519 over the canonicalised manifest, against the contract in
