@@ -424,7 +424,7 @@ def _sentence_draft(
         body = "" if chosen.id == "listen_for_the_missing_word" else body
         distractors = _decoys(
             inputs,
-            lemmas=[target_tokens[gap_index]],
+            lemmas=[_anchor_lemma(lemmas, gap_index, target_tokens[gap_index])],
             count=chosen.distractor_count,
             key=key,
             accepted=list(accepted),
@@ -472,6 +472,33 @@ def _gap_index(tokens: Sequence[str]) -> int:
     if not tokens:
         raise ValueError("a cloze needs at least one token")
     return max(range(len(tokens)), key=lambda index: (len(tokens[index]), -index))
+
+
+def _anchor_lemma(lemmas: Sequence[str], index: int, surface: str) -> str:
+    """The LEMMA of the gapped token, for the distractor core. Not its surface.
+
+    `_decoys` uses its `lemmas` argument as both `answer_lemma` and the key into
+    `pos_of` / `band_of`, and both of those are keyed by LEMMA because `banded_lemma` is.
+    Both call sites used to hand it `target_tokens[gap_index]`, which is a SURFACE, and it
+    only ever worked because a lowercase mid-sentence Spanish surface is often its own
+    lemma. It is not for a capitalised first word, and it is never one for an authored
+    candidate, which has no analysis at all:
+
+        g7 failed: NotEnoughDistractors: concept:subject_pronouns: needed 2 distractors
+        for 'Hola' (POS , band unbanded) and the rule core found 0.
+
+    `Hola` is in no lexicon; `hola` is a banded lemma. Measured on this Mac, 2026-09-12,
+    on the first run G7 ever made over authored content.
+
+    The two lists are index-aligned by construction — `display_tokens` and `lemmas` are
+    both the LEXICAL tokens of the same analysis, in order, and the authored fallback
+    derives both from `_display_split` — so this is a lookup, not a guess. Out of range or
+    empty falls back to the surface, which is the old behaviour and is still better than
+    raising.
+    """
+    if 0 <= index < len(lemmas) and lemmas[index]:
+        return lemmas[index]
+    return surface
 
 
 def _decoys(
@@ -682,7 +709,7 @@ def _grammar_draft(
         accepted = (target_tokens[gap_index],)
         distractors = _decoys(
             inputs,
-            lemmas=[target_tokens[gap_index]],
+            lemmas=[_anchor_lemma(lemmas, gap_index, target_tokens[gap_index])],
             count=shape(shape_id).distractor_count,
             key=key,
             accepted=list(accepted),
