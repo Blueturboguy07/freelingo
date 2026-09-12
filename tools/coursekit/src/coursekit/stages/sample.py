@@ -8,7 +8,7 @@ produced what it sampled.
 Options (via `--set key=value`, the scaffold's option channel — `cli.py` deliberately
 carries no per-stage flags so that eight lanes never edit one dispatch table):
 
-    coursekit sample es --set n=300 --set seed=20260911
+    coursekit sample es --set n=300 --set seed=20260912
 
 `n` defaults to `config.REVIEWER_SAMPLE_ITEMS` (300) and `seed` to
 `config.sample.SAMPLE_SEED`, so a bare `coursekit sample es` is the 300-item draw the

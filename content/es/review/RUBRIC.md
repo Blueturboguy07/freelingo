@@ -45,8 +45,8 @@ a paid reviewer scores later are the same 300 rows the agent scored.
 ```sh
 cd tools/coursekit
 uv run coursekit build es          # G0-G9
-uv run coursekit sample es         # 300 items, seed 20260911
-# or: uv run coursekit sample es --set n=300 --set seed=20260911
+uv run coursekit sample es         # 300 items, seed 20260912
+# or: uv run coursekit sample es --set n=300 --set seed=20260912
 ```
 
 The draw is stratified over `(unit_index, exercise_type, provenance)` and deterministic

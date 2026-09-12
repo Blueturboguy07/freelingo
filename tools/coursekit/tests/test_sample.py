@@ -635,4 +635,4 @@ def test_the_sanctioned_spellings_are_the_ones_the_readme_documents() -> None:
     # The bare draw is REVIEWER_SAMPLE_ITEMS at SAMPLE_SEED, which is what the README
     # and the plan's P2 row both claim.
     assert REVIEWER_SAMPLE_ITEMS == 300
-    assert SAMPLE_SEED == 20260911
+    assert SAMPLE_SEED == 20260912

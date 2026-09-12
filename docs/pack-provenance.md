@@ -292,7 +292,7 @@ cd tools/coursekit
 uv sync --locked
 uv run coursekit build es                 # G0-G9
 uv run coursekit validate es              # writes build/es/validator-report.json
-uv run coursekit sample es                # writes build/es/sample-300.jsonl, seed 20260911
+uv run coursekit sample es                # writes build/es/sample-300.jsonl, seed 20260912
 PACK_SIGNING_KEY=… uv run coursekit sign es
 ```
 
