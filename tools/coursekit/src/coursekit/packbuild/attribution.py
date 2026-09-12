@@ -31,7 +31,14 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..config import ISO3_BY_LANGUAGE, LOCALE_BY_LANGUAGE, SOURCES
-from ..config.g9 import SHARE_ALIKE_LICENCES, UNRESOLVED_LICENCE
+from ..config.g9 import (
+    AUTHORED_SOURCE_ID,
+    AUTHORED_SOURCE_URL,
+    DERIVED_LIST_KINDS,
+    SHARE_ALIKE_LICENCES,
+    UNRESOLVED_LICENCE,
+    VOICE_SOURCE_PREFIX,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .sqlite import PackInputs
@@ -39,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 __all__ = [
     "attribution_violations",
     "credit_rows",
+    "derived_list_sources",
     "is_share_alike",
     "licence_for_source",
     "source_url",
@@ -63,7 +71,15 @@ def source_url(source_id: str, lang: str) -> str | None:
     `SOURCES` stores `{lang}`, `{iso3}` and `{locale}` unsubstituted because one row
     serves four courses. A credits surface must not render a brace: the learner is being
     shown where the text came from, and `{lang}_50k.txt` is not an answer.
+
+    Two ids are not corpus ids and are resolved before the lookup: a voice arrives as
+    `voice:<engine>`, and `freelingo_authored` has no corpus at all — its destination is
+    the pack's own licence, because a credits row that points nowhere is not a credit.
     """
+    if source_id == AUTHORED_SOURCE_ID:
+        return AUTHORED_SOURCE_URL
+    if source_id.startswith(VOICE_SOURCE_PREFIX):
+        source_id = source_id[len(VOICE_SOURCE_PREFIX) :]
     source = SOURCES.get(source_id)
     if source is None or source.url is None:
         return None
@@ -155,23 +171,18 @@ def credit_rows(inputs: PackInputs) -> list[dict[str, Any]]:
         )
 
     for clip in inputs.clips:
-        source_id = f"voice:{clip['engine']}"
+        source_id = f"{VOICE_SOURCE_PREFIX}{clip['engine']}"
         owner, required = licence_for_source(inputs, source_id, str(clip["licence"]))
         if not required:
             continue
-        add("voice", source_id, str(clip["licence"]), owner, None)
+        add("voice", source_id, str(clip["licence"]), owner, source_url(source_id, inputs.lang))
 
     # Derived lists: everything this run read whose data reaches the learner as a derived
-    # artefact rather than as text. The frequency ordering is the one that exists today;
-    # the rule is per licence row, not a hard-coded source id.
-    for row in inputs.licences:
-        source_id = str(row.get("source_id", ""))
-        if source_id in credits or not row.get("attribution_required", False):
-            continue
-        if str(row.get("verdict")) != "shippable":
-            continue
-        source = SOURCES.get(source_id)
-        if source is None or source.kind not in {"frequency", "lexicon", "furigana", "strokes"}:
+    # artefact rather than as text — the frequency ordering that becomes the teaching
+    # order, the CEFR lexicon that becomes the band on every `lexeme` row. The rule is per
+    # licence row and per source KIND, never a hard-coded source id.
+    for source_id, row in derived_list_sources(inputs):
+        if source_id in credits:
             continue
         owner = row.get("attribution_owner")
         credits[source_id] = {
@@ -185,6 +196,35 @@ def credit_rows(inputs: PackInputs) -> list[dict[str, Any]]:
         }
 
     return [credits[key] for key in sorted(credits)]
+
+
+def derived_list_sources(inputs: PackInputs) -> list[tuple[str, Mapping[str, Any]]]:
+    """Every licence row whose data ships as a derived artefact and needs a credit.
+
+    Walked from `inputs.licences` — the run's own resolved licence table — rather than
+    from the credits it produces, so `attribution_violations` has something independent
+    to compare against. Two defaults here are the safe ones and both were once the unsafe
+    ones:
+
+    - `attribution_required` defaults to **True**. It used to default to False here while
+      `licence_for_source` defaulted to True, so a licence row that simply omitted the
+      flag produced neither a credit nor a violation. Silence is the one outcome a
+      licence gate may not have.
+    - membership is decided by the source's `kind`, not by its `verdict`. `verdict` says
+      whether a source's own TEXT may ship; CEFRLex is `oracle_only` and its bands ship
+      on every `lexeme` row regardless, which is exactly the case the verdict filter used
+      to drop.
+    """
+    out: list[tuple[str, Mapping[str, Any]]] = []
+    for row in inputs.licences:
+        source_id = str(row.get("source_id", ""))
+        if not source_id or not row.get("attribution_required", True):
+            continue
+        source = SOURCES.get(source_id)
+        if source is None or source.kind not in DERIVED_LIST_KINDS:
+            continue
+        out.append((source_id, row))
+    return out
 
 
 def attribution_violations(inputs: PackInputs) -> list[str]:
@@ -227,7 +267,7 @@ def attribution_violations(inputs: PackInputs) -> list[str]:
             )
 
     for clip in inputs.clips:
-        source_id = f"voice:{clip['engine']}"
+        source_id = f"{VOICE_SOURCE_PREFIX}{clip['engine']}"
         licence = str(clip["licence"])
         owner, required = licence_for_source(inputs, source_id, licence)
         if not required:
@@ -242,6 +282,48 @@ def attribution_violations(inputs: PackInputs) -> list[str]:
                 f"voice clip {clip['clip_id']} is attributed to {owner}, which no credits "
                 f"row renders"
             )
+
+    # Derived lists, walked from the run's licence table rather than from `credits`. This
+    # is the only walk in this function whose input `credit_rows` does not also produce,
+    # and it is the one that catches a derived list dropped from the credits for any
+    # reason at all — a missing flag, an unknown kind, a filter added later. A frequency
+    # ordering that ships uncredited is a share-alike violation nobody would ever see.
+    for source_id, row in derived_list_sources(inputs):
+        licence = str(row.get("licence", UNRESOLVED_LICENCE))
+        owner = row.get("attribution_owner")
+        if licence == UNRESOLVED_LICENCE:
+            violations.append(
+                f"derived list {source_id} carries an UNRESOLVED licence; the per-corpus "
+                f"row comes from the OPUS legacy page, never from the API"
+            )
+            continue
+        if owner is None or str(owner).strip() == "":
+            violations.append(
+                f"derived list {source_id} is {licence} (attribution required) and names "
+                f"no owner"
+            )
+        elif source_id not in credits:
+            violations.append(
+                f"derived list {source_id} is attributed to {owner}, which no credits row "
+                f"renders"
+            )
+
+    # And a licence row nobody can classify. `SOURCES` is where a source declares what
+    # kind of thing it is; a row that requires attribution, is not a source we know, and
+    # is credited by neither a sentence nor a voice is a licence question with no answer,
+    # which stops the build rather than shipping on the assumption that it was harmless.
+    for row in inputs.licences:
+        source_id = str(row.get("source_id", ""))
+        if not source_id or source_id in credits:
+            continue
+        if not row.get("attribution_required", True):
+            continue
+        if SOURCES.get(source_id) is not None:
+            continue
+        violations.append(
+            f"licence row {source_id} requires attribution but declares no known source "
+            f"kind, so the build cannot tell whether anything derived from it ships"
+        )
 
     for row in credits.values():
         if str(row["owner"]).strip() == "":

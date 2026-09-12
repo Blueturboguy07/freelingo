@@ -225,3 +225,34 @@ def test_a_manifest_missing_an_install_field_reports_only_that(tmp_path: Path) -
     manifest = {key: value for key, value in _built(tmp_path).items() if key != "payloadSha256"}
     violations = manifest_violations(manifest)
     assert violations == ["manifest has no payloadSha256; install.ts requires it by that name"]
+
+
+def test_the_cefr_claim_carries_its_boolean_so_the_app_has_one_to_branch_on(
+    tmp_path: Path,
+) -> None:
+    """The sentence and the boolean are two renderings of one fact (plan §Rulings, Q8).
+
+    `CourseManifest.cefrChecked` in `packages/core` is a boolean, and the path lane builds
+    the learner-facing section-card chip from it. Until this field existed that boolean
+    had no source in the pack at all: the pack carried `cefrClaim` as prose, the path lane
+    carried the boolean, and the same claim had two independent owners that had already
+    drifted apart on their separator. Both halves are now derived from one predicate.
+    """
+    from coursekit.config.g9 import CEFR_CLAIM_CHECKED, CEFR_CLAIM_FREQUENCY
+    from coursekit.packbuild.sqlite import cefr_checked, meta_rows
+
+    manifest = _built(tmp_path)
+    assert manifest["cefrChecked"] is True
+    assert manifest["cefrClaim"] == CEFR_CLAIM_CHECKED
+    assert manifest_violations(manifest) == []
+
+    # The pack's own `meta` carries the same pair, because a pack opened after install is
+    # opened on its own and S001/S137 render this without the manifest beside them.
+    meta = {row["key"]: row["value"] for row in meta_rows(fixture_inputs())}
+    assert meta["cefr_checked"] == "1"
+    assert meta["cefr_claim"] == manifest["cefrClaim"]
+
+    # And the false branch is real, not theoretical: de and ja have no CEFR resource.
+    assert cefr_checked("es") is True
+    assert cefr_checked("ja") is False
+    assert CEFR_CLAIM_FREQUENCY.endswith("frequency-ordered")

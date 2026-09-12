@@ -1,6 +1,8 @@
 {
   "id": "INV-PACK-17",
-  "covers": ["EC-PACK-56"],
+  "covers": [
+    "EC-PACK-56"
+  ],
   "why": "Tatoeba is attribution-only and its CC0 subset is 2,266 bytes for Spanish against 313,297 for French, so three of the four v1 languages cannot avoid the credits screen. A licence that requires attribution with no reachable credit is a licence violation, which makes this a build gate and not a UI nicety.",
   "surface": "S152, reachable from the report sheet S045 and About S137. S152 is NOT in deep/00-PRODUCT-MAP.md, which stops at S151; the map owes a row before P4 renders it.",
   "cases": [
@@ -52,8 +54,15 @@
           "attribution_owner": null
         }
       ],
-      "creditedSources": ["freelingo_authored", "hermitdave", "tatoeba"],
-      "shareAlike": ["freelingo_authored", "hermitdave"],
+      "creditedSources": [
+        "freelingo_authored",
+        "hermitdave",
+        "tatoeba"
+      ],
+      "shareAlike": [
+        "freelingo_authored",
+        "hermitdave"
+      ],
       "violations": []
     },
     {
@@ -148,7 +157,78 @@
           "attribution_owner": null
         }
       ],
-      "violations": ["credits row hermitdave (CC-BY-SA-4.0) renders no owner"]
+      "violations": [
+        "credits row hermitdave (CC-BY-SA-4.0) renders no owner",
+        "derived list hermitdave is CC-BY-SA-4.0 (attribution required) and names no owner"
+      ]
+    },
+    {
+      "why": "A licence row that simply OMITS `attribution_required`. This used to default to False in the derived-list walk while `licence_for_source` defaulted to True, so a frequency ordering whose row lost one flag produced neither a credit nor a violation. An undeclared licence question must stop the build, never pass it.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa5",
+          "text": "Soy de Mexico.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [],
+      "clips": [],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        },
+        {
+          "source_id": "hermitdave",
+          "licence": "CC-BY-SA-4.0",
+          "verdict": "shippable"
+        }
+      ],
+      "violations": [
+        "credits row hermitdave (CC-BY-SA-4.0) renders no owner",
+        "derived list hermitdave is CC-BY-SA-4.0 (attribution required) and names no owner"
+      ]
+    },
+    {
+      "why": "CEFRLex is `oracle_only` — its own text never ships — but the BAND it produces is written onto every `lexeme` row of the pack, so something derived from it does ship. The derived-list walk used to filter on `verdict`, which dropped exactly this row: an NC share-alike source credited nowhere, in a pack whose whole licence story is that the NC data is allowed because the pack is NC.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa6",
+          "text": "Soy de Mexico.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [],
+      "clips": [],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        },
+        {
+          "source_id": "cefrlex",
+          "licence": "CC-BY-NC-SA-4.0",
+          "verdict": "oracle_only",
+          "attribution_required": true,
+          "attribution_owner": null
+        }
+      ],
+      "violations": [
+        "credits row cefrlex (CC-BY-NC-SA-4.0) renders no owner",
+        "derived list cefrlex is CC-BY-NC-SA-4.0 (attribution required) and names no owner"
+      ]
     }
   ],
   "note": "`violations` is the EXACT set of lines the gate must produce, not a count: one ownerless asset produces two facts (the asset, and the credits row that would render blank), and a test that only counted them would pass on either one alone."

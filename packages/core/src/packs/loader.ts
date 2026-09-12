@@ -12,10 +12,20 @@
  * is not what ships:
  *
  * - **INV-PACK-17** — every sentence, voice and derived list whose licence requires
- *   attribution is *reachable from the rendered credits surface*. `credits()` is what
- *   that surface renders; `creditsViolations()` walks the pack independently and reports
- *   anything the surface would not show. Two queries, deliberately: a check derived from
- *   the same query it is checking is a check that cannot fail.
+ *   attribution is *reachable from the rendered credits surface*. The two halves are
+ *   deliberately computed from **disjoint** rows:
+ *
+ *   - `credits()` renders the `attribution:` rows of `meta` and nothing else. Those are
+ *     the build's authoritative credit rows — one per source, owner resolved, licence
+ *     URL filled in — and they are the whole of what S152 shows.
+ *   - `creditsViolations()` never reads those rows for its evidence. It walks `sentence`
+ *     and `audio`, which `credits()` does not touch, and asks whether each attributed
+ *     row's source and owner appear in what the surface renders.
+ *
+ *   An earlier version had `credits()` scan `sentence` and `audio` *as well*, which was
+ *   wrong twice: Tatoeba rendered on S152 twice (once from the scan with no URL, once
+ *   from its meta row), and the reachability half of the check could not fail, because
+ *   every row it walked had put itself into the set it was being checked against.
  * - **INV-PACK-41** — item ids are content hashes over semantic fields only, so this
  *   module resolves an FSRS row to an exercise through `item_id` and never through a
  *   position, a rowid or an audio hash.
@@ -179,6 +189,13 @@ export const PACK_LOADER_READS: Readonly<Record<string, readonly string[]>> = {
 /** Credits rows live in `meta` under this prefix. Mirrors `CREDITS_META_PREFIX`. */
 export const CREDITS_META_PREFIX = 'attribution:';
 
+/**
+ * A voice is credited per engine, never per clip: `voice:kokoro`, not one row for each
+ * of 8,000 utterances. Mirrors the id `packbuild/attribution.py` mints, and the read side
+ * has to mint the same string or its reachability check compares two vocabularies.
+ */
+export const VOICE_SOURCE_PREFIX = 'voice:';
+
 /* ================================================================ pack meta */
 
 export interface PackMeta {
@@ -197,6 +214,16 @@ export interface PackMeta {
   readonly defectRate: number;
   /** `A1 · CEFR-checked` for es/fr; `Beginner · frequency-ordered` otherwise. */
   readonly cefrClaim: string;
+  /**
+   * The machine-readable half of the same fact, and the one a UI should branch on.
+   *
+   * `CourseManifest.cefrChecked` (`packages/core/src/types`) is a boolean that
+   * `path/manifest.ts` renders its own section-card chip from. Before this existed the
+   * pack carried only the sentence and the path lane carried only the boolean, so the
+   * same learner-facing claim had two independent sources of truth and had already
+   * drifted on its separator. This is where the boolean comes from now.
+   */
+  readonly cefrChecked: boolean;
 }
 
 export class PackFormatError extends Error {}
@@ -237,6 +264,7 @@ export function readPackMeta(reader: PackReader): PackMeta {
     provenanceMachineAuthoredPct: requireNumber(meta, 'provenance_machine_authored_pct'),
     defectRate: requireNumber(meta, 'defect_rate'),
     cefrClaim: requireMeta(meta, 'cefr_claim'),
+    cefrChecked: requireMeta(meta, 'cefr_checked') === '1',
   };
 }
 
@@ -392,6 +420,13 @@ interface DerivedListCredit {
   readonly kind?: unknown;
   readonly items?: unknown;
 }
+
+/** How a violation names each kind of credit. `derived-list` reads as prose, not a slug. */
+const CREDIT_LABELS: Readonly<Record<PackCreditKind, string>> = {
+  sentence: 'credited source',
+  voice: 'credited voice',
+  'derived-list': 'derived list',
+};
 
 function isShareAlike(licence: string): boolean {
   return /(^|[^A-Z])SA([^A-Z]|$)/i.test(licence.replace(/[-_]/g, '-'));
@@ -595,85 +630,46 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
     },
 
     credits() {
-      const out: PackCredit[] = [];
-
-      for (const row of reader.all<{
-        source_id: string;
-        licence: string;
-        attribution_owner: string | null;
-        items: number;
-      }>(
-        `SELECT source_id, licence, attribution_owner, COUNT(*) AS items
-           FROM sentence WHERE attribution_required = 1
-           GROUP BY source_id, licence, attribution_owner
-           ORDER BY source_id, licence, attribution_owner`,
-      )) {
-        out.push({
-          kind: 'sentence',
-          sourceId: row.source_id,
-          // Never trusted to be non-null, even though the schema's CHECK says so: this
-          // scan is the thing that has to survive the CHECK being dropped.
-          owner: row.attribution_owner ?? '',
-          licence: row.licence,
-          shareAlike: isShareAlike(row.licence),
-          url: null,
-          items: row.items,
+      /*
+       * The `attribution:` rows of `meta`, and only those.
+       *
+       * They are one row per source — sentences and voices already grouped, the owner
+       * resolved against the run's own licence table, the licence URL substituted for
+       * this language — which is exactly the shape S152 renders. Scanning `sentence` and
+       * `audio` here as well is what produced two Tatoeba rows, one of them with a null
+       * URL, and it is also what made `creditsViolations()` unable to fail: see the
+       * module comment.
+       */
+      return reader
+        .all<{ key: string; value: string }>(
+          `SELECT key, value FROM meta WHERE key LIKE ? ORDER BY key`,
+          [`${CREDITS_META_PREFIX}%`],
+        )
+        .map((row): PackCredit => {
+          let parsed: DerivedListCredit;
+          try {
+            parsed = JSON.parse(row.value) as DerivedListCredit;
+          } catch {
+            throw new PackFormatError(`pack meta ${row.key} is not JSON`);
+          }
+          const licence = typeof parsed.licence === 'string' ? parsed.licence : '';
+          return {
+            kind:
+              parsed.kind === 'voice' || parsed.kind === 'sentence' ? parsed.kind : 'derived-list',
+            sourceId:
+              typeof parsed.source_id === 'string'
+                ? parsed.source_id
+                : row.key.slice(CREDITS_META_PREFIX.length),
+            owner: typeof parsed.owner === 'string' ? parsed.owner : '',
+            licence,
+            shareAlike:
+              typeof parsed.share_alike === 'boolean'
+                ? parsed.share_alike
+                : isShareAlike(licence),
+            url: typeof parsed.url === 'string' ? parsed.url : null,
+            items: typeof parsed.items === 'number' ? parsed.items : 0,
+          };
         });
-      }
-
-      for (const row of reader.all<{
-        engine: string;
-        voice_id: string;
-        licence: string;
-        attribution_owner: string | null;
-        items: number;
-      }>(
-        `SELECT engine, voice_id, licence, attribution_owner, COUNT(*) AS items
-           FROM audio WHERE attribution_required = 1
-           GROUP BY engine, voice_id, licence, attribution_owner
-           ORDER BY engine, voice_id`,
-      )) {
-        out.push({
-          kind: 'voice',
-          sourceId: `${row.engine}:${row.voice_id}`,
-          owner: row.attribution_owner ?? '',
-          licence: row.licence,
-          shareAlike: isShareAlike(row.licence),
-          url: null,
-          items: row.items,
-        });
-      }
-
-      for (const row of reader.all<{ key: string; value: string }>(
-        `SELECT key, value FROM meta WHERE key LIKE ? ORDER BY key`,
-        [`${CREDITS_META_PREFIX}%`],
-      )) {
-        let parsed: DerivedListCredit;
-        try {
-          parsed = JSON.parse(row.value) as DerivedListCredit;
-        } catch {
-          throw new PackFormatError(`pack meta ${row.key} is not JSON`);
-        }
-        const sourceId =
-          typeof parsed.source_id === 'string'
-            ? parsed.source_id
-            : row.key.slice(CREDITS_META_PREFIX.length);
-        out.push({
-          kind:
-            parsed.kind === 'voice' || parsed.kind === 'sentence' ? parsed.kind : 'derived-list',
-          sourceId,
-          owner: typeof parsed.owner === 'string' ? parsed.owner : '',
-          licence: typeof parsed.licence === 'string' ? parsed.licence : '',
-          shareAlike:
-            typeof parsed.share_alike === 'boolean'
-              ? parsed.share_alike
-              : isShareAlike(typeof parsed.licence === 'string' ? parsed.licence : ''),
-          url: typeof parsed.url === 'string' ? parsed.url : null,
-          items: typeof parsed.items === 'number' ? parsed.items : 0,
-        });
-      }
-
-      return out;
     },
 
     creditsViolations() {
@@ -684,8 +680,11 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
       );
       const sources = new Set(rendered.map((credit) => credit.sourceId));
 
-      // Walked independently of `credits()`, on purpose: a check computed from the thing
-      // it is checking agrees with a filter, a LIMIT and a dropped GROUP BY alike.
+      /*
+       * `sentence` and `audio` are rows `credits()` never reads. That disjointness is
+       * the whole value of this function: it can report a source the surface does not
+       * carry, which a check built from the surface's own query cannot.
+       */
       for (const row of reader.all<{
         sentence_id: string;
         source_id: string;
@@ -697,6 +696,10 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
         const owner = row.attribution_owner ?? '';
         if (owner.trim() === '') {
           violations.push(`sentence ${row.sentence_id} requires attribution and names no owner`);
+        } else if (!sources.has(row.source_id)) {
+          violations.push(
+            `sentence ${row.sentence_id} cites ${row.source_id}, which the credits surface does not render`,
+          );
         } else if (!owners.has(owner)) {
           violations.push(
             `sentence ${row.sentence_id} is attributed to ${owner}, which the credits surface does not render`,
@@ -714,8 +717,15 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
            WHERE attribution_required = 1 ORDER BY audio_id`,
       )) {
         const owner = row.attribution_owner ?? '';
+        // The source id a voice clip is credited under, as the build mints it
+        // (`packbuild/attribution.py`): one row per engine, not one per clip.
+        const sourceId = `${VOICE_SOURCE_PREFIX}${row.engine}`;
         if (owner.trim() === '') {
           violations.push(`voice clip ${row.audio_id} requires attribution and names no owner`);
+        } else if (!sources.has(sourceId)) {
+          violations.push(
+            `voice clip ${row.audio_id} cites ${sourceId}, which the credits surface does not render`,
+          );
         } else if (!owners.has(owner)) {
           violations.push(
             `voice clip ${row.audio_id} is attributed to ${owner}, which the credits surface does not render`,
@@ -723,16 +733,17 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
         }
       }
 
+      /*
+       * A derived list has no row of its own anywhere else in the pack — the frequency
+       * ordering reaches the learner as the order units are taught in — so there is
+       * nothing here to cross-check it against, and the read side can only ask whether
+       * the row it renders names somebody. The independent walk for derived lists is on
+       * the BUILD side, where the run's licence table still exists:
+       * `packbuild/attribution.py::attribution_violations`.
+       */
       for (const credit of rendered) {
-        if (credit.kind !== 'derived-list') continue;
-        if (credit.owner.trim() === '') {
-          violations.push(
-            `derived list ${credit.sourceId} requires attribution and names no owner`,
-          );
-        }
-        if (!sources.has(credit.sourceId)) {
-          violations.push(`derived list ${credit.sourceId} is not rendered by the credits surface`);
-        }
+        if (credit.owner.trim() !== '') continue;
+        violations.push(`${CREDIT_LABELS[credit.kind]} ${credit.sourceId} requires attribution and names no owner`);
       }
 
       return violations.sort();

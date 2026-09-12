@@ -154,8 +154,9 @@ def test_every_field_ec_pack_38_names_is_on_a_side() -> None:
 def test_the_golden_vector_pins_python_to_typescript() -> None:
     """[INV-PACK-41] the same input hashes to the same id on both sides.
 
-    `packages/schema/src/pack-schema.test.ts` asserts this exact literal from the other
-    language. Two implementations of one hash need a shared VALUE, not a shared reading
+    `packages/core/src/packs/loader.test.ts` asserts this exact literal from the other
+    language (`grep -rn 14df0f2e14669171 packages tools` finds it there and in
+    `config/g9.py`, and nowhere else). Two implementations of one hash need a shared VALUE, not a shared reading
     of a paragraph: canonical JSON, UTF-8, key sorting and `ensure_ascii` are four
     separate ways to disagree, and `¿Cómo estás?` exercises all of them.
     """

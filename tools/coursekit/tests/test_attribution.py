@@ -193,3 +193,130 @@ def test_the_credits_screen_id_is_recorded_even_though_the_map_lacks_it() -> Non
     constant is what P4 will grep for when the map finally owes it a row.
     """
     assert CREDITS_SURFACE_SCREEN == "S152"
+
+
+# ---------------------------------------------------------------------------
+# The two safe defaults, asserted directly rather than only through the corpus
+# ---------------------------------------------------------------------------
+
+
+def _licence_only_inputs(*licences: dict[str, Any]) -> PackInputs:
+    """`PackInputs` carrying nothing but a licence table and one shipped sentence."""
+    return PackInputs(
+        lang="es",
+        pack_id="freelingo-es",
+        course_id="en-es",
+        major=0,
+        version="0.1.0",
+        sentences=(
+            {
+                "sentence_id": "s1",
+                "text": "Hola.",
+                "translation": "Hi.",
+                "source_id": "tatoeba",
+                "licence": "CC-BY-2.0-FR",
+                "attribution_required": True,
+                "attribution_owner": "Tatoeba contributors",
+            },
+        ),
+        selected=(
+            {
+                "unit_index": 1,
+                "lesson_index": 1,
+                "slot_index": 0,
+                "sentence_id": "s1",
+                "provenance": "corpus",
+                "gap": False,
+                "grammar_concept": "present-estar",
+            },
+        ),
+        licences=(
+            {
+                "source_id": "tatoeba",
+                "licence": "CC-BY-2.0-FR",
+                "verdict": "shippable",
+                "attribution_required": True,
+                "attribution_owner": "Tatoeba contributors",
+            },
+            *licences,
+        ),
+    )
+
+
+def test_INV_PACK_17_a_derived_list_row_that_omits_the_flag_defaults_to_stop() -> None:
+    """[INV-PACK-17] `attribution_required` defaults to True in BOTH readers.
+
+    `licence_for_source` already defaulted to True while the derived-list walk defaulted
+    to False, so a row that lost the flag produced neither a credit nor a violation. The
+    safe default for a licence question is "stop", and it has to be the same default
+    everywhere or the disagreement is the bug.
+    """
+    from coursekit.packbuild.attribution import derived_list_sources
+
+    inputs = _licence_only_inputs(
+        {"source_id": "hermitdave", "licence": "CC-BY-SA-4.0", "verdict": "shippable"}
+    )
+    assert [source_id for source_id, _ in derived_list_sources(inputs)] == ["hermitdave"]
+    assert any("hermitdave" in line for line in attribution_violations(inputs))
+
+
+def test_INV_PACK_17_an_oracle_only_lexicon_whose_bands_ship_is_still_credited() -> None:
+    """[INV-PACK-17] `verdict` governs the source's TEXT, not what is derived from it.
+
+    CEFRLex is `oracle_only` — none of its entries ship — but the BAND it produces is
+    written onto every `lexeme` row of the pack. The derived-list walk used to filter on
+    `verdict` and dropped exactly this row, in a pack whose entire licence story is that
+    NC data is allowed inside because the pack itself is NC.
+    """
+    inputs = _licence_only_inputs(
+        {
+            "source_id": "cefrlex",
+            "licence": "CC-BY-NC-SA-4.0",
+            "verdict": "oracle_only",
+            "attribution_required": True,
+            "attribution_owner": "CENTAL, UCLouvain (Francois et al., LREC 2014)",
+        }
+    )
+    credits = {row["source_id"]: row for row in credit_rows(inputs)}
+    assert credits["cefrlex"]["kind"] == "derived-list"
+    assert credits["cefrlex"]["share_alike"] is True
+    assert attribution_violations(inputs) == []
+
+
+def test_INV_PACK_17_a_licence_row_nobody_can_classify_stops_the_build() -> None:
+    """[INV-PACK-17] an undeclared source is a licence question with no answer."""
+    inputs = _licence_only_inputs(
+        {
+            "source_id": "some_corpus_nobody_declared",
+            "licence": "CC-BY-4.0",
+            "verdict": "shippable",
+            "attribution_required": True,
+            "attribution_owner": "Somebody",
+        }
+    )
+    assert attribution_violations(inputs) == [
+        "licence row some_corpus_nobody_declared requires attribution but declares no "
+        "known source kind, so the build cannot tell whether anything derived from it ships"
+    ]
+
+
+def test_every_credit_row_the_fixture_produces_carries_a_destination() -> None:
+    """A credits row that points nowhere is not a credit.
+
+    The authored sentences have no corpus to link to, so their destination is the pack's
+    own licence; a voice resolves through its engine's `SOURCES` row rather than through
+    the `voice:` id, which is not a corpus id.
+    """
+    from coursekit.config.g9 import AUTHORED_SOURCE_ID, AUTHORED_SOURCE_URL
+    from coursekit.packbuild.sqlite import fixture_inputs
+
+    rows = credit_rows(fixture_inputs())
+    assert rows, "the fixture must produce credits at all"
+    assert [row["source_id"] for row in rows if not row["url"]] == []
+    assert len({row["source_id"] for row in rows}) == len(rows)
+    assert source_url(AUTHORED_SOURCE_ID, "es") == AUTHORED_SOURCE_URL
+    # A voice arrives as `voice:<engine>`, which is not a corpus id: the prefix has to be
+    # stripped before the lookup or every voice credit points nowhere. Piper is used here
+    # rather than Kokoro because Kokoro's row carries no URL, and `None == None` would
+    # have made this assertion true whether the prefix was stripped or not.
+    assert source_url("voice:piper", "es") == source_url("piper", "es") is not None

@@ -4,7 +4,11 @@ The last stage before a learner. Everything upstream produced records; this turn
 into the one artefact that leaves the build machine, and it is the last place a licence
 problem can still be stopped for free.
 
-Three gates run here, in this order, and each one fails the stage rather than warning:
+Three gates run here, in this order; each one fails the stage rather than warning, and
+**none of them leaves a pack behind**. The database, the audio bank and the manifest are
+assembled in a sibling temp directory and moved into place only once gate 3 has passed,
+because a stage that refuses a pack and leaves `pack.sqlite` on disk has not refused it:
+the next command to look at that directory finds a plausible pack with no manifest.
 
 1. **INV-PACK-17** — every sentence, voice and derived list whose licence requires
    attribution has a non-empty owner reachable from the credits surface. An
@@ -27,6 +31,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from ..artifacts import read_records, write_records
@@ -107,11 +112,31 @@ def _stage_audio_bank(clips: tuple[dict[str, Any], ...], destination: Path) -> i
     return copied
 
 
+def _publish(staging: Path, pack_dir: Path) -> Path:
+    """Move a fully-built pack from the staging directory into the stage directory.
+
+    `os.replace` per entry rather than a directory rename, because the stage directory
+    already exists (the runlog lives in it) and may hold the previous build's pack. The
+    audio bank is replaced wholesale: a stale clip left over from an earlier bake is a
+    file the manifest does not describe and the signature does not cover.
+    """
+    pack_dir.mkdir(parents=True, exist_ok=True)
+    audio = pack_dir / AUDIO_DIRNAME
+    if audio.exists():
+        shutil.rmtree(audio)
+    for entry in sorted(staging.iterdir()):
+        target = pack_dir / entry.name
+        if entry.is_dir():
+            shutil.copytree(entry, target)
+        else:
+            shutil.copyfile(entry, target)
+    return pack_dir / PACK_DB_FILENAME
+
+
 @register_stage(
     PACK_STAGE_ID,
     reads=(
         "ingested_sentence",
-        "analysed_sentence",
         "banded_lemma",
         "unit_assignment",
         "selected_item",
@@ -122,7 +147,11 @@ def _stage_audio_bank(clips: tuple[dict[str, Any], ...], destination: Path) -> i
     writes=("pack_row",),
 )
 def package(ctx: StageContext) -> StageResult:
-    """Assemble the pack. Returns `ok=False` on any gate, having written nothing."""
+    """Assemble the pack. Returns `ok=False` on any gate, having written nothing.
+
+    "Nothing" is literal and is tested: `tests/test_g9_package.py` asserts an empty pack
+    directory after each of the three gates fails, not just after the first.
+    """
     require_successful(ctx.lang, [stage for stage in _UPSTREAM if stage in BUILD_STAGE_IDS])
     inputs = _pack_inputs(ctx)
     for row in inputs.licences:
@@ -146,6 +175,32 @@ def package(ctx: StageContext) -> StageResult:
 
     rows_by_table = build_rows(inputs)
 
+    # Everything from here on is written into a staging directory beside the real one and
+    # moved in one step at the end. `pack_row` included: the artefact is the record of a
+    # pack that exists, and a refused build produced none.
+    pack_dir = ctx.dir
+    with TemporaryDirectory(prefix=f".{PACK_STAGE_ID}-", dir=pack_dir.parent) as staging_root:
+        staging = Path(staging_root)
+
+        # Gate 2: the schema. Foreign keys are ON inside `write_pack`.
+        database = write_pack(staging / PACK_DB_FILENAME, rows_by_table)
+        clips_copied = _stage_audio_bank(inputs.clips, staging / AUDIO_DIRNAME)
+
+        # Gate 3: the manifest.
+        manifest = build_manifest(inputs, database, audio_dir=staging / AUDIO_DIRNAME)
+        manifest_failures = manifest_violations(manifest)
+        if manifest_failures:
+            ctx.entry.note(manifest_violations=manifest_failures)
+            return StageResult(
+                ok=False,
+                message=f"{len(manifest_failures)} manifest violation(s): {manifest_failures[0]}",
+                detail={"violations": manifest_failures},
+            )
+        write_manifest(staging, manifest)
+
+        # Every gate passed. Now, and only now, does a pack exist.
+        database = _publish(staging, pack_dir)
+
     # The `pack_row` artefact: the last record before SQLite, and what the manifest, the
     # attribution table and the signature are computed over.
     records = [
@@ -161,23 +216,6 @@ def package(ctx: StageContext) -> StageResult:
     ]
     written = write_records("pack_row", records, lang=ctx.lang)
     ctx.entry.record_output("pack_row")
-
-    # Gate 2: the schema. Foreign keys are ON inside `write_pack`.
-    pack_dir = ctx.dir
-    database = write_pack(pack_dir / PACK_DB_FILENAME, rows_by_table)
-    clips_copied = _stage_audio_bank(inputs.clips, pack_dir / AUDIO_DIRNAME)
-
-    # Gate 3: the manifest.
-    manifest = build_manifest(inputs, database, audio_dir=pack_dir / AUDIO_DIRNAME)
-    manifest_failures = manifest_violations(manifest)
-    if manifest_failures:
-        ctx.entry.note(manifest_violations=manifest_failures)
-        return StageResult(
-            ok=False,
-            message=f"{len(manifest_failures)} manifest violation(s): {manifest_failures[0]}",
-            detail={"violations": manifest_failures},
-        )
-    write_manifest(pack_dir, manifest)
 
     ctx.entry.read = sum(
         len(part)

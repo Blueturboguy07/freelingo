@@ -158,7 +158,13 @@ def _item_ids(database: Path) -> list[str]:
 def build_manifest(inputs: PackInputs, database: Path, *, audio_dir: Path) -> dict[str, Any]:
     """Assemble the manifest for a pack that has already been written to disk."""
     from .attribution import credit_rows
-    from .sqlite import cefr_claim, ledger_unit, provenance_split, shipped_sentences
+    from .sqlite import (
+        cefr_checked,
+        cefr_claim,
+        ledger_unit,
+        provenance_split,
+        shipped_sentences,
+    )
 
     payload = database.read_bytes()
     # The SHIPPED count, not the ingest ledger's: S001 renders "{{n}}% machine-authored"
@@ -197,6 +203,10 @@ def build_manifest(inputs: PackInputs, database: Path, *, audio_dir: Path) -> di
         "defectRate": inputs.defect_rate,
         "reviewerSampleItems": REVIEWER_SAMPLE_ITEMS,
         "cefrClaim": cefr_claim(inputs.lang),
+        # The same fact as a boolean. `CourseManifest.cefrChecked` in `packages/core`
+        # is what `path/manifest.ts` renders its own section-card chip from, and
+        # before this field existed that boolean had no source in the pack at all.
+        "cefrChecked": cefr_checked(inputs.lang),
         "audio": {
             "codec": "opus",
             "bitrateKbps": OPUS_BITRATE_KBPS,

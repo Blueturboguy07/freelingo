@@ -268,6 +268,15 @@ export const PACK_META_KEYS = [
   'provenance_machine_authored_pct',
   'defect_rate',
   'cefr_claim',
+  /**
+   * The same fact as a boolean (`'1'` / `'0'`), and the one a UI branches on.
+   *
+   * `CourseManifest.cefrChecked` in `packages/core` is what `path/manifest.ts` renders
+   * the section-card CEFR chip from, and until this key existed that boolean had no
+   * source in the pack: the pack carried prose, the path lane carried the flag, and one
+   * learner-facing claim had two owners that had already drifted on their separator.
+   */
+  'cefr_checked',
 ] as const;
 export type PackMetaKey = (typeof PACK_META_KEYS)[number];
 

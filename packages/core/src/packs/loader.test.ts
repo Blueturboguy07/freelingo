@@ -2,7 +2,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { readRepoFile } from '@freelingo/testkit';
+import fc from 'fast-check';
+import { PROPERTY_RUNS, readRepoFile } from '@freelingo/testkit';
+import { sectionCards } from '../path/manifest.js';
+import { buildModel, FULL_MANIFEST, NO_STORIES_MANIFEST } from '../path/__falsifiers__/fixtures.js';
 import { isContentHashItemId } from './items.js';
 import {
   CREDITS_META_PREFIX,
@@ -94,6 +97,7 @@ function relaxedPack(): { reader: PackReader; run(sql: string): void } {
     ['provenance_machine_authored_pct', '0'],
     ['defect_rate', '0'],
     ['cefr_claim', 'A1 · CEFR-checked'],
+    ['cefr_checked', '1'],
   ]) {
     handle
       .prepare(`INSERT INTO meta (key, value) VALUES (?, ?)`)
@@ -330,6 +334,115 @@ describe('item identity (INV-PACK-41)', () => {
   it('[INV-PACK-41] mints ids the rest of the engine recognises', () => {
     expect(isContentHashItemId(packItemId(base))).toBe(true);
   });
+
+  /*
+   * `docs/invariants.md` marks INV-PACK-41 kind `P, C`. The examples above are the `C`
+   * half and every one of them is a case somebody thought of; the property is the half
+   * that covers the cases nobody did — arbitrary semantic content crossed with arbitrary
+   * presentation payloads, at PROPERTY_RUNS.
+   */
+  const semanticArb = fc.record({
+    prompt: fc.string({ maxLength: 24 }),
+    preferredSurface: fc.string({ maxLength: 24 }),
+    register: fc.constantFrom('informal', 'formal', 'polite', 'casual'),
+    lexemes: fc.array(fc.string({ maxLength: 8 }), { maxLength: 4 }),
+    grammarConcepts: fc.array(fc.string({ maxLength: 8 }), { maxLength: 3 }),
+    graphemes: fc.array(fc.string({ maxLength: 2 }), { maxLength: 3 }),
+  });
+
+  /** Arbitrary values for the six fields the hash must be blind to. */
+  const presentationArb = fc.record({
+    ruby: fc.option(fc.string({ maxLength: 16 }), { nil: null }),
+    audioHash: fc.string({ maxLength: 16 }),
+    strokePaths: fc.array(fc.string({ maxLength: 8 }), { maxLength: 3 }),
+    illustration: fc.option(fc.string({ maxLength: 16 }), { nil: null }),
+    acceptedAlternates: fc.array(fc.string({ maxLength: 12 }), { maxLength: 4 }),
+    distractors: fc.array(fc.string({ maxLength: 12 }), { maxLength: 4 }),
+  });
+
+  it('[INV-PACK-41] no presentation payload, and no tag order, can move an id', () => {
+    fc.assert(
+      fc.property(semanticArb, presentationArb, presentationArb, (semantic, first, second) => {
+        const id = packItemId(semantic);
+        expect(packItemId({ ...semantic, ...first } as typeof semantic)).toBe(id);
+        expect(packItemId({ ...semantic, ...second } as typeof semantic)).toBe(id);
+        expect(
+          packItemId({
+            ...semantic,
+            ...second,
+            lexemes: [...semantic.lexemes].reverse(),
+            grammarConcepts: [...semantic.grammarConcepts].reverse(),
+            graphemes: [...semantic.graphemes].reverse(),
+          } as typeof semantic),
+        ).toBe(id);
+      }),
+      { numRuns: PROPERTY_RUNS },
+    );
+  });
+
+  it('[INV-PACK-41] two items with different semantic content get different ids', () => {
+    // The other direction. Without it a constant id satisfies the property above, and a
+    // pack whose every exercise shared one FSRS row would pass the whole invariant.
+    fc.assert(
+      fc.property(semanticArb, semanticArb, (left, right) => {
+        const same =
+          JSON.stringify(semanticItemContent(left)) === JSON.stringify(semanticItemContent(right));
+        expect(packItemId(left) === packItemId(right)).toBe(same);
+      }),
+      { numRuns: PROPERTY_RUNS },
+    );
+  });
+});
+
+describe('the CEFR claim has one owner (plan §Rulings, Q8)', () => {
+  /*
+   * The pack and `packages/core/src/path/manifest.ts` both render the learner-facing CEFR
+   * chip, and until this test they could not disagree loudly: the path lane built it from
+   * `CourseManifest.cefrChecked`, a boolean with no source in the pack at all, while the
+   * pack carried only a sentence. The pack now carries the boolean too, and this pins the
+   * two renderings' claim halves to each other.
+   *
+   * They still differ in their SEPARATOR — the path lane writes ` - `, the plan's ruling
+   * and the pack write ` · ` — and that literal lives in another lane's file. It is
+   * asserted below rather than hidden, and escalated in docs/owned/p2-g9.json.
+   */
+  const claimOf = (chip: string): string | undefined => chip.split(/\s+[·-]\s+/)[1];
+
+  it('the pack declares the boolean the path lane renders its chip from', () => {
+    const pack = openPack(openFixture(), { packRoot: PACK_ROOT });
+    expect(pack.meta.cefrChecked).toBe(true);
+    expect(manifest.cefrChecked).toBe(pack.meta.cefrChecked);
+    expect(claimOf(pack.meta.cefrClaim)).toBe('CEFR-checked');
+
+    const chip = sectionCards(
+      buildModel([[['lesson', 'unitReview']]], 0, {
+        ...FULL_MANIFEST,
+        cefrChecked: pack.meta.cefrChecked,
+      }),
+    )[0]?.cefrChip;
+    expect(claimOf(chip ?? '')).toBe(claimOf(pack.meta.cefrClaim));
+  });
+
+  it('and the same for the languages with no CEFR resource', () => {
+    const chip = sectionCards(
+      buildModel([[['lesson', 'unitReview']]], 0, { ...NO_STORIES_MANIFEST, cefrChecked: false }),
+    )[0]?.cefrChip;
+    expect(claimOf(chip ?? '')).toBe('frequency-ordered');
+    // The pack's own de/ja claim, read out of coursekit's constant rather than retyped.
+    expect(readRepoFile('tools/coursekit/src/coursekit/config/g9.py')).toContain(
+      'CEFR_CLAIM_FREQUENCY: Final[str] = "Beginner · frequency-ordered"',
+    );
+  });
+
+  it('ESCALATED: the two renderings still disagree on the separator', () => {
+    // Not a passing grade — a recorded divergence. `path/manifest.ts` is another lane's
+    // file; the plan's ruling is the middle dot. Whoever fixes it deletes this test.
+    const pack = openPack(openFixture(), { packRoot: PACK_ROOT });
+    expect(pack.meta.cefrClaim).toContain(' · ');
+    expect(readRepoFile('packages/core/src/path/manifest.ts')).toContain(
+      "'Beginner - frequency-ordered'",
+    );
+  });
 });
 
 describe('credits (INV-PACK-17)', () => {
@@ -348,52 +461,32 @@ describe('credits (INV-PACK-17)', () => {
     // A derived list is neither a sentence nor a voice: the frequency ordering reaches
     // the learner as the order units are taught in, has no row of its own anywhere else,
     // and is share-alike.
-    const derived = credits.find((credit) => credit.kind === 'derived-list');
-    expect(derived?.sourceId).toBe('hermitdave');
+    const derived = credits.find((credit) => credit.sourceId === 'hermitdave');
+    expect(derived?.kind).toBe('derived-list');
     expect(derived?.shareAlike).toBe(true);
     expect(derived?.url).toContain('hermitdave');
   });
 
-  it('[INV-PACK-17] reports an attributed sentence the surface would not render', () => {
-    // Insertable only because `relaxedPack` drops the schema's CHECK; a real pack cannot
-    // hold this row. The scan must catch it anyway — a constraint is not a substitute for
-    // the check that runs on what shipped.
-    const { reader, run } = relaxedPack();
-    run(
-      `INSERT INTO sentence (sentence_id, attribution_required, attribution_owner, source_id,
-         licence, provenance, text, translation, lang)
-       VALUES ('s1', 1, NULL, 'tatoeba', 'CC-BY-2.0-FR', 'corpus', 'Hola.', 'Hi.', 'es')`,
+  it('[INV-PACK-17] renders each source once, with its URL resolved', () => {
+    /*
+     * The defect this test exists for: `credits()` used to emit a group per attributed
+     * `sentence` row, a group per attributed `audio` row, AND one row per `attribution:`
+     * meta key — so the fixture rendered 5 rows for 3 sources, one copy of each carrying
+     * `url: null` and the other the resolved URL, and S152 would have shown Tatoeba twice.
+     * Every assertion above used `.find()`, which returns the first match and never saw it.
+     */
+    const pack = openPack(openFixture(), { packRoot: PACK_ROOT });
+    const credits = pack.credits();
+    const ids = credits.map((credit) => credit.sourceId);
+    expect(ids).toEqual([...new Set(ids)]);
+    // Sorted by source id, because the surface is a list somebody reads.
+    expect(ids).toEqual([...ids].sort());
+    expect(credits.map((credit) => credit.url).filter((url) => url === null)).toEqual([]);
+    // …and the count is the pack's, not this file's: one row per `attribution:` meta key.
+    const metaKeys = openFixture().all<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM meta WHERE key LIKE '${CREDITS_META_PREFIX}%'`,
     );
-    const pack = openPack(reader, { packRoot: '/tmp' });
-    expect(pack.creditsViolations()).toEqual([
-      'sentence s1 requires attribution and names no owner',
-    ]);
-  });
-
-  it('[INV-PACK-17] reports an attributed voice clip with no owner', () => {
-    const { reader, run } = relaxedPack();
-    run(
-      `INSERT INTO audio (audio_id, clip_hash, path, voice_id, engine, codec, bitrate_kbps,
-         duration_ms, bytes, pipeline, licence, attribution_required, attribution_owner)
-       VALUES ('a1', 'h', 'audio/h.opus', 'v', 'piper', 'opus', 20, 1, 1, 'lesson',
-         'CC-BY-NC-SA-4.0', 1, '  ')`,
-    );
-    const pack = openPack(reader, { packRoot: '/tmp' });
-    expect(pack.creditsViolations()).toEqual([
-      'voice clip a1 requires attribution and names no owner',
-    ]);
-  });
-
-  it('[INV-PACK-17] reports a derived list whose credits row has no owner', () => {
-    const { reader, run } = relaxedPack();
-    run(
-      `INSERT INTO meta (key, value) VALUES ('${CREDITS_META_PREFIX}hermitdave',
-        '{"kind":"derived-list","source_id":"hermitdave","owner":"","licence":"CC-BY-SA-4.0"}')`,
-    );
-    const pack = openPack(reader, { packRoot: '/tmp' });
-    expect(pack.creditsViolations()).toEqual([
-      'derived list hermitdave requires attribution and names no owner',
-    ]);
+    expect(credits.length).toBe(metaKeys[0]?.n);
   });
 
   it('infers share-alike from the licence when a credits row does not state it', () => {
@@ -406,6 +499,150 @@ describe('credits (INV-PACK-17)', () => {
     const credit = pack.credits().find((row) => row.sourceId === 'kanjivg');
     expect(credit?.shareAlike).toBe(true);
     expect(pack.creditsViolations()).toEqual([]);
+  });
+
+  it('refuses an `attribution:` meta row that is not JSON', () => {
+    const { reader, run } = relaxedPack();
+    run(`INSERT INTO meta (key, value) VALUES ('${CREDITS_META_PREFIX}x', 'not json')`);
+    expect(() => openPack(reader, { packRoot: '/tmp' }).credits()).toThrow(PackFormatError);
+  });
+});
+
+/* ------------------------------------------------- the committed falsifier corpora */
+
+interface CreditFixture {
+  readonly kind: string;
+  readonly source_id: string;
+  readonly owner: string;
+  readonly licence: string;
+  readonly share_alike: boolean;
+  readonly url: string | null;
+  readonly items: number;
+}
+interface SentenceFixture {
+  readonly sentence_id: string;
+  readonly source_id: string;
+  readonly licence: string;
+  readonly attribution_required: number;
+  readonly attribution_owner: string | null;
+}
+interface AudioFixture {
+  readonly audio_id: string;
+  readonly engine: string;
+  readonly voice_id: string;
+  readonly licence: string;
+  readonly attribution_required: number;
+  readonly attribution_owner: string | null;
+}
+interface CreditsCase {
+  readonly why: string;
+  readonly credits: readonly CreditFixture[];
+  readonly sentences: readonly SentenceFixture[];
+  readonly audio: readonly AudioFixture[];
+  readonly violations: readonly string[];
+}
+
+const FALSIFIERS = new URL('./__falsifiers__/', import.meta.url);
+
+function falsifier<T>(id: string): T {
+  return JSON.parse(readFileSync(new URL(`${id}.json`, FALSIFIERS), 'utf8')) as T;
+}
+
+/** One whole pack from a falsifier case, in memory, with the schema CHECKs dropped. */
+function packFromCase(testCase: CreditsCase): PackReader {
+  const { reader, run } = relaxedPack();
+  const quote = (value: string | null): string =>
+    value === null ? 'NULL' : `'${value.replaceAll("'", "''")}'`;
+  for (const credit of testCase.credits) {
+    run(
+      `INSERT INTO meta (key, value) VALUES (
+         ${quote(`${CREDITS_META_PREFIX}${credit.source_id}`)},
+         ${quote(JSON.stringify(credit))})`,
+    );
+  }
+  for (const sentence of testCase.sentences) {
+    run(
+      `INSERT INTO sentence (sentence_id, lang, text, translation, provenance, source_id,
+         licence, attribution_required, attribution_owner)
+       VALUES (${quote(sentence.sentence_id)}, 'es', 'x', 'x', 'corpus',
+         ${quote(sentence.source_id)}, ${quote(sentence.licence)},
+         ${sentence.attribution_required}, ${quote(sentence.attribution_owner)})`,
+    );
+  }
+  for (const clip of testCase.audio) {
+    run(
+      `INSERT INTO audio (audio_id, clip_hash, path, voice_id, engine, codec, bitrate_kbps,
+         duration_ms, bytes, pipeline, licence, attribution_required, attribution_owner)
+       VALUES (${quote(clip.audio_id)}, 'h', 'audio/h.opus', ${quote(clip.voice_id)},
+         ${quote(clip.engine)}, 'opus', 20, 1, 1, 'lesson', ${quote(clip.licence)},
+         ${clip.attribution_required}, ${quote(clip.attribution_owner)})`,
+    );
+  }
+  return reader;
+}
+
+describe('pack loader falsifiers', () => {
+  /*
+   * `__falsifiers__/INV-PACK-17.json` is executed here rather than by the corpus runner
+   * because its subject is a whole pack, not a function call: each case is the
+   * `attribution:` meta rows the build wrote plus the `sentence`/`audio` tables it wrote
+   * beside them, and the expectation is the exact set of violation lines.
+   *
+   * `__falsifiers__/INV-PACK-41.json` declares the executable `{check, cases}` contract
+   * and is run by `journey/falsifier-corpus.test.ts` against `packItemId` directly; the
+   * count is re-asserted here so a corpus silently emptied still fails somewhere.
+   */
+  const creditsCorpus = falsifier<{ cases: readonly CreditsCase[] }>('INV-PACK-17');
+
+  it('[INV-PACK-17] the falsifier corpus was found and is not empty', () => {
+    expect(creditsCorpus.cases.length).toBeGreaterThanOrEqual(8);
+    expect(falsifier<{ cases: unknown[] }>('INV-PACK-41').cases.length).toBeGreaterThanOrEqual(11);
+  });
+
+  for (const testCase of creditsCorpus.cases) {
+    it(`[INV-PACK-17] falsifier: ${testCase.why.slice(0, 80)}`, () => {
+      const pack = openPack(packFromCase(testCase), { packRoot: '/tmp' });
+      expect(pack.creditsViolations(), testCase.why).toEqual([...testCase.violations].sort());
+    });
+  }
+
+  it('[INV-PACK-17] falsifier: the reachability half has a red path, and it is not the owner check', () => {
+    /*
+     * The refuter's finding, made into an assertion. While `credits()` also scanned
+     * `sentence` and `audio`, every row the violation walk looked at had already put its
+     * own owner into the set it was being compared against, so no input on earth could
+     * reach the "which the credits surface does not render" branches — the three tests
+     * named for them in fact only exercised the blank-owner path.
+     *
+     * These two cases differ from each other ONLY in whether the surface carries the
+     * source. Deleting the reachability clause turns the first green and this test red.
+     */
+    const rendered = creditsCorpus.cases.find((entry) =>
+      entry.violations.some((line) => line.includes('cites tatoeba')),
+    );
+    expect(rendered, 'the corpus must carry an unrendered-source case').toBeDefined();
+    const pack = openPack(packFromCase(rendered as CreditsCase), { packRoot: '/tmp' });
+    expect(pack.creditsViolations()).toEqual([
+      'sentence s1 cites tatoeba, which the credits surface does not render',
+    ]);
+
+    // The same pack, with the one meta row the build should have written. No violation.
+    const credited: CreditsCase = {
+      ...(rendered as CreditsCase),
+      credits: [
+        ...(rendered as CreditsCase).credits,
+        {
+          kind: 'sentence',
+          source_id: 'tatoeba',
+          owner: 'Tatoeba contributors',
+          licence: 'CC-BY-2.0-FR',
+          share_alike: false,
+          url: 'https://downloads.tatoeba.org/',
+          items: 1,
+        },
+      ],
+    };
+    expect(openPack(packFromCase(credited), { packRoot: '/tmp' }).creditsViolations()).toEqual([]);
   });
 });
 

@@ -346,6 +346,7 @@ def meta_rows(inputs: PackInputs) -> list[dict[str, Any]]:
         {"key": "provenance_machine_authored_pct", "value": f"{machine:.2f}"},
         {"key": "defect_rate", "value": f"{inputs.defect_rate or 0.0:.4f}"},
         {"key": "cefr_claim", "value": cefr_claim(inputs.lang)},
+        {"key": "cefr_checked", "value": "1" if cefr_checked(inputs.lang) else "0"},
     ]
     for credit in credit_rows(inputs):
         rows.append(
@@ -651,12 +652,24 @@ def ledger_unit(lang: str) -> str:
     return LEDGER_UNIT_BY_LANGUAGE[lang]
 
 
+def cefr_checked(lang: str) -> bool:
+    """Whether a CEFR lexicon backed this language's grading (Q8 ruling).
+
+    The machine-readable half of `cefr_claim`, and the one the app should branch on:
+    `CourseManifest.cefrChecked` in `packages/core` is a boolean, and the path lane
+    renders its own section-card chip from it. Both halves are derived from this one
+    predicate so the sentence and the boolean cannot disagree.
+    """
+    from ..config import CEFR_LANGUAGES
+
+    return lang in CEFR_LANGUAGES
+
+
 def cefr_claim(lang: str) -> str:
     """The Q8 ruling: a CEFR claim only where there is a lexicon to check it against."""
-    from ..config import CEFR_LANGUAGES
     from ..config.g9 import CEFR_CLAIM_CHECKED, CEFR_CLAIM_FREQUENCY
 
-    return CEFR_CLAIM_CHECKED if lang in CEFR_LANGUAGES else CEFR_CLAIM_FREQUENCY
+    return CEFR_CLAIM_CHECKED if cefr_checked(lang) else CEFR_CLAIM_FREQUENCY
 
 
 def provenance_split(inputs: PackInputs) -> tuple[float, float]:

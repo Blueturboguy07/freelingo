@@ -1,0 +1,372 @@
+{
+  "invariant": "INV-PACK-41",
+  "source": "EC-PACK-38",
+  "why": "Changing only a presentation field — ruby, audio hash, stroke path, illustration, accepted alternates, distractors — must leave every item id, and therefore every FSRS row, intact across a rebuild. The named falsifier is a ruby re-solve of 今日 orphaning its strength meter and re-showing NEW WORD; the P2 build half is a rebuild after a distractor swap that orphans the same meter. The last four cases are the other direction: an id that never moved would satisfy the first ten by returning a constant.",
+  "rule": "Hash over prompt, preferred surface, the lexeme/concept/grapheme tags and register ONLY. Extra keys are dropped by the projection rather than hashed, which is what makes the falsifier impossible rather than merely unlikely.",
+  "usedBy": [
+    "packages/core/src/packs/loader.test.ts"
+  ],
+  "check": {
+    "module": "../loader.js",
+    "export": "packItemId"
+  },
+  "cases": [
+    {
+      "name": "the golden vector both languages pin themselves to",
+      "args": [
+        {
+          "prompt": "¿Cómo estás?",
+          "preferredSurface": "¿Cómo estás?",
+          "register": "informal",
+          "lexemes": [
+            "estar",
+            "cómo"
+          ],
+          "grammarConcepts": [
+            "present-tense-questions"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_14df0f2e14669171"
+    },
+    {
+      "name": "the semantic half alone, with no presentation fields at all",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "EC-PACK-38 itself: a monthly JmdictFurigana release re-solves the ruby of 今日",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[{\"base\":\"今\",\"ruby\":\"きょ\"},{\"base\":\"日\",\"ruby\":\"う\"}]",
+          "audioHash": "cccccccccccccc01",
+          "strokePaths": [
+            "M0,0 L10,10"
+          ],
+          "illustration": "art/weather-hot.svg",
+          "acceptedAlternates": [
+            "It is hot today.",
+            "Today it is hot."
+          ],
+          "distractors": [
+            "It is cold today.",
+            "It was hot today."
+          ]
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "the named P2 falsifier: a rebuild after a distractor swap, which must not orphan the strength meter",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
+          "audioHash": "cccccccccccccc01",
+          "strokePaths": [
+            "M0,0 L10,10"
+          ],
+          "illustration": "art/weather-hot.svg",
+          "acceptedAlternates": [
+            "It is hot today.",
+            "Today it is hot."
+          ],
+          "distractors": [
+            "It is raining today.",
+            "It is hot tomorrow."
+          ]
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "a reviewer adds an accepted alternate; the tolerance budget changes often and is outside the hash",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
+          "audioHash": "cccccccccccccc01",
+          "strokePaths": [
+            "M0,0 L10,10"
+          ],
+          "illustration": "art/weather-hot.svg",
+          "acceptedAlternates": [
+            "It is hot today.",
+            "It's hot today."
+          ],
+          "distractors": [
+            "It is cold today.",
+            "It was hot today."
+          ]
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "the bake re-renders one clip and the audio hash moves",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
+          "audioHash": "cccccccccccccc99",
+          "strokePaths": [
+            "M0,0 L10,10"
+          ],
+          "illustration": "art/weather-hot.svg",
+          "acceptedAlternates": [
+            "It is hot today.",
+            "Today it is hot."
+          ],
+          "distractors": [
+            "It is cold today.",
+            "It was hot today."
+          ]
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "an illustration is swapped",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
+          "audioHash": "cccccccccccccc01",
+          "strokePaths": [
+            "M0,0 L10,10"
+          ],
+          "illustration": "art/weather-hot-v2.svg",
+          "acceptedAlternates": [
+            "It is hot today.",
+            "Today it is hot."
+          ],
+          "distractors": [
+            "It is cold today.",
+            "It was hot today."
+          ]
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "KanjiVG re-issues a stroke path",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
+          "audioHash": "cccccccccccccc01",
+          "strokePaths": [
+            "M1,1 L9,9",
+            "M0,5 L10,5"
+          ],
+          "illustration": "art/weather-hot.svg",
+          "acceptedAlternates": [
+            "It is hot today.",
+            "Today it is hot."
+          ],
+          "distractors": [
+            "It is cold today.",
+            "It was hot today."
+          ]
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "every presentation field changes at once, which is what a rebuild actually looks like",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": [],
+          "ruby": "[]",
+          "audioHash": "ffffffffffffffff",
+          "strokePaths": [],
+          "illustration": null,
+          "acceptedAlternates": [],
+          "distractors": []
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "the tagger emits the same tag set in the other order: not a content change",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "暑い",
+            "今日"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_adb3d75c23389aad"
+    },
+    {
+      "name": "a register change IS semantic, and the id must move or the rule says nothing",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "casual",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_b83768b78715adcf"
+    },
+    {
+      "name": "a different prompt is a different item",
+      "args": [
+        {
+          "prompt": "明日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_e55b7d74c452e4c6"
+    },
+    {
+      "name": "a different preferred surface asks a different question of the same sentence",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "Today it is hot.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "present-adjective"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_a9269018988305e5"
+    },
+    {
+      "name": "a different grammar concept is a different item",
+      "args": [
+        {
+          "prompt": "今日は暑いです。",
+          "preferredSurface": "It is hot today.",
+          "register": "polite",
+          "lexemes": [
+            "今日",
+            "暑い"
+          ],
+          "grammarConcepts": [
+            "past-adjective"
+          ],
+          "graphemes": []
+        }
+      ],
+      "expect": "i_e5c8ed30fe6b6017"
+    }
+  ]
+}

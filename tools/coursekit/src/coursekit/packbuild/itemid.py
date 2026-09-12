@@ -19,7 +19,7 @@ The other half of the rule is that this file and
 in two languages, so they are pinned two ways: the field lists are read out of
 `packages/schema/src/pack-schema.ts` (`tests/test_itemid.py`), and both sides assert the
 same golden vector (`ITEM_ID_GOLDEN_OUTPUT` here, the same literal in
-`pack-schema.test.ts`).
+`packages/core/src/packs/loader.test.ts`).
 """
 
 from __future__ import annotations

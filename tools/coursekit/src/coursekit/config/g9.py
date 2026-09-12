@@ -121,6 +121,7 @@ MANIFEST_EXTRA_FIELDS: Final[tuple[str, ...]] = (
     "defectRate",
     "reviewerSampleItems",
     "cefrClaim",
+    "cefrChecked",
     "audio",
     "validatorReport",
     "licences",
@@ -145,6 +146,11 @@ LEDGER_UNIT_BY_LANGUAGE: Final[dict[str, str]] = {
 AUTHORED_SOURCE_ID: Final[str] = "freelingo_authored"
 AUTHORED_ATTRIBUTION_OWNER: Final[str] = "Freelingo contributors (machine-authored)"
 
+#: Where the credits surface points for the authored sentences. `freelingo_authored` is
+#: not a row in `SOURCES` — there is no corpus to link to — but a credits row with no
+#: destination is not a credit, so the BY clause's terms are the destination.
+AUTHORED_SOURCE_URL: Final[str] = "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+
 #: The artefact contract calls an authored sentence `llm`; the pack and the credits
 #: surface call it `machine_authored`, which is the string S001 and S137 render.
 PROVENANCE_BY_ARTEFACT: Final[dict[str, str]] = {
@@ -154,6 +160,12 @@ PROVENANCE_BY_ARTEFACT: Final[dict[str, str]] = {
 
 #: The two shipped CEFR claims (Q8 ruling). es/fr have a lexicon to check against;
 #: de/ja do not, and a card that claimed otherwise would be the dishonest kind of parity.
+#: The separator is the plan's, and it is NOT what `packages/core/src/path/manifest.ts`
+#: renders today (` - `, an ASCII hyphen, built from `CourseManifest.cefrChecked`). The
+#: pack now also carries the boolean — `cefr_checked` in `meta`, `cefrChecked` in the
+#: manifest — so there is one machine-readable source of truth even while two files own
+#: two literals; `loader.test.ts` pins the claim halves together and the separator
+#: difference is escalated in `docs/owned/p2-g9.json`.
 CEFR_CLAIM_CHECKED: Final[str] = "A1 · CEFR-checked"
 CEFR_CLAIM_FREQUENCY: Final[str] = "Beginner · frequency-ordered"
 
@@ -188,6 +200,21 @@ CREDITS_META_PREFIX: Final[str] = "attribution:"
 #: voice and has no row of its own anywhere else, which is exactly why INV-PACK-17 names
 #: all three.
 CREDIT_KINDS: Final[tuple[str, ...]] = ("sentence", "voice", "derived-list")
+
+#: The `SourceKind`s whose data reaches the learner as a **derived artefact** rather than
+#: as text: the frequency ordering becomes the order units are taught in, the CEFR lexicon
+#: becomes the band on every `lexeme` row, KanjiVG becomes stroke paths, JmdictFurigana
+#: becomes ruby. All four ship inside the pack, so all four need a credit — and note that
+#: this is decided by KIND, not by the licence row's `verdict`: `verdict` says whether a
+#: source's own TEXT may ship, which is a different question from whether something
+#: derived from it does. CEFRLex is `oracle_only` and its bands ship on every lexeme row.
+DERIVED_LIST_KINDS: Final[frozenset[str]] = frozenset(
+    {"frequency", "lexicon", "furigana", "strokes"}
+)
+
+#: The prefix a voice's credit source id carries. Mirrors `VOICE_SOURCE_PREFIX` in
+#: `packages/core/src/packs/loader.ts`: one credit per engine, never one per clip.
+VOICE_SOURCE_PREFIX: Final[str] = "voice:"
 
 #: The screen the credits render on. **Not in `deep/00-PRODUCT-MAP.md`**, which stops at
 #: S151: S152 exists only in the plan's §Data model and in INV-PACK-17's own text. The

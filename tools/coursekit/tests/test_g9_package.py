@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ from coursekit.config import (
     VALIDATOR_IDS,
 )
 from coursekit.config.g9 import (
+    AUDIO_DIRNAME,
     CREDITS_META_PREFIX,
     DDL_ARRAY_NAME,
     FIXTURE_PACK_RELPATH,
@@ -44,6 +46,7 @@ from coursekit.config.g9 import (
     PACK_SCHEMA_TS_RELPATH,
     PACK_SCHEMA_VERSION,
     PACK_TABLES_EMPTY_AT_V0,
+    UNRESOLVED_LICENCE,
 )
 from coursekit.packbuild import PACKBUILD
 from coursekit.packbuild.sqlite import (
@@ -119,7 +122,13 @@ def _replay_seed(lang: str = "es", *, licences: list[dict[str, Any]] | None = No
 
 
 def _analysed(lang: str) -> list[dict[str, Any]]:
-    """G1 records, synthesised from the seed: G9 declares them read but uses none."""
+    """G1 records, synthesised from the seed.
+
+    G9 does not read them — the stage used to DECLARE `analysed_sentence` in `reads`
+    while `_pack_inputs` collected seven other kinds and never touched it, which is a
+    declaration a reader would believe. They are still written here because a realistic
+    build root has them, and because `require_successful` checks that G1 ran.
+    """
     return [
         {
             "schema_version": 1,
@@ -357,3 +366,92 @@ def test_the_schema_file_the_fixture_was_built_from_is_the_shipped_one() -> None
     """The fixture is only evidence while it was built from the DDL the app reads."""
     assert (repo_root() / PACK_SCHEMA_TS_RELPATH).exists()
     assert DDL_ARRAY_NAME in (repo_root() / PACK_SCHEMA_TS_RELPATH).read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# A refused build leaves nothing behind — all three gates, not just the first
+# ---------------------------------------------------------------------------
+
+
+def _pack_artefacts(build_root: Path) -> list[str]:
+    """Everything a half-finished G9 would leave on disk, as a list of names."""
+    pack_dir = _pack_dir(build_root)
+    found = []
+    if (pack_dir / PACK_DB_FILENAME).exists():
+        found.append(PACK_DB_FILENAME)
+    if (pack_dir / MANIFEST_FILENAME).exists():
+        found.append(MANIFEST_FILENAME)
+    audio = pack_dir / AUDIO_DIRNAME
+    if audio.exists() and any(audio.iterdir()):
+        found.append(f"{AUDIO_DIRNAME}/")
+    if artifact_path("es", "pack_row").exists():
+        found.append("pack_row")
+    # A staging directory that outlived the stage is also something left behind.
+    found += [entry.name for entry in pack_dir.parent.glob(f".{PACK_STAGE_ID}-*")]
+    return sorted(found)
+
+
+def test_the_manifest_gate_fails_the_stage_and_also_writes_nothing(
+    isolated_build_root: Path,
+) -> None:
+    """Gate 3 refuses, and no pack survives it.
+
+    The docstring used to say "returns ok=False on any gate, having written nothing" while
+    only gate 1 ran before anything was written: `pack.sqlite`, the audio bank and the
+    `pack_row` artefact were all on disk by the time the manifest was checked, so a
+    refused build left a plausible pack with no manifest for the next command to find.
+
+    The trigger is an UNRESOLVED licence on `nllb`, which gate 1 cannot see: NLLB is
+    oracle-only, no shipped sentence cites it, and it is not a derived-list kind. It is
+    exactly the shape `deep/10` edge case 4 names — OPUS grants no blanket licence and its
+    API returns no licence field, so a row nobody resolved must never reach a manifest.
+    """
+    unresolved = [
+        {**row, "licence": UNRESOLVED_LICENCE} if row["source_id"] == "nllb" else row
+        for row in SEED["licences"]
+    ]
+    _replay_seed(licences=unresolved)
+
+    result = runner.invoke(app, ["pack", "es"])
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "UNRESOLVED" in result.output
+    assert _pack_artefacts(isolated_build_root) == []
+
+
+def test_the_schema_gate_fails_the_stage_and_also_writes_nothing(
+    isolated_build_root: Path,
+) -> None:
+    """Gate 2 refuses, and no pack survives it either.
+
+    A dangling `exercise.audio_id` is the failure the foreign keys exist for: it is how a
+    bake that dropped one clip becomes an empty screen on a device instead of a red build.
+
+    Gate 2 RAISES rather than returning `ok=False` — a foreign key that does not resolve
+    is a build bug, not a content verdict, and there is no list of them to report — so
+    this asserts the exception by type. What it shares with the other two gates is the
+    part that matters here: the staging directory is torn down on the way out, so a
+    crashed build leaves no pack either.
+    """
+    _replay_seed()
+    broken = [
+        {**exercise, "audio_ref": "0000000000000000"} if exercise["audio_ref"] else exercise
+        for exercise in SEED["exercises"]
+    ]
+    write_records("exercise", broken, lang="es")
+
+    result = runner.invoke(app, ["pack", "es"])
+    assert result.exit_code != EXIT_OK, result.output
+    assert isinstance(result.exception, sqlite3.IntegrityError), repr(result.exception)
+    assert "FOREIGN KEY" in str(result.exception)
+    assert _pack_artefacts(isolated_build_root) == []
+
+
+def test_the_stage_declares_only_the_artefact_kinds_it_reads() -> None:
+    """A `reads` tuple is a contract a reader believes; an unread kind in it is a lie."""
+    stage = STAGES.get(PACK_STAGE_ID)
+    assert stage is not None
+    source = (
+        repo_root() / "tools/coursekit/src/coursekit/stages/g9_package.py"
+    ).read_text(encoding="utf-8")
+    collected = set(re.findall(r'_collect\(lang, "([a-z_]+)"\)', source))
+    assert set(stage.reads) == collected
