@@ -566,3 +566,54 @@ traceback where the others print one line. It does not change what is true about
 and it is not what stopped this round, so it is recorded rather than fixed — the round's
 budget went to the content. Whoever fixes it should make it a `StageResult` and keep the
 message verbatim.
+
+## B15 — G7 made word-bank tiles out of punctuation — RESOLVED 2026-09-12
+
+An authored candidate has no `analysed_sentence`, so G7 fell back to a bare whitespace
+split and `Hola,` and `noche.` became word-bank tiles. The distractor core is then asked
+for two same-POS same-band lexemes for a string that is in no lexicon:
+
+```
+g7 failed: NotEnoughDistractors: concept:subject_pronouns: needed 2 distractors for
+'Hola,' (POS , band unbanded) and the rule core found 0.
+```
+
+The asymmetry in the same file was the tell — `_lemmas_for`'s fallback already stripped
+the same characters, so one sentence produced clean lemmas and dirty tiles. Fixed: the
+fallback strips edge punctuation and drops what is left empty, which is the shape G1's
+`display_tokens` have. No lemmatiser runs there.
+`test_INV_PACK_40_an_authored_candidates_tiles_carry_no_punctuation` pins it. This would
+have stopped the build on ordinary authored sentences, not only on the diagnostic ones.
+
+## B16 — G7 looks a distractor up by SURFACE, and an authored candidate has no analysis — OPEN
+
+Found immediately after B15, by the same run. With the tiles clean, G7 stops one line
+later:
+
+```
+g7 failed: NotEnoughDistractors: concept:subject_pronouns: needed 2 distractors for
+'Hola' (POS , band unbanded) and the rule core found 0.
+```
+
+`_decoys(..., lemmas=[target_tokens[gap_index]], ...)` passes the **surface** where a
+lemma is expected. For a corpus sentence that mostly works by accident — a mid-sentence
+lowercase surface often equals its lemma — and for an authored candidate there is no
+analysis at all, so POS is empty and the band is `unbanded` and the rule core has nothing
+to choose from. Every authored item whose gap lands on a capitalised or inflected surface
+is exposed.
+
+Two possible fixes, and the choice is a design decision for the G7 lane rather than an
+integration patch:
+
+1. **Analyse authored candidates in G7 with the registered adapter.** It is the same
+   adapter and the same pinned model G5 already runs over the same text, so it is not the
+   "second analyser version" the docstring worries about — but it is another full pass
+   over every authored item, and it makes G7 depend on `nlp` as well as `align`.
+2. **Carry the analysis across the G5 → G7 boundary.** Cleaner and cheaper, and it
+   changes `coursekit.artifacts.CANDIDATE`, which is frozen
+   (`additionalProperties: false`, `required == properties`, contract digest
+   `3e2f6a68…`). That is the deps/scaffold lane's contract, not this one's.
+
+Until it is fixed, **G7 has never completed a run over authored content**, so G8, G9,
+`coursekit validate`, `coursekit sample` and `coursekit sign` are still unproven on a real
+course — the same list as round 1, now for a different and much narrower reason.
