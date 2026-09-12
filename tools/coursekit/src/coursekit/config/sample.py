@@ -133,9 +133,7 @@ ACCENT_UNSCOREABLE_NO_BAKE: Final[str] = (
 ACCENT_UNSCOREABLE_NO_SHEET: Final[str] = (
     "no sheet on disk: which rows had a clip cannot be established"
 )
-ACCENT_UNSCOREABLE_UNSCORED: Final[str] = (
-    "the sheet carries clips and no row was scored on accent"
-)
+ACCENT_UNSCOREABLE_UNSCORED: Final[str] = "the sheet carries clips and no row was scored on accent"
 
 # ---------------------------------------------------------------------------
 # Trust marking — the honesty string (§2.6)

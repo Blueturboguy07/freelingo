@@ -1,0 +1,12 @@
+{
+  "$comment": "P2 round-4 B18 code half. Existing owners retain INV-PACK-14 and INV-AUD-08; this lane adds falsifying tests and does not duplicate ownership in the coverage map.",
+  "phase": "P2",
+  "round": 4,
+  "task": "p2r4-sample-accent-rate",
+  "module": "coursekit sample + Spanish review rubric",
+  "branch": "p2r4/sample-accent-rate",
+  "owned": [],
+  "serves": ["INV-PACK-14", "INV-AUD-08"],
+  "tests": ["tools/coursekit/tests/test_sample_accent.py"],
+  "remaining": "Redraw and score the 300-item sheet after pipeline-g6-to-g9 produces G7/G8 artifacts."
+}

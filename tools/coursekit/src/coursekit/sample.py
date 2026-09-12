@@ -426,9 +426,7 @@ def allocate(sizes: Mapping[str, int], n: int) -> dict[str, int]:
         available = sum(value for value in headroom.values() if value > 0)
         if available == 0:
             break
-        shares = {
-            key: (headroom[key] / available) * remaining for key in keys if headroom[key] > 0
-        }
+        shares = {key: (headroom[key] / available) * remaining for key in keys if headroom[key] > 0}
         whole = {key: min(int(value), headroom[key]) for key, value in shares.items()}
         handed = sum(whole.values())
         if handed == 0:
@@ -704,9 +702,7 @@ def accent_summary(
         and str(row["exercise_id"]) in audio
         and (row.get("dimensions") or {}).get(ACCENT_DIMENSION) is not None
     ]
-    passed = sum(
-        1 for row in judged if (row.get("dimensions") or {})[ACCENT_DIMENSION] == "pass"
-    )
+    passed = sum(1 for row in judged if (row.get("dimensions") or {})[ACCENT_DIMENSION] == "pass")
     rows_with_audio = None if audio is None else len(audio)
 
     if audio is None:

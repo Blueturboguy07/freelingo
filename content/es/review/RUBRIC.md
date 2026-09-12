@@ -91,11 +91,10 @@ not a lower rate, no rate, including the dimensions that were scored correctly.
 `accent_consistency` was the one cross-lane contract in this rubric that could break
 something, filed in `docs/owned/p2r3-provenance-docs.json` with its exact spelling
 because the lane that wrote this file could not edit `config/sample.py`. The integrator
-landed it. Read the constant before scoring a sheet anyway — §"If the constant does not
-carry it yet" below is kept for a tree where it has been reverted or renamed — and note
-that the dimension being _declared_ is not the same as its being _scoreable_: the sheet
-still carries no clip reference and no voice role (B18), so on a sheet drawn today the
-honest value is `null`.
+landed it. Round 4 then closed B18: each drawn row now carries the joined G8 `clip_path`,
+`clip_id`, `voice_role`, `voice_name`, `clip_engine`, and `clip_text`. The dimension is
+scoreable only when `has_audio` is true. If `clip_path` is null, the honest value remains
+`null`, never `pass`.
 
 ## `accent_consistency` — the dimension that is the only check there is
 
@@ -191,18 +190,12 @@ gate mean two things at once — the same reason `awkward` is published separate
   role, or a whole bank, reading off-claim means `accent_claim` cannot be raised above
   `unverified` and the remedy is a different blend or a second vendor.
 
-### The sheet carries no audio today — this dimension is not yet scoreable
+### The sheet carries the baked clip and cast role
 
-Stated here rather than discovered by the first reviewer. `SampleItem`
-(`tools/coursekit/src/coursekit/sample.py`) carries `exercise_id`, `unit_index`,
-`lesson_index`, `exercise_type`, `provenance`, `prompt`, `accepted_answers`,
-`distractors`, `source_text` and `source_translation` — and **no clip reference and no
-voice role**. A reviewer handed `build/es/sample-300.jsonl` as it is drawn today has
-nothing to listen to and no way to know which role a row would have been spoken by.
-
-So the dimension is defined, and until the sheet gains those two fields it cannot be
-scored: it is `null` on every row, not `pass`. That gap is written up as **B18** in
-`docs/P2-BLOCKERS.md` with what it needs. The rest of this rubric is scoreable now.
+Round 4 joins each exercise's `audio_ref` through G8's baked-clip records and
+`cast.yaml`. A reviewer uses `clip_path` to play the exact packed bytes and
+`voice_role`/`voice_name` to group Plumas, Diego, Rosa, and Nico. A row with
+`has_audio: false` remains unscoreable and takes `accent_consistency: null`.
 
 ### If the constant does not carry it yet
 
@@ -263,7 +256,8 @@ the values:
     "grammar": "pass",
     "naturalness": "pass",
     "register": "pass",
-    "answer_set": "pass"
+    "answer_set": "pass",
+    "accent_consistency": null
   },
   "reviewer": "opus-agent-reviewer",
   "reviewed_at": "2026-09-12",
@@ -275,19 +269,12 @@ the values:
 `REVIEW_DIMENSIONS`; a key outside it is a hard error on the whole file, never a dropped
 row. `note` is free text and is what a maintainer reads when a rate moves.
 
-**There is no `accent_consistency` key in that object, and its absence is deliberate.**
-`REVIEW_DIMENSIONS` in `config/sample.py` is
-`("meaning", "grammar", "naturalness", "register", "answer_set")` — five members, measured
-on this branch — so a row carrying a sixth key makes `read_scores` raise and produces no
-rate for the **whole sheet**. Until the constant carries the key, an accent finding goes
-in `note`, prefixed `accent:`, exactly as §"If the constant does not carry it yet" says.
-A canonical example that showed the key would be a foot-gun: the row most likely to be
-copied would be the one action this file twice forbids.
+`accent_consistency` is present and null in the canonical form because the example does
+not point at a real drawn row. On a row with `has_audio: true`, listen to `clip_path` and
+replace null with `pass` or `fail`. `read_scores` accepts only those values (or null) and
+refuses arbitrary truthy strings such as `"yes"`.
 
-### After the constant lands — do not use this form yet
-
-When the sample lane has added `accent_consistency` to `REVIEW_DIMENSIONS`, and only
-then, a row that had audio carries a sixth key:
+For example, a row whose clip was played and failed the accent check is:
 
 ```json
 {
@@ -307,14 +294,9 @@ then, a row that had audio carries a sixth key:
 }
 ```
 
-Check the constant before writing that form — `python -c "from coursekit.config.sample
-import REVIEW_DIMENSIONS; print(REVIEW_DIMENSIONS)"` from `tools/coursekit` answers it in
-one line — and note that the dimension is still unscoreable for a second reason even after
-the constant lands: the drawn sheet carries no clip reference, per §"The sheet carries no
-audio today" above and **B18** in `docs/P2-BLOCKERS.md`. Omit
-`accent_consistency` entirely on a row you could not listen to, which today is every row.
-An omitted dimension is unscored; `"pass"` on a clip nobody played would be the one lie
-this sheet exists to prevent.
+Keep the value null on any row whose `has_audio` is false. `coursekit validate` rejects
+`pass` or `fail` against a row with no playable clip; `"pass"` on a clip nobody played
+would be the one lie this sheet exists to prevent.
 
 Score **every** row on the sheet. `coursekit`'s `unscored_items()` reports the ones you
 did not, and an unscored sample has a rate of `None` — which does not pass the gate.
