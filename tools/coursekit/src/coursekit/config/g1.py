@@ -161,22 +161,236 @@ ADAPTER_SELFTEST_ES: Final[tuple[tuple[str, str], ...]] = (
     ),
     (
         "Las flores rojas son bonitas.",
-        "Las/el/DET flores/flor/NOUN rojas/rojo/ADJ son/ser/AUX bonitas/bonito/ADJ "
-        "././PUNCT",
+        "Las/el/DET flores/flor/NOUN rojas/rojo/ADJ son/ser/AUX bonitas/bonito/ADJ ././PUNCT",
     ),
     (
         "Ayer trabajé ocho horas y dormí poco.",
         "Ayer/ayer/ADV trabajé/trabajé/VERB ocho/ocho/NUM horas/hora/NOUN y/y/CCONJ "
         "dormí/dormir/VERB poco/poco/ADV ././PUNCT",
     ),
+    # The six added for B9(a). Every row of `LEMMA_NORMALISATION_ES` below is witnessed
+    # by at least one of them IN A REAL SENTENCE, which the bare one-word probe in the
+    # table's third column cannot do: the twelve above contain no form of `bueno`, no
+    # sentence-initial plural, and nothing the table touches, so before these landed
+    # nothing in this file pinned the behaviour the table changes. Frozen RAW, like
+    # everything else here; `ADAPTER_SELFTEST_ES_NORMALISED` records the other side.
+    (
+        "Hola, buenos días y buenas tardes.",
+        "Hola/hola/PROPN ,/,/PUNCT buenos/buen/ADJ días/día/NOUN y/y/CCONJ "
+        "buenas/buena/ADJ tardes/tarde/NOUN ././PUNCT",
+    ),
+    (
+        "Buenas noches, hasta luego.",
+        "Buenas/buenas/PROPN noches/noches/PROPN ,/,/PUNCT hasta/hasta/ADP "
+        "luego/luego/ADV ././PUNCT",
+    ),
+    (
+        "Un gran día en el tercer piso.",
+        "Un/uno/DET gran/gran/ADJ día/día/NOUN en/en/ADP el/el/DET tercer/tercer/ADJ "
+        "piso/piso/NOUN ././PUNCT",
+    ),
+    (
+        "Gracias por el paraguas y la cuchara.",
+        "Gracias/gracias/NOUN por/por/ADP el/el/DET paraguas/paraguas/NOUN y/y/CCONJ "
+        "la/el/DET cuchara/cuchara/NOUN ././PUNCT",
+    ),
+    (
+        "Media hora más, buenas noches.",
+        "Media/media/PROPN hora/hora/NOUN más/más/ADV ,/,/PUNCT buenas/buena/ADJ "
+        "noches/noche/NOUN ././PUNCT",
+    ),
+    (
+        "Tengo tos y fiebre esta noche.",
+        "Tengo/tener/VERB tos/to/ADJ y/y/CCONJ fiebre/fiebre/NOUN esta/este/DET "
+        "noche/noche/NOUN ././PUNCT",
+    ),
 )
+
+# ---------------------------------------------------------------------------
+# Lemma normalisation (founder ruling B9(a))
+# ---------------------------------------------------------------------------
+
+#: The probe every row's third column was measured with: the surface **alone**, as a
+#: one-word document.
+#:
+#: Declared, and covered by `ADAPTER_SELFTEST_ES_DIGEST`, because the third column means
+#: nothing without it — `es_core_news_md` gives the same surface different raw lemmas in
+#: different positions (measured 2026-09-12: `cuchara` alone -> `cucharo`, `cuchara`
+#: inside a sentence -> `cuchara`), so "the surfaces measured to produce this raw lemma"
+#: is only a fact relative to one probe. It is the BARE surface rather than a carrier
+#: sentence on purpose: that is exactly the input `lemmatise_surface` takes, which is
+#: what the G2 frequency tail and G3's reachability gate both run through, so the column
+#: is evidence about the call the pipeline actually makes. In-sentence evidence for every
+#: row lives in `ADAPTER_SELFTEST_ES` instead, where a whole fingerprint is frozen.
+LEMMA_NORMALISATION_PROBE: Final[str] = "{surface}"
+
+#: **The one place a raw lemma is mapped to a ledger lemma.** Rows are
+#: `(raw lemma, ledger lemma, the surfaces measured to produce the raw lemma)`.
+#:
+#: This table is a DECLARATION OF WHAT THE PINNED MODEL DOES, in exactly the sense
+#: `ADAPTER_SELFTEST_ES` is, and it is written the same way: every row was produced by
+#: running `es_core_news_md` 3.8.0 and reading the answer, never by deciding what the
+#: answer ought to be. The third column is the evidence and is not decoration — a row
+#: with no surface behind it is a wish, and a wish here re-partitions the ledger.
+#: `test_g1_analyze.py` re-takes every one of those measurements against the RAW lemma
+#: (not the normalised one, which would agree with the table by construction).
+#:
+#: **Why it exists (docs/P2-BLOCKERS.md §B9).** G4 deals lesson 1 of unit 1 a permitted
+#: vocabulary of five lemmas — `bueno`, `día`, `hola`, `noche`, `tarde`. The lemmatiser
+#: sends every prenominal form of `bueno` somewhere else, so the one greeting the lesson
+#: exists to teach was out of vocabulary in the lesson that teaches both of its words:
+#:
+#:     'Hola, buenos días.'    -> ['hola', 'buen',   'día']
+#:     'Hola, buenas noches.'  -> ['hola', 'buena',  'noche']
+#:     'Buenas noches.'        -> ['buenas', 'noches']
+#:
+#: With this table the same three sentences give `['hola', 'bueno', 'día']`,
+#: `['hola', 'bueno', 'noche']` and `['bueno', 'noche']` — inside the window.
+#:
+#: ## D-B9A-01 — the one rule every row obeys
+#:
+#: **A row exists where the pinned model produces, for forms of one word, a raw lemma
+#: that is not that word's dictionary headword; and the row sends it to the headword.**
+#: One rule, so the next author does not have to guess which lever to pull. Its
+#: converse is the part that keeps the table small: **where the raw lemma is itself a
+#: headword the course could mean, there is no row — the curriculum declares the lemma
+#: the model produces instead.** That is why `media` -> `medio` is a row (`media` is the
+#: feminine of the headword `medio`) while `gracias` is NOT declared in
+#: `content/es/curriculum.yaml` at all: the model's answer for the bare word is `gracia`,
+#: `gracia` is a headword, so the curriculum names `gracia` and the row only exists to
+#: pull the sentence-initial PROPN reading (`Gracias` -> `gracias`) onto it.
+#:
+#: Three measured shapes fall out of that rule. **They get the same treatment because
+#: they are the same defect** — one word, two raw lemmas, depending on where it sits:
+#:
+#: 1. *Prenominal and apocopated adjectives.* `buen`, `buena`, `buenas` and `buenos` are
+#:    all raw lemmas of forms of `bueno`; `gran` is one for `grande`; `tercer` for
+#:    `tercero`. (`primer` needs no row: measured 2026-09-12, `primer` -> `primero`
+#:    already. It is absent on purpose — a row that restates what the model does is one
+#:    more thing to keep true.)
+#: 2. *A sentence-initial capital re-tags the word PROPN and leaves the lemma as the
+#:    surface.* `Días` -> `días`, `Noches` -> `noches`, `Tardes` -> `tardes`,
+#:    `Gracias` -> `gracias`, `Media` -> `media`. The same words lowercase and inside a
+#:    sentence give `día`, `noche`, `tarde`, `gracia`, `medio`. PROPN is deliberately
+#:    inside `CONTENT_POS`, so without a row the same greeting carries two different
+#:    ledger items depending on where it sits in the sentence.
+#: 3. *A bare one-word document over- or mis-singularises.* `paraguas` alone ->
+#:    `paragua`, `cuchara` alone -> `cucharo` (ADJ), `tos` alone -> `to` (PRON); inside a
+#:    sentence all three give the headword (`Tengo mucha tos hoy.` -> `tos`). Rows in
+#:    this shape run the other way round — `paragua` -> `paraguas`, `cucharo` ->
+#:    `cuchara`, `to` -> `tos` — because the headword is the plural-invariant `paraguas`,
+#:    the feminine `cuchara` and the invariable `tos`, and because none of `paragua`,
+#:    `cucharo` or `to` is a Spanish word, so no row can be shadowing a lemma the course
+#:    could mean. That last clause is the whole safety argument for this shape: a row
+#:    whose raw side IS a word would fold that word into another ledger item.
+#:
+#: **What is deliberately NOT here, with the measurement that rules it out.** The
+#: reflexive infinitives (`levantarse` -> `levantar él`), the pronoun collapses
+#: (`ella` -> `él`, `se` -> `él`, `nosotros` -> `yo`) and the locative `fuera` -> `ser`
+#: (the imperfect subjunctive of `ser`/`ir` is spelled the same way) look like the same
+#: class of defect and are not. They are LOSSY, not merely differently spelled: measured
+#: 2026-09-12, `levantarse`, `levantarlo`, `levantarla`, `levantarle`, `levantarlos` and
+#: `levantarles` all produce the one raw lemma `levantar él`, so a row sending it to
+#: `levantarse` would claim that `Quiero levantarlo` teaches the reflexive verb, and a
+#: row sending `ser` to `fuera` would claim every `era`/`fue` teaches the adverb. **A
+#: table cannot re-split what the lemmatiser merged.** Those lemmas are unreachable, G3's
+#: reachability gate says so by name, and `content/es/curriculum.yaml` stopped declaring
+#: them as ledger items — the constructions are taught as their grammar concept, which
+#: Q2 option C already schedules as an item of its own.
+#:
+#: **The cross-lane contract.** The table lives here, `adapters/spacy_es.py` applies it
+#: inside `analyse()` and `lemmatise_surface()`, and NO downstream stage or validator
+#: carries a copy. `tests/test_ledger_unit.py` greps the tree for a second one, the same
+#: way it does for `LEDGER_UNIT_BY_LANGUAGE`: two homes for a lemma mapping is how the
+#: ledger acquires two partitions, which is the whole subject of INV-PACK-40.
+#:
+#: Changing a row RE-PARTITIONS THE LEDGER and re-keys every learner's FSRS row for the
+#: affected items. It is the same commit-with-the-digest, rebuild-every-pack change as
+#: editing the frozen self-test, and `ADAPTER_SELFTEST_ES_DIGEST` covers all of it so
+#: none of it can move without the rest being looked at.
+LEMMA_NORMALISATION_ES: Final[tuple[tuple[str, str, tuple[str, ...]], ...]] = (
+    # raw lemma  ledger lemma  bare surfaces measured to produce the raw lemma
+    # 1. prenominal and apocopated adjectives
+    ("buen", "bueno", ("buen", "Buen", "buena", "buenos")),
+    ("buena", "bueno", ("buenas", "Buena")),
+    ("buenas", "bueno", ("Buenas",)),
+    ("buenos", "bueno", ("Buenos",)),
+    ("gran", "grande", ("gran", "Gran")),
+    ("tercer", "tercero", ("tercer", "Tercer")),
+    # 2. a sentence-initial capital re-tags the word PROPN and keeps the surface
+    ("días", "día", ("Días",)),
+    ("noches", "noche", ("Noches",)),
+    ("tardes", "tarde", ("Tardes",)),
+    ("gracias", "gracia", ("Gracias",)),
+    ("media", "medio", ("Media",)),
+    # 3. a bare one-word document over- or mis-singularises
+    ("paragua", "paraguas", ("paraguas", "paragua")),
+    ("cucharo", "cuchara", ("cuchara",)),
+    ("to", "tos", ("tos",)),
+)
+
+#: The same rows as the `{raw: ledger}` mapping the adapter applies, keyed by language.
+#: Derived from the table above so the two cannot disagree; a language with no entry is
+#: normalised by nothing, which is the correct answer for a language whose table has not
+#: been measured yet (fr, de, ja land with P7 and each needs its own measurement — a
+#: normalisation table is no more portable between lemmatisers than a self-test corpus).
+LEMMA_NORMALISATION_BY_LANGUAGE: Final[dict[str, dict[str, str]]] = {
+    "es": {raw: ledger for raw, ledger, _surfaces in LEMMA_NORMALISATION_ES},
+}
+
+#: The self-test's OTHER side: the fingerprint the adapter produces once the table has
+#: been applied, for the five frozen sentences where it changes something.
+#:
+#: Frozen beside the raw table rather than instead of it, because the two answer
+#: different questions. The raw table answers "has the model moved?"; this answers "does
+#: the table still do what it was added for?" — and a table that quietly stopped firing
+#: would leave the raw fingerprints green while putting `Buenos días.` back outside the
+#: lesson that teaches it. `test_g1_analyze.py` also asserts that every sentence ABSENT
+#: from this dict normalises to its raw fingerprint unchanged, so a row cannot be
+#: forgotten here and a new row cannot fire on a sentence nobody looked at.
+ADAPTER_SELFTEST_ES_NORMALISED: Final[dict[str, str]] = {
+    "Hola, buenos días y buenas tardes.": (
+        "Hola/hola/PROPN ,/,/PUNCT buenos/bueno/ADJ días/día/NOUN y/y/CCONJ "
+        "buenas/bueno/ADJ tardes/tarde/NOUN ././PUNCT"
+    ),
+    "Buenas noches, hasta luego.": (
+        "Buenas/bueno/PROPN noches/noche/PROPN ,/,/PUNCT hasta/hasta/ADP luego/luego/ADV ././PUNCT"
+    ),
+    "Un gran día en el tercer piso.": (
+        "Un/uno/DET gran/grande/ADJ día/día/NOUN en/en/ADP el/el/DET "
+        "tercer/tercero/ADJ piso/piso/NOUN ././PUNCT"
+    ),
+    "Gracias por el paraguas y la cuchara.": (
+        "Gracias/gracia/NOUN por/por/ADP el/el/DET paraguas/paraguas/NOUN y/y/CCONJ "
+        "la/el/DET cuchara/cuchara/NOUN ././PUNCT"
+    ),
+    "Media hora más, buenas noches.": (
+        "Media/medio/PROPN hora/hora/NOUN más/más/ADV ,/,/PUNCT buenas/bueno/ADJ "
+        "noches/noche/NOUN ././PUNCT"
+    ),
+    "Tengo tos y fiebre esta noche.": (
+        "Tengo/tener/VERB tos/tos/ADJ y/y/CCONJ fiebre/fiebre/NOUN esta/este/DET "
+        "noche/noche/NOUN ././PUNCT"
+    ),
+}
+
+#: The five lemmas G4 deals to lesson 1 of unit 1, and what B9 was about. Declared here
+#: so the test that proves the greeting is in vocabulary reads the window from one place
+#: instead of restating it: a window typed into a test agrees with itself.
+LESSON_ONE_WINDOW_ES: Final[tuple[str, ...]] = ("bueno", "día", "hola", "noche", "tarde")
 
 #: sha256 over the self-test corpus as `"<sentence>\\t<expected>"` lines joined by "\\n".
 #: A one-line signal for a run report and a manifest; the table above is what tells a
 #: reader WHICH token moved. Both are needed: a digest alone is unreadable in a diff, and
 #: a table alone gets skimmed.
+#:
+#: **Re-pinned 2026-09-12** in the commit that added the B9(a) normalisation table, its
+#: bare-surface probe, the five witness sentences and their normalised expectations. It
+#: moved from `2b3ba30a…` for those edits and nothing else; `selftest_digest` now covers
+#: the frozen corpus, the probe, the table and the normalised side, because a pack is
+#: partitioned by all of them.
 ADAPTER_SELFTEST_ES_DIGEST: Final[str] = (
-    "2b3ba30abe40ba5f4e6b41faad303f882bace7f2e12731baa9ad97a22976b21f"
+    "88fc73b7c363a92184d2f2230c9d6532ef2151b64a199edf8d6b6b529bb1eb13"
 )
 
 #: The self-test corpora, keyed the way the adapters are. fr/de/ja land with P7 and each

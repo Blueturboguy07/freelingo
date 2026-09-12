@@ -42,7 +42,8 @@ says so rather than inventing one.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping, Sequence
+import unicodedata
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,7 @@ from ..config.g3 import (
     SECTION_INDEX_MAX,
     SECTION_INDEX_MIN,
 )
+from ..inputs import MissingInput
 from ..runlog import require_successful
 from . import StageContext, StageResult, register_stage
 
@@ -86,11 +88,13 @@ __all__ = [
     "SolveResult",
     "AuthoredSection",
     "AuthoredUnit",
+    "Unreachable",
     "curriculum_path",
     "derive_level_count",
     "derive_section_cefr",
     "load_curriculum",
     "solve",
+    "unreachable_lexemes",
 ]
 
 
@@ -158,6 +162,22 @@ class AuthoredUnit:
     grammar_concept: str
     register_slot: str
     target_lexemes: tuple[str, ...]
+    #: `(lexeme, the surface forms this unit teaches for it)`, as authored. Optional per
+    #: lexeme and per unit; a tuple of pairs rather than a dict so the unit stays frozen
+    #: and hashable. Read by the reachability gate below and by nothing else — it is a
+    #: claim about the LANGUAGE, not a selector, and G4 never sees it.
+    forms: tuple[tuple[str, tuple[str, ...]], ...] = ()
+
+    def taught_forms(self, lexeme: str) -> tuple[str, ...]:
+        """Every surface the reachability gate may test for `lexeme`.
+
+        The lexeme itself is always one of them: a curriculum that declares `casa` is
+        claiming, at minimum, that the lemmatiser produces `casa` for the word `casa`.
+        Authored forms come after it, in the order they were written, so the failure
+        message reads in the order a human would check them.
+        """
+        authored = next((forms for name, forms in self.forms if name == lexeme), ())
+        return tuple(dict.fromkeys((lexeme, *authored)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,9 +275,7 @@ def load_curriculum(lang: str, *, path: Path | None = None) -> Curriculum:
 
     version = _require(raw, "schema", str(target))
     if version != CURRICULUM_SCHEMA_VERSION:
-        raise CurriculumError(
-            f"{target}: schema {version!r}, expected {CURRICULUM_SCHEMA_VERSION}"
-        )
+        raise CurriculumError(f"{target}: schema {version!r}, expected {CURRICULUM_SCHEMA_VERSION}")
     declared_lang = _require(raw, "lang", str(target))
     if declared_lang != lang:
         raise CurriculumError(f"{target}: declares lang {declared_lang!r}, loaded as {lang!r}")
@@ -368,6 +386,7 @@ def _load_sections(
                     grammar_concept=concept,
                     register_slot=slot,
                     target_lexemes=lexemes,
+                    forms=_load_forms(unit_entry, unit_where, lexemes),
                 )
             )
         if not units:
@@ -385,6 +404,172 @@ def _load_sections(
     if [section.index for section in sections] != sorted(s.index for s in sections):
         raise CurriculumError(f"{target}: sections are not in ascending index order")
     return tuple(sections)
+
+
+def _load_forms(
+    unit_entry: Mapping[str, Any],
+    where: str,
+    lexemes: tuple[str, ...],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """The optional `forms:` block: `{lexeme: [surface, ...]}`, checked at load time.
+
+    Four refusals, and each one is a way the block could look right and say nothing:
+
+    - a key that is not one of this unit's `target_lexemes` is a typo or a lexeme that
+      moved unit, and either way the forms it declares are tested against nothing;
+    - an empty list is a lexeme that claims to have declared its forms and has not;
+    - a non-string entry is the YAML boolean trap `_strings` exists for (`no`, `on`);
+    - **a form that is not NFC-lowercase is refused**, and that is the load-bearing one.
+
+    ## Why a capital is refused rather than lowercased
+
+    `es_core_news_md` re-tags a sentence-initial capital PROPN and leaves the lemma as
+    the surface, so `Gracias` reaches the lemma `gracias` where `gracias` reaches
+    `gracia` (measured 2026-09-12). A `forms:` list is allowed to name a real form of the
+    word — a plural, an inflection — and is NOT allowed to name a spelling that only
+    works because of where it sits: that would discharge the B9(c) gate for a lexeme no
+    ordinary corpus sentence can select, which is the exact defect B9(c) exists to catch.
+    An adversarial review of the first version of this lane found three such rows.
+
+    Refused rather than silently lowercased because the YAML is the declaration: an
+    author who writes `Gracias` believes something about Spanish that is wrong, and a
+    lowercasing loader would accept the belief and then fail somewhere else. The position
+    artefact belongs in `config/g1.LEMMA_NORMALISATION_ES`, whose whole job is to make
+    the two positions agree; see D-B9A-01 there.
+    """
+    raw = unit_entry.get("forms")
+    if raw is None:
+        return ()
+    if not isinstance(raw, Mapping):
+        raise CurriculumError(f"{where}: forms must be a mapping of lexeme -> [surface, ...]")
+    unknown = sorted(set(raw) - set(lexemes))
+    if unknown:
+        raise CurriculumError(
+            f"{where}: forms names {', '.join(repr(name) for name in unknown)}, which "
+            f"is not in this unit's target_lexemes. A form list keyed to a lexeme the "
+            f"unit does not teach is checked against nothing."
+        )
+    loaded: list[tuple[str, tuple[str, ...]]] = []
+    for lexeme in dict.fromkeys(lexemes):
+        if lexeme not in raw:
+            continue
+        forms = _strings(raw[lexeme], where, f"forms[{lexeme!r}]")
+        if not forms:
+            raise CurriculumError(
+                f"{where}: forms[{lexeme!r}] is empty. Omit the key instead — an empty "
+                f"list reads as 'the forms were declared' and declares nothing."
+            )
+        for form in forms:
+            if form != unicodedata.normalize("NFC", form.lower()):
+                raise CurriculumError(
+                    f"{where}: forms[{lexeme!r}] declares {form!r}, which is not "
+                    f"NFC-lowercase. The pinned lemmatiser re-tags a sentence-initial "
+                    f"capital PROPN and keeps the surface as the lemma, so a capitalised "
+                    f"form can reach a lemma that no mid-sentence occurrence of the same "
+                    f"word ever reaches — it would discharge the reachability gate for a "
+                    f"lexeme nothing can select. Declare a real lowercase form, or put "
+                    f"the position artefact in config/g1.LEMMA_NORMALISATION_ES."
+                )
+        loaded.append((lexeme, tuple(dict.fromkeys(forms))))
+    return tuple(loaded)
+
+
+# ---------------------------------------------------------------------------
+# Lexeme reachability — founder ruling B9(c)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Unreachable:
+    """One declared lexeme the pinned lemmatiser never produces, and what was tried."""
+
+    unit_index: int
+    unit_title: str
+    lexeme: str
+    #: `(form, the ledger lemma the adapter produced for it, or None)` in the order the
+    #: forms were tried. Carried so the failure message names the lemma the model DOES
+    #: produce: "levantarse -> levantar él" is a fixable sentence and "unreachable" is
+    #: not.
+    attempts: tuple[tuple[str, str | None], ...]
+
+    def as_line(self) -> str:
+        tried = ", ".join(
+            f"{form!r} -> {produced!r}" if produced else f"{form!r} -> (not one word)"
+            for form, produced in self.attempts
+        )
+        return f"u{self.unit_index} {self.unit_title!r}: {self.lexeme!r} ({tried})"
+
+
+def unreachable_lexemes(
+    curriculum: Curriculum,
+    lemmatise_surfaces: Callable[[Sequence[str]], list[tuple[str, str] | None]],
+) -> list[Unreachable]:
+    """Every declared target lexeme no form the course teaches can reach. **B9(c).**
+
+    The defect, in one sentence: *a curriculum may declare a target lemma the pinned
+    lemmatiser never produces for any form the course intends to teach.* It is silent
+    today. Such a lexeme is simply not in the G2 lexicon, so `solve` counts it as
+    DEFERRED — the same bucket as a perfectly good lemma this corpus happened not to
+    contain — and the unit ships teaching one thing fewer than it says it does. The
+    first person to notice is whoever tries to author a sentence against the window,
+    which is how `docs/P2-BLOCKERS.md` §B9 was written.
+
+    The oracle is the adapter's own `lemmatise_surfaces` over `unit.taught_forms(...)`,
+    **with the B9(a) normalisation table applied** (the adapter applies it; nothing here
+    knows the table exists). One batched call for the whole course.
+
+    **Why the G2 lexicon is NOT consulted, though it is right there in `solve`.** A
+    lexeme in the lexicon has demonstrably been produced by the lemmatiser for some real
+    corpus sentence, which is stronger evidence than a one-word document — and that is
+    exactly the problem. It makes the verdict a property of the CORPUS: the same
+    curriculum and the same model would pass on Monday's ingest and fail on Tuesday's,
+    and a curriculum error would hide behind a corpus that happened to be lucky. The
+    gate is a pure function of (curriculum, pinned model, normalisation table), like the
+    adapter self-test, so it can be run and reasoned about before a byte is ingested.
+
+    The cost of that choice is that a lexeme whose bare form mis-lemmatises must declare
+    a form that does not — `trabajos` for `trabajo`, `primas` for `prima` — which is what
+    the `forms:` block is for and why it is per unit rather than global. Those forms are
+    lowercase by construction (`_load_forms` refuses a capital and says why), so the gate
+    cannot be discharged by the sentence-initial PROPN reading; where the bare surface is
+    the only spelling the course teaches, the repair belongs in
+    `config/g1.LEMMA_NORMALISATION_ES` instead.
+    """
+    ordered: list[tuple[int, AuthoredUnit, str, tuple[str, ...]]] = []
+    probes: list[str] = []
+    for unit_index, (_section, unit) in enumerate(curriculum.units(), start=1):
+        # `dict.fromkeys`, not `set`: a duplicated lexeme is probed and reported once,
+        # and the order stays the authored one so the failure list reads down the unit.
+        for lexeme in dict.fromkeys(unit.target_lexemes):
+            forms = unit.taught_forms(lexeme)
+            ordered.append((unit_index, unit, lexeme, forms))
+            probes.extend(forms)
+    produced = lemmatise_surfaces(probes)
+    if len(produced) != len(probes):
+        raise CurriculumError(
+            f"the adapter returned {len(produced)} answers for {len(probes)} probed "
+            f"forms. `lemmatise_surfaces` is element-for-element by contract; a "
+            f"different length would silently shift every verdict onto another lexeme."
+        )
+    failures: list[Unreachable] = []
+    cursor = 0
+    for index, unit, lexeme, forms in ordered:
+        answers = produced[cursor : cursor + len(forms)]
+        cursor += len(forms)
+        if any(answer is not None and answer[0] == lexeme for answer in answers):
+            continue
+        failures.append(
+            Unreachable(
+                unit_index=index,
+                unit_title=unit.title,
+                lexeme=lexeme,
+                attempts=tuple(
+                    (form, answer[0] if answer else None)
+                    for form, answer in zip(forms, answers, strict=True)
+                ),
+            )
+        )
+    return failures
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +642,10 @@ class SolveReport:
     new_lemmas_per_lesson: float = 0.0
     cefr_checked: bool = False
     section_checks: list[SectionCheck] = field(default_factory=list)
+    #: B9(c). Declared lexemes no form the course teaches can reach. Written by the
+    #: stage, never by `solve`: the solver is a pure function of a curriculum and a
+    #: lexicon, and this is a question about the lemmatiser.
+    unreachable: list[Unreachable] = field(default_factory=list)
 
     def as_notes(self) -> dict[str, Any]:
         return {
@@ -469,6 +658,7 @@ class SolveReport:
             "lessons": self.lessons,
             "new_lemmas_per_lesson": round(self.new_lemmas_per_lesson, 3),
             "cefr_checked": self.cefr_checked,
+            "unreachable_lexemes": [failure.as_line() for failure in self.unreachable],
             "sections": [
                 {
                     "section_index": check.section_index,
@@ -492,7 +682,16 @@ class SolveResult:
 
     @property
     def ok(self) -> bool:
-        return all(check.ok for check in self.report.section_checks)
+        """Both gates: every section CEFR check, and B9(c) reachability.
+
+        `solve()` never writes `report.unreachable` — it is a pure function of a
+        curriculum and a lexicon and reachability is a question about the lemmatiser — so
+        for a caller that only calls `solve()` this reduces to the section checks. The
+        stage is the only caller in `src/` and it fills the field in before reading `ok`;
+        `test_g3_solve.py` pins both readings so a second caller cannot quietly get the
+        weaker one.
+        """
+        return not self.report.unreachable and all(check.ok for check in self.report.section_checks)
 
 
 def _lexicon(banded: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -515,9 +714,7 @@ def solve(
     """
     lexicon = _lexicon(banded)
     by_rank = sorted(lexicon, key=lambda lemma: (int(lexicon[lemma]["rank"]), lemma))
-    claimed = {
-        lexeme for _, unit in curriculum.units() for lexeme in unit.target_lexemes
-    }
+    claimed = {lexeme for _, unit in curriculum.units() for lexeme in unit.target_lexemes}
 
     introduced: dict[str, int] = {}
     per_unit_new: list[list[str]] = []
@@ -677,12 +874,43 @@ def _check_section(
 
 @register_stage("g3", reads=("banded_lemma",), writes=("unit_assignment",))
 def solve_curriculum(ctx: StageContext) -> StageResult:
-    """Read `g2/banded.jsonl` and `content/<lang>/curriculum.yaml`; write `g3/units.jsonl`."""
+    """Read `g2/banded.jsonl` and `content/<lang>/curriculum.yaml`; write `g3/units.jsonl`.
+
+    The reachability gate (B9(c)) runs HERE and unconditionally, on the registered
+    adapter, with no flag and no skip. That is deliberate twice over: it is not a
+    registered validator, because `VALIDATOR_IDS` is what `pack-ci`'s `pipeline-ready`
+    job counts and an unregistered id would skip both pack jobs green; and it takes no
+    "check reachability" option, because an option is a way to turn it off. The stage
+    therefore needs the `nlp` group, which every route that can reach G3 already has —
+    G1 and G2 are hard-gated on it — and asks for it through the adapter, so a runner
+    without it fails by name (INV-PACK-12) instead of writing units nobody checked.
+    """
     require_successful(ctx.lang, ["g2"])
     banded = list(read_records("banded_lemma", lang=ctx.lang))
     curriculum = load_curriculum(ctx.lang)
 
+    from .g1_analyze import adapter_for
+
     result = solve(curriculum, banded)
+    try:
+        lemmatise = adapter_for(ctx.lang).lemmatise_surfaces
+    except MissingInput as exc:
+        # A named stage failure, not a traceback, and never a skip. INV-PACK-12: a
+        # missing per-language source fails loudly and is not replaced by something of a
+        # different shape. The one shape that would be worse than either is "reachability
+        # was not checked because no adapter was around", which is how an unreachable
+        # lexeme got into the shipped curriculum in the first place — so this returns
+        # ok=False rather than leaving `report.unreachable` empty and looking clean.
+        return StageResult(
+            ok=False,
+            message=(
+                f"the B9(c) reachability gate needs the morphology adapter and there is "
+                f"none: {exc}. G1 and G2 are hard-gated on the same adapter, so a run "
+                f"that got this far had one; this is not a reason to skip the gate."
+            ),
+            detail=result.report.as_notes(),
+        )
+    result.report.unreachable = unreachable_lexemes(curriculum, lemmatise)
     written = write_records("unit_assignment", result.units, lang=ctx.lang)
 
     ctx.entry.record_output("unit_assignment")
@@ -694,6 +922,22 @@ def solve_curriculum(ctx: StageContext) -> StageResult:
         curriculum_licence=curriculum.licence,
         **result.report.as_notes(),
     )
+
+    if result.report.unreachable:
+        return StageResult(
+            ok=False,
+            message=(
+                f"{len(result.report.unreachable)} declared target lexeme(s) are "
+                f"unreachable: the pinned lemmatiser produces no such lemma for any "
+                f"form the course teaches, so the unit would ship teaching one item "
+                f"fewer than it declares and V1 would pass over a lemma that cannot "
+                f"exist. Declare a `forms:` entry with a surface that does reach it, or "
+                f"declare the lemma the model actually produces. "
+                + "; ".join(failure.as_line() for failure in result.report.unreachable[:12])
+                + ("; …" if len(result.report.unreachable) > 12 else "")
+            ),
+            detail=result.report.as_notes(),
+        )
 
     failing = [check for check in result.report.section_checks if not check.ok]
     if failing:

@@ -11,13 +11,14 @@ The model-loading tests are skipped without the `nlp` group and run in CI, which
 from __future__ import annotations
 
 import json
+import unicodedata
 from pathlib import Path
 
 import pytest
 
 from coursekit import __version__
 from coursekit.adapters import ADAPTERS
-from coursekit.adapters.spacy_es import parse_fingerprint
+from coursekit.adapters.spacy_es import ledger_lemma, parse_fingerprint
 from coursekit.artifacts import read_records, write_records
 from coursekit.config import TOOL_NAME
 from coursekit.config.g1 import (
@@ -25,7 +26,12 @@ from coursekit.config.g1 import (
     ADAPTER_SELFTEST,
     ADAPTER_SELFTEST_ES,
     ADAPTER_SELFTEST_ES_DIGEST,
+    ADAPTER_SELFTEST_ES_NORMALISED,
     CONTENT_POS,
+    LEMMA_NORMALISATION_BY_LANGUAGE,
+    LEMMA_NORMALISATION_ES,
+    LEMMA_NORMALISATION_PROBE,
+    LESSON_ONE_WINDOW_ES,
     NON_LEXICAL_POS,
     SPACY_MODEL_BY_LANGUAGE,
     SPACY_MODEL_VERSION,
@@ -106,7 +112,7 @@ def test_the_frozen_corpus_and_its_digest_describe_each_other() -> None:
 
     assert selftest_digest("es") == ADAPTER_SELFTEST_ES_DIGEST
     assert ADAPTER_SELFTEST["es"] is ADAPTER_SELFTEST_ES
-    assert len(ADAPTER_SELFTEST_ES) == 12
+    assert len(ADAPTER_SELFTEST_ES) == 18  # 12 + the six B9(a) witness sentences
 
 
 def test_the_frozen_corpus_sits_on_the_lemmatisers_seams() -> None:
@@ -187,9 +193,7 @@ def test_the_selftest_reports_a_changed_segmentation_as_such(
 @needs_nlp
 def test_every_token_carries_a_ud_tag_a_lemma_a_morph_bundle_and_its_offsets() -> None:
     """`scope2/00` §2.3 G1: 'segment -> lemmatize -> morph-feature bundle per token'."""
-    record = adapter_for("es").analyse(
-        sentence_id="0" * 16, text="Las flores rojas son bonitas."
-    )
+    record = adapter_for("es").analyse(sentence_id="0" * 16, text="Las flores rojas son bonitas.")
     assert record["lang"] == "es"
     assert record["adapter"]["model"] == f"es_core_news_md-{SPACY_MODEL_VERSION}"
     assert record["adapter"]["split_mode"] is None
@@ -387,12 +391,18 @@ def test_the_fixture_lemma_map_agrees_with_the_frozen_corpus_on_every_lemma() ->
 
     checked = 0
     tag_disagreements = []
+    lemma_disagreements = []
     for _, expected in ADAPTER_SELFTEST_ES:
         for surface, lemma, pos in parse_fingerprint(expected):
             known = lemma_map.get(surface.lower())
             if known is None:
                 continue
-            assert known[0] == lemma, surface
+            if known[0] != lemma:
+                # The RAW lemmas may differ by position — and must still land on the same
+                # LEDGER key once the B9(a) table has run, because that key is what V1,
+                # the new-item budget and FSRS are all about.
+                assert ledger_lemma("es", known[0]) == ledger_lemma("es", lemma), surface
+                lemma_disagreements.append((surface, known[0], lemma))
             if known[1] != pos:
                 tag_disagreements.append((surface, known[1], pos))
             checked += 1
@@ -400,18 +410,242 @@ def test_the_fixture_lemma_map_agrees_with_the_frozen_corpus_on_every_lemma() ->
     assert tag_disagreements == [
         ("mañana", "ADV", "NOUN"),
         ("poco", "PRON", "ADV"),
+        ("buenos", "PROPN", "ADJ"),
+        ("días", "PROPN", "NOUN"),
+        ("buenas", "PROPN", "ADJ"),
+        ("Media", "NUM", "PROPN"),
+        ("buenas", "PROPN", "ADJ"),
+        ("noches", "PROPN", "NOUN"),
     ], tag_disagreements
+    # Every one of these is a prenominal form of `bueno`, or a word the model re-tags
+    # PROPN after a sentence-initial capital: the fixture sighted it in one position and
+    # the frozen corpus in the other. They are listed by name so that a NINTH one — a
+    # real drift between the fixture and the corpus — fails, and every one of them is
+    # proven above to collapse onto one ledger key.
+    assert lemma_disagreements == [
+        ("buenos", "buenos", "buen"),
+        ("días", "días", "día"),
+        ("buenas", "buenas", "buena"),
+        ("Gracias", "gracia", "gracias"),
+        ("Media", "medio", "media"),
+        ("buenas", "buenas", "buena"),
+        ("noches", "noches", "noche"),
+    ], lemma_disagreements
+    assert {ledger_lemma("es", raw) for _s, raw, _f in lemma_disagreements} == {
+        "bueno",
+        "día",
+        "gracia",
+        "medio",
+        "noche",
+    }
 
 
 def test_the_falsifier_corpus_is_committed_and_readable() -> None:
     """A committed falsifying input per invariant (plan §Verification)."""
     for invariant in ("INV-PACK-40", "INV-PACK-51"):
         data = json.loads(
-            (Path(__file__).parent / "falsifiers" / f"{invariant}.json").read_text(
-                encoding="utf-8"
-            )
+            (Path(__file__).parent / "falsifiers" / f"{invariant}.json").read_text(encoding="utf-8")
         )
         assert data["invariant"] == invariant
         assert data["cases"]
         for entry in data["cases"]:
             assert entry["id"] and entry["why"] and entry["expect"]
+
+
+# ---------------------------------------------------------------------------
+# The lemma-normalisation table — founder ruling B9(a)
+# ---------------------------------------------------------------------------
+
+
+def test_INV_PACK_40_the_normalisation_table_is_declared_once_and_the_adapter_reads_it() -> None:
+    """[INV-PACK-40] the cross-lane contract: one table, one reader, no copies.
+
+    `config/g1.py` declares it, `ledger_lemma` is the only thing that looks at it, and
+    the grep half of this — no downstream stage or validator carrying its own copy — is
+    `test_ledger_unit.py`. Here: the mapping really is derived from the rows, so the
+    documented table and the applied table cannot drift apart.
+    """
+    assert LEMMA_NORMALISATION_BY_LANGUAGE["es"] == {
+        raw: ledger for raw, ledger, _surfaces in LEMMA_NORMALISATION_ES
+    }
+    assert ledger_lemma("es", "buenos") == "bueno"
+    assert ledger_lemma("es", "casa") == "casa"
+
+
+def test_INV_PACK_40_every_row_is_well_formed_and_terminates() -> None:
+    """[INV-PACK-40] the table partitions the ledger, so its shape is load-bearing.
+
+    A row whose ledger lemma is itself another row's raw lemma would need two passes to
+    settle, and `ledger_lemma` makes exactly one — so a chain would leave the answer
+    depending on dict order. Refused by assertion rather than by a second pass: a
+    fixed-point loop over a table this size hides the mistake instead of reporting it.
+    """
+    raws = [raw for raw, _ledger, _surfaces in LEMMA_NORMALISATION_ES]
+    assert len(raws) == len(set(raws)), "a raw lemma is mapped twice"
+    for raw, ledger, surfaces in LEMMA_NORMALISATION_ES:
+        assert raw != ledger, f"{raw!r} maps to itself; the row says nothing"
+        assert ledger not in raws, f"{raw!r} -> {ledger!r} is a chain, not a mapping"
+        assert surfaces, (
+            f"{raw!r} -> {ledger!r} carries no surface; a row with no measurement is a wish"
+        )
+        assert ledger == unicodedata.normalize("NFC", ledger.lower()), (
+            f"{ledger!r} is not the NFC-lowercase form the adapter outputs"
+        )
+
+
+@needs_nlp
+def test_INV_PACK_06_every_declared_surface_really_produces_its_raw_lemma() -> None:
+    """[INV-PACK-06] the third column is a measurement, and this re-takes it — RAW.
+
+    Every surface on every row is handed to the pinned model and its **raw** lemma is
+    read back, through `raw_lemma_of_surface`, which is the one accessor that has not
+    been through the table.
+
+    **Why not `record["lemmas"][0]` or `lemmatise_surface`.** Both return the lemma with
+    the B9(a) table already applied, so comparing either to the row's LEDGER column is
+    circular: any row whose raw side is wrong still normalises to the right answer via
+    some other row, or via no row at all, and the test passes. An adversarial review
+    found exactly that — the first version read `record["lemmas"][0]`, and two rows
+    (`días`, `tardes`) claimed a raw lemma the model does not produce for the surfaces
+    they named. Column one of the table was unverified by anything.
+    """
+    adapter = adapter_for("es")
+    for raw, ledger, surfaces in LEMMA_NORMALISATION_ES:
+        for surface in surfaces:
+            produced = adapter.raw_lemma_of_surface(surface)
+            assert produced == raw, (
+                f"the table says the bare surface {surface!r} produces the RAW lemma "
+                f"{raw!r} (and so normalises to {ledger!r}); the model gives {produced!r}"
+            )
+            assert ledger_lemma("es", produced) == ledger
+
+
+@needs_nlp
+def test_INV_PACK_06_the_probe_the_third_column_was_measured_with_is_the_gates_own() -> None:
+    """[INV-PACK-06] one probe for the evidence and for the gate, or the column lies.
+
+    `LEMMA_NORMALISATION_PROBE` is the bare surface, which is exactly what
+    `lemmatise_surface` takes and therefore exactly what G3's reachability gate runs.
+    Measured 2026-09-12: the same surface gives different raw lemmas in different
+    positions (`cuchara` alone -> `cucharo`, inside a sentence -> `cuchara`), so a third
+    column measured with a carrier sentence would be evidence about a call the pipeline
+    never makes.
+    """
+    assert LEMMA_NORMALISATION_PROBE == "{surface}"
+    adapter = adapter_for("es")
+    for surface in ("cuchara", "paraguas", "tos"):
+        bare = adapter.raw_lemma_of_surface(surface)
+        assert adapter.lemmatise_surface(surface) is not None
+        assert ledger_lemma("es", bare) == adapter.lemmatise_surface(surface)[0]
+
+
+@needs_nlp
+def test_INV_PACK_06_the_lesson_one_greeting_is_inside_the_lesson_that_teaches_it() -> None:
+    """[INV-PACK-06] B9, the phase blocker, as an assertion.
+
+    G4 deals lesson 1 of unit 1 five lemmas and nothing else. Before ruling B9(a),
+    `Hola, buenos días.` analysed to `['hola', 'buen', 'día']` and `buen` was not one of
+    them, so the greeting the lesson exists to teach was out of vocabulary in the lesson
+    that teaches both of its words (`docs/P2-BLOCKERS.md` §B9). V1 cannot catch that: a
+    lemma outside the window is not a lemma taught too early, it is a sentence nothing
+    can select.
+    """
+    adapter = adapter_for("es")
+    window = set(LESSON_ONE_WINDOW_ES)
+    for text, expected in (
+        ("Hola, buenos días.", ["hola", "bueno", "día"]),
+        ("Hola, buenas noches.", ["hola", "bueno", "noche"]),
+        ("Buenas tardes.", ["bueno", "tarde"]),
+        ("Buenos días.", ["bueno", "día"]),
+        ("Buenas noches.", ["bueno", "noche"]),
+        ("Buen día.", ["bueno", "día"]),
+    ):
+        lemmas = adapter.analyse(sentence_id="1" * 16, text=text)["lemmas"]
+        assert lemmas == expected, text
+        assert set(lemmas) <= window, f"{text!r} leaves the lesson-1 window: {lemmas}"
+
+
+@needs_nlp
+def test_the_frozen_corpus_still_records_the_RAW_lemma_the_table_repairs() -> None:
+    """The two sides are kept apart on purpose, and this is the test that says so.
+
+    If the raw fingerprints were quietly re-frozen as the normalised ones, the corpus
+    would stop being able to tell a model change from a table change — and the model is
+    the thing that moves without anyone touching this repository.
+    """
+    frozen = dict(ADAPTER_SELFTEST_ES)
+    raw = frozen["Hola, buenos días y buenas tardes."]
+    assert "buenos/buen/ADJ" in raw
+    assert "buenas/buena/ADJ" in raw
+    assert "buenos/bueno" not in raw
+    assert "Gracias/gracias/NOUN" in frozen["Gracias por el paraguas y la cuchara."]
+    assert "Media/media/PROPN" in frozen["Media hora más, buenas noches."]
+    assert "tos/to/ADJ" in frozen["Tengo tos y fiebre esta noche."]
+    assert adapter_for("es")._fingerprint_sentence("Hola, buenos días y buenas tardes.") == raw
+
+
+@needs_nlp
+def test_the_normalised_expectations_are_frozen_beside_the_raw_ones() -> None:
+    """And the other side: the post-table fingerprint, for the rows that fire."""
+    adapter = adapter_for("es")
+    assert set(ADAPTER_SELFTEST_ES_NORMALISED) <= {s for s, _ in ADAPTER_SELFTEST_ES}
+    for sentence, expected in ADAPTER_SELFTEST_ES_NORMALISED.items():
+        assert adapter._fingerprint_sentence(sentence, normalise=True) == expected
+
+
+@needs_nlp
+def test_a_sentence_with_no_normalised_row_is_left_alone_by_the_table() -> None:
+    """The half that stops a new row firing somewhere nobody looked.
+
+    Every frozen sentence ABSENT from the normalised dict must normalise to its own raw
+    fingerprint. Add a row for a common lemma and this fails, naming the sentence — which
+    is the only warning a table edit gets before it re-partitions a built pack.
+    """
+    adapter = adapter_for("es")
+    for sentence, raw in ADAPTER_SELFTEST_ES:
+        if sentence in ADAPTER_SELFTEST_ES_NORMALISED:
+            continue
+        assert adapter._fingerprint_sentence(sentence, normalise=True) == raw, sentence
+
+
+@needs_nlp
+def test_the_selftest_catches_a_deleted_normalisation_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A table that stops firing is invisible to the raw fingerprints. Not to this."""
+    from coursekit.adapters import spacy_es
+
+    monkeypatch.setattr(spacy_es, "LEMMA_NORMALISATION_BY_LANGUAGE", {})
+    failures = adapter_for("es").self_test()
+    assert failures, "deleting every row left the self-test green"
+    assert any("normalised" in line for line in failures)
+    assert any("buen" in line for line in failures)
+
+
+def test_INV_PACK_12_a_language_with_no_measured_table_is_normalised_by_nothing() -> None:
+    """[INV-PACK-12] no silent fallback: fr/de/ja get no rows, not the Spanish ones.
+
+    A normalisation table is a measurement of one lemmatiser. Reusing Spanish rows for
+    French would be the differently-shaped fallback INV-PACK-12 forbids — and it would
+    be invisible, because `buen` is a French word for nothing and the row would simply
+    never fire until the day it did.
+    """
+    assert set(LEMMA_NORMALISATION_BY_LANGUAGE) == {"es"}
+    assert ledger_lemma("fr", "buen") == "buen"
+    assert ledger_lemma("de", "gran") == "gran"
+
+
+def test_the_digest_describes_all_three_frozen_tables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Editing a normalisation row must move the digest the runlog and manifest carry."""
+    from coursekit.adapters import spacy_es
+
+    before = spacy_es.selftest_digest("es")
+    assert before == ADAPTER_SELFTEST_ES_DIGEST
+    monkeypatch.setattr(
+        spacy_es,
+        "LEMMA_NORMALISATION_ES",
+        (*LEMMA_NORMALISATION_ES, ("malo", "mal", ("mal",))),
+    )
+    assert spacy_es.selftest_digest("es") != before
