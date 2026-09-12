@@ -68,12 +68,24 @@ export const CORPUS_ROOTS: readonly string[] = ['packages'];
 export const FALSIFIER_DIR = '__falsifiers__';
 /** Directory names the walk never enters, wherever they appear. */
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.stryker-tmp']);
-/** An invariant id as it appears in the registry and in a falsifier file name. */
-export const INVARIANT_ID = /^INV-[A-Z0-9]+-\d+$/;
+/**
+ * An invariant id, as the registry writes it.
+ *
+ * Matched case-INSENSITIVELY against a file name, because one lane filed its corpus as
+ * `inv-sch-01.json` and a gate that rejected twelve otherwise-correct fixtures over their
+ * capitalisation would be enforcing a house style, not an invariant. The id the file
+ * DECLARES is still compared exactly.
+ */
+export const INVARIANT_ID = /^INV-[A-Z0-9]+-\d+$/i;
 /** An edge-case id. Legal as a file name; it carries no invariant coverage. */
-export const EDGE_CASE_ID = /^EC-[A-Z0-9]+-\d+$/;
-/** Keys any lane may use for "what this input falsifies". */
-const REASON_KEYS = ['falsifier', 'why', 'case', 'note'] as const;
+export const EDGE_CASE_ID = /^EC-[A-Z0-9]+-\d+$/i;
+/**
+ * Keys any lane may use for "what this input falsifies".
+ *
+ * Four lanes, four spellings. The sentence is what a reviewer reads against the invariant
+ * text; which key it arrived under is not worth a red build.
+ */
+const REASON_KEYS = ['falsifier', 'why', 'case', 'what', 'note'] as const;
 /** Keys any lane may use for the invariant id. */
 const ID_KEYS = ['invariant', 'id'] as const;
 
@@ -196,7 +208,10 @@ export function validateFalsifierFile(
   const declaredId = firstString(raw, ID_KEYS);
   if (declaredId === null) {
     errors.push(`no id: give it "invariant" (or "id") naming what it falsifies`);
-  } else if (declaredId !== fileId) {
+  } else if (named && declaredId.toUpperCase() !== fileId.toUpperCase()) {
+    // Only when the file is NAMED for an invariant. A file named for an EDGE CASE
+    // (`EC-CER-14.json`) declares the invariant that edge case settles, and requiring the
+    // two to match would mean a corpus can never be filed by the case it came from.
     errors.push(`declares ${JSON.stringify(declaredId)}, file name says ${fileId}`);
   }
 
@@ -572,6 +587,6 @@ export function coveredInvariants(entries: readonly CorpusEntry[]): Set<string> 
   return new Set(
     entries
       .filter((entry) => entry.parsed !== null && INVARIANT_ID.test(entry.fileId))
-      .map((entry) => entry.fileId),
+      .map((entry) => entry.fileId.toUpperCase()),
   );
 }
