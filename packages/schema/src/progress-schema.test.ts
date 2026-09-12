@@ -306,7 +306,11 @@ describe('the achievement counter registry', () => {
     const accountColumns = new Set(columnNames(db, 'account'));
     const missing = achievementCounterColumns().filter((c) => !accountColumns.has(c));
     expect(missing, 'add the column to the schema or drop the achievement').toEqual([]);
-    expect(achievementCounterColumns().length).toBe(ACHIEVEMENTS.length);
+    // Two achievements may read one column (Regal and Legendary both count legendary
+    // levels, per EC-ECO-30 and EC-ECO-33), so the registry has at most one column per
+    // achievement and at least one column overall.
+    expect(achievementCounterColumns().length).toBeLessThanOrEqual(ACHIEVEMENTS.length);
+    expect(achievementCounterColumns().length).toBeGreaterThan(0);
     db.close();
   });
 

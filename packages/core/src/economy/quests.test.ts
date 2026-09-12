@@ -8,6 +8,8 @@ import fc from 'fast-check';
 import { PROPERTY_RUNS, seededPrng } from '@freelingo/testkit';
 import { addCivilDays, toLocalDay } from '../day/civil.js';
 import {
+  GOAL_TIERS,
+  QUEST_SESSION_DIVISOR,
   QUEST_TARGET_MAX_XP,
   QUEST_TARGET_MIN_XP,
   QUEST_TREND_WINDOW_DAYS,
@@ -17,8 +19,11 @@ import {
   badgeMonthKey,
   badgeTargetForMonth,
   clampQuestBase,
+  questBaseFor,
   questTabState,
   questsForDay,
+  rederiveQuestsOnGoalChange,
+  toQuestRow,
   rollBadgeMonth,
   strategistFires,
   trailingMedianDailyXp,
@@ -37,7 +42,7 @@ describe('quest targets', () => {
         expect(clamped).toBeGreaterThanOrEqual(QUEST_TARGET_MIN_XP);
         expect(clamped).toBeLessThanOrEqual(QUEST_TARGET_MAX_XP);
 
-        const quests = questsForDay(DAY, 'seed', median);
+        const quests = questsForDay(DAY, 'seed', { trailingDailyXp: [median], goalXp: 20 });
         expect(quests).toHaveLength(QUESTS_PER_DAY);
         for (const quest of quests) {
           expect(quest.target).toBeGreaterThan(0);
@@ -75,6 +80,82 @@ describe('quest targets', () => {
   });
 });
 
+describe('the cold start (EC-ECO-10)', () => {
+  it('[INV-ECO-10] day one has no median, so the base is the stored goal — not the clamp floor', () => {
+    // The bug this test exists for: `trailingMedianDailyXp([])` is 0 and
+    // `clampQuestBase(0)` is QUEST_TARGET_MIN_XP, so every learner — Casual, Regular,
+    // Serious, Intense — got the same 10 XP quest on day one. EC-ECO-10 says the cold
+    // start "falls back to multiples of the stored goalXP (1x, 1x, 1.5x)".
+    for (const tier of GOAL_TIERS) {
+      const cold = questBaseFor({ trailingDailyXp: [], goalXp: tier.xp });
+      expect(cold.isColdStart, tier.key).toBe(true);
+      expect(cold.base, tier.key).toBe(tier.xp);
+    }
+    const intense = GOAL_TIERS[GOAL_TIERS.length - 1] as (typeof GOAL_TIERS)[number];
+    const casual = GOAL_TIERS[0] as (typeof GOAL_TIERS)[number];
+    expect(questBaseFor({ trailingDailyXp: [], goalXp: intense.xp }).base).toBeGreaterThan(
+      questBaseFor({ trailingDailyXp: [], goalXp: casual.xp }).base,
+    );
+  });
+
+  it('[INV-ECO-10] cold-start session quests are capped at ceil(goalXp / 13)', () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...GOAL_TIERS.map((t) => t.xp)), (goalXp) => {
+        const cap = Math.max(1, Math.ceil(goalXp / QUEST_SESSION_DIVISOR));
+        expect(questBaseFor({ trailingDailyXp: [], goalXp }).sessionCap).toBe(cap);
+        for (const quest of questsForDay(DAY, 'seed', { trailingDailyXp: [], goalXp })) {
+          if (quest.unit === 'sessions') expect(quest.target).toBeLessThanOrEqual(cap);
+        }
+      }),
+      RUNS,
+    );
+  });
+
+  it('[INV-ECO-10] the median takes over as soon as there IS one', () => {
+    const warm = questBaseFor({ trailingDailyXp: [100, 120, 140], goalXp: 20 });
+    expect(warm.isColdStart).toBe(false);
+    expect(warm.sessionCap).toBeNull();
+    expect(warm.base).toBe(120);
+  });
+
+  it('[INV-ECO-10] a goal change re-derives the day, and never un-completes an earned quest', () => {
+    // EC-ECO-10's last clause, verbatim: "re-derived on a goal change and never
+    // un-completing a quest already earned".
+    const before = questsForDay(DAY, 'seed', { trailingDailyXp: [], goalXp: 10 }).map(toQuestRow);
+    const earned = before.map((row, index) =>
+      index === 0 ? { ...row, progress: row.target, completedAtUtc: '2026-09-11T09:00:00Z' } : row,
+    );
+    const after = rederiveQuestsOnGoalChange(earned, DAY, 'seed', {
+      trailingDailyXp: [],
+      goalXp: 50,
+    });
+    // The earned row is frozen exactly as it was: same target, same stamp.
+    expect(after[0]).toEqual(earned[0]);
+    // The rest moved with the new goal, and none of them is complete.
+    const fresh = questsForDay(DAY, 'seed', { trailingDailyXp: [], goalXp: 50 });
+    for (let i = 1; i < after.length; i += 1) {
+      expect(after[i]?.target).toBe(fresh[i]?.target);
+      expect(after[i]?.completedAtUtc).toBeNull();
+    }
+    // Lowering the goal again still cannot take the earned quest back.
+    const lowered = rederiveQuestsOnGoalChange(after, DAY, 'seed', {
+      trailingDailyXp: [],
+      goalXp: 10,
+    });
+    expect(lowered[0]).toEqual(earned[0]);
+  });
+
+  it('[INV-ECO-10] progress on an unearned quest survives the re-derivation', () => {
+    const rows = questsForDay(DAY, 'seed', { trailingDailyXp: [], goalXp: 10 }).map(toQuestRow);
+    const withProgress = rows.map((row, i) => (i === 1 ? { ...row, progress: 3 } : row));
+    const after = rederiveQuestsOnGoalChange(withProgress, DAY, 'seed', {
+      trailingDailyXp: [],
+      goalXp: 30,
+    });
+    expect(after[1]?.progress).toBe(3);
+  });
+});
+
 describe('quest determinism', () => {
   it("[INV-ECO-11] the day's quests are identical across a kill, a relaunch and a course switch", () => {
     fc.assert(
@@ -83,9 +164,9 @@ describe('quest determinism', () => {
         fc.integer({ min: 0, max: 400 }),
         (medianXp, dayOffset) => {
           const day = addCivilDays(DAY, dayOffset);
-          const first = questsForDay(day, 'device-seed', medianXp);
-          const afterKill = questsForDay(day, 'device-seed', medianXp);
-          const afterCourseSwitch = questsForDay(day, 'device-seed', medianXp);
+          const first = questsForDay(day, 'device-seed', { trailingDailyXp: [medianXp], goalXp: 20 });
+          const afterKill = questsForDay(day, 'device-seed', { trailingDailyXp: [medianXp], goalXp: 20 });
+          const afterCourseSwitch = questsForDay(day, 'device-seed', { trailingDailyXp: [medianXp], goalXp: 20 });
           expect(afterKill).toEqual(first);
           expect(afterCourseSwitch).toEqual(first);
         },
@@ -101,7 +182,7 @@ describe('quest determinism', () => {
     const shapes = new Set<string>();
     for (let i = 0; i < 400; i += 1) {
       const day = addCivilDays(DAY, i);
-      const quests = questsForDay(day, `seed-${prng.int(0, 9)}`, 120);
+      const quests = questsForDay(day, `seed-${prng.int(0, 9)}`, { trailingDailyXp: [120], goalXp: 20 });
       shapes.add(quests.map((q) => q.templateId).join(','));
     }
     expect(shapes.size).toBeGreaterThan(3);
@@ -110,7 +191,7 @@ describe('quest determinism', () => {
   it('[INV-ECO-11] the three quests of a day are distinct templates', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 400 }), (dayOffset) => {
-        const quests = questsForDay(addCivilDays(DAY, dayOffset), 'seed', 100);
+        const quests = questsForDay(addCivilDays(DAY, dayOffset), 'seed', { trailingDailyXp: [100], goalXp: 20 });
         expect(new Set(quests.map((q) => q.templateId)).size).toBe(quests.length);
       }),
       RUNS,

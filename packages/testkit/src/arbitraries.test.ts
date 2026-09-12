@@ -130,6 +130,17 @@ describe('engine arbitraries have shape floors', () => {
   it('arbSession covers every flavour and every outcome', () => {
     const sessions = fc.sample(arbSession(), SAMPLES);
     expect(new Set(sessions.map((s) => s.flavour)).size).toBe(SESSION_FLAVOURS.length);
+    // SHAPE FLOOR, named rather than counted: EC-ECO-15 puts story, radio, roleplay, the
+    // hub modes and the timed challenge on the flavour matrix, and a generator that draws
+    // only the ten path flavours makes every property about them vacuous. The 10,000
+    // cases that "covered" INV-ECO-30's story-replay falsifier while the matrix had no
+    // story row are the run this floor exists to prevent.
+    for (const flavour of ['story', 'radio', 'roleplay', 'hubListenUp', 'timedChallenge']) {
+      expect(
+        sessions.some((s) => s.flavour === flavour),
+        `arbSession never generated ${flavour}`,
+      ).toBe(true);
+    }
     expect(new Set(sessions.map((s) => s.outcome)).size).toBe(SESSION_OUTCOMES.length);
     // A combo high enough to reach the bonus cap (15 in a row) must be reachable.
     expect(share(sessions, (s) => s.maxCombo >= 15)).toBeGreaterThan(0.1);

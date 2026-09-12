@@ -20,7 +20,6 @@ import {
   BOOST_GRACE_SECONDS,
   FLAVOUR_XP,
   GOAL_TIERS,
-  LEGENDARY_CHECKPOINT_XP,
   RADIO_XP,
   REPLAY_PRACTICE_XP,
   STORY_XP,
@@ -29,6 +28,8 @@ import {
   comboBonus,
   flavourRow,
   type GoalTierKey,
+  type LongFormEntryPoint,
+  type LongFormXpTable,
 } from './config.js';
 
 /* ------------------------------------------------------------------- the boost */
@@ -165,6 +166,12 @@ export interface AwardInput {
   readonly reachedLegendaryCheckpoint?: boolean;
   /** Legendary only: whether the checkpoint consolation was already paid TODAY. */
   readonly checkpointAlreadyPaidToday?: boolean;
+  /**
+   * Story/radio only: which of EC-ECO-37's four entry points this session came through.
+   * Omitted, it is derived from the outcome, so a caller that forgets still cannot pay
+   * first-completion XP for a replay.
+   */
+  readonly longFormEntry?: LongFormEntryPoint;
 }
 
 export interface SessionAward {
@@ -180,23 +187,56 @@ export interface SessionAward {
 }
 
 /**
+ * Which of EC-ECO-37's four entry points an outcome corresponds to.
+ *
+ * `hub_recommended` and `legendary` are entry points the caller knows about and the
+ * outcome does not, so they are passed in; everything else falls out of the outcome, and
+ * a caller who passes nothing gets the safe answer rather than the generous one.
+ */
+export function longFormEntryFor(
+  outcome: SessionOutcomeKind,
+  declared?: LongFormEntryPoint,
+): LongFormEntryPoint {
+  if (declared !== undefined) return declared;
+  return outcome === 'completed' ? 'first' : 'replay_plain';
+}
+
+/** The award for one entry point of one format. The ONE reader of the four-key table. */
+export function longFormXp(table: LongFormXpTable, entry: LongFormEntryPoint): number {
+  return table[entry];
+}
+
+/**
  * What a session pays before the ladder and the multiplier.
  *
- * The Legendary `failed` row awards nothing — except the checkpoint consolation, at most
- * once per node per local day (INV-ECO-16 / EC-PTH-27). Retry stays immediate, free and
- * unlimited; ten checkpoint-abandon runs in ten minutes pay one award, not ten, and no
- * challenge progress is retained between attempts.
+ * Three shapes, in one place:
+ *
+ * 1. A row that declares `checkpointConsolationXp` pays THAT and nothing else when it is
+ *    eligible — Legendary's failed row, at most once per node per local day (INV-ECO-16 /
+ *    EC-PTH-27). Retry stays immediate, free and unlimited; ten checkpoint-abandon runs
+ *    in ten minutes pay one award, not ten. The consolation is read OFF THE ROW, so a
+ *    consumer that reads the matrix to decide "does this pay" and the ceremony that
+ *    actually pays can no longer disagree — the previous version special-cased
+ *    `legendary/failed` in code while the row said `awardsXp: false`.
+ * 2. A long-form flavour reads its four-key table at the entry point it came through
+ *    (EC-ECO-37), so six replays cannot pay first-completion XP.
+ * 3. Everything else is `base (+ combo)`, or the flavour's own replay award.
  */
 export function baseXpFor(input: AwardInput): number {
   const row = flavourRow(input.flavour, input.outcome);
   const shape = FLAVOUR_XP[input.flavour];
-  if (input.flavour === 'legendary' && input.outcome === 'failed') {
+
+  if (row.checkpointConsolationXp !== null) {
     const eligible =
       input.reachedLegendaryCheckpoint === true && input.checkpointAlreadyPaidToday !== true;
-    return eligible ? LEGENDARY_CHECKPOINT_XP : 0;
+    return eligible ? row.checkpointConsolationXp : 0;
   }
   if (!row.awardsXp) return 0;
-  if (input.outcome === 'replayed') return REPLAY_PRACTICE_XP;
+
+  if (shape.longForm !== null) {
+    return longFormXp(shape.longForm, longFormEntryFor(input.outcome, input.longFormEntry));
+  }
+  if (input.outcome === 'replayed') return shape.replayXp ?? REPLAY_PRACTICE_XP;
   return shape.base + (shape.comboApplies ? comboBonus(input.maxCombo) : 0);
 }
 
@@ -246,16 +286,34 @@ export interface AdvertisedXp {
 
 /**
  * INV-ECO-15: the XP a node or offer advertises is a field read from the SAME config the
- * award reads. `PRACTICE +10 XP` on the node button is `PRACTICE_XP`, the number the
- * ceremony commits — not the observed `+5` label, which under a 10 XP goal would steer a
- * five-minute learner into a longer lesson every day (ruling EC-ECO-19).
+ * award reads, AT THE ENTRY POINT BEING OFFERED.
+ *
+ * `PRACTICE +10 XP` on the node button is `PRACTICE_XP`, the number the ceremony commits
+ * — not the observed `+5` label, which under a 10 XP goal would steer a five-minute
+ * learner into a longer lesson every day (ruling EC-ECO-19).
+ *
+ * The outcome is a PARAMETER because the offer knows it: a completed Daily Refresh level
+ * and a re-tapped Legendary node both advertise a replay, and advertising the first
+ * completion there is exactly the EC-HUB-06 discrepancy this invariant forbids.
  */
-export function advertisedXpFor(flavour: SessionFlavour): AdvertisedXp {
-  const row = flavourRow(flavour, 'completed');
+export function advertisedXpFor(
+  flavour: SessionFlavour,
+  outcome: SessionOutcomeKind = 'completed',
+  longFormEntry?: LongFormEntryPoint,
+): AdvertisedXp {
+  const row = flavourRow(flavour, outcome);
   const shape = FLAVOUR_XP[flavour];
+  const xp = baseXpFor({
+    flavour,
+    outcome,
+    ...(longFormEntry === undefined ? {} : { longFormEntry }),
+    boostAtSessionStart: null,
+    committedAtUtc: new Date(0).toISOString(),
+    ladderStateToday: EMPTY_LADDER_STATE,
+  });
   return {
-    xp: row.awardsXp ? shape.base : 0,
-    isFloor: row.awardsXp && shape.comboApplies,
+    xp,
+    isFloor: row.awardsXp && shape.comboApplies && shape.longForm === null,
   };
 }
 
@@ -263,10 +321,37 @@ export function advertisedXpFor(flavour: SessionFlavour): AdvertisedXp {
  * INV-ECO-32: story and radio XP come from one four-key table per format, and the
  * advertised number equals the committed number at every entry point. The falsifier is a
  * scalar literal at the call site, so there is no call site that can hold one.
+ *
+ * This is the table reader the node button uses; `awardForSession` reaches the SAME table
+ * through `baseXpFor`, and `narrativeAward` below is the one that also applies the
+ * per-mode daily ladder (EC-ECO-07: "Stories replay, Radio replay" ride it too).
  */
-export function narrativeXp(format: 'story' | 'radio', firstCompletion: boolean): number {
-  const table = format === 'story' ? STORY_XP : RADIO_XP;
-  return firstCompletion ? table.firstCompletion : table.replay;
+export function narrativeXp(format: 'story' | 'radio', entry: LongFormEntryPoint): number {
+  return longFormXp(format === 'story' ? STORY_XP : RADIO_XP, entry);
+}
+
+/**
+ * A story or radio session's real award: the table, then the ladder, then the cap.
+ *
+ * EC-ECO-07 puts "Stories replay, Radio replay" on the per-mode daily ladder by name, and
+ * EC-ECO-38 puts Roleplay on it. Before this existed `narrativeXp` returned a raw
+ * constant with no ladder anywhere near it, which made unlimited replays an unbounded XP
+ * farm and left INV-ECO-06's property unable to see the two modes it was written for.
+ */
+export function narrativeAward(
+  format: 'story' | 'radio',
+  entry: LongFormEntryPoint,
+  ladderStateToday: LadderStateToday,
+  options: { readonly boostAtSessionStart?: ActiveBoost | null; readonly committedAtUtc?: string } = {},
+): SessionAward {
+  return awardForSession({
+    flavour: format,
+    outcome: entry === 'first' ? 'completed' : 'replayed',
+    longFormEntry: entry,
+    boostAtSessionStart: options.boostAtSessionStart ?? null,
+    committedAtUtc: options.committedAtUtc ?? new Date(0).toISOString(),
+    ladderStateToday,
+  });
 }
 
 /* --------------------------------------------------------------------- the goal */

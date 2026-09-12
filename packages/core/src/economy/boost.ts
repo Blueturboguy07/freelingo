@@ -14,6 +14,142 @@
 import type { ActiveBoost, BoostGrant } from '../types/index.js';
 import { MAX_BOOST_INVENTORY } from './config.js';
 
+/* ------------------------------------------ the rewind clamp (EC-ECO-39) */
+
+/**
+ * A boost as it is PERSISTED (INV-ECO-02 / EC-ECO-39, schema table `account_boost`).
+ *
+ * The falsifier is concrete: "a 15-minute x2 boost activated at 18:00; the app is killed
+ * at 18:06 and the clock moves back 30 minutes before relaunch". A boost whose only
+ * record is `expires_at` is then live again for 15 more minutes, every time, for free.
+ *
+ * So three things are written at activation instead of one:
+ *
+ *   `activatedAtUtc`        the wall clock when it started
+ *   `activationSequenceMs`  a MONOTONIC sequence reading (`performance.now()`-shaped,
+ *                           a boot-relative counter the user cannot set) at the same
+ *                           instant. Wall clock can be rewound; this cannot.
+ *   `durationSeconds`       the grant's own duration, so nothing recomputes it
+ *
+ * plus `tamperHighWaterUtc`, the highest wall clock the app has ever observed for this
+ * boost. On every foreground, remaining time is the LESSER of the wall-clock remainder
+ * and `duration - sequenceElapsed`, and a wall clock that has moved backwards against the
+ * high-water mark expires the boost outright.
+ */
+export interface PersistedBoost {
+  readonly kind: ActiveBoost['kind'];
+  readonly multiplier: number;
+  readonly activatedAtUtc: string;
+  readonly activationSequenceMs: number;
+  readonly durationSeconds: number;
+  readonly tamperHighWaterUtc: string;
+}
+
+/** One observation of both clocks. The sequence is monotonic within a boot. */
+export interface BoostClockReading {
+  readonly nowUtc: string;
+  /** Monotonic milliseconds since boot. Never derived from the wall clock. */
+  readonly sequenceMs: number;
+}
+
+export type BoostExpiryReason = 'running' | 'elapsed' | 'sequence-elapsed' | 'clock-rewound';
+
+export interface BoostClampResult {
+  /** Seconds left, clamped to `[0, durationSeconds]`. */
+  readonly remainingSeconds: number;
+  readonly running: boolean;
+  readonly reason: BoostExpiryReason;
+  /** The persisted row with its high-water mark advanced. Persist this. */
+  readonly boost: PersistedBoost;
+}
+
+/**
+ * EC-ECO-39, in one function.
+ *
+ * Reading it as "the lesser of two remainders" is the whole trick: winding the clock
+ * FORWARD shortens the wall remainder and expires the boost early (which costs the user
+ * nothing they are entitled to), winding it BACK cannot lengthen anything because the
+ * sequence remainder does not move, and a detected rewind expires it immediately because
+ * a rewind is the only way the two disagree in the user's favour.
+ *
+ * A reboot resets the sequence to near zero, so `sequenceElapsed` goes negative; that is
+ * clamped to 0 and the wall clock (checked against the high-water mark) governs, which is
+ * the fail-safe direction: a rebooted phone cannot be used to bank a boost because the
+ * wall-clock remainder is still shrinking.
+ */
+export function clampBoost(boost: PersistedBoost, clock: BoostClockReading): BoostClampResult {
+  const nowMs = Date.parse(clock.nowUtc);
+  const highWaterMs = Date.parse(boost.tamperHighWaterUtc);
+  const advanced: PersistedBoost =
+    nowMs > highWaterMs ? { ...boost, tamperHighWaterUtc: clock.nowUtc } : boost;
+
+  if (nowMs < highWaterMs) {
+    return { remainingSeconds: 0, running: false, reason: 'clock-rewound', boost: advanced };
+  }
+
+  const wallElapsedSeconds = (nowMs - Date.parse(boost.activatedAtUtc)) / 1_000;
+  const sequenceElapsedSeconds = Math.max(
+    0,
+    (clock.sequenceMs - boost.activationSequenceMs) / 1_000,
+  );
+  const wallRemainder = boost.durationSeconds - wallElapsedSeconds;
+  const sequenceRemainder = boost.durationSeconds - sequenceElapsedSeconds;
+  const remaining = Math.min(wallRemainder, sequenceRemainder);
+
+  if (remaining <= 0) {
+    return {
+      remainingSeconds: 0,
+      running: false,
+      reason: wallRemainder <= sequenceRemainder ? 'elapsed' : 'sequence-elapsed',
+      boost: advanced,
+    };
+  }
+  return {
+    remainingSeconds: Math.min(remaining, boost.durationSeconds),
+    running: true,
+    reason: 'running',
+    boost: advanced,
+  };
+}
+
+/**
+ * The `ActiveBoost` the session reads at start, derived from the clamped remainder.
+ *
+ * `expiresAtUtc` is recomputed from the CLAMP on every foreground rather than stored once,
+ * so the value `resolveBoost` (INV-ECO-02's grace rule) sees can only ever shrink.
+ */
+export function activeBoostFrom(
+  boost: PersistedBoost,
+  clock: BoostClockReading,
+): { readonly active: ActiveBoost | null; readonly clamp: BoostClampResult } {
+  const clamp = clampBoost(boost, clock);
+  if (!clamp.running) return { active: null, clamp };
+  return {
+    active: {
+      kind: boost.kind,
+      multiplier: boost.multiplier,
+      startedAtUtc: boost.activatedAtUtc,
+      expiresAtUtc: new Date(Date.parse(clock.nowUtc) + clamp.remainingSeconds * 1_000).toISOString(),
+    },
+    clamp,
+  };
+}
+
+/** Persist a freshly activated grant with both clock readings (EC-ECO-39). */
+export function activateBoost(
+  grant: BoostGrant,
+  clock: BoostClockReading,
+): PersistedBoost {
+  return {
+    kind: grant.kind,
+    multiplier: grant.multiplier,
+    activatedAtUtc: clock.nowUtc,
+    activationSequenceMs: clock.sequenceMs,
+    durationSeconds: grant.durationMinutes * 60,
+    tamperHighWaterUtc: clock.nowUtc,
+  };
+}
+
 export interface BoostState {
   readonly activeBoost: ActiveBoost | null;
   readonly inventory: readonly BoostGrant[];

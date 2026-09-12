@@ -79,6 +79,84 @@ export function currentUserVersion(db: Db): number {
  * Resumable: a migration that was killed rolled back whole, so the next call starts it
  * again from its own beginning.
  */
+/**
+ * The tables each shipped `user_version` is supposed to have.
+ *
+ * S149 ("Interrupted migration", `mismatch-detected`) says a schema that does not match
+ * its recorded version is treated as CORRUPT and offered the pre-migration backup by name
+ * and timestamp. That rule needs a detector that exists in the shipped app, not only
+ * inside a test file — which is where this table used to live.
+ */
+export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]>> = {
+  0: [],
+  1: ['account', 'committed_session'],
+  2: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+  ],
+};
+
+export function schemaAt(userVersion: number): readonly string[] {
+  return SCHEMA_TABLES_BY_VERSION[userVersion] ?? [];
+}
+
+/** The tables a database actually has, sorted. SQLite's own tables are not ours. */
+export function actualTables(db: Db): string[] {
+  return db
+    .all<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)
+    .map((row) => row.name)
+    .filter((name) => !name.startsWith('sqlite_'));
+}
+
+export type SchemaIntegrity =
+  | { readonly ok: true; readonly userVersion: number }
+  | {
+      readonly ok: false;
+      readonly userVersion: number;
+      readonly missing: readonly string[];
+      readonly unexpected: readonly string[];
+    };
+
+/**
+ * S149's detector, executable: does the schema match the version it claims?
+ *
+ * A half-applied migration wearing the new number is the state the exclusive transaction
+ * exists to prevent (INV-PER-03) — but "prevented by construction" and "detected if it
+ * happens anyway" are different guarantees, and an app that only has the first one has no
+ * way to route a corrupted file to S147 with the backup offer.
+ *
+ * An unknown (future) `user_version` is a mismatch too: a database written by a newer
+ * build is not something this build may migrate or quietly use.
+ */
+export function checkSchemaIntegrity(db: Db): SchemaIntegrity {
+  const userVersion = currentUserVersion(db);
+  const expected = SCHEMA_TABLES_BY_VERSION[userVersion];
+  const actual = actualTables(db);
+  if (expected === undefined) {
+    return { ok: false, userVersion, missing: [], unexpected: actual };
+  }
+  const missing = expected.filter((table) => !actual.includes(table));
+  const unexpected = actual.filter((table) => !expected.includes(table));
+  if (missing.length === 0 && unexpected.length === 0) return { ok: true, userVersion };
+  return { ok: false, userVersion, missing, unexpected };
+}
+
 export function migrate(db: Db): number {
   const current = currentUserVersion(db);
   for (const migration of MIGRATIONS) {

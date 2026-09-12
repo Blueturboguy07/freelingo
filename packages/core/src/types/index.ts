@@ -84,11 +84,15 @@ export type Verdict = (typeof VERDICTS)[number];
 /* ------------------------------------------------------------ session flavours */
 
 /**
- * The TEN session flavours of the product map §3.4 (S057–S066). One runtime, ten
- * configurations; `economy/config.ts` carries the matrix that says what each one does to
- * the streak, the goal, XP, quests, the boost and the mistake allowance.
+ * The TEN PATH session flavours of the product map §3.4 (S057–S066).
+ *
+ * These are the flavours a path node can start. They are named separately from
+ * `SESSION_FLAVOURS` because the product map's "ten flavours" is a statement about the
+ * path, and EC-ECO-15 is a statement about the MATRIX: "a row for every Story, Radio,
+ * Roleplay, script and hub flavour, since any session that commits a row and awards XP
+ * extends the streak". The matrix is keyed by the wider set below.
  */
-export const SESSION_FLAVOURS = [
+export const PATH_SESSION_FLAVOURS = [
   'lesson', //         S057
   'nodePractice', //   S058
   'legendary', //      S059
@@ -99,6 +103,55 @@ export const SESSION_FLAVOURS = [
   'dailyRefresh', //   S064
   'recovery', //       S065
   'endgameReview', //  S066
+] as const;
+
+export type PathSessionFlavour = (typeof PATH_SESSION_FLAVOURS)[number];
+
+/**
+ * Long-form and generated formats (S101–S117, Roleplay).
+ *
+ * [ruling EC-ECO-35] none of these is boostable, and [EC-ECO-07 / EC-ECO-38] all three
+ * sit on the per-mode daily XP ladder — an unbounded replay is otherwise the largest XP
+ * farm in the app, because unlike a path node they never run out of content.
+ */
+export const NARRATIVE_SESSION_FLAVOURS = ['story', 'radio', 'roleplay'] as const;
+export type NarrativeSessionFlavour = (typeof NARRATIVE_SESSION_FLAVOURS)[number];
+
+/**
+ * The Practice Hub modes (S091–S099). [EC-ECO-28] every one of them pays at the path
+ * lesson rate and rides its own ladder; [EC-ECO-35] Listen-Up is not boostable.
+ */
+export const HUB_SESSION_FLAVOURS = [
+  'hubMistakes', //         S092
+  'hubWords', //            S094
+  'hubListenUp', //         S095
+  'hubPronunciation', //    S096
+  'hubTargetPractice', //   S099
+  'hubUnitRewind', //       S099
+] as const;
+export type HubSessionFlavour = (typeof HUB_SESSION_FLAVOURS)[number];
+
+/**
+ * The timed-challenge flavour EC-ECO-15 requires a row for even though the surface ships
+ * DISABLED (`TIMED_CHALLENGES_ENABLED`, EC-ECO-31). A row that exists for a disabled
+ * surface is how the widget, the danger nudge and the goal chest keep reading ONE table.
+ */
+export const TIMED_SESSION_FLAVOURS = ['timedChallenge'] as const;
+export type TimedSessionFlavour = (typeof TIMED_SESSION_FLAVOURS)[number];
+
+/**
+ * Every flavour the session-flavour matrix is keyed by (INV-ECO-09, EC-ECO-15).
+ *
+ * `economy/config.ts` carries the matrix that says what each one does to the streak, the
+ * goal, XP, quests, the boost, the path and the mistake allowance. The matrix is typed
+ * `Record<SessionFlavour, …>`, so adding a member here without adding a row is a build
+ * failure — which is INV-ECO-09's gate, enforced by `tsc`.
+ */
+export const SESSION_FLAVOURS = [
+  ...PATH_SESSION_FLAVOURS,
+  ...NARRATIVE_SESSION_FLAVOURS,
+  ...HUB_SESSION_FLAVOURS,
+  ...TIMED_SESSION_FLAVOURS,
 ] as const;
 
 export type SessionFlavour = (typeof SESSION_FLAVOURS)[number];
@@ -125,6 +178,19 @@ export const XP_LADDER_MODES = [
   'dailyRefresh',
   'recovery',
   'endgameReview',
+  // [EC-ECO-07] "Same ladder for Listen, Speak, Stories replay, Radio replay … and
+  // applies to EVERY hub mode"; [EC-ECO-38] Roleplay joins it too. These are the modes
+  // with no content floor, which is exactly why they need one.
+  'story',
+  'radio',
+  'roleplay',
+  'hubMistakes',
+  'hubWords',
+  'hubListenUp',
+  'hubPronunciation',
+  'hubTargetPractice',
+  'hubUnitRewind',
+  'timedChallenge',
 ] as const;
 
 export type XpLadderMode = (typeof XP_LADDER_MODES)[number];

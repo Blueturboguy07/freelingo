@@ -8,7 +8,12 @@
  * throttled and never enter the ceremony chain).
  */
 import type { LocalDay } from '../day/civil.js';
-import { DAILY_GOAL_CHEST_GEMS } from './config.js';
+import {
+  DAILY_GOAL_CHEST_GEMS,
+  RECORD_CELEBRATION_COOLDOWN_DAYS,
+  RECORD_CELEBRATION_MIN_MARGIN_ABSOLUTE,
+  RECORD_CELEBRATION_MIN_MARGIN_RATIO,
+} from './config.js';
 import { goalMet } from './xp.js';
 
 /* -------------------------------------------------------------- the goal chest */
@@ -152,12 +157,37 @@ export type PersonalRecordKind = (typeof PERSONAL_RECORD_KINDS)[number];
  * The bound comes out of one cooldown constant: at most one record celebration per
  * seven local days, whatever the records did in between. Twelve consecutive record days
  * therefore produce two celebrations, not twelve — that is the named falsifier.
+ *
+ * EC-ECO-27's second condition is the MARGIN: "only when the margin exceeds a configured
+ * threshold". A personal best by one XP is not a personal best worth a card, and without
+ * the margin the cooldown alone would still celebrate a one-point improvement every
+ * seventh day forever. Both constants live in `config.ts`, with everything else.
  */
-export const RECORD_CELEBRATION_COOLDOWN_DAYS = 7;
+export { RECORD_CELEBRATION_COOLDOWN_DAYS } from './config.js';
 
 export interface RecordEvent {
   readonly localDay: LocalDay;
   readonly kind: PersonalRecordKind;
+  /** The record BEFORE this event. 0 when there was none. */
+  readonly previousValue?: number;
+  /** The record after this event. */
+  readonly value?: number;
+}
+
+/**
+ * EC-ECO-27's margin gate. A record with no previous value (the first one ever) always
+ * clears it; after that the improvement must beat BOTH thresholds, so neither a large
+ * relative jump on a tiny number nor a large absolute jump on a huge one sneaks through
+ * alone.
+ */
+export function marginIsCelebrationWorthy(previousValue: number, value: number): boolean {
+  if (value <= previousValue) return false;
+  if (previousValue <= 0) return true;
+  const delta = value - previousValue;
+  return (
+    delta >= RECORD_CELEBRATION_MIN_MARGIN_ABSOLUTE &&
+    delta >= previousValue * RECORD_CELEBRATION_MIN_MARGIN_RATIO
+  );
 }
 
 /**
@@ -173,6 +203,14 @@ export function celebratedRecords(
   const celebrated: (RecordEvent & { readonly dayIndex: number })[] = [];
   let lastCelebratedDay: number | null = null;
   for (const event of ordered) {
+    // EC-ECO-27's margin gate. Events that carry no values are treated as worthy, so a
+    // caller that only tracks days still gets the cooldown bound it asked for.
+    if (
+      event.value !== undefined &&
+      !marginIsCelebrationWorthy(event.previousValue ?? 0, event.value)
+    ) {
+      continue;
+    }
     if (
       lastCelebratedDay === null ||
       event.dayIndex - lastCelebratedDay >= RECORD_CELEBRATION_COOLDOWN_DAYS

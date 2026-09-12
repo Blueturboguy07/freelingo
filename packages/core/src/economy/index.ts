@@ -8,5 +8,6 @@ export * from './xp.js';
 export * from './boost.js';
 export * from './daily.js';
 export * from './quests.js';
+export * from './daily-refresh.js';
 export * from './words.js';
 export * from './achievements.js';

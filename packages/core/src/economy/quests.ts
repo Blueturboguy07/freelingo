@@ -56,14 +56,63 @@ export interface Quest {
   readonly copy: string;
 }
 
+/**
+ * The scaling base for one day's quests (EC-ECO-10).
+ *
+ * With history: the trailing 7-day median, clamped `[10, 200]`.
+ *
+ * COLD START, which is the half that was missing: an empty window has no median, and
+ * `clampQuestBase(0)` is the floor — 10 XP — for everybody, whatever tier they picked.
+ * A new Intense learner would be handed a 10 XP quest against a 50 XP goal on day one.
+ * So an empty window falls back to the STORED GOAL, and the same three multiples apply on
+ * top of it. `isColdStart` rides out with the base because the session-count cap below
+ * only applies in that state.
+ */
+export interface QuestDerivation {
+  /** The trailing daily-XP window, most recent last. Empty on day one. */
+  readonly trailingDailyXp: readonly number[];
+  /** `account.daily_goal_xp` — what the learner picked, in XP (INV-ECO-21). */
+  readonly goalXp: number;
+}
+
+export interface QuestBase {
+  readonly base: number;
+  readonly isColdStart: boolean;
+  /** `null` unless cold-starting: the cap on session-count targets, `ceil(goal / 13)`. */
+  readonly sessionCap: number | null;
+}
+
+export function questBaseFor(input: QuestDerivation): QuestBase {
+  const window = input.trailingDailyXp.slice(-QUEST_TREND_WINDOW_DAYS);
+  if (window.length === 0) {
+    return {
+      base: clampQuestBase(input.goalXp),
+      isColdStart: true,
+      sessionCap: Math.max(1, Math.ceil(input.goalXp / QUEST_SESSION_DIVISOR)),
+    };
+  }
+  return {
+    base: clampQuestBase(trailingMedianDailyXp(window)),
+    isColdStart: false,
+    sessionCap: null,
+  };
+}
+
 /** The target for one template in one slot, derived from the clamped scaling base. */
-export function questTarget(template: QuestTemplate, base: number, slot: number): number {
+export function questTarget(
+  template: QuestTemplate,
+  base: number,
+  slot: number,
+  sessionCap: number | null = null,
+): number {
   const scaled = base * (QUEST_SLOT_MULTIPLES[slot] ?? 1);
   switch (template.unit) {
     case 'xp':
       return clampQuestBase(scaled);
-    case 'sessions':
-      return Math.max(1, Math.ceil(scaled / QUEST_SESSION_DIVISOR));
+    case 'sessions': {
+      const target = Math.max(1, Math.ceil(scaled / QUEST_SESSION_DIVISOR));
+      return sessionCap === null ? target : Math.min(target, sessionCap);
+    }
     case 'gems':
       return QUEST_CHEST_GEMS_MAX;
     case 'streak':
@@ -78,17 +127,57 @@ export function questTarget(template: QuestTemplate, base: number, slot: number)
  * only entropy is a hash of the day and the device seed. Missed days are never generated
  * at all — no backlog, no catch-up quests (EC-ECO-12).
  */
-export function questsForDay(day: LocalDay, seed: string, medianDailyXp: number): Quest[] {
-  const base = clampQuestBase(medianDailyXp);
+export function questsForDay(day: LocalDay, seed: string, input: QuestDerivation): Quest[] {
+  const { base, sessionCap } = questBaseFor(input);
   const chosen = seededPrng(`${seed}|${day}`).shuffle(QUEST_TEMPLATES).slice(0, QUESTS_PER_DAY);
   return chosen.map((template, slot) => {
-    const target = questTarget(template, base, slot);
+    const target = questTarget(template, base, slot, sessionCap);
     return {
       templateId: template.id,
       unit: template.unit,
       target,
       copy: template.copy.replace('{{n}}', String(target)),
     };
+  });
+}
+
+/** A stored quest row: the derived quest plus what the learner has actually done. */
+export interface QuestProgressRow {
+  readonly templateId: string;
+  readonly unit: QuestUnit;
+  readonly target: number;
+  readonly copy: string;
+  readonly progress: number;
+  /** Set once, never cleared by a re-derivation. */
+  readonly completedAtUtc: string | null;
+}
+
+export function toQuestRow(quest: Quest): QuestProgressRow {
+  return { ...quest, progress: 0, completedAtUtc: null };
+}
+
+/**
+ * EC-ECO-10's last clause: quests are "re-derived on a goal change and NEVER
+ * un-completing a quest already earned".
+ *
+ * A mid-day goal change moves the cold-start base, so the day's targets move with it —
+ * but a quest whose chest has already been opened keeps its old target, its progress and
+ * its completion stamp. Lowering the goal cannot mint a second reward and raising it
+ * cannot take one back; both are the same rule as the goal chest's (INV-ECO-05).
+ */
+export function rederiveQuestsOnGoalChange(
+  existing: readonly QuestProgressRow[],
+  day: LocalDay,
+  seed: string,
+  input: QuestDerivation,
+): QuestProgressRow[] {
+  const fresh = questsForDay(day, seed, input);
+  return fresh.map((quest): QuestProgressRow => {
+    const previous = existing.find((row) => row.templateId === quest.templateId);
+    if (previous === undefined) return toQuestRow(quest);
+    // Earned is earned: the row is frozen exactly as it was when the chest opened.
+    if (previous.completedAtUtc !== null) return previous;
+    return { ...quest, progress: previous.progress, completedAtUtc: null };
   });
 }
 

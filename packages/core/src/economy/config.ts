@@ -90,32 +90,88 @@ export const RECOVERY_LESSON_XP = LESSON_BASE_XP;
 export const ENDGAME_REVIEW_XP = REPLAY_PRACTICE_XP;
 
 /**
- * [ruling EC-ECO-37 / INV-ECO-32] ONE four-key table per long-form format. The node
- * button interpolates the advertised key and the ceremony commits the paying key, so
- * six replays can never pay first-completion XP and no scalar literal exists elsewhere.
+ * [ruling EC-ECO-37 / INV-ECO-32] ONE table per long-form format, keyed by the FOUR
+ * entry points EC-ECO-37 names: `{first, replay_plain, hub_recommended, legendary}`.
+ *
+ * The node button interpolates the key for the entry point it is offering and the
+ * ceremony commits the same key, so "advertised == awarded" holds at every entry point
+ * rather than only at first completion, and six replays can never pay first-completion
+ * XP. `perLocalDayKey` is EC-ECO-08's once-per-day scope: the hub-recommended bonus is
+ * once per story per `local_day` and radio's first-completion award is once per EPISODE
+ * per `local_day`, so the two formats key their day ledger by different columns and the
+ * ledger writer must be told which.
  */
 export interface LongFormXpTable {
-  readonly firstCompletion: number;
-  readonly replay: number;
-  readonly advertisedFirstCompletion: number;
-  readonly advertisedReplay: number;
+  /** First ever completion of this story/episode. */
+  readonly first: number;
+  /** Any later replay reached from the path or the list. */
+  readonly replay_plain: number;
+  /** [EC-ECO-08] the hub promotion, once per story/episode per `local_day`. */
+  readonly hub_recommended: number;
+  /** The legendary entry point, when a format ships one. */
+  readonly legendary: number;
+  /** The column the once-per-`local_day` keys are written against (EC-ECO-08). */
+  readonly perLocalDayKey: 'story_id' | 'episode_id';
+  /** The per-mode daily ladder this format consumes (EC-ECO-07, INV-ECO-06). */
+  readonly ladderMode: XpLadderMode;
 }
 
-/** [duoplanet XP guide 2022-08-12] stories pay 14-28; Freelingo fixes the first read. */
+/**
+ * [duoplanet XP guide 2022-08-12] stories paid 14-28. [ruling EC-ECO-37] "Story first is
+ * 20, not a floor of 10"; the plain replay is the review award, and the hub promotion
+ * pays between the two, once per story per `local_day`.
+ */
 export const STORY_XP: LongFormXpTable = {
-  firstCompletion: 20,
-  replay: REPLAY_PRACTICE_XP,
-  advertisedFirstCompletion: 20,
-  advertisedReplay: REPLAY_PRACTICE_XP,
+  first: 20,
+  replay_plain: REPLAY_PRACTICE_XP,
+  hub_recommended: 10,
+  legendary: LEGENDARY_XP,
+  perLocalDayKey: 'story_id',
+  ladderMode: 'story',
 };
 
-/** [ruling EC-ECO-08] radio is 20 first / replay thereafter, same four keys. */
+/**
+ * [ruling EC-ECO-08 / EC-ECO-37] "Radio: 20 first / **10** replay, once per episode per
+ * day", scaled by the episode-duration ramp at P6. Both formats are excluded from the XP
+ * Boost (EC-ECO-35) — that exclusion lives on the matrix row, not here.
+ */
 export const RADIO_XP: LongFormXpTable = {
-  firstCompletion: 20,
-  replay: REPLAY_PRACTICE_XP,
-  advertisedFirstCompletion: 20,
-  advertisedReplay: REPLAY_PRACTICE_XP,
+  first: 20,
+  replay_plain: 10,
+  hub_recommended: 10,
+  legendary: LEGENDARY_XP,
+  perLocalDayKey: 'episode_id',
+  ladderMode: 'radio',
 };
+
+export const LONG_FORM_XP_KEYS = ['first', 'replay_plain', 'hub_recommended', 'legendary'] as const;
+export type LongFormEntryPoint = (typeof LONG_FORM_XP_KEYS)[number];
+
+/**
+ * [ruling EC-ECO-38] Roleplay "takes ninety seconds and pays up to 40 XP", so it joins
+ * the per-mode daily ladder: full XP for the first scenario per `local_day`, the floor
+ * thereafter, and the unconditional-acceptance fallback pays the floor rather than the
+ * ceiling. Freelingo ships Roleplay where Duolingo gates it behind Max, so the anti-farm
+ * bound matters more here than upstream, not less.
+ */
+export const ROLEPLAY_FIRST_XP = 40;
+export const ROLEPLAY_FLOOR_XP = 10;
+
+/**
+ * [ruling EC-ECO-28] "Bring hub XP-per-exercise down to the path lesson rate and apply
+ * the per-mode daily ladder to every hub mode, not only Words." One rate, one constant:
+ * the hub is not a shortcut round the path.
+ */
+export const HUB_SESSION_XP = LESSON_BASE_XP;
+
+/**
+ * [ruling EC-ECO-31] The timed-challenge surface does NOT ship in v1: the only surface
+ * for it is a side-character tableau that may ship decorative. The flag is the one thing
+ * that decides whether the Challenger-shaped achievement renders (INV-ECO-26) and whether
+ * the flavour is offerable — the matrix row exists either way (EC-ECO-15).
+ */
+export const TIMED_CHALLENGES_ENABLED = false;
+export const TIMED_CHALLENGE_XP = LESSON_BASE_XP;
 
 /**
  * [duoplanet XP guide 2022-08-12] the combo bonus is 1-5 XP by answers in a row. The
@@ -227,6 +283,27 @@ export const XP_LADDERS: Record<XpLadderMode, XpLadder> = {
   recovery: { dailyXpCap: 60, reducedMultipliers: [1] },
   // [DEPART D-NOFARM] the endgame generator is unbounded in content, so it is bounded here.
   endgameReview: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+
+  // ---- the formats with no content floor (EC-ECO-07, EC-ECO-08, EC-ECO-38) ----
+  // A story or an episode can be replayed forever. Without a ladder these are the
+  // unbounded XP farm EC-ECO-07 names; the entry-point table decides the base and the
+  // ladder decides how many times a day that base is worth anything.
+  story: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  radio: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  // [EC-ECO-38] full for the first scenario of the day, the floor thereafter: 10/40.
+  roleplay: { dailyXpCap: 80, reducedMultipliers: [1, 0.25] },
+
+  // ---- every hub mode (EC-ECO-07 "applies to EVERY hub mode", EC-ECO-28) ----
+  hubMistakes: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  hubWords: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  hubListenUp: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  hubPronunciation: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  hubTargetPractice: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+  hubUnitRewind: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
+
+  // The surface is disabled (TIMED_CHALLENGES_ENABLED); the ladder exists so enabling it
+  // is a flag flip and not a new anti-farming design.
+  timedChallenge: { dailyXpCap: 60, reducedMultipliers: [1, 0.5, 0.5, 0.5, 0] },
 };
 
 /** The honest label when a mode's ladder has reached zero (EC-ECO-07). */
@@ -263,19 +340,83 @@ export const STREAK_FREEZES_ON_NEW_ACCOUNT = 2;
 export const STREAK_FREEZE_GEM_PRICE_2026 = 100;
 
 /**
- * [ruling, deep/04 §7] Society ships as three local tiers with a stepping freeze cap.
- * duoplanet's own thresholds conflict (~50-60/~150-200/365 against a flat 365) and the
- * feature is absent from the 2026 streak post, so these are Freelingo's own.
+ * [ruling EC-ECO-20] The Streak Society, as the 2026 bundle ships it.
+ *
+ * Entry is at **7 days**, NOT the invented Ember-60/Blaze-180/Phoenix-365 ladder that an
+ * earlier draft of this file carried: duoplanet's own thresholds conflict with each other
+ * and with the 2026 streak post, and EC-ECO-20 strikes them by name. There are three
+ * reward CHECKPOINTS after entry rather than three tiers of membership, and the perks are
+ * fixed: +3 freezes on the cap, a 30-minute boost, and a VIP badge that upgrades yearly.
+ *
+ * The FRZ task consumes `SOCIETY_FREEZE_CAP_BONUS` for the `n/3..n/5` states of S121, so
+ * these constants are load-bearing outside this file.
  */
-export const SOCIETY_TIERS: readonly {
+export const SOCIETY_ENTRY_STREAK_DAYS = 7;
+
+/** The cap bonus a Society member carries, on top of `STREAK_FREEZE_CAP` (S121). */
+export const SOCIETY_FREEZE_CAP_BONUS = 3;
+
+/** [EC-ECO-20] the boost perk, in minutes. Duration still rides the GRANT (EC-ECO-04). */
+export const SOCIETY_BOOST_MINUTES = 30;
+
+export interface SocietyCheckpoint {
   readonly id: string;
+  /** Days of unbroken streak AFTER entry at which the checkpoint pays. */
   readonly streakDays: number;
-  readonly freezeCap: number;
-}[] = [
-  { id: 'ember', streakDays: 60, freezeCap: 3 },
-  { id: 'blaze', streakDays: 180, freezeCap: 4 },
-  { id: 'phoenix', streakDays: 365, freezeCap: 5 },
+  readonly freezes: number;
+  readonly boostMinutes: number;
+  /** The badge year. A member's badge upgrades once per year of membership. */
+  readonly vipBadgeYear: number;
+}
+
+/**
+ * The three reward checkpoints. 7 is entry itself; 30 and 365 are the milestone set's own
+ * members (`STREAK_MILESTONES`), so the Society never invents a day the milestone screen
+ * does not already land on — EC-ECO-21's "the two lists cannot diverge", applied here.
+ */
+export const SOCIETY_CHECKPOINTS: readonly SocietyCheckpoint[] = [
+  {
+    id: 'society-entry',
+    streakDays: SOCIETY_ENTRY_STREAK_DAYS,
+    freezes: SOCIETY_FREEZE_CAP_BONUS,
+    boostMinutes: SOCIETY_BOOST_MINUTES,
+    vipBadgeYear: 1,
+  },
+  {
+    id: 'society-second',
+    streakDays: 30,
+    freezes: SOCIETY_FREEZE_CAP_BONUS,
+    boostMinutes: SOCIETY_BOOST_MINUTES,
+    vipBadgeYear: 1,
+  },
+  {
+    id: 'society-third',
+    streakDays: 365,
+    freezes: SOCIETY_FREEZE_CAP_BONUS,
+    boostMinutes: SOCIETY_BOOST_MINUTES,
+    vipBadgeYear: 2,
+  },
 ] as const;
+
+/**
+ * [obs 2026-09-10, S121] Three acquisition channels, plus a distinct `one_time` subtype.
+ *
+ * The subtype is not decoration: a one-time freeze is granted by a specific event (the
+ * recovery offer, the onboarding grant) and must not be refilled by the timer, so the
+ * schema stores the channel on the row rather than inferring it from a count.
+ */
+export const FREEZE_ACQUISITION_CHANNELS = [
+  'streak_freeze_refill',
+  'milestone_grant',
+  'reward_chest',
+] as const;
+export type FreezeAcquisitionChannel = (typeof FREEZE_ACQUISITION_CHANNELS)[number];
+
+export const FREEZE_SUBTYPES = ['standard', 'one_time'] as const;
+export type FreezeSubtype = (typeof FREEZE_SUBTYPES)[number];
+
+/** [obs 2026-09-10, S121 `Refills in {{n}} day(s)`] the timed-refill period. */
+export const FREEZE_REFILL_DAYS = 7;
 
 /**
  * [ruling EC-FRZ-08] BOTH mechanics ship. The repair is capped at one per calendar
@@ -369,9 +510,15 @@ export const QUEST_TARGET_MIN_XP = 10;
 export const QUEST_TARGET_MAX_XP = 200;
 
 /**
- * Slot multiples applied to the scaling base. Day one has no median, so the base falls
- * back to the stored goal and the same multiples apply (EC-ECO-10): one easy, one at the
- * goal, one stretch.
+ * Slot multiples applied to the scaling base (EC-ECO-10): one easy, one at the base, one
+ * stretch.
+ *
+ * COLD START: day one has no trailing median at all. `questBaseFor()` in `quests.ts`
+ * falls back to the stored `goalXp` — NOT to the clamp floor, which would hand every
+ * learner the same 10 XP quest whatever tier they picked — and the same three multiples
+ * apply on top of it. In that state session-count quests are capped at
+ * `ceil(goalXp / QUEST_SESSION_DIVISOR)` so the stretch slot cannot ask a brand-new
+ * Intense learner for four lessons before they have done one.
  */
 export const QUEST_SLOT_MULTIPLES: readonly number[] = [1, 1, 1.5] as const;
 
@@ -449,7 +596,7 @@ export const MISTAKE_METER_GLYPH = '∞';
 
 /**
  * One row of the matrix, keyed `(flavour, outcome)` — INV-ECO-09, INV-ECO-19,
- * INV-ECO-30, INV-ECO-17.
+ * INV-ECO-30, INV-ECO-17, and EC-ECO-15's full column list.
  */
 export interface FlavourRow {
   readonly extendsStreak: boolean;
@@ -458,8 +605,32 @@ export interface FlavourRow {
   readonly advancesQuests: boolean;
   /** Explicit for EVERY row, including the Daily Refresh sub-flavour (INV-ECO-30). */
   readonly boostApplies: boolean;
+  /**
+   * [EC-ECO-15] "counts_as_lesson: true (it extends the streak and counts toward the
+   * goal)". It is the widget's, the danger nudge's and the goal chest's single read.
+   */
+  readonly countsAsLesson: boolean;
+  /** [EC-ECO-15] a timed challenge is a real session that moves no node. */
+  readonly advancesPath: boolean;
+  /**
+   * [EC-ECO-15] "satisfying XP-shaped quests but not lesson-shaped ones". The quest units
+   * this outcome can move; an empty list is a session that advances no quest at all.
+   */
+  readonly questShapes: readonly QuestUnit[];
+  /** [EC-ECO-15] "and writing no mistake rows". */
+  readonly writesMistakeRows: boolean;
   /** Pips, never hearts. `null` means this flavour has no allowance (INV-ECO-17). */
   readonly mistakeAllowance: number | null;
+  /**
+   * The ONE award a row with `awardsXp: false` may still pay, named on the row itself.
+   *
+   * Legendary's failed row is the only user: EC-PTH-27 / INV-ECO-16 pay a checkpoint
+   * consolation at most once per node per local day. Before this column existed the
+   * engine paid 20 XP on a row that declared `awardsXp: false`, so any consumer reading
+   * the matrix to decide "does this pay" disagreed with the ceremony by 20 XP. `null`
+   * everywhere else, and `awardForSession` reads THIS field rather than a special case.
+   */
+  readonly checkpointConsolationXp: number | null;
   /** Non-empty on every row that does not pay: never a silent return (INV-ECO-19). */
   readonly consequenceString: string;
   /** Where the learner lands afterwards. Never empty. */
@@ -468,20 +639,32 @@ export interface FlavourRow {
 
 const DID_NOT_COUNT = "This didn't count toward today's streak";
 
+/** Every quest shape a full-credit session can move. */
+const ALL_QUEST_SHAPES: readonly QuestUnit[] = ['xp', 'sessions', 'gems', 'streak'] as const;
+
 /** A row for an outcome that pays nothing and goes somewhere specific. */
 function noCredit(
   route: string,
   consequenceString: string,
   mistakeAllowance: number | null,
-  boostApplies = false,
+  options: {
+    readonly boostApplies?: boolean;
+    readonly writesMistakeRows?: boolean;
+    readonly checkpointConsolationXp?: number | null;
+  } = {},
 ): FlavourRow {
   return {
     extendsStreak: false,
     countsTowardGoal: false,
     awardsXp: false,
     advancesQuests: false,
-    boostApplies,
+    boostApplies: options.boostApplies ?? false,
+    countsAsLesson: false,
+    advancesPath: false,
+    questShapes: [],
+    writesMistakeRows: options.writesMistakeRows ?? true,
     mistakeAllowance,
+    checkpointConsolationXp: options.checkpointConsolationXp ?? null,
     consequenceString,
     consequenceRoute: route,
   };
@@ -492,17 +675,39 @@ function fullCredit(
   route: string,
   boostApplies: boolean,
   mistakeAllowance: number | null,
+  options: {
+    readonly advancesPath?: boolean;
+    readonly questShapes?: readonly QuestUnit[];
+    readonly writesMistakeRows?: boolean;
+  } = {},
 ): FlavourRow {
   return {
     extendsStreak: true,
     countsTowardGoal: true,
     awardsXp: true,
-    advancesQuests: true,
+    advancesQuests: (options.questShapes ?? ALL_QUEST_SHAPES).length > 0,
     boostApplies,
+    countsAsLesson: true,
+    advancesPath: options.advancesPath ?? false,
+    questShapes: options.questShapes ?? ALL_QUEST_SHAPES,
+    writesMistakeRows: options.writesMistakeRows ?? true,
     mistakeAllowance,
+    checkpointConsolationXp: null,
     consequenceString: '',
     consequenceRoute: route,
   };
+}
+
+/**
+ * A long-form / hub row: full credit, never boostable (EC-ECO-35), never path-advancing
+ * except where the format IS a node. Written as one helper so that "story, radio,
+ * Listen-Up and Roleplay are not boostable" is one place rather than eight.
+ */
+function longFormCredit(
+  route: string,
+  options: { readonly advancesPath?: boolean } = {},
+): FlavourRow {
+  return fullCredit(route, false, null, { advancesPath: options.advancesPath ?? false });
 }
 
 /**
@@ -512,13 +717,17 @@ function fullCredit(
  * an outcome with no row is a TYPE ERROR: "a flavour with no row fails the build"
  * (INV-ECO-09) is enforced by `tsc`, and `config.test.ts` re-asserts it at runtime for
  * anyone who reaches the table through a cast.
+ *
+ * EC-ECO-15 is the reason the table runs past the ten path flavours: it demands "a
+ * timed-challenge row … and a row for every Story, Radio, Roleplay, script and hub
+ * flavour, since any session that commits a row and awards XP extends the streak".
  */
 export const SESSION_FLAVOUR_MATRIX: Record<
   SessionFlavour,
   Record<SessionOutcomeKind, FlavourRow>
 > = {
   lesson: {
-    completed: fullCredit('ceremony', true, null),
+    completed: fullCredit('ceremony', true, null, { advancesPath: true }),
     replayed: fullCredit('ceremony', true, null),
     failed: noCredit('path.node', DID_NOT_COUNT, null),
     quit: noCredit('path.node', DID_NOT_COUNT, null),
@@ -530,43 +739,56 @@ export const SESSION_FLAVOUR_MATRIX: Record<
     quit: noCredit('path.node', DID_NOT_COUNT, null),
   },
   legendary: {
-    completed: fullCredit('ceremony', true, LEGENDARY_MISTAKE_ALLOWANCE),
+    completed: fullCredit('ceremony', true, LEGENDARY_MISTAKE_ALLOWANCE, { advancesPath: true }),
     // [EC-PTH-04] a re-tapped legendary node exposes ONLY the practice route, and the
     // 40 XP award is never paid a second time (INV-ECO-07).
     replayed: fullCredit('node.practice-only', true, LEGENDARY_MISTAKE_ALLOWANCE),
-    // The checkpoint consolation is paid by `awardForSession`, at most once per node per
-    // local day (INV-ECO-16), and is never multiplied — hence `boostApplies: false`.
+    // The checkpoint consolation is declared ON THE ROW (INV-ECO-16 / EC-PTH-27) and paid
+    // at most once per node per local day. `awardsXp: false` stays true of the row's own
+    // award — the session pays nothing for what it did; the consolation is a separate,
+    // named, once-a-day term, and it is never multiplied, hence `boostApplies: false`.
     failed: noCredit(
       'node.legendary-retry',
       `${DID_NOT_COUNT}. The legendary challenge is always free to try again.`,
       LEGENDARY_MISTAKE_ALLOWANCE,
+      { checkpointConsolationXp: LEGENDARY_CHECKPOINT_XP },
     ),
     quit: noCredit('node.legendary-retry', DID_NOT_COUNT, LEGENDARY_MISTAKE_ALLOWANCE),
   },
   placement: {
-    // [ruling EC-ECO-15] a completed placement extends the streak — a five-minute learner
-    // must not lose a streak on the day they add a course — but pays no XP, so it counts
-    // toward no goal and no quest either.
+    // [ruling EC-ECO-15] "a completed placement or jump-here test extends the streak and
+    // counts toward the goal … but awards 0 XP". Both halves, verbatim: a five-minute
+    // learner must not lose a streak on the day they add a course, and the ability
+    // estimate is not farmable. Goal progress on a 0 XP session is the day being SEEN,
+    // not XP appearing from nowhere — `countsTowardGoal` is what the goal chest reads,
+    // and the XP bar still moves by exactly the 0 XP this paid.
     completed: {
       extendsStreak: true,
-      countsTowardGoal: false,
+      countsTowardGoal: true,
       awardsXp: false,
       advancesQuests: false,
       boostApplies: false,
+      countsAsLesson: true,
+      advancesPath: true,
+      questShapes: [],
+      writesMistakeRows: false,
       mistakeAllowance: null,
+      checkpointConsolationXp: null,
       consequenceString: '',
       consequenceRoute: 'path.section',
     },
-    replayed: noCredit('path.section', DID_NOT_COUNT, null),
+    replayed: noCredit('path.section', DID_NOT_COUNT, null, { writesMistakeRows: false }),
     failed: noCredit(
       'path.section.first',
       `${DID_NOT_COUNT}. Start from the beginning instead.`,
       null,
+      { writesMistakeRows: false },
     ),
     quit: noCredit(
       'path.section.first',
       `${DID_NOT_COUNT}. Start from the beginning instead.`,
       null,
+      { writesMistakeRows: false },
     ),
   },
   jumpHere: {
@@ -576,7 +798,12 @@ export const SESSION_FLAVOUR_MATRIX: Record<
       awardsXp: false,
       advancesQuests: false,
       boostApplies: false,
+      countsAsLesson: true,
+      advancesPath: true,
+      questShapes: [],
+      writesMistakeRows: false,
       mistakeAllowance: JUMP_HERE_MISTAKE_ALLOWANCE,
+      checkpointConsolationXp: null,
       consequenceString: '',
       consequenceRoute: 'path.unit-unlocked',
     },
@@ -584,6 +811,7 @@ export const SESSION_FLAVOUR_MATRIX: Record<
       'path.retry-offer',
       `${DID_NOT_COUNT}. Try again when you are ready.`,
       JUMP_HERE_MISTAKE_ALLOWANCE,
+      { writesMistakeRows: false },
     ),
     // [EC-PTH-32 / INV-ECO-19] the named falsifier is a failed jump-here returning
     // SILENTLY to the path on an otherwise empty day. It never does: it says so and it
@@ -592,27 +820,36 @@ export const SESSION_FLAVOUR_MATRIX: Record<
       'path.retry-offer',
       `${DID_NOT_COUNT}. Try again, or finish a lesson to keep it going.`,
       JUMP_HERE_MISTAKE_ALLOWANCE,
+      { writesMistakeRows: false },
     ),
     quit: noCredit(
       'path.retry-offer',
       `${DID_NOT_COUNT}. Try again whenever you like.`,
       JUMP_HERE_MISTAKE_ALLOWANCE,
+      { writesMistakeRows: false },
     ),
   },
   sectionTest: {
-    completed: fullCredit('ceremony', false, SECTION_TEST_MISTAKE_ALLOWANCE),
-    replayed: fullCredit('ceremony', false, SECTION_TEST_MISTAKE_ALLOWANCE),
+    completed: fullCredit('ceremony', false, SECTION_TEST_MISTAKE_ALLOWANCE, {
+      advancesPath: true,
+      writesMistakeRows: false,
+    }),
+    replayed: fullCredit('ceremony', false, SECTION_TEST_MISTAKE_ALLOWANCE, {
+      writesMistakeRows: false,
+    }),
     // Exhaustion RESTARTS a section test (ruling S056); it never costs a heart and there
     // is no refill to offer.
     failed: noCredit(
       'path.section-test',
       `${DID_NOT_COUNT}. Try again when you are ready.`,
       SECTION_TEST_MISTAKE_ALLOWANCE,
+      { writesMistakeRows: false },
     ),
     quit: noCredit(
       'path.section-test',
       `${DID_NOT_COUNT}. Try again when you are ready.`,
       SECTION_TEST_MISTAKE_ALLOWANCE,
+      { writesMistakeRows: false },
     ),
   },
   unitReview: {
@@ -644,6 +881,119 @@ export const SESSION_FLAVOUR_MATRIX: Record<
     failed: noCredit('path.endgame', DID_NOT_COUNT, null),
     quit: noCredit('path.endgame', DID_NOT_COUNT, null),
   },
+
+  /* ---------------- long-form formats: credit, never boostable (EC-ECO-35) ---- */
+
+  // A story node IS a path node, so a first completion advances the path; a replay does
+  // not. `boost_applies: false` on every row is EC-ECO-35: "the wall-clock timer keeps
+  // burning through excluded sessions, the chip stays visible, and that session's XP tile
+  // renders GOLD rather than purple". INV-ECO-30's named falsifier is a purple tile on a
+  // story replay, and this is the row that makes it impossible.
+  story: {
+    completed: longFormCredit('story.complete', { advancesPath: true }),
+    replayed: longFormCredit('story.complete'),
+    failed: noCredit('story.list', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+    quit: noCredit('story.list', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+  },
+  radio: {
+    completed: longFormCredit('radio.complete', { advancesPath: true }),
+    replayed: longFormCredit('radio.complete'),
+    failed: noCredit('radio.list', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+    quit: noCredit('radio.list', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+  },
+  // [EC-ECO-38] Roleplay "cannot be failed", so its failed row is an abandonment, and it
+  // is excluded from the boost "on the same reasoning as audio lessons".
+  roleplay: {
+    completed: longFormCredit('roleplay.summary'),
+    replayed: longFormCredit('roleplay.summary'),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+  },
+
+  /* ------------------------------- the Practice Hub (EC-ECO-28, EC-ECO-35) ---- */
+
+  hubMistakes: {
+    completed: fullCredit('ceremony', true, null),
+    replayed: fullCredit('ceremony', true, null),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null),
+  },
+  hubWords: {
+    completed: fullCredit('ceremony', true, null),
+    replayed: fullCredit('ceremony', true, null),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null),
+  },
+  // [EC-ECO-35] Listen-Up is on the exclusion list by name.
+  hubListenUp: {
+    completed: longFormCredit('ceremony'),
+    replayed: longFormCredit('ceremony'),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null),
+  },
+  // Speaking never costs a heart and never writes a mistake row [DEPART D-SKIPSPEAK].
+  hubPronunciation: {
+    completed: fullCredit('ceremony', true, null, { writesMistakeRows: false }),
+    replayed: fullCredit('ceremony', true, null, { writesMistakeRows: false }),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+  },
+  hubTargetPractice: {
+    completed: fullCredit('ceremony', true, null),
+    replayed: fullCredit('ceremony', true, null),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null),
+  },
+  hubUnitRewind: {
+    completed: fullCredit('ceremony', true, null),
+    replayed: fullCredit('ceremony', true, null),
+    failed: noCredit('hub.root', DID_NOT_COUNT, null),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null),
+  },
+
+  /* ------------------------------------------- the timed challenge (EC-ECO-15) */
+
+  /**
+   * `counts_as_lesson: true` (it extends the streak and counts toward the goal) with
+   * `advances_path: false`, "satisfying XP-shaped quests but not lesson-shaped ones and
+   * writing no mistake rows" — EC-ECO-15, column by column. The surface ships disabled
+   * (`TIMED_CHALLENGES_ENABLED`); the row exists so the widget, the danger nudge and the
+   * goal chest keep reading one table.
+   */
+  timedChallenge: {
+    completed: {
+      extendsStreak: true,
+      countsTowardGoal: true,
+      awardsXp: true,
+      advancesQuests: true,
+      boostApplies: false,
+      countsAsLesson: true,
+      advancesPath: false,
+      questShapes: ['xp', 'gems', 'streak'],
+      writesMistakeRows: false,
+      mistakeAllowance: null,
+      checkpointConsolationXp: null,
+      consequenceString: '',
+      consequenceRoute: 'ceremony',
+    },
+    replayed: {
+      extendsStreak: true,
+      countsTowardGoal: true,
+      awardsXp: true,
+      advancesQuests: true,
+      boostApplies: false,
+      countsAsLesson: true,
+      advancesPath: false,
+      questShapes: ['xp', 'gems', 'streak'],
+      writesMistakeRows: false,
+      mistakeAllowance: null,
+      checkpointConsolationXp: null,
+      consequenceString: '',
+      consequenceRoute: 'ceremony',
+    },
+    failed: noCredit('hub.root', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+    quit: noCredit('hub.root', DID_NOT_COUNT, null, { writesMistakeRows: false }),
+  },
 };
 
 /**
@@ -669,32 +1019,81 @@ export interface FlavourXp {
   readonly ladderMode: XpLadderMode;
   /** The product-map screen, so the table and the map cannot drift apart. */
   readonly screen: string;
+  /**
+   * The long-form entry-point table this flavour reads instead of `base`, when it has one
+   * (EC-ECO-37). `null` for every flavour with a single award.
+   */
+  readonly longForm: LongFormXpTable | null;
+  /** What a replay pays. `null` = the shared `REPLAY_PRACTICE_XP`. */
+  readonly replayXp: number | null;
+}
+
+function scalarFlavour(
+  base: number,
+  comboApplies: boolean,
+  ladderMode: XpLadderMode,
+  screen: string,
+  replayXp: number | null = null,
+): FlavourXp {
+  return { base, comboApplies, ladderMode, screen, longForm: null, replayXp };
 }
 
 export const FLAVOUR_XP: Record<SessionFlavour, FlavourXp> = {
-  lesson: { base: LESSON_BASE_XP, comboApplies: true, ladderMode: 'lesson', screen: 'S057' },
-  nodePractice: { base: PRACTICE_XP, comboApplies: false, ladderMode: 'practice', screen: 'S058' },
-  legendary: { base: LEGENDARY_XP, comboApplies: true, ladderMode: 'legendary', screen: 'S059' },
-  placement: { base: PLACEMENT_XP, comboApplies: false, ladderMode: 'test', screen: 'S060' },
-  jumpHere: { base: JUMP_HERE_XP, comboApplies: false, ladderMode: 'test', screen: 'S061' },
-  sectionTest: { base: SECTION_TEST_XP, comboApplies: false, ladderMode: 'test', screen: 'S062' },
-  unitReview: { base: UNIT_REVIEW_XP, comboApplies: false, ladderMode: 'review', screen: 'S063' },
-  dailyRefresh: {
-    base: DAILY_REFRESH_LEVEL_XP,
+  lesson: scalarFlavour(LESSON_BASE_XP, true, 'lesson', 'S057'),
+  nodePractice: scalarFlavour(PRACTICE_XP, false, 'practice', 'S058'),
+  legendary: scalarFlavour(LEGENDARY_XP, true, 'legendary', 'S059'),
+  placement: scalarFlavour(PLACEMENT_XP, false, 'test', 'S060'),
+  jumpHere: scalarFlavour(JUMP_HERE_XP, false, 'test', 'S061'),
+  sectionTest: scalarFlavour(SECTION_TEST_XP, false, 'test', 'S062'),
+  unitReview: scalarFlavour(UNIT_REVIEW_XP, false, 'review', 'S063'),
+  dailyRefresh: scalarFlavour(DAILY_REFRESH_LEVEL_XP, false, 'dailyRefresh', 'S064'),
+  recovery: scalarFlavour(RECOVERY_LESSON_XP, true, 'recovery', 'S065'),
+  endgameReview: scalarFlavour(ENDGAME_REVIEW_XP, false, 'endgameReview', 'S066'),
+
+  // The two long-form formats read their four-key table; `base` is the `first` entry so a
+  // caller that ignores the table still cannot invent a number (EC-ECO-37).
+  story: {
+    base: STORY_XP.first,
     comboApplies: false,
-    ladderMode: 'dailyRefresh',
-    screen: 'S064',
+    ladderMode: STORY_XP.ladderMode,
+    screen: 'S101',
+    longForm: STORY_XP,
+    replayXp: STORY_XP.replay_plain,
   },
-  recovery: {
-    base: RECOVERY_LESSON_XP,
-    comboApplies: true,
-    ladderMode: 'recovery',
-    screen: 'S065',
-  },
-  endgameReview: {
-    base: ENDGAME_REVIEW_XP,
+  radio: {
+    base: RADIO_XP.first,
     comboApplies: false,
-    ladderMode: 'endgameReview',
-    screen: 'S066',
+    ladderMode: RADIO_XP.ladderMode,
+    screen: 'S112',
+    longForm: RADIO_XP,
+    replayXp: RADIO_XP.replay_plain,
   },
+  // [EC-ECO-38] full for the first scenario per local_day, the floor thereafter.
+  roleplay: scalarFlavour(ROLEPLAY_FIRST_XP, false, 'roleplay', 'S117', ROLEPLAY_FLOOR_XP),
+
+  hubMistakes: scalarFlavour(HUB_SESSION_XP, false, 'hubMistakes', 'S092'),
+  hubWords: scalarFlavour(HUB_SESSION_XP, false, 'hubWords', 'S094'),
+  hubListenUp: scalarFlavour(HUB_SESSION_XP, false, 'hubListenUp', 'S095'),
+  hubPronunciation: scalarFlavour(HUB_SESSION_XP, false, 'hubPronunciation', 'S096'),
+  hubTargetPractice: scalarFlavour(HUB_SESSION_XP, false, 'hubTargetPractice', 'S099'),
+  hubUnitRewind: scalarFlavour(HUB_SESSION_XP, false, 'hubUnitRewind', 'S099'),
+
+  timedChallenge: scalarFlavour(TIMED_CHALLENGE_XP, false, 'timedChallenge', 'S091'),
 };
+
+/* ======================================== 12. personal records (EC-ECO-27) */
+
+/**
+ * [ruling EC-ECO-27 / INV-ECO-23] Records update SILENTLY and are celebrated "at most
+ * once per 7 local days … and only when the MARGIN exceeds a configured threshold".
+ *
+ * Both halves are constants because both halves are the rule: the cooldown stops twelve
+ * record days producing twelve cards, and the margin stops a one-XP personal best being
+ * called a personal best at all.
+ */
+export const RECORD_CELEBRATION_COOLDOWN_DAYS = 7;
+
+/** A new record must beat the old one by this fraction before anything is shown. */
+export const RECORD_CELEBRATION_MIN_MARGIN_RATIO = 0.1;
+/** …and by at least this absolute amount, so small records are not celebrated per point. */
+export const RECORD_CELEBRATION_MIN_MARGIN_ABSOLUTE = 5;

@@ -73,16 +73,23 @@ function seedV2(db: Db): void {
        words_introduced = 412, words_learned = 260, perfect_lessons = 31,
        nodes_completed = 40, units_legendary = 3, sections_completed = 1,
        guidebook_then_lesson = 2, weekend_pairs = 4, stories_completed = 7,
-       night_lessons = 12, items_retired = 88
+       night_lessons = 12, items_retired = 88, legendary_levels_earned = 17
      WHERE id = 1`,
   );
-  db.run('INSERT INTO account_freeze (freeze_id, acquired_on_day) VALUES (?, ?)', [
-    'fz_1',
-    '2026-09-01',
-  ]);
+  // One freeze per acquisition channel (S121), including the `one_time` subtype, so the
+  // corpus carries every shape of the row the FRZ task will read.
   db.run(
-    'INSERT INTO account_freeze (freeze_id, acquired_on_day, consumed_for_day) VALUES (?, ?, ?)',
-    ['fz_2', '2026-08-20', '2026-08-29'],
+    'INSERT INTO account_freeze (freeze_id, acquired_on_day, acquired_via, subtype) VALUES (?, ?, ?, ?)',
+    ['fz_1', '2026-09-01', 'streak_freeze_refill', 'standard'],
+  );
+  db.run(
+    `INSERT INTO account_freeze (freeze_id, acquired_on_day, acquired_via, subtype, consumed_for_day)
+     VALUES (?, ?, ?, ?, ?)`,
+    ['fz_2', '2026-08-20', 'milestone_grant', 'standard', '2026-08-29'],
+  );
+  db.run(
+    'INSERT INTO account_freeze (freeze_id, acquired_on_day, acquired_via, subtype) VALUES (?, ?, ?, ?)',
+    ['fz_3', '2026-08-10', 'reward_chest', 'one_time'],
   );
   db.run(
     `INSERT INTO account_day (local_day, goal_xp, earned_xp, goal_met, chest_granted_at)
@@ -110,10 +117,29 @@ function seedV2(db: Db): void {
     'INSERT INTO account_cosmetic (cosmetic_id, purchased_at, price_gems_paid) VALUES (?, ?, ?)',
     ['cosmetic-scarf-red', '2026-08-15T12:00:00Z', 150],
   );
+  // A HELD grant (inventory: no activation columns yet) and a RUNNING one carrying the
+  // EC-ECO-39 rewind-clamp columns, so the corpus exercises both shapes of the row.
   db.run(
-    `INSERT INTO account_boost (grant_id, kind, multiplier, duration_minutes, granted_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    ['bg_1', 'xpBoost', 2, 15, '2026-09-09T08:00:00Z'],
+    `INSERT INTO account_boost (grant_id, kind, multiplier, duration_minutes, duration_seconds, granted_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['bg_1', 'xpBoost', 2, 15, 900, '2026-09-09T08:00:00Z'],
+  );
+  db.run(
+    `INSERT INTO account_boost (grant_id, kind, multiplier, duration_minutes, duration_seconds,
+       granted_at, activated_at_utc, activation_sequence_ms, tamper_high_water_utc, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      'bg_2',
+      'xpBoost',
+      2,
+      30,
+      1800,
+      '2026-09-10T18:00:00Z',
+      '2026-09-10T18:00:00Z',
+      4_200_000,
+      '2026-09-10T18:06:00Z',
+      '2026-09-10T18:30:00Z',
+    ],
   );
 
   for (const [courseId, xp, score] of [
@@ -230,10 +256,13 @@ function seedV2(db: Db): void {
       '{"it_fr_02":[2,0,1,3]}',
     ],
   );
-  db.run('INSERT INTO committed_session (session_id, committed_at) VALUES (?, ?)', [
-    's_golden_1',
-    '2026-09-10T20:06:00Z',
-  ]);
+  // INV-ECO-20: the ledger row carries its own non-null `active_ms`, not a figure some
+  // later query derives from `committed_at` differences.
+  db.run(
+    `INSERT INTO committed_session (session_id, committed_at, active_ms, xp_awarded, local_day, flavour)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['s_golden_1', '2026-09-10T20:06:00Z', 214_000, 14, '2026-09-10', 'lesson'],
+  );
 }
 
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {

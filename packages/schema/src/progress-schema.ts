@@ -178,6 +178,19 @@ export const SESSION_STATE_RESUME_COLUMNS: readonly string[] = [
  * Ordered: `course_progress` is created before anything that references it.
  */
 export const PROGRESS_SCHEMA_V2_DDL: readonly string[] = [
+  /* ---- the committed-session ledger grows a session-level active_ms --------- */
+  // INV-ECO-20: "Every committed session row carries a NON-NULL `active_ms` written in
+  // the same exclusive transaction as XP." P0's ledger was (session_id, committed_at),
+  // which gave the invariant no schema home at all: `course_attempt.active_ms` is
+  // per-exercise, and summing it at render time is precisely the derived figure
+  // EC-ECO-23 forbids. `NOT NULL DEFAULT 0` is what makes "non-null" a property of the
+  // database rather than a habit of the writer; `session-commit.ts` writes it and the XP
+  // in one `withExclusiveTransaction`.
+  `ALTER TABLE committed_session ADD COLUMN active_ms INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE committed_session ADD COLUMN xp_awarded INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE committed_session ADD COLUMN local_day TEXT`,
+  `ALTER TABLE committed_session ADD COLUMN flavour TEXT`,
+
   /* ---- account: grow P0's stub into the real singleton --------------------- */
   `ALTER TABLE account RENAME COLUMN xp TO lifetime_xp`,
   `ALTER TABLE account ADD COLUMN daily_goal_xp INTEGER NOT NULL DEFAULT 20`,
@@ -197,6 +210,9 @@ export const PROGRESS_SCHEMA_V2_DDL: readonly string[] = [
   `ALTER TABLE account ADD COLUMN perfect_lessons INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE account ADD COLUMN nodes_completed INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE account ADD COLUMN units_legendary INTEGER NOT NULL DEFAULT 0`,
+  // [EC-ECO-30] Regal and Legendary are both denominated in legendary LEVELS; Conqueror
+  // in units made fully legendary. Two columns, because they count different things.
+  `ALTER TABLE account ADD COLUMN legendary_levels_earned INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE account ADD COLUMN sections_completed INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE account ADD COLUMN guidebook_then_lesson INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE account ADD COLUMN weekend_pairs INTEGER NOT NULL DEFAULT 0`,
@@ -222,18 +238,35 @@ export const PROGRESS_SCHEMA_V2_DDL: readonly string[] = [
      sessions_counted INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (local_day, ladder_mode)
    )`,
+  // [ruling EC-ECO-39 / INV-ECO-02] A boost row that stores only `expires_at` is extended
+  // for free by winding the clock back: the falsifier is "activated at 18:00, killed at
+  // 18:06, clock moved back 30 minutes before relaunch". So the row persists the wall
+  // clock at activation, a MONOTONIC sequence reading at the same instant, the grant's own
+  // duration, and the highest wall clock ever observed. `clampBoost()` takes the lesser of
+  // the two remainders and expires outright on a backwards clock.
   `CREATE TABLE account_boost (
      grant_id TEXT PRIMARY KEY,
      kind TEXT NOT NULL,
      multiplier INTEGER NOT NULL,
      duration_minutes INTEGER NOT NULL,
+     duration_seconds INTEGER NOT NULL,
      granted_at TEXT NOT NULL,
-     started_at TEXT,
+     activated_at_utc TEXT,
+     activation_sequence_ms INTEGER,
+     tamper_high_water_utc TEXT,
      expires_at TEXT
    )`,
+  // [S121] "Three acquisition channels — timed refill, milestone grant, reward-chest drop
+  // — plus a distinct `one_time` freeze subtype." The channel is STORED, not inferred from
+  // a count, because a one_time freeze must not be replaced by the refill timer. The FRZ
+  // task consumes these columns; this task is the only one that may add them.
   `CREATE TABLE account_freeze (
      freeze_id TEXT PRIMARY KEY,
      acquired_on_day TEXT NOT NULL,
+     acquired_via TEXT NOT NULL DEFAULT 'streak_freeze_refill'
+       CHECK (acquired_via IN ('streak_freeze_refill', 'milestone_grant', 'reward_chest')),
+     subtype TEXT NOT NULL DEFAULT 'standard'
+       CHECK (subtype IN ('standard', 'one_time')),
      consumed_for_day TEXT
    )`,
   `CREATE TABLE account_cosmetic (

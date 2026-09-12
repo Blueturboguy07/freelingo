@@ -18,6 +18,7 @@
       "perfect_lessons": 31,
       "nodes_completed": 40,
       "units_legendary": 3,
+      "legendary_levels_earned": 17,
       "sections_completed": 1,
       "guidebook_then_lesson": 2,
       "weekend_pairs": 4,
@@ -32,9 +33,24 @@
       "kind": "xpBoost",
       "multiplier": 2,
       "duration_minutes": 15,
+      "duration_seconds": 900,
       "granted_at": "2026-09-09T08:00:00Z",
-      "started_at": null,
+      "activated_at_utc": null,
+      "activation_sequence_ms": null,
+      "tamper_high_water_utc": null,
       "expires_at": null
+    },
+    {
+      "grant_id": "bg_2",
+      "kind": "xpBoost",
+      "multiplier": 2,
+      "duration_minutes": 30,
+      "duration_seconds": 1800,
+      "granted_at": "2026-09-10T18:00:00Z",
+      "activated_at_utc": "2026-09-10T18:00:00Z",
+      "activation_sequence_ms": 4200000,
+      "tamper_high_water_utc": "2026-09-10T18:06:00Z",
+      "expires_at": "2026-09-10T18:30:00Z"
     }
   ],
   "account_cosmetic": [
@@ -67,12 +83,23 @@
     {
       "freeze_id": "fz_1",
       "acquired_on_day": "2026-09-01",
+      "acquired_via": "streak_freeze_refill",
+      "subtype": "standard",
       "consumed_for_day": null
     },
     {
       "freeze_id": "fz_2",
       "acquired_on_day": "2026-08-20",
+      "acquired_via": "milestone_grant",
+      "subtype": "standard",
       "consumed_for_day": "2026-08-29"
+    },
+    {
+      "freeze_id": "fz_3",
+      "acquired_on_day": "2026-08-10",
+      "acquired_via": "reward_chest",
+      "subtype": "one_time",
+      "consumed_for_day": null
     }
   ],
   "account_monthly_badge": [
@@ -106,7 +133,11 @@
   "committed_session": [
     {
       "session_id": "s_golden_1",
-      "committed_at": "2026-09-10T20:06:00Z"
+      "committed_at": "2026-09-10T20:06:00Z",
+      "active_ms": 214000,
+      "xp_awarded": 14,
+      "local_day": "2026-09-10",
+      "flavour": "lesson"
     }
   ],
   "course_attempt": [

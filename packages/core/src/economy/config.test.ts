@@ -26,8 +26,13 @@ import {
   MIN_HOURS_BETWEEN_INTRODUCTION_AND_PRODUCTION,
   QUEST_TARGET_MAX_XP,
   QUEST_TARGET_MIN_XP,
+  LONG_FORM_XP_KEYS,
   QUEST_TREND_WINDOW_DAYS,
   RADIO_XP,
+  SOCIETY_BOOST_MINUTES,
+  SOCIETY_CHECKPOINTS,
+  SOCIETY_ENTRY_STREAK_DAYS,
+  SOCIETY_FREEZE_CAP_BONUS,
   SECTION_TEST_MISTAKE_ALLOWANCE,
   SESSION_FLAVOUR_MATRIX,
   SHOP_CATALOGUE,
@@ -39,12 +44,24 @@ import {
   XP_LADDERS,
   flavourRow,
 } from './config.js';
-import { SESSION_FLAVOURS, SESSION_OUTCOMES, XP_LADDER_MODES } from '../types/index.js';
+import {
+  HUB_SESSION_FLAVOURS,
+  NARRATIVE_SESSION_FLAVOURS,
+  PATH_SESSION_FLAVOURS,
+  SESSION_FLAVOURS,
+  SESSION_OUTCOMES,
+  XP_LADDER_MODES,
+} from '../types/index.js';
 
 /* --------------------------------------------------------------- grep machinery */
 
 /** Source that SHIPS: no tests, no generated native trees, no fixtures. */
-const SHIPPED_ROOTS = ['packages/core/src', 'packages/ui/src', 'apps/mobile/src'];
+const SHIPPED_ROOTS = [
+  'packages/core/src',
+  'packages/schema/src',
+  'packages/ui/src',
+  'apps/mobile/src',
+];
 const SKIP_DIRS = new Set(['node_modules', 'dist', '__snapshots__']);
 
 function sourceFiles(dir: string): string[] {
@@ -121,8 +138,8 @@ describe('the goal table', () => {
 /* ----------------------------------------------------------- ECO-09 and ECO-19 */
 
 describe('the session-flavour matrix', () => {
-  it('[INV-ECO-09] every one of the ten flavours has a row for every outcome', () => {
-    expect(SESSION_FLAVOURS).toHaveLength(10);
+  it('[INV-ECO-09] every one of the ten path flavours has a row for every outcome', () => {
+    expect(PATH_SESSION_FLAVOURS).toHaveLength(10);
     for (const flavour of SESSION_FLAVOURS) {
       const rows = SESSION_FLAVOUR_MATRIX[flavour];
       expect(rows, `no matrix entry for flavour ${flavour}`).toBeDefined();
@@ -133,19 +150,51 @@ describe('the session-flavour matrix', () => {
         expect(typeof row.countsTowardGoal).toBe('boolean');
         expect(typeof row.awardsXp).toBe('boolean');
         expect(typeof row.advancesQuests).toBe('boolean');
+        // EC-ECO-15's remaining columns, on every row.
+        expect(typeof row.countsAsLesson).toBe('boolean');
+        expect(typeof row.advancesPath).toBe('boolean');
+        expect(typeof row.writesMistakeRows).toBe('boolean');
+        expect(Array.isArray(row.questShapes)).toBe(true);
       }
     }
+  });
+
+  it('[INV-ECO-09] EC-ECO-15 rows exist for story, radio, roleplay, every hub flavour and the timed challenge', () => {
+    // The invariant's own words: "a row for every Story, Radio, Roleplay, script and hub
+    // flavour, since any session that commits a row and awards XP extends the streak".
+    // Before these rows existed `flavourRow('story', 'replayed')` THREW.
+    for (const flavour of [...NARRATIVE_SESSION_FLAVOURS, ...HUB_SESSION_FLAVOURS]) {
+      expect(() => flavourRow(flavour, 'replayed')).not.toThrow();
+      expect(flavourRow(flavour, 'completed').extendsStreak).toBe(true);
+    }
+    const timed = flavourRow('timedChallenge', 'completed');
+    // EC-ECO-15, column by column.
+    expect(timed.countsAsLesson).toBe(true);
+    expect(timed.advancesPath).toBe(false);
+    expect(timed.extendsStreak).toBe(true);
+    expect(timed.countsTowardGoal).toBe(true);
+    expect(timed.questShapes).toContain('xp');
+    expect(timed.questShapes).not.toContain('sessions');
+    expect(timed.writesMistakeRows).toBe(false);
   });
 
   it('[INV-ECO-09] the matrix names exactly the declared flavours — no strays, no gaps', () => {
     expect(Object.keys(SESSION_FLAVOUR_MATRIX).sort()).toEqual([...SESSION_FLAVOURS].sort());
   });
 
-  it('[INV-ECO-09] placement satisfies the day and pays nothing (S060, the row that proves the matrix is data)', () => {
-    const row = flavourRow('placement', 'completed');
-    expect(row.extendsStreak).toBe(true);
-    expect(row.awardsXp).toBe(false);
-    expect(row.countsTowardGoal).toBe(false);
+  it('[INV-ECO-09] a completed placement or jump-here extends the streak AND counts toward the goal, paying 0 XP (EC-ECO-15)', () => {
+    // EC-ECO-15, verbatim: "a completed placement or jump-here test extends the streak
+    // and counts toward the goal ... but awards 0 XP so the ability estimate is not
+    // farmable". The two flavours the ruling treats identically must agree with each
+    // other; an earlier version shipped placement with countsTowardGoal: false and
+    // asserted the divergence here, which locked it in.
+    for (const flavour of ['placement', 'jumpHere'] as const) {
+      const row = flavourRow(flavour, 'completed');
+      expect(row.extendsStreak, flavour).toBe(true);
+      expect(row.countsTowardGoal, flavour).toBe(true);
+      expect(row.awardsXp, flavour).toBe(false);
+      expect(row.advancesQuests, flavour).toBe(false);
+    }
   });
 
   it("[INV-ECO-19] every gated flavour's failed row declares no streak, a consequence and a route", () => {
@@ -173,7 +222,18 @@ describe('the session-flavour matrix', () => {
         expect(typeof flavourRow(flavour, outcome).boostApplies).toBe('boolean');
       }
     }
-    for (const flavour of ['placement', 'jumpHere', 'sectionTest', 'endgameReview'] as const) {
+    // EC-ECO-35 names the exclusion list: "story, radio, Listen-Up and Roleplay not".
+    for (const flavour of [
+      'placement',
+      'jumpHere',
+      'sectionTest',
+      'endgameReview',
+      'story',
+      'radio',
+      'roleplay',
+      'hubListenUp',
+      'timedChallenge',
+    ] as const) {
       for (const outcome of SESSION_OUTCOMES) {
         expect(flavourRow(flavour, outcome).boostApplies, `${flavour}/${outcome}`).toBe(false);
       }
@@ -280,17 +340,29 @@ describe('the gem sink', () => {
       [/refill/i, 'refill'],
       [/\$\d|\d+\s*gems? to (?:refill|continue)/i, 'a price string'],
     ];
+    /**
+     * The ONE exception, and it is named rather than loosened.
+     *
+     * S121 ships `Refills in {{n}} day(s)` for the STREAK FREEZE timer — a verified 2026
+     * string in the product map, and one of the three freeze acquisition channels. What
+     * INV-ECO-24 forbids is the HEART refill: the wall, the price and the modal. A
+     * literal that says "refill" and also says freeze or streak is the freeze timer; any
+     * other refill string is the paywall this clone exists to delete.
+     */
+    const FREEZE_REFILL = /freeze|streak/i;
     const offenders: string[] = [];
     for (const file of SHIPPED_FILES) {
       for (const literal of stringLiteralsIn(readFileSync(file, 'utf8'))) {
         for (const [pattern, label] of banned) {
-          if (pattern.test(literal)) {
-            offenders.push(`${relative(ROOT, file)}: ${label} in ${JSON.stringify(literal)}`);
-          }
+          if (!pattern.test(literal)) continue;
+          if (label === 'refill' && FREEZE_REFILL.test(literal)) continue;
+          offenders.push(`${relative(ROOT, file)}: ${label} in ${JSON.stringify(literal)}`);
         }
       }
     }
     expect(offenders).toEqual([]);
+    // The exception is narrow, not a hole: a heart refill string still fails.
+    expect(FREEZE_REFILL.test('Refill your hearts for 350 gems')).toBe(false);
   });
 });
 
@@ -331,14 +403,16 @@ describe('streak milestones', () => {
 /* -------------------------------------------------------------------- ECO-32 */
 
 describe('story and radio XP', () => {
-  it('[INV-ECO-32] each format has ONE four-key table and no scalar literal elsewhere', () => {
+  it('[INV-ECO-32] each format has ONE table keyed by EC-ECO-37\'s four entry points', () => {
+    // EC-ECO-37 fixes the SHAPE: "one long-form audio XP table per format keyed
+    // {first, replay_plain, hub_recommended, legendary}". Asserting the spec's key names
+    // is the only version of this test that can catch a table with four plausible keys.
+    expect([...LONG_FORM_XP_KEYS]).toEqual(['first', 'replay_plain', 'hub_recommended', 'legendary']);
     for (const table of [STORY_XP, RADIO_XP]) {
-      expect(Object.keys(table).sort()).toEqual([
-        'advertisedFirstCompletion',
-        'advertisedReplay',
-        'firstCompletion',
-        'replay',
-      ]);
+      for (const key of LONG_FORM_XP_KEYS) {
+        expect(Object.hasOwn(table, key), key).toBe(true);
+        expect(Number.isInteger(table[key])).toBe(true);
+      }
     }
     const offenders = SHIPPED_FILES.filter((file) => {
       if (relative(ROOT, file) === 'packages/core/src/economy/config.ts') return false;
@@ -349,13 +423,47 @@ describe('story and radio XP', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('[INV-ECO-32] the advertised number equals the committed number at both entry points', () => {
+  it('[INV-ECO-32] radio is 20 first / 10 replay per EC-ECO-08, and a replay never pays first XP', () => {
+    expect(RADIO_XP.first).toBe(20);
+    // EC-ECO-08: "Radio: 20 first / 10 replay, once per episode per day"; EC-ECO-37:
+    // "Radio is 20/10 scaled by the episode-duration ramp". Not the 5 XP review award.
+    expect(RADIO_XP.replay_plain).toBe(10);
+    expect(STORY_XP.first).toBe(20);
     for (const table of [STORY_XP, RADIO_XP]) {
-      expect(table.advertisedFirstCompletion).toBe(table.firstCompletion);
-      expect(table.advertisedReplay).toBe(table.replay);
-      // Six replays must not pay first-completion XP (the named falsifier).
-      expect(table.replay).toBeLessThan(table.firstCompletion);
+      expect(table.replay_plain).toBeLessThan(table.first);
+      expect(table.hub_recommended).toBeLessThanOrEqual(table.first);
     }
+  });
+
+  it('[INV-ECO-32] each table names the per-local-day key EC-ECO-08 scopes its bonus by', () => {
+    // "Hub-recommended bonus once per STORY per local_day ... Radio: once per EPISODE per
+    // day." Two different keys, so the ledger writer must be told which.
+    expect(STORY_XP.perLocalDayKey).toBe('story_id');
+    expect(RADIO_XP.perLocalDayKey).toBe('episode_id');
+  });
+});
+
+/* -------------------------------------------------------------------- EC-ECO-20 */
+
+describe('the Streak Society', () => {
+  it('[INV-ECO-14] entry is at 7 days with three reward checkpoints, not an Ember/Blaze/Phoenix ladder', () => {
+    // EC-ECO-20: "Streak Society entry threshold 7 days per the 2026 bundle, NOT the
+    // invented Ember-60/Blaze-180/Phoenix-365 ladder. Three reward checkpoints; perks =
+    // +3 freezes, a 30-minute boost, a yearly-upgrading VIP badge."
+    expect(SOCIETY_ENTRY_STREAK_DAYS).toBe(7);
+    expect(SOCIETY_CHECKPOINTS).toHaveLength(3);
+    expect(SOCIETY_FREEZE_CAP_BONUS).toBe(3);
+    expect(SOCIETY_BOOST_MINUTES).toBe(30);
+    expect(SOCIETY_CHECKPOINTS.map((c) => c.streakDays)).not.toEqual([60, 180, 365]);
+    expect(SOCIETY_CHECKPOINTS[0]?.streakDays).toBe(SOCIETY_ENTRY_STREAK_DAYS);
+    // Every checkpoint day is a milestone day, so the two lists cannot diverge.
+    for (const checkpoint of SOCIETY_CHECKPOINTS) {
+      expect(STREAK_MILESTONES, `${checkpoint.id}`).toContain(checkpoint.streakDays);
+    }
+    // The badge upgrades yearly: strictly non-decreasing, and it does move.
+    const years = SOCIETY_CHECKPOINTS.map((c) => c.vipBadgeYear);
+    expect(years).toEqual([...years].sort((a, b) => a - b));
+    expect(Math.max(...years)).toBeGreaterThan(Math.min(...years));
   });
 });
 

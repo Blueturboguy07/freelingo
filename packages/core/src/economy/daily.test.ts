@@ -15,6 +15,7 @@ import {
   accumulateActiveMs,
   activeMinutesString,
   celebratedRecords,
+  marginIsCelebrationWorthy,
   changeDailyGoal,
   goalDayIsMet,
   recordGoalXp,
@@ -189,6 +190,31 @@ describe('personal records', () => {
       ),
       RUNS,
     );
+  });
+
+  it('[INV-ECO-23] a record beaten by a hair is not celebrated at all (EC-ECO-27 margin)', () => {
+    // EC-ECO-27: "celebrate at most once per 7 local days ... and ONLY when the margin
+    // exceeds a configured threshold". The cooldown alone still celebrates a one-point
+    // improvement every seventh day forever, which is the same non-event twice a month.
+    expect(marginIsCelebrationWorthy(140, 141)).toBe(false);
+    expect(marginIsCelebrationWorthy(140, 160)).toBe(true);
+    // Small absolute jumps on a small record are not "records" either.
+    expect(marginIsCelebrationWorthy(10, 12)).toBe(false);
+    expect(marginIsCelebrationWorthy(10, 15)).toBe(true);
+    // The first record ever always counts, and a regression never does.
+    expect(marginIsCelebrationWorthy(0, 1)).toBe(true);
+    expect(marginIsCelebrationWorthy(200, 200)).toBe(false);
+    expect(marginIsCelebrationWorthy(200, 199)).toBe(false);
+
+    // End to end: twelve consecutive one-XP bests produce ZERO cards, not two.
+    const hairline = Array.from({ length: 12 }, (_, i) => ({
+      localDay: toLocalDay('2026-09-11'),
+      kind: 'dailyMostXp' as const,
+      dayIndex: i,
+      previousValue: 140 + i,
+      value: 141 + i,
+    }));
+    expect(celebratedRecords(hairline)).toHaveLength(0);
   });
 
   it('[INV-ECO-23] zero record screens appear in the ceremony chain', () => {

@@ -12,6 +12,11 @@ import type { BoostGrant } from '../types/index.js';
 import { BOOST_MULTIPLIER, MAX_BOOST_INVENTORY } from './config.js';
 import {
   EMPTY_BOOST_STATE,
+  activateBoost,
+  activeBoostFrom,
+  clampBoost,
+  type BoostClockReading,
+  type PersistedBoost,
   clearDailyRefreshLegendary,
   dailyRefreshBoostGrantCount,
   dailyRefreshBoostGrantDays,
@@ -156,5 +161,124 @@ describe('Daily Refresh boost grants', () => {
 
   it('[INV-ECO-18] legendary state on a Daily Refresh level clears with the set', () => {
     expect(clearDailyRefreshLegendary()).toEqual([]);
+  });
+});
+
+
+/* ------------------------------------------------- INV-ECO-02 / EC-ECO-39 */
+
+describe('the rewind clamp', () => {
+  const DURATION_MINUTES = 15;
+
+  function activated(): PersistedBoost {
+    return activateBoost(grant(DURATION_MINUTES), { nowUtc: iso(0), sequenceMs: 1_000_000 });
+  }
+
+  it('[INV-ECO-02] falsifier: killed at 18:06, clock wound back 30 minutes, relaunched', () => {
+    // EC-ECO-39, the exact scenario. Wall clock alone says 15 minutes are left again.
+    const boost = activated();
+    const sixMinutesIn: BoostClockReading = {
+      nowUtc: iso(6 * 60_000),
+      sequenceMs: 1_000_000 + 6 * 60_000,
+    };
+    const seen = clampBoost(boost, sixMinutesIn);
+    expect(seen.running).toBe(true);
+    expect(seen.remainingSeconds).toBeCloseTo(9 * 60, 3);
+
+    // The relaunch: wall clock 30 minutes BEHIND the high-water mark, monotonic sequence
+    // still moving forward because it is not the user's to set.
+    const rewound: BoostClockReading = {
+      nowUtc: iso(6 * 60_000 - 30 * 60_000),
+      sequenceMs: 1_000_000 + 7 * 60_000,
+    };
+    const after = clampBoost(seen.boost, rewound);
+    expect(after.running).toBe(false);
+    expect(after.reason).toBe('clock-rewound');
+    expect(after.remainingSeconds).toBe(0);
+    // And the session that starts after it sees no boost at all.
+    expect(activeBoostFrom(seen.boost, rewound).active).toBeNull();
+  });
+
+  it('[INV-ECO-02] remaining time never exceeds duration minus the MONOTONIC elapsed, over any interleaving', () => {
+    fc.assert(
+      fc.property(
+        // A sequence of (wall-clock delta, monotonic delta) observations. Wall deltas may
+        // be negative — that is the whole point; monotonic deltas may not.
+        fc.array(
+          fc.record({
+            wallDeltaMs: fc.integer({ min: -3_600_000, max: 3_600_000 }),
+            sequenceDeltaMs: fc.integer({ min: 0, max: 3_600_000 }),
+          }),
+          { minLength: 1, maxLength: 12 },
+        ),
+        (observations) => {
+          let boost = activated();
+          let wallMs = 0;
+          let sequenceMs = 1_000_000;
+          for (const step of observations) {
+            wallMs += step.wallDeltaMs;
+            sequenceMs += step.sequenceDeltaMs;
+            const clock: BoostClockReading = { nowUtc: iso(wallMs), sequenceMs };
+            const result = clampBoost(boost, clock);
+            const sequenceElapsedSeconds = (sequenceMs - boost.activationSequenceMs) / 1_000;
+            // The bound EC-ECO-39 asks for: never more than what the monotonic clock says
+            // is left, and never more than the grant's own duration.
+            expect(result.remainingSeconds).toBeLessThanOrEqual(
+              Math.max(0, boost.durationSeconds - sequenceElapsedSeconds) + 1e-6,
+            );
+            expect(result.remainingSeconds).toBeLessThanOrEqual(boost.durationSeconds);
+            expect(result.remainingSeconds).toBeGreaterThanOrEqual(0);
+            if (result.running) expect(result.reason).toBe('running');
+            boost = result.boost;
+          }
+        },
+      ),
+      RUNS,
+    );
+  });
+
+  it('[INV-ECO-02] a boost can only ever get shorter: the high-water mark is monotone', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.integer({ min: -600_000, max: 600_000 }), { minLength: 1, maxLength: 10 }),
+        (wallDeltas) => {
+          let boost = activated();
+          let previousHighWater = Date.parse(boost.tamperHighWaterUtc);
+          let wallMs = 0;
+          let sequenceMs = 1_000_000;
+          for (const delta of wallDeltas) {
+            wallMs += delta;
+            sequenceMs += Math.abs(delta);
+            const result = clampBoost(boost, { nowUtc: iso(wallMs), sequenceMs });
+            const highWater = Date.parse(result.boost.tamperHighWaterUtc);
+            expect(highWater).toBeGreaterThanOrEqual(previousHighWater);
+            previousHighWater = highWater;
+            boost = result.boost;
+          }
+        },
+      ),
+      RUNS,
+    );
+  });
+
+  it('[INV-ECO-02] winding the clock FORWARD expires it early; it never extends it', () => {
+    const boost = activated();
+    const jumped = clampBoost(boost, {
+      nowUtc: iso(60 * 60_000),
+      sequenceMs: 1_000_000 + 60_000,
+    });
+    expect(jumped.running).toBe(false);
+    expect(jumped.reason).toBe('elapsed');
+  });
+
+  it('[INV-ECO-02] a reboot resets the monotonic sequence, and the wall clock governs safely', () => {
+    const boost = activated();
+    // Sequence goes backwards across a reboot; `sequenceElapsed` clamps to 0 and the wall
+    // clock — checked against the high-water mark — decides. Five minutes in, ten left.
+    const afterReboot = clampBoost(boost, { nowUtc: iso(5 * 60_000), sequenceMs: 12 });
+    expect(afterReboot.running).toBe(true);
+    expect(afterReboot.remainingSeconds).toBeCloseTo(10 * 60, 3);
+    // …and the same reboot an hour later is expired, not revived.
+    expect(clampBoost(boost, { nowUtc: iso(60 * 60_000), sequenceMs: 12 }).running).toBe(false);
   });
 });

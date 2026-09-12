@@ -3,7 +3,16 @@ import fc from 'fast-check';
 import { PROPERTY_RUNS, createNodeDb } from '@freelingo/testkit';
 import { planCommit } from '@freelingo/core';
 import type { Db } from './db.js';
-import { LATEST_USER_VERSION, MIGRATIONS, currentUserVersion, migrate } from './migrations.js';
+import {
+  LATEST_USER_VERSION,
+  MIGRATIONS,
+  SCHEMA_TABLES_BY_VERSION,
+  actualTables,
+  checkSchemaIntegrity,
+  currentUserVersion,
+  migrate,
+  schemaAt as shippedSchemaAt,
+} from './migrations.js';
 import {
   EXCLUDED_PLATFORMS,
   PACK_DB_LOCATION,
@@ -252,6 +261,54 @@ describe('migration atomicity', () => {
     });
     db.run('PRAGMA user_version = 2'); // a lie: version 2's tables are not there
     expect(tableNames(db)).not.toEqual(schemaAt(currentUserVersion(db)));
+    db.close();
+  });
+});
+
+
+/* ---------------------------------------------------------------------- S149 */
+
+describe('the schema-vs-version detector (S149)', () => {
+  it('[INV-PER-03] the SHIPPED table list agrees with what the migrations actually build', () => {
+    // `SCHEMA_TABLES_BY_VERSION` is a hand-written constant, which makes it exactly the
+    // kind of thing that rots. The oracle is a clean run of the migrations themselves.
+    for (const version of [0, 1, LATEST_USER_VERSION]) {
+      expect([...shippedSchemaAt(version)].sort(), `user_version ${version}`).toEqual(
+        schemaAt(version),
+      );
+    }
+    expect(Object.keys(SCHEMA_TABLES_BY_VERSION).map(Number)).toContain(LATEST_USER_VERSION);
+  });
+
+  it('[INV-PER-03] a migrated database matches its recorded version', () => {
+    const db = freshDb();
+    const integrity = checkSchemaIntegrity(db);
+    expect(integrity.ok).toBe(true);
+    expect(integrity.userVersion).toBe(LATEST_USER_VERSION);
+    db.close();
+  });
+
+  it('[INV-PER-03] falsifier: a schema that does not match its recorded version is CORRUPT, detectably', () => {
+    // S149's `mismatch-detected` state. The exclusive transaction is what prevents this
+    // happening; the detector is what routes it to S147 with the backup offer if it does.
+    // Before this shipped, the only `schemaAt` in the tree lived inside this test file.
+    const db = freshDb();
+    db.run('DROP TABLE course_mistake');
+    const integrity = checkSchemaIntegrity(db);
+    expect(integrity.ok).toBe(false);
+    if (!integrity.ok) {
+      expect(integrity.missing).toContain('course_mistake');
+      expect(integrity.unexpected).toEqual([]);
+    }
+    db.close();
+  });
+
+  it('[INV-PER-03] a database written by a FUTURE build is a mismatch, not something to migrate', () => {
+    const db = freshDb();
+    db.run(`PRAGMA user_version = ${LATEST_USER_VERSION + 7}`);
+    const integrity = checkSchemaIntegrity(db);
+    expect(integrity.ok).toBe(false);
+    expect(actualTables(db).length).toBeGreaterThan(0);
     db.close();
   });
 });

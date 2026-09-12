@@ -9,14 +9,26 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 import type { ActiveBoost, SessionFlavour, XpLadderMode } from '../types/index.js';
-import { SESSION_FLAVOURS, SESSION_OUTCOMES } from '../types/index.js';
+import {
+  NARRATIVE_SESSION_FLAVOURS,
+  PATH_SESSION_FLAVOURS,
+  SESSION_FLAVOURS,
+  SESSION_OUTCOMES,
+  XP_LADDER_MODES,
+} from '../types/index.js';
 import {
   BOOST_GRACE_SECONDS,
   BOOST_MULTIPLIER,
   FLAVOUR_XP,
   GOAL_TIERS,
   LEGENDARY_CHECKPOINT_XP,
+  LONG_FORM_XP_KEYS,
+  RADIO_XP,
   REPLAY_PRACTICE_XP,
+  ROLEPLAY_FIRST_XP,
+  ROLEPLAY_FLOOR_XP,
+  STORY_XP,
+  XP_LADDERS,
   comboBonus,
   flavourRow,
 } from './config.js';
@@ -32,6 +44,8 @@ import {
   goalXpFor,
   ladderDailyCap,
   legendaryOutcomeFor,
+  ladderMultiplier,
+  narrativeAward,
   narrativeXp,
   nextLegendaryAwardedAt,
   resolveBoost,
@@ -56,6 +70,9 @@ function boostExpiringAt(offsetMs: number): ActiveBoost {
 const BOOSTABLE_FLAVOURS = SESSION_FLAVOURS.filter(
   (flavour) => flavourRow(flavour, 'completed').boostApplies,
 );
+
+/** Every boostable flavour is a PATH flavour: EC-ECO-35 excludes the rest by name. */
+const PATH_FLAVOURS: readonly string[] = PATH_SESSION_FLAVOURS;
 
 /* ------------------------------------------------------------------- INV-ECO-02 */
 
@@ -165,7 +182,35 @@ describe('boost_applies and the tile colour', () => {
     );
   });
 
-  it('[INV-ECO-30] falsifier: a purple tile on a story replay — the tile agrees with the applied multiplier', () => {
+  it('[INV-ECO-30] falsifier: a purple tile on a story replay — a story replay renders GOLD, never purple', () => {
+    // The invariant's falsifier is literally "a purple tile on a story replay", and
+    // EC-ECO-35 requires the matrix to classify story, radio, Listen-Up and Roleplay as
+    // not boostable. Until the matrix carried those rows this assertion could not be
+    // written at all: `flavourRow('story', 'replayed')` threw.
+    const liveBoost = boostExpiringAt(3_600_000);
+    for (const flavour of [...NARRATIVE_SESSION_FLAVOURS, 'hubListenUp'] as const) {
+      for (const outcome of SESSION_OUTCOMES) {
+        const resolution = resolveBoost({
+          flavour,
+          outcome,
+          boostAtSessionStart: liveBoost,
+          committedAtUtc: iso(0),
+        });
+        // Gold, not purple: `tileIsBoosted` is what the ceremony paints purple, and the
+        // wall-clock boost is still running while this session pays 1x (EC-ECO-35).
+        expect(resolution.tileIsBoosted, `${flavour}/${outcome}`).toBe(false);
+        expect(resolution.appliedMultiplier, `${flavour}/${outcome}`).toBe(1);
+      }
+    }
+    const storyReplay = narrativeAward('story', 'replay_plain', EMPTY_LADDER_STATE, {
+      boostAtSessionStart: liveBoost,
+      committedAtUtc: iso(0),
+    });
+    expect(storyReplay.tileIsBoosted).toBe(false);
+    expect(storyReplay.awardedXp).toBe(STORY_XP.replay_plain);
+  });
+
+  it('[INV-ECO-30] the tile agrees with the applied multiplier, for every flavour and outcome', () => {
     fc.assert(
       fc.property(
         fc.constantFrom(...SESSION_FLAVOURS),
@@ -183,6 +228,23 @@ describe('boost_applies and the tile colour', () => {
       ),
       RUNS,
     );
+  });
+
+  it('[INV-ECO-30] EC-ECO-35\'s exclusion list is boostable nowhere, and the boostable set is not empty', () => {
+    // "lesson, practice, unit review, target practice, mistakes, words, daily refresh,
+    // legendary and jump-here boostable; story, radio, Listen-Up and Roleplay not."
+    const excluded = [...NARRATIVE_SESSION_FLAVOURS, 'hubListenUp', 'timedChallenge'];
+    for (const flavour of excluded) {
+      expect(BOOSTABLE_FLAVOURS, `${flavour} must not be boostable`).not.toContain(flavour);
+    }
+    // …and every flavour that IS boostable is one the ruling lists as boostable.
+    for (const flavour of BOOSTABLE_FLAVOURS) {
+      expect(
+        PATH_FLAVOURS.includes(flavour) || flavour.startsWith('hub'),
+        `${flavour} is boostable but is neither a path nor a hub flavour`,
+      ).toBe(true);
+    }
+    expect(BOOSTABLE_FLAVOURS.length).toBeGreaterThan(0);
   });
 
   it('[INV-ECO-30] every flavour, including the Daily Refresh sub-flavours, declares a value', () => {
@@ -234,6 +296,58 @@ describe('the per-mode daily XP ladder', () => {
       ),
       RUNS,
     );
+  });
+
+  it('[INV-ECO-06] falsifier: unlimited story and radio replays are bounded by their own ladders (EC-ECO-07)', () => {
+    // EC-ECO-07 names "Stories replay, Radio replay" and EC-ECO-38 names Roleplay. Before
+    // `narrativeXp` was routed through `awardForSession` these formats had no ladder at
+    // all, so twenty replays paid twenty awards: the unbounded farm the ruling exists to
+    // close, invisible to the property above because it drew only from path flavours.
+    for (const format of ['story', 'radio'] as const) {
+      let state = EMPTY_LADDER_STATE;
+      let total = 0;
+      for (let i = 0; i < 40; i += 1) {
+        const award = narrativeAward(format, 'replay_plain', state);
+        total += award.awardedXp;
+        state = {
+          sessionsCompleted: state.sessionsCompleted + 1,
+          xpAwarded: state.xpAwarded + award.awardedXp,
+        };
+      }
+      const table = format === 'story' ? STORY_XP : RADIO_XP;
+      expect(total).toBeLessThanOrEqual(ladderDailyCap(table.ladderMode));
+      // …and the 40th replay pays nothing at all, honestly labelled.
+      expect(narrativeAward(format, 'replay_plain', state).awardedXp).toBe(0);
+    }
+  });
+
+  it('[INV-ECO-06] every flavour consumes a declared ladder, and every ladder mode is reachable', () => {
+    const modesUsed = new Set(SESSION_FLAVOURS.map((flavour) => FLAVOUR_XP[flavour].ladderMode));
+    // No mode is declared that nothing can use, and no flavour escapes the ladder.
+    expect([...modesUsed].sort()).toEqual([...XP_LADDER_MODES].sort());
+    for (const mode of XP_LADDER_MODES) {
+      expect(XP_LADDERS[mode].dailyXpCap).toBeGreaterThan(0);
+    }
+  });
+
+  it('[INV-ECO-06] Roleplay pays full for the first scenario of the day and the floor thereafter (EC-ECO-38)', () => {
+    const first = awardForSession({
+      flavour: 'roleplay',
+      outcome: 'completed',
+      boostAtSessionStart: null,
+      committedAtUtc: iso(0),
+      ladderStateToday: EMPTY_LADDER_STATE,
+    });
+    expect(first.awardedXp).toBe(ROLEPLAY_FIRST_XP);
+    const second = awardForSession({
+      flavour: 'roleplay',
+      outcome: 'completed',
+      boostAtSessionStart: null,
+      committedAtUtc: iso(0),
+      ladderStateToday: { sessionsCompleted: 1, xpAwarded: first.awardedXp },
+    });
+    expect(second.awardedXp).toBe(ROLEPLAY_FLOOR_XP);
+    expect(ladderMultiplier('roleplay', 1) * ROLEPLAY_FIRST_XP).toBe(ROLEPLAY_FLOOR_XP);
   });
 
   it('[INV-ECO-06] the ladder is keyed by the day, not the course: switching courses buys nothing', () => {
@@ -345,6 +459,36 @@ describe('once-per-node Legendary and the replayable Daily Refresh level', () =>
   });
 });
 
+/* --------------------------------------------- the row declares its own consolation */
+
+describe('a non-paying row that still pays something says so on the row', () => {
+  it('[INV-ECO-09] legendary/failed declares checkpointConsolationXp and no other row does', () => {
+    const failed = flavourRow('legendary', 'failed');
+    expect(failed.awardsXp).toBe(false);
+    expect(failed.checkpointConsolationXp).toBe(LEGENDARY_CHECKPOINT_XP);
+    for (const flavour of SESSION_FLAVOURS) {
+      for (const outcome of SESSION_OUTCOMES) {
+        if (flavour === 'legendary' && outcome === 'failed') continue;
+        expect(
+          flavourRow(flavour, outcome).checkpointConsolationXp,
+          `${flavour}/${outcome}`,
+        ).toBeNull();
+      }
+    }
+    // And the award engine reads the ROW, not a hard-coded flavour name.
+    const paid = awardForSession({
+      flavour: 'legendary',
+      outcome: 'failed',
+      reachedLegendaryCheckpoint: true,
+      checkpointAlreadyPaidToday: false,
+      boostAtSessionStart: null,
+      committedAtUtc: iso(0),
+      ladderStateToday: EMPTY_LADDER_STATE,
+    });
+    expect(paid.awardedXp).toBe(failed.checkpointConsolationXp);
+  });
+});
+
 /* ------------------------------------------------------------------- INV-ECO-16 */
 
 describe('failed Legendary attempts', () => {
@@ -443,12 +587,34 @@ describe('advertised XP', () => {
     );
   });
 
-  it('[INV-ECO-15] story and radio advertise what they pay, at both entry points', () => {
+  it('[INV-ECO-15] story and radio advertise what they pay, at EVERY one of the four entry points', () => {
     for (const format of ['story', 'radio'] as const) {
-      for (const first of [true, false]) {
-        expect(narrativeXp(format, first)).toBe(
-          first ? (format === 'story' ? 20 : 20) : format === 'story' ? 5 : 5,
-        );
+      const table = format === 'story' ? STORY_XP : RADIO_XP;
+      for (const entry of LONG_FORM_XP_KEYS) {
+        // The advert reads the table; the award reads the table through `baseXpFor`.
+        expect(narrativeXp(format, entry)).toBe(table[entry]);
+        const award = narrativeAward(format, entry, EMPTY_LADDER_STATE);
+        expect(award.baseXp, `${format}/${entry}`).toBe(table[entry]);
+      }
+    }
+  });
+
+  it('[INV-ECO-15] the advert is read at the OUTCOME being offered, not always at first completion', () => {
+    // EC-HUB-06's discrepancy: a completed Daily Refresh level advertising 10 while
+    // paying 5, or a re-tapped Legendary node advertising 40 while paying 5. Both are
+    // `replayed` offers, and `advertisedXpFor` now takes the outcome.
+    for (const flavour of SESSION_FLAVOURS) {
+      for (const outcome of SESSION_OUTCOMES) {
+        const advertised = advertisedXpFor(flavour, outcome);
+        const award = awardForSession({
+          flavour,
+          outcome,
+          maxCombo: 0,
+          boostAtSessionStart: null,
+          committedAtUtc: iso(0),
+          ladderStateToday: EMPTY_LADDER_STATE,
+        });
+        expect(award.awardedXp, `${flavour}/${outcome}`).toBe(advertised.xp);
       }
     }
   });
@@ -493,16 +659,37 @@ describe('every flavour pays what its matrix row says', () => {
         fc.constantFrom(...SESSION_FLAVOURS),
         fc.constantFrom(...SESSION_OUTCOMES),
         fc.integer({ min: 0, max: 30 }),
-        (flavour: SessionFlavour, outcome, maxCombo) => {
+        // Drawn, not fixed. The single row that used to violate this invariant was
+        // `legendary/failed`, and the generator never set these two flags, so the one
+        // counterexample was unreachable by construction and the property was vacuous.
+        fc.boolean(),
+        fc.boolean(),
+        (
+          flavour: SessionFlavour,
+          outcome,
+          maxCombo,
+          reachedLegendaryCheckpoint,
+          checkpointAlreadyPaidToday,
+        ) => {
           const award = awardForSession({
             flavour,
             outcome,
             maxCombo,
+            reachedLegendaryCheckpoint,
+            checkpointAlreadyPaidToday,
             boostAtSessionStart: null,
             committedAtUtc: iso(0),
             ladderStateToday: EMPTY_LADDER_STATE,
           });
-          if (!flavourRow(flavour, outcome).awardsXp) expect(award.awardedXp).toBe(0);
+          const row = flavourRow(flavour, outcome);
+          if (!row.awardsXp) {
+            // A row that pays nothing pays nothing — EXCEPT the consolation it declares
+            // on itself. `checkpointConsolationXp` is the only legal escape, and it is
+            // data on the row, so the matrix and the ceremony cannot disagree.
+            const ceiling = row.checkpointConsolationXp ?? 0;
+            expect(award.awardedXp, `${flavour}/${outcome}`).toBeLessThanOrEqual(ceiling);
+            if (row.checkpointConsolationXp === null) expect(award.awardedXp).toBe(0);
+          }
         },
       ),
       RUNS,

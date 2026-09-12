@@ -8,14 +8,20 @@
  * ascending threshold ladder whose first tier is reachable under the installed packs)
  * and INV-ECO-33 (Sharpshooter never increments on a lesson with no punitive item).
  *
- * Two names Duolingo ships are deliberately absent. **Regal** counts crowns and
- * **Conqueror** counts "every skill in a course to Level n" — Freelingo's path has
- * neither crowns nor skills, so shipping those rows would render a grid whose source
- * column resolves to a mechanic the path lacks, which is INV-ECO-25's named falsifier.
- * Their slots are taken by `Pathfinder` and `Completionist`, which count things that
- * exist. Champion/Winner/Friendly/Photogenic are cut by [DEPART D-NOSOCIAL] and replaced
- * by `Reviewer` so the grid has no holes; Challenger and Unrivaled are not in the 2026
- * bundle at all (duoplanet 2023 only) and are not invented back.
+ * **Regal** and **Conqueror** are verified 2026 names (product map S125) denominated in
+ * crowns and skills, which the 2026 path model does not have. Ruling EC-ECO-30 is
+ * explicit that the fix is to **re-denominate rather than delete**: Regal counts
+ * LEGENDARY LEVELS earned on its original 3/7/12/18/25/35/50/65/80/100 ladder, and
+ * Conqueror counts UNITS MADE FULLY LEGENDARY (1-5), reusing the unit-trophy predicate.
+ * The original crown thresholds are commented on each row so the per-tier gem payout
+ * stays auditable. An earlier version of this file deleted both and invented
+ * `Completionist` in their place; that is the change this comment exists to prevent
+ * happening twice.
+ *
+ * Champion/Winner/Friendly/Photogenic ARE cut, by [DEPART D-NOSOCIAL], and are replaced
+ * by local badges (`Reviewer`, `Pathfinder`) so the grid has no holes. Challenger and
+ * Unrivaled are a different case again: they are simply **not in the 2026 bundle**
+ * (duoplanet 2023 only) and are not invented back.
  */
 import type { ExerciseType } from '../types/index.js';
 import { isPunitive } from '../types/index.js';
@@ -29,6 +35,7 @@ export const ACHIEVEMENT_SURFACES = [
   'perfectLesson',
   'streakDay',
   'nodeCompleted',
+  'nodeLegendary',
   'unitLegendary',
   'sectionCompleted',
   'guidebookThenLesson',
@@ -53,6 +60,7 @@ export const ENABLED_SURFACES: readonly AchievementSurface[] = [
   'perfectLesson',
   'streakDay',
   'nodeCompleted',
+  'nodeLegendary',
   'unitLegendary',
   'sectionCompleted',
   'guidebookThenLesson',
@@ -116,6 +124,47 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     copy: 'Complete {{n}} lesson(s) with no mistakes',
   },
   {
+    // [ruling EC-ECO-30] RE-DENOMINATED, not deleted. Duolingo's Regal counts crowns on
+    // the ladder 3/7/12/18/25/35/50/65/80/100; the 2026 path has no crowns, and the
+    // closest thing it does have is a legendary level. Same ladder, same per-tier gem
+    // payout, a counter the path can actually produce.
+    id: 'regal',
+    displayName: 'Regal',
+    counterColumn: 'legendary_levels_earned',
+    surfaces: ['nodeLegendary'],
+    tiers: [3, 7, 12, 18, 25, 35, 50, 65, 80, 100],
+    requiresPackFeature: null,
+    copy: 'Earn {{n}} Legendary level(s)',
+  },
+  {
+    // [ruling EC-ECO-30] Duolingo's Conqueror is "get every skill in a course to Level
+    // n" over 1-5; the re-denomination reuses the UNIT-TROPHY predicate, so the ladder
+    // and the payout are untouched and the counter is one the path already maintains.
+    id: 'conqueror',
+    displayName: 'Conqueror',
+    counterColumn: 'units_legendary',
+    surfaces: ['unitLegendary'],
+    tiers: [1, 2, 3, 4, 5],
+    requiresPackFeature: null,
+    copy: 'Make {{n}} unit(s) fully Legendary',
+  },
+  {
+    // [ruling EC-ECO-33] "Legendary at 1/5/20/50/100 legendary levels." It shares Regal's
+    // counter deliberately: EC-ECO-30 fixes Regal's ladder and EC-ECO-33 fixes this one,
+    // and both are denominated in legendary levels. Two ladders on one column is a
+    // consequence of applying both rulings, and it is a supported shape — `counterColumn`
+    // is the column an achievement READS, never a column it owns.
+    id: 'legendary',
+    displayName: 'Legendary',
+    counterColumn: 'legendary_levels_earned',
+    surfaces: ['nodeLegendary'],
+    tiers: [1, 5, 20, 50, 100],
+    requiresPackFeature: null,
+    copy: 'Complete {{n}} Legendary level(s)',
+  },
+  {
+    // A local badge standing in for one of the four social achievements cut by
+    // [DEPART D-NOSOCIAL]. It counts path nodes, which exist.
     id: 'pathfinder',
     displayName: 'Pathfinder',
     counterColumn: 'nodes_completed',
@@ -123,15 +172,6 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     tiers: [5, 15, 40, 80, 150, 250],
     requiresPackFeature: null,
     copy: 'Complete {{n}} path nodes',
-  },
-  {
-    id: 'completionist',
-    displayName: 'Completionist',
-    counterColumn: 'units_legendary',
-    surfaces: ['unitLegendary'],
-    tiers: [1, 3, 10, 25, 50],
-    requiresPackFeature: null,
-    copy: 'Earn {{n}} Legendary trophies',
   },
   {
     id: 'strategist',
@@ -165,7 +205,9 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     displayName: 'Page Turner',
     counterColumn: 'stories_completed',
     surfaces: ['storyCompleted'],
-    tiers: [1, 5, 15, 30, 60],
+    // [ruling EC-ECO-33] "Page Turner at 1/5/10/25/50 stories." Fixed in config now
+    // because the grid has to draw a progress bar against a denominator.
+    tiers: [1, 5, 10, 25, 50],
     requiresPackFeature: 'stories',
     copy: 'Read {{n}} stor(y/ies)',
   },
@@ -258,6 +300,54 @@ export function renderedAchievements(
 export function achievementCounterColumns(): string[] {
   return [...new Set(ACHIEVEMENTS.map((achievement) => achievement.counterColumn))].sort();
 }
+
+/**
+ * The ladders the rulings FIX, by id, so the test asserts the numbers rather than their
+ * shape (INV-ECO-28).
+ *
+ * "Non-empty and strictly ascending" is true of every wrong ladder too; it was true of
+ * the 1/5/15/30/60 Page Turner this table replaced. A named expectation is the only test
+ * that can tell a ladder from a plausible ladder.
+ */
+export const RULED_ACHIEVEMENT_LADDERS: Readonly<Record<string, readonly number[]>> = {
+  // EC-ECO-30
+  regal: [3, 7, 12, 18, 25, 35, 50, 65, 80, 100],
+  conqueror: [1, 2, 3, 4, 5],
+  // EC-ECO-33
+  'page-turner': [1, 5, 10, 25, 50],
+  legendary: [1, 5, 20, 50, 100],
+};
+
+/** Names verified in the 2026 bundle (product map S125) that Freelingo still renders. */
+export const VERIFIED_2026_ACHIEVEMENT_IDS: readonly string[] = [
+  'sharpshooter',
+  'wildfire',
+  'conqueror',
+  'scholar',
+  'strategist',
+  'regal',
+  'weekend-warrior',
+  'sage',
+  'trailblazer',
+] as const;
+
+/** Cut by [DEPART D-NOSOCIAL]: they exist upstream and Freelingo will not build them. */
+export const SOCIAL_CUT_ACHIEVEMENT_IDS: readonly string[] = [
+  'champion',
+  'winner',
+  'friendly',
+  'photogenic',
+] as const;
+
+/**
+ * NOT in the 2026 bundle at all (duoplanet 2023 only) — a different reason from the cut
+ * above, and the grid must not invent them back. EC-ECO-31 is why Challenger in
+ * particular stays out: its only surface is the disabled timed challenge.
+ */
+export const NOT_IN_2026_BUNDLE_ACHIEVEMENT_IDS: readonly string[] = [
+  'challenger',
+  'unrivaled',
+] as const;
 
 /* ---------------------------------------------------------------- Sharpshooter */
 
