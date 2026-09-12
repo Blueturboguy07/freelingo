@@ -44,11 +44,30 @@ jobs:
       - name: Sync (locked)
         run: uv sync --locked
 
+      # INV-AUD-08 clause 1 — "every packed clip MEASURES within tolerance of the target"
+      # — is a statement about a real Opus file, and this job deliberately does not install
+      # the `tts` group or the 354 MB of Kokoro weights. opus-tools is one apt line and it
+      # is what lets `test_inv_aud_08_a_synthetic_clip_measures_on_the_decoded_file` run the
+      # shipping chain (master -> encode -> decode -> measure) on a synthetic voice here.
+      # Without it the only CI-reachable guard for that clause was a grep over g8_bake.py.
+      - name: Install opus-tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends opus-tools
+
       - name: Ruff
         run: uv run ruff check .
 
       - name: Pytest
+        # COURSEKIT_REQUIRE_OPUS_TOOLS turns "opus-tools is missing" from a skip into a
+        # failure. A guard that silently skips when its tool is absent is the failure it
+        # was written to prevent, one level up.
+        env:
+          COURSEKIT_REQUIRE_OPUS_TOOLS: '1'
         run: uv run pytest
+
+      - name: The INV-AUD-08 audio guard actually ran (no skips)
+        env:
+          COURSEKIT_REQUIRE_OPUS_TOOLS: '1'
+        run: uv run pytest -rs --no-header -k 'inv_aud_08 or inv_pack_15'
 
       - name: CLI smoke — every stage is reachable
         run: uv run coursekit --help

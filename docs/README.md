@@ -33,3 +33,20 @@ it('[INV-DAY-01] streak is the maximal contiguous run of distinct days ...', () 
 
 `test:coverage-map` also fails when a test claims an id that is **not** in the registry, so
 a typo in an id cannot hide as coverage.
+
+### Python (`tools/coursekit`)
+
+A Python function name cannot hold `[`, `-` or the registry's capitals, so the claim goes
+in the `def` as the lowercase snake form of the id — which is what pytest prints and what
+`pytest -k inv_aud_08` selects:
+
+```python
+def test_inv_aud_08_the_rebake_key_includes_the_engine() -> None:
+    """[INV-AUD-08] a voice-identical clip on a different engine is a different clip."""
+```
+
+The digits are read verbatim (`inv_aud_08` → `INV-AUD-08`), and the docstring is prose: it
+is the `def` name that both gates read. A docstring-only id is invisible to
+`pnpm test:coverage-map` and to the phase-roster gate, so a lane can look covered in review
+and be covered by nobody — which is what happened the first time a coursekit lane claimed
+an id.

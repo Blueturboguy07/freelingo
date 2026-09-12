@@ -1,0 +1,116 @@
+name: pack-bake
+
+# The audio bake, on demand.
+#
+# Not on push. It downloads 354 MB of Kokoro weights, synthesises every line in a
+# language and encodes all of them, which is minutes of runner time and is not what a
+# pull request is waiting on. `pack-ci.yml` runs the fast half — ruff, pytest, and the
+# validators that read the COMMITTED manifest — on every change to `tools/coursekit/`
+# or `content/`, and that is the gate. This job exists to rebuild the bank itself and
+# hand back the artefact.
+#
+# What comes out is `es-audio-<sha>`: the Opus bank, the `baked_clip` records, the
+# runlog, and the manifest the run produced. The bank is gitignored (only the manifest
+# is committed), so this is the only place a bank travels.
+
+on:
+  workflow_dispatch:
+    inputs:
+      language:
+        description: 'Language to bake'
+        required: true
+        default: 'es'
+        type: choice
+        options: [es, fr, ja]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pack-bake-${{ github.ref }}-${{ inputs.language }}
+  cancel-in-progress: true
+
+jobs:
+  bake:
+    name: bake ${{ inputs.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tools/coursekit
+    env:
+      COURSEKIT_KOKORO_WEIGHTS: ${{ github.workspace }}/.kokoro
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/coursekit/uv.lock
+
+      # opus-tools, not ffmpeg. A different encoder at the same nominal bitrate writes
+      # different bytes, and the manifest this job produces describes bytes.
+      - name: Install opus-tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends opus-tools
+
+      - name: Versions that decide the bytes
+        run: |
+          opusenc --version
+          opusdec --version
+
+      # `--locked`, so a bake can never resolve a different kokoro-onnx than the one the
+      # lockfile pins. The `tts` group is deliberately not in `[tool.uv] default-groups`
+      # — it is gigabytes and `pack-ci.yml` must stay a 20-minute job — so it is asked
+      # for here by name.
+      - name: Sync (locked) with the tts group
+        run: uv sync --locked --group tts
+
+      - name: Cache the pinned Kokoro weights
+        id: weights
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.kokoro
+          key: kokoro-model-files-v1.0
+
+      - name: Download the pinned Kokoro weights
+        if: steps.weights.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$COURSEKIT_KOKORO_WEIGHTS"
+          base=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
+          curl -fL --retry 3 -o "$COURSEKIT_KOKORO_WEIGHTS/kokoro-v1.0.onnx" "$base/kokoro-v1.0.onnx"
+          curl -fL --retry 3 -o "$COURSEKIT_KOKORO_WEIGHTS/voices-v1.0.bin" "$base/voices-v1.0.bin"
+
+      # The digests are pinned in config/g8.py and the bake checks them itself; this
+      # step prints them so a failure here is readable without re-running anything.
+      - name: Weight digests
+        run: sha256sum "$COURSEKIT_KOKORO_WEIGHTS"/*
+
+      # G8 reads G7's exercises. Until the G7 lane lands, a dispatch with no upstream
+      # run exits 4 naming the missing stage rather than baking an empty bank — which
+      # is the behaviour under test as much as the bake is.
+      - name: Bake
+        run: uv run coursekit bake ${{ inputs.language }}
+
+      - name: Validate the manifest this run produced
+        run: uv run coursekit validate ${{ inputs.language }} --only F2
+
+      - name: What the bake produced
+        if: always()
+        run: |
+          set -euo pipefail
+          du -sh "../../build/${{ inputs.language }}/g8/bank" || true
+          python -c "import json,sys; m=json.load(open('../../content/${{ inputs.language }}/audio-manifest.json')); b=m['budget']; print(f\"{m['totals']['clips']} clips, {m['totals']['bytes']} bytes; declared {b['declared_mb']} MB of {b['budget_mb']} MB\")"
+
+      - name: Upload the bank
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.language }}-audio-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            build/${{ inputs.language }}/g8/bank/
+            build/${{ inputs.language }}/g8/clips.jsonl
+            build/${{ inputs.language }}/runlog.jsonl
+            content/${{ inputs.language }}/audio-manifest.json

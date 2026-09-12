@@ -20,6 +20,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   familyOf,
+  filesInPhases,
   ownershipFiles,
   owningTests,
   p1Roster,
@@ -31,6 +32,7 @@ import {
   BASELINE_OWNED_PATH,
   P1_EXTRA_IDS,
   P1_FAMILIES,
+  ROSTER_PHASES,
 } from './ownership.js';
 import { repoRoot } from './repo-paths.js';
 
@@ -51,7 +53,17 @@ const files = ownershipFiles(root);
 const baseline = files.find((f) => f.path === BASELINE_OWNED_PATH)!.ids;
 const journey = readJourneyOwnership(root);
 const roster = p1Roster(registry, baseline, journey);
+/** Every claim on disk — what "no duplicates, in the registry, has a test" is judged over. */
 const union = unionOwnership(files);
+/**
+ * The P0+P1 claims alone — what the roster EQUALITY is judged over.
+ *
+ * See `ROSTER_PHASES`: an ownership file declares its phase, and a P2 lane's file is not
+ * evidence about whether P1 is finished in either direction.
+ */
+const p1Files = filesInPhases(files, ROSTER_PHASES);
+const p1Union = unionOwnership(p1Files);
+const laterFiles = files.filter((file) => !p1Files.includes(file));
 const owners = owningTests(root);
 
 describe.skipIf(UNDER_STRYKER)('P1 phase roster', () => {
@@ -79,8 +91,23 @@ describe.skipIf(UNDER_STRYKER)('P1 phase roster', () => {
     expect(journey.owned).toEqual([]);
   });
 
+  it('every ownership file declares a phase the roster understands', () => {
+    // A typo'd phase ("p2", "P2 ") would silently move a file's ids OUT of the P1 equality
+    // and into nothing at all, which is the one way this scoping could hide a real gap.
+    const bad = files
+      .filter((file) => !/^P\d$/.test(file.phase))
+      .map((f) => `${f.path}: ${f.phase}`);
+    expect(bad).toEqual([]);
+    expect(
+      p1Files.length,
+      'no P0/P1 ownership file was found; the roster equality would be vacuous',
+    ).toBeGreaterThan(1);
+    // The baseline is one of them. It declares P0 and it carries five roster ids.
+    expect(p1Files.map((f) => f.path)).toContain(BASELINE_OWNED_PATH);
+  });
+
   it('every id the phase roster requires is claimed by exactly one ownership file', () => {
-    const claimed = new Set(union.owned);
+    const claimed = new Set(p1Union.owned);
     const missing = sortIds(roster.expected.filter((id) => !claimed.has(id)));
     expect(
       missing,
@@ -92,14 +119,27 @@ describe.skipIf(UNDER_STRYKER)('P1 phase roster', () => {
     expect(duplicates).toEqual([]);
   });
 
-  it('no ownership file claims an id outside the phase roster', () => {
+  it('no P1 ownership file claims an id outside the phase roster', () => {
     const expected = new Set(roster.expected);
-    const undeclared = sortIds(union.owned.filter((id) => !expected.has(id)));
+    const undeclared = sortIds(p1Union.owned.filter((id) => !expected.has(id)));
     expect(
       undeclared,
       'claimed but not in the P1 roster. A §14 PACK/AUD engine part belongs in ' +
-        'docs/owned/journey.json `engineParts` with its reason; anything else is another phase.',
+        'docs/owned/journey.json `engineParts` with its reason; anything else is another ' +
+        'phase and its file must say so (`"phase": "P2"`).',
     ).toEqual([]);
+  });
+
+  it('no later-phase ownership file takes an id the P1 roster owes', () => {
+    // The escape hatch the scoping above opens, closed. Stamping `"phase": "P2"` on a file
+    // must not be a way to move a P1 obligation out of the P1 gate: an id in the roster is
+    // P1's whatever a later file says, and claiming it there would make the roster
+    // equality pass while nobody at P1 owns it.
+    const expected = new Set(roster.expected);
+    const stolen = laterFiles.flatMap((file) =>
+      file.ids.filter((id) => expected.has(id)).map((id) => `${id} (${file.path}, ${file.phase})`),
+    );
+    expect(stolen).toEqual([]);
   });
 
   it('no ownership file claims an id that is absent from docs/invariants.md', () => {
@@ -111,6 +151,32 @@ describe.skipIf(UNDER_STRYKER)('P1 phase roster', () => {
     expect(missing, "add a test named it('[<id>] …') — docs/README.md §Adding coverage").toEqual(
       [],
     );
+  });
+
+  it('the owning-test scan reads a pytest name as well as a vitest one', () => {
+    /*
+     * The scan walks two languages and the Python half shipped broken once: `\binv_`
+     * matches nothing in `test_inv_aud_08_…`, because the `_` in front of `inv` is itself
+     * a word character. The scanner walked all seven pytest files, found zero claims, and
+     * the gate reported the ids unowned — which is exactly what it reports when nobody
+     * wrote the test. So the two forms are asserted against the tree, not assumed.
+     */
+    const bracketed = [...owners.keys()].filter((id) =>
+      (owners.get(id) ?? []).some((where) => where.endsWith('.ts') || where.includes('.ts ::')),
+    );
+    expect(bracketed.length, 'no TypeScript test claims any id').toBeGreaterThan(50);
+
+    const fromPython = [...owners].filter(([, where]) =>
+      where.some((entry) => entry.includes('.py ::')),
+    );
+    expect(
+      fromPython.map(([id]) => id).sort(),
+      'the pytest scan found no claims. tools/coursekit/tests carries INV-PACK-15 and ' +
+        'INV-AUD-08 in its `def test_inv_…` names; if this is empty the scanner is broken, ' +
+        'not the tests.',
+    ).toEqual(['INV-AUD-08', 'INV-PACK-15']);
+    // And the id it built is the registry's spelling, zero-padding included.
+    for (const [id] of fromPython) expect(registry.has(id)).toBe(true);
   });
 
   it('no test claims an invariant id that is not in the registry', () => {
@@ -136,7 +202,9 @@ describe.skipIf(UNDER_STRYKER)('P1 phase roster', () => {
     // − deferrals, so this is one number a reader can check against the plan's P1 row.
     const p0Only = baseline.filter((id) => !roster.required.includes(id));
     expect(sortIds(p0Only)).toEqual(['INV-PLAT-01', 'INV-PLAT-02']);
-    expect(union.owned.length).toBe(roster.expected.length);
-    expect(sortIds(union.owned)).toEqual(roster.expected);
+    // P1 files only: the count is a statement about P1, and it must not move when a P2
+    // lane lands a claim of its own. See `ROSTER_PHASES`.
+    expect(p1Union.owned.length).toBe(roster.expected.length);
+    expect(sortIds(p1Union.owned)).toEqual(roster.expected);
   });
 });

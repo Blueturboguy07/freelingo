@@ -37,25 +37,37 @@ const REGISTRY_PATH = 'docs/invariants.md';
 const OWNED_PATH = 'docs/invariants-owned.json';
 /** One file per task, unioned with OWNED_PATH. See the header. */
 const OWNED_DIR = 'docs/owned';
+/**
+ * Roots the test scan walks.
+ *
+ * `tools` is here because the content pipeline is Python and the `C`-kind invariants live
+ * only there: INV-PACK-13/15/17/40/51 and INV-AUD-08 are properties of a produced pack or
+ * bank, so their owning tests are pytest tests under `tools/coursekit/tests/`. While this
+ * array was TypeScript-only those ids were unownable by construction — a lane could write
+ * the tests, own the ids, and be told by the only gate that can see them that they had no
+ * owning test.
+ */
 const TEST_ROOTS = ['packages', 'apps', 'e2e', 'tools'];
+/** Vitest (`*.test.ts`), Maestro (`*.yaml`) and pytest (`test_*.py`, `*_test.py`). */
 const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$|\.ya?ml$|^test_.*\.py$|_test\.py$/;
 /** A test file the Python claim reader handles rather than the JavaScript one. */
 const PYTHON_TEST_FILE = /\.py$/;
 /**
  * Directory names the walk never enters, wherever they appear.
  *
- * The last four arrived with `tools/`. A coursekit `.venv` carries thousands of installed
- * `test_*.py` files — spaCy's own suite among them — and whether some vendored test
- * mentions an invariant id is not a thing this gate may have an opinion about.
+ * The last four arrived with `tools/`, and `.venv` is load-bearing rather than tidiness:
+ * `tools/coursekit/.venv` holds thousands of installed `test_*.py` files — spaCy's own
+ * suite among them — and a wheel's own suite must never be able to supply coverage for an
+ * id this repo never tested.
  */
 const SKIP_DIRS = new Set([
   'node_modules',
   'dist',
   'artifacts',
   '.venv',
-  '.ruff_cache',
-  '.pytest_cache',
   '__pycache__',
+  '.pytest_cache',
+  '.ruff_cache',
 ]);
 /**
  * The generated native trees (INV-PLAT-02), skipped by PATH rather than by name.
@@ -130,7 +142,7 @@ const LEADING_CLAIM = /^[ \t]*\[(INV-[A-Z0-9]+-\d+)\]/;
  * is the exact failure this gate exists to prevent. Module docstrings and assertion
  * messages are outside a `def` and are never read at all, for the same reason.
  */
-export function claimedIdsInPython(source: string): Map<string, string[]> {
+export function claimedIdsInPythonDocstring(source: string): Map<string, string[]> {
   const claims = new Map<string, string[]>();
   let match: RegExpExecArray | null;
   PYTHON_TEST_DEF.lastIndex = 0;
@@ -142,6 +154,66 @@ export function claimedIdsInPython(source: string): Map<string, string[]> {
       addClaim(claims, leading[1]!, `${name} :: ${rest.split('\n')[0]!.trim()}`);
       rest = rest.slice(leading[0].length);
     }
+  }
+  return claims;
+}
+
+/**
+ * `test_inv_aud_08_…` or `test_INV_PACK_40_…` -> the pair `('aud', '08')` / `('PACK', '40')`.
+ *
+ * Anchored on `_` or start-of-name rather than on `\b`: in `test_inv_aud_08_…` the
+ * character before `inv` is an underscore, which IS a word character, so `\binv_` matches
+ * nothing at all. A scanner written that way walks every pytest file, finds zero claims
+ * and reports every id unowned — a gate that looks right and answers "no" to everything.
+ * `--self-test` pins it.
+ *
+ * Case-insensitive because both spellings are in the tree and both are deliberate: the
+ * bake lane writes `test_inv_aud_08_…` (what `pytest -k inv_aud_08` selects), the ledger
+ * and licence lanes write `test_INV_PACK_40_…` (what the id looks like). Reading only one
+ * would silently un-own half of P2.
+ */
+const PYTHON_CLAIM = /(?:^|_)inv_([a-z0-9]+)_(\d+)(?=_|$)/gi;
+
+/**
+ * Ids as they appear in a **pytest** test NAME, e.g. `def test_inv_aud_08_…`.
+ *
+ * A Python identifier cannot hold `[` or `-`, so `INV-AUD-08` has no literal spelling in a
+ * `def`. The snake form is the one that is genuinely a NAME: pytest prints
+ * `tests/test_cast.py::test_inv_aud_08_the_rebake_key_includes_the_engine` and
+ * `pytest -k inv_aud_08` selects it.
+ *
+ * The digits are read verbatim, so `inv_aud_08` is `INV-AUD-08`, never `INV-AUD-8` — a
+ * zero dropped here would become an id the registry does not carry, which this gate
+ * reports as a typo rather than as coverage.
+ */
+export function claimedIdsInPythonName(source: string): Map<string, string[]> {
+  const claims = new Map<string, string[]>();
+  const pythonDef = /^[ \t]*(?:async[ \t]+)?def[ \t]+(test_[A-Za-z0-9_]*)[ \t]*\(/gm;
+  let match: RegExpExecArray | null;
+  while ((match = pythonDef.exec(source)) !== null) {
+    const name = match[1] ?? '';
+    for (const claim of name.matchAll(PYTHON_CLAIM)) {
+      addClaim(claims, `INV-${claim[1]!.toUpperCase()}-${claim[2]!}`, name);
+    }
+  }
+  return claims;
+}
+
+/**
+ * A Python test claims an id **two ways, and both count**: in its `def` name, and in the
+ * bracketed ids leading its docstring. This is a merge of two lanes that each invented a
+ * convention, and dropping either one would un-own real tests rather than settle a style
+ * argument — `tools/coursekit/tests/test_cast.py` uses only the name form,
+ * `tools/coursekit/tests/test_licences.py` leads with the docstring, and several files use
+ * both on the same test.
+ *
+ * Neither reader can turn prose into coverage: the name reader ignores docstrings entirely
+ * and the docstring reader reads only the LEADING brackets of a test's own docstring.
+ */
+export function claimedIdsInPython(source: string): Map<string, string[]> {
+  const claims = claimedIdsInPythonName(source);
+  for (const [id, names] of claimedIdsInPythonDocstring(source)) {
+    for (const name of names) addClaim(claims, id, name);
   }
   return claims;
 }
@@ -352,12 +424,15 @@ function selfTest(): void {
     '    assert True  # no docstring, claims nothing',
     '',
   ].join('\n');
-  const claimed = claimedIdsInPython(python);
-  const gotPython = [...claimed.keys()].sort().join(',');
+  const claimedDocstring = claimedIdsInPythonDocstring(python);
+  const gotPython = [...claimedDocstring.keys()].sort().join(',');
   if (gotPython !== 'INV-DAY-01,INV-ECO-01,INV-ECO-02') {
     failures.push(
       `python claims must be the LEADING bracketed ids of a test docstring, got ${gotPython}`,
     );
+  }
+  if ([...claimedIdsInPython(python).keys()].sort().join(',') !== gotPython) {
+    failures.push('the union must not invent a claim the docstring reader did not make');
   }
   if (claimedIdsInTypeScript(python).size !== 0) {
     failures.push('the JavaScript reader must find nothing in a Python file');
@@ -365,6 +440,39 @@ function selfTest(): void {
   const typescript = claimedIdsInTypeScript(`it('[INV-DAY-01] streak', () => {});`);
   if ([...typescript.keys()].join(',') !== 'INV-DAY-01') {
     failures.push('the JavaScript reader regressed');
+  }
+
+  /*
+   * The name reader, against the exact failure it shipped with once.
+   *
+   * `\binv_` matches nothing in `test_inv_aud_08_…` (the preceding `_` is a word
+   * character), so a scan written that way walks every pytest file and returns an empty
+   * map — and an empty map is indistinguishable, in the printed report, from "nobody wrote
+   * the test". A commented-out `def` and a `helper_…` are not tests, and the uppercase
+   * spelling is read too, because both are in the tree.
+   */
+  const pythonNames = [
+    'def test_inv_aud_08_the_rebake_key_includes_the_engine() -> None:',
+    '    """[INV-PACK-15] a leading docstring id is ALSO a claim, by the union below."""',
+    'async def test_inv_a11y_04_every_type_answers_in_the_tree():',
+    '    pass',
+    'def test_INV_PACK_40_no_consumer_inlines_a_token() -> None:',
+    '    assert True',
+    '# def test_inv_day_01_commented_out():',
+    'def helper_inv_sch_09_not_a_test():',
+  ].join('\n');
+  const byName = [...claimedIdsInPythonName(pythonNames).keys()].sort().join(',');
+  if (byName !== 'INV-A11Y-04,INV-AUD-08,INV-PACK-40') {
+    failures.push(
+      `python NAME claims: expected INV-A11Y-04,INV-AUD-08,INV-PACK-40, got "${byName}"`,
+    );
+  }
+  const byBoth = [...claimedIdsInPython(pythonNames).keys()].sort().join(',');
+  if (byBoth !== 'INV-A11Y-04,INV-AUD-08,INV-PACK-15,INV-PACK-40') {
+    failures.push(`the union of both python readers regressed, got "${byBoth}"`);
+  }
+  if (claimedIdsInPython('"""[INV-DAY-01] a module docstring is not a test."""').size !== 0) {
+    failures.push('a module docstring must not count as a Python claim');
   }
 
   if (failures.length > 0) {
