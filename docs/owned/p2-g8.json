@@ -1,0 +1,50 @@
+{
+  "$comment": "Invariant ids the P2 task `p2-g8-bake` turns green in tools/coursekit. The integrate task merges these into docs/invariants-owned.json.",
+  "task": "p2-g8-bake",
+  "module": "tools/coursekit (stages/g8_bake.py, tts/, validators/audio.py)",
+  "phase": "P2",
+  "screens": ["S002", "S038", "S133"],
+  "owned": ["INV-PACK-15", "INV-AUD-08"],
+  "owningTests": {
+    "INV-PACK-15": [
+      "tools/coursekit/tests/test_g8_bake.py::test_the_manifest_charges_every_pipeline",
+      "tools/coursekit/tests/test_g8_bake.py::test_the_manifest_carries_codec_bitrate_and_total_bytes",
+      "tools/coursekit/tests/test_g8_bake.py::test_the_budget_has_a_bitrate_beside_it",
+      "tools/coursekit/tests/test_validators_audio.py::test_a_lessons_only_manifest_is_blocking",
+      "tools/coursekit/tests/test_validators_audio.py::test_over_budget_is_blocking",
+      "tools/coursekit/tests/test_validators_audio.py::test_a_manifest_with_no_codec_row_is_blocking"
+    ],
+    "INV-AUD-08": [
+      "tools/coursekit/tests/test_cast.py::test_the_rebake_key_includes_the_engine",
+      "tools/coursekit/tests/test_cast.py::test_the_rebake_key_includes_the_engine_pin",
+      "tools/coursekit/tests/test_cast.py::test_the_rebake_key_changes_with_voice_rate_text_and_loudness",
+      "tools/coursekit/tests/test_g8_bake.py::test_a_real_clip_survives_the_whole_chain",
+      "tools/coursekit/tests/test_g8_bake.py::test_loudness_is_measured_on_the_decoded_file",
+      "tools/coursekit/tests/test_validators_audio.py::test_a_drifted_clip_is_blocking",
+      "tools/coursekit/tests/test_validators_audio.py::test_a_clip_baked_by_another_engine_is_blocking",
+      "tools/coursekit/tests/test_loudness.py::test_the_meter_hits_the_bs1770_calibration_point"
+    ]
+  },
+  "falsifiers": [
+    "tools/coursekit/tests/falsifiers/INV-PACK-15.json",
+    "tools/coursekit/tests/falsifiers/INV-AUD-08.json"
+  ],
+  "validators": {
+    "V7": "every renderable string has audio, every audio file has a string, durations are sane — tools/coursekit/src/coursekit/validators/audio.py::string_audio_join",
+    "F2": "INV-PACK-15 — codec, bitrate and total bytes against the declared budget, all three pipelines — tools/coursekit/src/coursekit/validators/audio.py::audio_budget"
+  },
+  "heldWithoutAnInvariantId": [
+    "The cast decisions in content/es/cast.yaml are asserted, not trusted: test_cast.py::test_the_cast_records_r15_as_a_decision_not_a_table_cell reads the file and fails if D-CAST-ES-01 (the locale claim) or the INV-AUD-08 decision is deleted. A recorded founder decision that a later edit can silently remove is not recorded.",
+    "The Kokoro Spanish roster is asserted against the REAL voice pack when the tts group and the weights are present (test_cast.py::test_kokoro_ships_three_spanish_voices_and_the_cast_knows_it), so a fourth Spanish voice re-opens D-CAST-ES-02 with a red test rather than by luck.",
+    "R7 is enforced in code, not in a comment: tts/piper.py::build raises ForbiddenSource for ja — the same exception the ingest allow-list raises for TED2020, because it is the same NC decision. test_cast.py::test_piper_refuses_japanese.",
+    "The loudness meter is calibrated against BS.1770's own point (a 1 kHz sine at -20 dBFS RMS reads -20 LUFS, and the derived 48 kHz coefficients reproduce the published table to eleven places). An uncalibrated meter reports a number every clip agrees with and no standard does.",
+    "The pinned Kokoro weights are checked by size and sha256 before the model is loaded. This caught a truncated 44 MB download on its first real run."
+  ],
+  "notOwnedHere": {
+    "INV-AUD-01": "audio availability resolved at session generation — packages/core, P3",
+    "INV-AUD-02": "an unavailable audio control greys with a reason — UI, P3",
+    "INV-AUD-03/04/07": "story karaoke alignment and keypoints — P6",
+    "INV-PACK-17": "the credits surface S152 — P4",
+    "INV-PACK-55": "the pack detail screen rendering the engine fields — P4 UI, though the manifest fields it renders are written here"
+  }
+}

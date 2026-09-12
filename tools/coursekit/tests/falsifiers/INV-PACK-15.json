@@ -1,0 +1,47 @@
+{
+  "invariant": "INV-PACK-15",
+  "why": "the named falsifier: a manifest that fits the budget only because two of the three pipelines are missing from it — review R14's finding, which is that the inherited cost model counted lessons only while Stories and Radio ride the same cast and the same budget",
+  "source": ["EC-PACK-15", "EC-PACK-16"],
+  "owner": "p2-g8-bake",
+  "input": {
+    "budgetMb": 120,
+    "bitrateKbps": 20,
+    "lessonsOnly": {
+      "pipelines": {
+        "lesson": { "baked_bytes": 50000000, "reserved_bytes": 50000000 }
+      },
+      "declared_bytes": 50000000,
+      "note": "50 MB against a 120 MB budget looks comfortable, and is the exact shape of the estimate R14 refuted: two of the three denominators are absent"
+    },
+    "allThree": {
+      "pipelines": {
+        "lesson": { "baked_bytes": 50000000, "reserved_bytes": 50000000 },
+        "story": { "baked_bytes": 0, "reserved_bytes": 27000000 },
+        "radio": { "baked_bytes": 0, "reserved_bytes": 21000000 }
+      },
+      "declared_bytes": 98000000
+    },
+    "overBudget": {
+      "pipelines": {
+        "lesson": { "baked_bytes": 90000000, "reserved_bytes": 50000000 },
+        "story": { "baked_bytes": 0, "reserved_bytes": 27000000 },
+        "radio": { "baked_bytes": 0, "reserved_bytes": 21000000 }
+      },
+      "declared_bytes": 138000000,
+      "note": "a lesson bank that outgrew its reservation is charged what it costs, not what it was promised"
+    },
+    "noCodecRow": {
+      "codec": null,
+      "bitrate_kbps": null,
+      "note": "R13: 8,000 utterances inside 35-40 MB is 4.4 KB each; a budget with no codec and no bitrate beside it cannot be argued with, which is how the impossible figure survived"
+    }
+  },
+  "mustNotBe": "a manifest passing the budget gate while the story or radio pipeline is absent (an implicit zero the lesson bank then grows into); a declared_bytes that is not the sum of max(baked, reserved) over all three pipelines; a manifest with no codec or no bitrate; or a total over the declared budget reported as green",
+  "usedBy": [
+    "tests/test_validators_audio.py::test_a_lessons_only_manifest_is_blocking",
+    "tests/test_validators_audio.py::test_over_budget_is_blocking",
+    "tests/test_validators_audio.py::test_a_manifest_with_no_codec_row_is_blocking",
+    "tests/test_g8_bake.py::test_the_manifest_charges_every_pipeline"
+  ],
+  "addedBy": "p2-g8-bake"
+}

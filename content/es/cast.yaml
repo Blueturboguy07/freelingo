@@ -1,0 +1,169 @@
+# Freelingo — Spanish voice cast (G8 bake)
+#
+# Content packs are CC BY-NC-SA 4.0. The voices below are Kokoro v1.0 style vectors,
+# Apache-2.0 for both code and weights, so nothing in this file constrains the pack
+# licence — but the licence rides on the clip record anyway (a voice engine's code
+# licence is not its voices' licence; review R7 is the whole reason that rule exists).
+#
+# This file is the cast contract. `coursekit bake es` reads it, the re-bake key is
+# computed over it, and `content/es/audio-manifest.json` records what came out.
+
+schema_version: 1
+language: es
+
+# EC-PACK-17: one locale per course. Read the decision below before treating this as a
+# property of the voices — it is a property of the COURSE.
+locale: es-ES
+
+engine: kokoro
+engine_licence: Apache-2.0
+engine_version_pin: model-files-v1.0
+engine_note: >-
+  Build time only (D3). The synthesiser never links into the app; the app plays baked
+  Opus and falls back to the device system voice, which is why INV-AUD-01 resolves
+  availability at session generation rather than at render.
+
+# ---------------------------------------------------------------------------
+# Decisions — each one founder-visible, none of them an accident
+# ---------------------------------------------------------------------------
+
+decisions:
+  - id: D-CAST-ES-01
+    title: The declared locale is the course's claim, not the vendor's
+    review: R15
+    finding: >-
+      R15 found the proposed Polly cast mixing es-ES and es-MX voices inside one course
+      without saying so — a learner hearing distinción from the narrator and seseo from
+      two of three characters while the same screen claims a CEFR band. The Kokoro cast
+      does not mix locales; it is worse in a different way, and the honest version of
+      the same finding is this: Kokoro publishes NO locale sub-tag for its Spanish
+      voices at all. `ef_dora`, `em_alex` and `em_santa` are tagged `e` (Spanish) and
+      nothing finer, and Kokoro's G2P path for Spanish is generic espeak-ng `es`
+      (misaki first-classes only en, ja, ko, zh, vi), so no Peninsular phonology is
+      asserted anywhere in the toolchain.
+    decision: >-
+      `locale: es-ES` stays, as the EC-PACK-17 ruling requires, and it is recorded here
+      as a claim the COURSE makes about its content — the curriculum, the orthography
+      and the accepted-answer sets — and NOT a claim about the accent of the voices. A
+      native-reviewer sample (300 items, ≤2% wrong-item gate) is the thing that can
+      falsify it, and the accent question is explicitly on that reviewer's sheet.
+    consequence_if_overridden: >-
+      Overriding this to "accent verified" costs a second vendor: the only way to buy a
+      declared es-ES voice in this environment is a cloud key that does not exist here.
+
+  - id: D-CAST-ES-02
+    title: Four roles, three stock voices, two declared blends
+    finding: >-
+      Measured, not read: `voices-v1.0.bin` holds 54 style vectors, of which exactly
+      three are Spanish — `ef_dora` (F), `em_alex` (M), `em_santa` (M, an aged-character
+      voice). One of the three is female. A four-role cast with two female roles
+      therefore cannot be four stock voices, and the shortfall is not a spare voice but
+      a spare FEMALE voice.
+    decision: >-
+      Two roles take a stock vector (`narrator` = ef_dora, `adult_male` = em_alex). The
+      other two take deterministic blends of stock vectors at declared weights plus a
+      declared rate. A blend is a real timbre change and is reproducible to the bit
+      (w1·v1 + w2·v2 in float32), which a rate change alone is not — EC-PACK-18 accepted
+      prosody as the only lever for Japanese, and this is the same problem one rung
+      better. All three stock vectors are used; none is cast against its own gender tag.
+    consequence_if_overridden: >-
+      Dropping to three roles collapses `young` into `adult_male` and every generated
+      dialogue loses a speaker; casting `em_santa` unblended as the adult female puts a
+      male character vector behind a female name. The only other way out is a cloud
+      voice and a key that does not exist in this environment.
+
+  - id: D-CAST-ES-03
+    title: The re-bake key includes the engine, not only the voice
+    invariant: INV-AUD-08
+    source: EC-PACK-52
+    decision: >-
+      A clip's id is a hash over (schema, language, engine, engine pin, voice spec,
+      rate, codec, bitrate, target loudness, text). Two clips identical in every way
+      except the engine that synthesised them are DIFFERENT clips and get different
+      ids, so an engine swap re-bakes the bank instead of silently reusing it. A
+      character's engine, not only its voice, is part of the fixed-voice contract.
+
+# ---------------------------------------------------------------------------
+# The cast
+# ---------------------------------------------------------------------------
+#
+# `weights` maps a Kokoro voice id to its share of the blended style vector. A single
+# entry at 1.0 is a stock voice. Weights must sum to 1.0.
+# `rate` is Kokoro's `speed` parameter: 1.0 is the model's own pace.
+
+roles:
+  - id: narrator
+    display_name: Plumas
+    description: >-
+      The parrot. The mascot's voice and the default drill voice: what a listening
+      exercise (S038) plays when no character is speaking, and what `Tap what you hear`
+      and `Type what you hear` are graded against. The only role that takes the one
+      Spanish female vector unblended, because it is the role whose intelligibility the
+      whole course rests on.
+    role_gender: female
+    weights:
+      ef_dora: 1.0
+    rate: 1.0
+    stock: true
+
+  - id: adult_male
+    display_name: Mateo
+    description: Adult male character in dialogue exercises and story beats.
+    role_gender: male
+    weights:
+      em_alex: 1.0
+    rate: 1.0
+    stock: true
+
+  - id: adult_female
+    display_name: Rosa
+    description: >-
+      Adult female character. `ef_dora` is already the narrator, so a second female
+      role cannot be a stock voice without being the same person. This is a
+      female-dominant blend, slightly slower, distinguishable from the narrator in a
+      two-speaker scene.
+    role_gender: female
+    weights:
+      ef_dora: 0.70
+      em_santa: 0.30
+    rate: 0.98
+    stock: false
+    caveat: >-
+      A blend is the second-best answer; the best is a second female Spanish vector,
+      which this roster does not have. The reviewer sample asks about this row
+      specifically — whether Rosa reads as a different speaker from Plumas. If she does
+      not, the fix is a different blend or a second vendor, never a silent swap: a voice
+      change re-bakes every line by this character (D-CAST-ES-03).
+
+  - id: young
+    display_name: Nico
+    description: >-
+      The young character. A declared blend: lighter than `em_alex` alone and faster,
+      so it is distinguishable from both adult voices in a three-speaker beat.
+    role_gender: male
+    weights:
+      em_alex: 0.55
+      ef_dora: 0.45
+    rate: 1.08
+    stock: false
+
+# ---------------------------------------------------------------------------
+# Loudness and codec — the shipped contract (INV-AUD-08, INV-PACK-15)
+# ---------------------------------------------------------------------------
+
+loudness:
+  target_lufs: -16.0
+  tolerance_lu: 0.5
+  algorithm: ITU-R BS.1770-4, K-weighted, gated
+  measured_on: the decoded Opus file, never the PCM that went into the encoder
+  why: >-
+    EC-PACK-52 is a voice bank averaging -19.6 LUFS playing into a sting bank mastered
+    at -16. `deep/08` §12 fixes the sound bank at -16 LUFS; the voice bank takes the
+    same target so a correct-answer cue and the line before it sit at one level.
+
+codec:
+  name: opus
+  bitrate_kbps: 20
+  encoder: opusenc (opus-tools)
+  container: OggOpus
+  channels: 1
