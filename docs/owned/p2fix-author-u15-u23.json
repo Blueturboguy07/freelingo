@@ -1,0 +1,107 @@
+{
+  "$comment": "P2 fix lane: author every gap slot in Spanish units 15-23. The lane's product is content/es/candidates/u15-u23.jsonl — 2,200 candidates over 110 gap slots, 20 per slot. This file records what the shard is keyed to, how it was verified, what was measured about the pinned lemmatiser, and the one lemma in this range that cannot be authored at all.",
+  "phase": "P2",
+  "task": "p2fix-author-u15-u23",
+  "branch": "p2fix/author-u15-u23",
+  "module": "content/es",
+  "owned": [],
+  "claimedButNotYetGreen": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
+  "whyOwnedIsEmpty": "An authoring lane owns no test. INV-PACK-06 is V1-V4 at 100%, INV-PACK-08 is V6's register check, INV-PACK-10 is the no-repair-path scan over the generator; all three are asserted by tools/coursekit tests that p2-g5-g6-gapfill-language already owns (docs/owned/p2-g5-g6.json), and all three are measured over a BUILT pack. This lane turns them green by supplying content those validators can run on, not by adding a test. A test here asserting that a JSONL file parses would be the 'owning test that proves nothing' the plan's rule 4 is written against.",
+  "product": {
+    "path": "content/es/candidates/u15-u23.jsonl",
+    "rows": 2200,
+    "slots": 110,
+    "candidatesPerSlot": 20,
+    "distinctTexts": 2200,
+    "bytes": 1170762,
+    "perUnit": {
+      "15": { "slots": 23, "rows": 460 },
+      "16": { "slots": 8, "rows": 160 },
+      "17": { "slots": 17, "rows": 340 },
+      "18": { "slots": 15, "rows": 300 },
+      "19": { "slots": 25, "rows": 500 },
+      "20": { "slots": 5, "rows": 100 },
+      "22": { "slots": 3, "rows": 60 },
+      "23": { "slots": 14, "rows": 280 }
+    },
+    "unit21": "Unit 21 has no gap slots — the corpus filled all 54 — so nothing is authored for it. G3 also resolves unit 21 to a SINGLE target lemma ('que'), because every one of its 33 authored target_lexemes is a reflexive infinitive and the pinned lemmatiser strips the clitic, so target_lexemes ∩ lexicon is empty and the unit falls back by rank. That is a curriculum defect for another lane; it is not this shard's to fix and inventing slots for it would be an orphan-authored-slot stage failure.",
+    "rowShape": "slot, ledger_digest, new_lemmas, text, translation, author, generated_at, provenance, backtranslation{back_translation,judged_by,rubric_version,score[,note]}, introduces",
+    "whyLedgerDigestAndNotAllowedLemmas": "The lane was briefed against the older contract, in which a row carries `allowed_lemmas` and G5 compares it as a set. p2fix-ledger-freeze replaces that with `ledger_digest` — 16 hex characters of sha256 over the sorted `known | new` set joined by U+001F — and drops `allowed_lemmas` from G5's required keys. This shard carries the digest. Measured reason: the window at these units is 460-711 lemmas, and spelling it out on 2,200 rows made the file 13.9 MB against 1.2 MB with the digest, for the same claim and a witness that cannot be edited into agreement."
+  },
+  "theGapListThisShardIsKeyedTo": {
+    "authority": "content/es/authoring/gap-brief.jsonl (lane p2fix-ledger-freeze), header generated_at 2026-09-12T10:12:17+00:00, g4_run_id 8db636fb85db4b9ebc3ed2ff6c7004e2, gap_slots 490, max_pairs 200000, ingested 276203, header digest e1dcba859bdfe9aa157b14d130d692bec1bf72041624b0921c0ea99733adfbbe; file sha256 f916cb7c3156d335fb16fd15c4c329e4a491aafe22f2f070f2b2d274d00ac142.",
+    "howTheShardWasKeyedBeforeThatFileExisted": "The brief did not exist when the authoring started, and both halves of G5's stale_ledger axis are per-slot outputs of a G4 run. So the lane derived the list: a scratchpad replay imported coursekit.stages.g4_select and called the stage's own build_candidates, _Admissible, _pick, _split_new_lemmas and concept probes over the local build/es/{g0,g1,g3} artefacts, changing only the `if choice is None` branch to the shape p2fix-ledger-freeze was landing — new_lemmas = pending[:MAX_NEW_LEMMAS_PER_EXERCISE], known_lemmas = sorted(index.known - set(gap_new)), then shown.update(gap_new) and lesson_new.update(gap_new).",
+    "theReplayWasThenCheckedAgainstTheAuthority": "Exact match. 490 slots against 490, the same slot set, and for all 490: identical new_lemmas and identical ledger_digest. 0 mismatches of either. So the shard is keyed to the frozen brief, not merely to something near it.",
+    "theFindingThatMattersToThePhase": "Recording the reserved lemma as SHOWN — which the fix must do, or nine gap slots in a lesson all declare the same new word — shrinks `pending`, which makes `len(pending) < SLOTS_PER_LESSON - slot_index` true more often, which sends more slots to the second _pick (require_new=False) and fills them from the corpus. Course-wide: 920 gap slots before the fix, 490 after (the frozen brief's own number). Units 15-23: 226 before, 110 after, and the 110 are a strict SUBSET of the 226. The phase's authoring budget for these units is therefore 2,200 candidates and not the briefed 4,520 — and unlike the 226, every one of the 110 is fillable, because before the fix a gap row's permitted vocabulary was the empty set."
+  },
+  "howItWasVerified": {
+    "method": "A scratchpad verifier re-reads the committed shard from disk, re-lemmatises every text with the pinned es_core_news_md, re-derives each digest from the brief, and applies G5's five axes in G5's order (stale_ledger, out_of_vocabulary, new_lemma_budget, length, duplicate) plus the two stage verdicts (thin slots, orphan slots) and the cross-shard (slot, text) collision rule. It shares no code with the emitter.",
+    "resultAgainstTheFrozenBrief": {
+      "rows": 2200,
+      "slotsAuthored": 110,
+      "gapSlotsInBriefForTheseUnits": 110,
+      "accepted": 2200,
+      "acceptedRate": 1.0,
+      "rejectedByAxis": {},
+      "rowsMissingARequiredKey": 0,
+      "rowsWithWrongProvenance": 0,
+      "rowsWithNoRubricScoreInRange": 0,
+      "thinSlots": 0,
+      "unfilledGapSlots": 0,
+      "orphanAuthoredSlots": 0,
+      "duplicateSlotTextPairs": 0,
+      "distinctTexts": 2200
+    },
+    "rubricScores": { "4": 1389, "3": 811, "2": 0, "1": 0, "0": 0 },
+    "whyNoTwos": "The rubric's ship line is 3, and a candidate scored below it is discarded by G6 rather than shipped, so a shard deliberately contains none. The 3/4 split is not a rubber stamp: 811 rows are 3 because their English loses something the Spanish marks — the tu/usted distinction English cannot carry, `hacer` + noun where English needs an adjective, the Spanish definite article where English is generic, `de X` where English uses a possessive, `sino` where English has only `but`, `atender el teléfono` and `invitar` used absolutely. Every one of those carries a `note` on the row saying which.",
+    "whatItCannotCheck": "That the Spanish is good Spanish and the English is what the Spanish says. Nothing in this environment can check that: there is no translation model and no native speaker. The rubric score on every row is this agent's own judgement against content/es/gapfill-rubric.md, which that file itself calls a floor on quality rather than a measurement of it. The ≤2% wrong-item native sample at the end of P2 is the measurement, and these 110 slots should be represented in it."
+  },
+  "howTheContentWasAuthored": {
+    "shape": "Hand-written sentence FRAMES per unit — a Spanish template, the English a learner is shown, the rubric score for that pair, and the unit lexeme the frame exists to teach — crossed with hand-written filler pools. 269 frames over the eight units, expanded to 41,600 distinct candidate sentences, of which the vocabulary, new-item and length axes admit the 2,200 that ship.",
+    "whyFramesAndNotFreeText": "2,200 sentences inside a per-slot vocabulary window, each carrying at most one specific new lemma, every text distinct across the whole shard. Frames make the grammar the constant and the vocabulary the variable, which is what a lesson slot wants, and they make the concept auditable: the concept is a property of the frame rather than of 2,200 separate judgements.",
+    "conceptPerUnit": "u15 prepositions_place — every frame carries a place preposition or a direction verb, and the register slot (binary_t_v) is exercised by matched `Usted` + third person against `Tú` + second person. u16 time_expressions — clock times, days, frequency and sequence adverbs. u17 weather_impersonal — hace/hay/llueve/nieva/está plus weather, outdoors. u18 noun_number_agreement — a plural noun with an agreeing adjective in every frame, plus singular frames for the first lessons whose window has not reached the unit's own nouns. u19 ir_a_future — forward-looking `ir`/`venir` plus the planning verbs. u20 negation_no — nada/nadie/ninguno/ni/jamás/apenas and the contrastive pair. u22 demonstratives — este/ese/aquel against garment and colour, agreeing in gender and number. u23 formal_informal_address — every frame is one half of a tú/usted pair, and a title never appears with tú.",
+    "generateAndReject": "A filler combination producing `de el` is DISCARDED, not rewritten to `del`: `del` is a unit-24 lexeme with its own lemma under this model, so the combination is outside the window and the next combination is the resample. Same for every candidate a re-lemmatisation puts outside the window. Nothing in the authoring path edits a text to make it pass — INV-PACK-10, one level above the stage the invariant is written about.",
+    "defectsFoundByReadingTheOutputAndFixed": [
+      "`{PER_en}'s {D_en}` produced \"my grandfather's the report\", because the filler's English carried its article. Six frames now draw from article-free English pools.",
+      "`El clima de la calle es lluvioso.` — a climate, a temperature range, a sea breeze and a fog bank belong to a region, not to a street. Six frames now draw from a regions pool.",
+      "`Tú paras hasta la entrada.` — `parar/girar/doblar/torcer/cruzar + hasta` is not Spanish. The unit-15 verbs are split into a motion set that takes `hasta` and a turning set that takes `en`.",
+      "17 slots whose twenty candidates all avoided the one lemma the slot exists to teach, because the first lessons of a unit have a window containing almost none of the unit's own vocabulary. Early-window frames put the new lemma with objects from units 1-14 only. One slot still has none, for the reason below."
+    ]
+  },
+  "measuredFindingsForOtherLanes": [
+    {
+      "for": "p2-g1-g2-analyze-band and p2-g3-g4-curriculum",
+      "severity": "content defect",
+      "finding": "`helada` cannot be authored into this pack at all. es_core_news_md lemmatises it to `helado` ('Hay helada en la ciudad hoy.' -> ('helada','helado','ADJ')) and `helado` is in no unit's target lexemes, so every sentence containing the word fails out_of_vocabulary. Unit 17 reserves slot u17/l98/s8 to teach it. That slot's twenty candidates exercise the concept instead and teach nothing new; it is the one slot in this shard with no teaching candidate. Spelling the word differently to make it pass would be the repair path INV-PACK-10 forbids."
+    },
+    {
+      "for": "p2-g3-g4-curriculum",
+      "severity": "content defect",
+      "finding": "Spanish imperatives are not lemmatised by the pinned model: `Siga`->'siga', `Gire`->'gire', `Pare`->'parir', `Tuerce`->PROPN 'Tuerce', `Disculpe`->'disculpe'. Unit 15's function is 'giving and following directions' and its register slot is binary_t_v, so the natural sentence for it is an imperative and not one of them can pass the vocabulary axis. This shard exercises the register with `Usted` + third person against `Tú` + second person, which the model does resolve. A course whose imperatives are unauthorable is a curriculum fact worth a decision rather than a second workaround."
+    },
+    {
+      "for": "p2-g3-g4-curriculum",
+      "severity": "content defect",
+      "finding": "The preposition `a` is introduced in unit 24 and `un`/`una` in unit 30, so units 15-23 can use neither. Unit 19's concept is `ir_a_future` — `ir a` + infinitive — and the construction that names the unit cannot be written inside the unit's own window. Both families were authored (with `a` and without) and the window rejected the first, so unit 19 teaches forward-looking `ir` with a time or a companion instead of with an infinitive. The same gap kills the personal `a`, so `invitar` and `saludar` are authored absolutely."
+    },
+    {
+      "for": "p2-g1-g2-analyze-band",
+      "severity": "fact",
+      "finding": "Four lexemes these units authored are absent from the G2 lexicon and so are not target lemmas: `media` (u16), `paraguas` (u17), `encontrarse` (u15) and `equivocarse` (u20). Frames for them were removed rather than left to be rejected. The two reflexives go the same way as unit 21's whole inventory: the lemmatiser strips the clitic."
+    },
+    {
+      "for": "p2fix-ledger-freeze",
+      "severity": "fact",
+      "finding": "An independent replay of the fixed selection loop reproduces gap-brief.jsonl exactly — 490 slots, same slot set, same new_lemmas and same ledger_digest on every one. That is worth recording because it makes the brief re-derivable from the artefacts rather than only re-runnable from the command."
+    },
+    {
+      "for": "integrate",
+      "severity": "sequencing",
+      "finding": "The four authoring lanes were started in parallel with the lane that defines what they author against, and both halves of G5's stale_ledger axis are per-slot outputs of a build that lane has to run first. Authoring is a dependent phase of the freeze, not a parallel one. This shard exists only because the freeze's G4 change could be read off its working tree and replayed before its brief landed; that is not a repeatable way to run a wave."
+    }
+  ],
+  "gatesThisBranchTurnsRed": {
+    "$summary": "None. The branch adds one JSONL file under content/ and this file under docs/owned/, claims no invariant id in `owned`, and touches no TypeScript, no Python and no workflow.",
+    "measured": "On this branch, 2026-09-12: `pnpm lint` exit 0, `pnpm typecheck` exit 0, `pnpm test` 114 files / 1316 tests passed in 36.54s, exit 0."
+  }
+}
