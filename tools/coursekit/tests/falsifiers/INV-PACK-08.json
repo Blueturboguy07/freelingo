@@ -13,19 +13,12 @@
         "lesson_index": 1,
         "type": "translate",
         "prompt": "Translate this sentence\nWhat is your name?",
-        "accepted_answers": [
-          "¿Cómo se llama usted?"
-        ],
+        "accepted_answers": ["¿Cómo se llama usted?"],
         "distractors": [],
         "alignment": [],
         "item_tags": {
-          "lemmas": [
-            "como",
-            "llamar"
-          ],
-          "grammar_concepts": [
-            "question words"
-          ]
+          "lemmas": ["como", "llamar"],
+          "grammar_concepts": ["question words"]
         },
         "audio_ref": null,
         "register": "tu",
@@ -43,20 +36,12 @@
         "lesson_index": 1,
         "type": "translate",
         "prompt": "Translate this sentence\nYour house is your house, sir.",
-        "accepted_answers": [
-          "Tu casa es la casa de usted."
-        ],
+        "accepted_answers": ["Tu casa es la casa de usted."],
         "distractors": [],
         "alignment": [],
         "item_tags": {
-          "lemmas": [
-            "tu",
-            "casa",
-            "ser"
-          ],
-          "grammar_concepts": [
-            "possessives"
-          ]
+          "lemmas": ["tu", "casa", "ser"],
+          "grammar_concepts": ["possessives"]
         },
         "audio_ref": null,
         "register": "tu",
@@ -75,20 +60,12 @@
         "lesson_index": 1,
         "type": "translate",
         "prompt": "Translate this sentence\nWhat is your name?",
-        "accepted_answers": [
-          "¿Cómo te llamas?",
-          "¿Cuál es tu nombre?"
-        ],
+        "accepted_answers": ["¿Cómo te llamas?", "¿Cuál es tu nombre?"],
         "distractors": [],
         "alignment": [],
         "item_tags": {
-          "lemmas": [
-            "como",
-            "llamar"
-          ],
-          "grammar_concepts": [
-            "question words"
-          ]
+          "lemmas": ["como", "llamar"],
+          "grammar_concepts": ["question words"]
         },
         "audio_ref": null,
         "register": "tu",
@@ -109,18 +86,12 @@
         "lesson_index": 1,
         "type": "translate",
         "prompt": "Translate this sentence\nI moved house.",
-        "accepted_answers": [
-          "引っ越しました"
-        ],
+        "accepted_answers": ["引っ越しました"],
         "distractors": [],
         "alignment": [],
         "item_tags": {
-          "lemmas": [
-            "引っ越す"
-          ],
-          "grammar_concepts": [
-            "past polite"
-          ]
+          "lemmas": ["引っ越す"],
+          "grammar_concepts": ["past polite"]
         },
         "audio_ref": null,
         "register": "polite",

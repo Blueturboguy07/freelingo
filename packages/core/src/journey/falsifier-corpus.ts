@@ -123,10 +123,27 @@ export const EDGE_CASE_ID = /^EC-[A-Z0-9]+-\d+$/i;
 /**
  * Keys any lane may use for "what this input falsifies".
  *
- * Four lanes, four spellings. The sentence is what a reviewer reads against the invariant
- * text; which key it arrived under is not worth a red build.
+ * Twelve lanes now, eight spellings. The sentence is what a reviewer reads against the
+ * invariant text; which key it arrived under is not worth a red build. The last three
+ * arrived with P2's coursekit corpora — `$comment` (six files), `statement` and
+ * `why_this_corpus_exists` — and the alternative was eight otherwise-complete fixtures
+ * rejected over a key name, which teaches a lane to add `"why": "see $comment"` and
+ * teaches this gate nothing.
+ *
+ * Order matters: `firstString` takes the first key holding a non-empty STRING, so a file
+ * whose `falsifier` is an object of cases (INV-PACK-07/08/50) falls through to its prose
+ * key instead of being read as reasonless.
  */
-const REASON_KEYS = ['falsifier', 'why', 'case', 'what', 'note'] as const;
+const REASON_KEYS = [
+  'falsifier',
+  'why',
+  'case',
+  'what',
+  'note',
+  'statement',
+  'why_this_corpus_exists',
+  '$comment',
+] as const;
 /** Keys any lane may use for the invariant id. */
 const ID_KEYS = ['invariant', 'id'] as const;
 

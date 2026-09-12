@@ -663,9 +663,7 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
             owner: typeof parsed.owner === 'string' ? parsed.owner : '',
             licence,
             shareAlike:
-              typeof parsed.share_alike === 'boolean'
-                ? parsed.share_alike
-                : isShareAlike(licence),
+              typeof parsed.share_alike === 'boolean' ? parsed.share_alike : isShareAlike(licence),
             url: typeof parsed.url === 'string' ? parsed.url : null,
             items: typeof parsed.items === 'number' ? parsed.items : 0,
           };
@@ -743,7 +741,9 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
        */
       for (const credit of rendered) {
         if (credit.owner.trim() !== '') continue;
-        violations.push(`${CREDIT_LABELS[credit.kind]} ${credit.sourceId} requires attribution and names no owner`);
+        violations.push(
+          `${CREDIT_LABELS[credit.kind]} ${credit.sourceId} requires attribution and names no owner`,
+        );
       }
 
       return violations.sort();

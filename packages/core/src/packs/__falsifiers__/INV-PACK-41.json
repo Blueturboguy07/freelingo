@@ -3,9 +3,7 @@
   "source": "EC-PACK-38",
   "why": "Changing only a presentation field — ruby, audio hash, stroke path, illustration, accepted alternates, distractors — must leave every item id, and therefore every FSRS row, intact across a rebuild. The named falsifier is a ruby re-solve of 今日 orphaning its strength meter and re-showing NEW WORD; the P2 build half is a rebuild after a distractor swap that orphans the same meter. The last four cases are the other direction: an id that never moved would satisfy the first ten by returning a constant.",
   "rule": "Hash over prompt, preferred surface, the lexeme/concept/grapheme tags and register ONLY. Extra keys are dropped by the projection rather than hashed, which is what makes the falsifier impossible rather than merely unlikely.",
-  "usedBy": [
-    "packages/core/src/packs/loader.test.ts"
-  ],
+  "usedBy": ["packages/core/src/packs/loader.test.ts"],
   "check": {
     "module": "../loader.js",
     "export": "packItemId"
@@ -18,13 +16,8 @@
           "prompt": "¿Cómo estás?",
           "preferredSurface": "¿Cómo estás?",
           "register": "informal",
-          "lexemes": [
-            "estar",
-            "cómo"
-          ],
-          "grammarConcepts": [
-            "present-tense-questions"
-          ],
+          "lexemes": ["estar", "cómo"],
+          "grammarConcepts": ["present-tense-questions"],
           "graphemes": []
         }
       ],
@@ -37,13 +30,8 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": []
         }
       ],
@@ -56,28 +44,15 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[{\"base\":\"今\",\"ruby\":\"きょ\"},{\"base\":\"日\",\"ruby\":\"う\"}]",
           "audioHash": "cccccccccccccc01",
-          "strokePaths": [
-            "M0,0 L10,10"
-          ],
+          "strokePaths": ["M0,0 L10,10"],
           "illustration": "art/weather-hot.svg",
-          "acceptedAlternates": [
-            "It is hot today.",
-            "Today it is hot."
-          ],
-          "distractors": [
-            "It is cold today.",
-            "It was hot today."
-          ]
+          "acceptedAlternates": ["It is hot today.", "Today it is hot."],
+          "distractors": ["It is cold today.", "It was hot today."]
         }
       ],
       "expect": "i_adb3d75c23389aad"
@@ -89,28 +64,15 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
           "audioHash": "cccccccccccccc01",
-          "strokePaths": [
-            "M0,0 L10,10"
-          ],
+          "strokePaths": ["M0,0 L10,10"],
           "illustration": "art/weather-hot.svg",
-          "acceptedAlternates": [
-            "It is hot today.",
-            "Today it is hot."
-          ],
-          "distractors": [
-            "It is raining today.",
-            "It is hot tomorrow."
-          ]
+          "acceptedAlternates": ["It is hot today.", "Today it is hot."],
+          "distractors": ["It is raining today.", "It is hot tomorrow."]
         }
       ],
       "expect": "i_adb3d75c23389aad"
@@ -122,28 +84,15 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
           "audioHash": "cccccccccccccc01",
-          "strokePaths": [
-            "M0,0 L10,10"
-          ],
+          "strokePaths": ["M0,0 L10,10"],
           "illustration": "art/weather-hot.svg",
-          "acceptedAlternates": [
-            "It is hot today.",
-            "It's hot today."
-          ],
-          "distractors": [
-            "It is cold today.",
-            "It was hot today."
-          ]
+          "acceptedAlternates": ["It is hot today.", "It's hot today."],
+          "distractors": ["It is cold today.", "It was hot today."]
         }
       ],
       "expect": "i_adb3d75c23389aad"
@@ -155,28 +104,15 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
           "audioHash": "cccccccccccccc99",
-          "strokePaths": [
-            "M0,0 L10,10"
-          ],
+          "strokePaths": ["M0,0 L10,10"],
           "illustration": "art/weather-hot.svg",
-          "acceptedAlternates": [
-            "It is hot today.",
-            "Today it is hot."
-          ],
-          "distractors": [
-            "It is cold today.",
-            "It was hot today."
-          ]
+          "acceptedAlternates": ["It is hot today.", "Today it is hot."],
+          "distractors": ["It is cold today.", "It was hot today."]
         }
       ],
       "expect": "i_adb3d75c23389aad"
@@ -188,28 +124,15 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
           "audioHash": "cccccccccccccc01",
-          "strokePaths": [
-            "M0,0 L10,10"
-          ],
+          "strokePaths": ["M0,0 L10,10"],
           "illustration": "art/weather-hot-v2.svg",
-          "acceptedAlternates": [
-            "It is hot today.",
-            "Today it is hot."
-          ],
-          "distractors": [
-            "It is cold today.",
-            "It was hot today."
-          ]
+          "acceptedAlternates": ["It is hot today.", "Today it is hot."],
+          "distractors": ["It is cold today.", "It was hot today."]
         }
       ],
       "expect": "i_adb3d75c23389aad"
@@ -221,29 +144,15 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
           "audioHash": "cccccccccccccc01",
-          "strokePaths": [
-            "M1,1 L9,9",
-            "M0,5 L10,5"
-          ],
+          "strokePaths": ["M1,1 L9,9", "M0,5 L10,5"],
           "illustration": "art/weather-hot.svg",
-          "acceptedAlternates": [
-            "It is hot today.",
-            "Today it is hot."
-          ],
-          "distractors": [
-            "It is cold today.",
-            "It was hot today."
-          ]
+          "acceptedAlternates": ["It is hot today.", "Today it is hot."],
+          "distractors": ["It is cold today.", "It was hot today."]
         }
       ],
       "expect": "i_adb3d75c23389aad"
@@ -255,13 +164,8 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": [],
           "ruby": "[]",
           "audioHash": "ffffffffffffffff",
@@ -280,13 +184,8 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "暑い",
-            "今日"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["暑い", "今日"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": []
         }
       ],
@@ -299,13 +198,8 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "casual",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": []
         }
       ],
@@ -318,13 +212,8 @@
           "prompt": "明日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": []
         }
       ],
@@ -337,13 +226,8 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "Today it is hot.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "present-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["present-adjective"],
           "graphemes": []
         }
       ],
@@ -356,13 +240,8 @@
           "prompt": "今日は暑いです。",
           "preferredSurface": "It is hot today.",
           "register": "polite",
-          "lexemes": [
-            "今日",
-            "暑い"
-          ],
-          "grammarConcepts": [
-            "past-adjective"
-          ],
+          "lexemes": ["今日", "暑い"],
+          "grammarConcepts": ["past-adjective"],
           "graphemes": []
         }
       ],

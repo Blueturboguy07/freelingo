@@ -3,7 +3,7 @@
   "phase": "P2",
   "task": "p2-g1-g2-analyze-band",
   "module": "tools/coursekit",
-  "owned": [],
+  "owned": ["INV-PACK-40", "INV-PACK-51"],
   "coverageMapPythonSupport": {
     "what": "scripts/coverage-map.ts scanned TEST_ROOTS = ['packages', 'apps', 'e2e'] with TEST_FILE_PATTERN = /\\.(test|spec)\\.(ts|tsx)$|\\.ya?ml$/ and a JS-only claim regex, so the content pipeline's invariants could not be owned. INV-PACK-13/15/17 hit the same hole next.",
     "landedHere": [
@@ -64,8 +64,6 @@
     "The frequency list is read from a LOCAL file and G2 never fetches: a stage that downloads on demand makes every run depend on whatever `master` says today, which is the same moving-input hazard the spaCy wheel-URL pin exists for. A short file, and a 404 HTML body, are both refused by name rather than read as a language with no vocabulary. The filename is also tied to the source URL by a test, because it was knowledge in two places",
     "G1 reports mean content-words-per-sentence for the pack and fails the stage when any sentence falls outside the pack's own length window. That second check is the numeric half of INV-PACK-40's grep gate: a G0 that counted its own tokens lets through sentences the ledger measures outside the window, and the code gate cannot see a pre-built G0 output. The mean itself now goes through the same split_mode-vs-declaration guard as the counter — a ja Mode-C row used to be refused by count_units and silently averaged by the one figure that reaches the manifest"
   ],
-  "ownedPendingP2PhaseRoster": [
-    "INV-PACK-40",
-    "INV-PACK-51"
-  ]
+  "ownedPendingP2PhaseRoster": ["INV-PACK-40", "INV-PACK-51"],
+  "$ownedAtIntegration": "Added at P2 integration. The lane wrote the owning tests and left the ids unclaimed because on its own branch the coverage map could not see a pytest claim at all — `scripts/coverage-map.ts` walked only packages/apps/e2e, and the two Python claim conventions were each readable by one lane's scanner. Both readers are now unioned in scripts/coverage-map.ts and packages/core/src/journey/ownership.ts, so the claim is load-bearing: delete a test and CI goes red."
 }

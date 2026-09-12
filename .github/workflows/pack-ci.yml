@@ -294,14 +294,16 @@ jobs:
           # `build/` is at the repository root: `coursekit.artifacts.build_root()`
           # resolves it from the package's own path, not from the working directory.
           #
-          # CROSS-LANE CONTRACT: `g9/es.pack` is a filename this lane WROTE DOWN, not
-          # one it imported — config/package.py is empty by design and owned by
-          # p2-g9-package-loader. It is recorded in docs/owned/p2-validate-ci.json ->
-          # crossLaneContracts so the disagreement has a name if G9 calls its SQLite
-          # output something else. `g9/manifest.json` is safe: MANIFEST_FILENAME and
-          # PACK_STAGE_ID are both real constants in coursekit.config.
+          # CROSS-LANE CONTRACT, RESOLVED AT P2 INTEGRATION. This lane wrote down
+          # `g9/es.pack` as a guess and recorded the guess in
+          # docs/owned/p2-validate-ci.json -> crossLaneContracts, because
+          # config/package.py was empty and p2-g9-package-loader had not landed. G9
+          # calls it `pack.sqlite` (config/g9.py PACK_DB_FILENAME), so the name is
+          # corrected here rather than left to fail this step on the first real build.
+          # `g9/manifest.json` was already safe: MANIFEST_FILENAME and PACK_STAGE_ID are
+          # both real constants.
           root="$GITHUB_WORKSPACE/build/es"
-          for file in "$root/g9/es.pack" "$root/g9/manifest.json" \
+          for file in "$root/g9/pack.sqlite" "$root/g9/manifest.json" \
                       "$root/validator-report.json" "$root/sample-300.jsonl" \
                       "$root/sample-summary.json" "$root/runlog.jsonl"; do
             if [ -f "$file" ]; then

@@ -304,11 +304,29 @@ function walkTests(dir: string, root: string, out: string[]): string[] {
  * matches nothing at all. The first version of this scanner used `\b` and reported both
  * ids as unowned while looking exactly right.
  *
- * A docstring will not do, and that is the point of doing this at all: a docstring-only id
- * is invisible to every gate in this repo, so two invariants can look owned in review and
- * be owned by nobody according to the arbiter.
+ * Case-insensitive because the tree carries both spellings and both are deliberate: the
+ * bake lane writes `test_inv_aud_08_…` (what `pytest -k inv_aud_08` selects), the ledger
+ * and licence lanes write `test_INV_PACK_40_…` (what the id looks like). Reading one and
+ * not the other un-owns half of P2 while looking exactly right.
  */
-export const PYTHON_CLAIM = /(?:^|_)inv_([a-z0-9]+)_(\d+)(?=_|$)/g;
+export const PYTHON_CLAIM = /(?:^|_)inv_([a-z0-9]+)_(\d+)(?=_|$)/gi;
+
+/**
+ * The other Python claim form: the bracketed ids LEADING a test's own docstring.
+ *
+ * Five of the eight P2 lanes wrote `def test_x(...): """[INV-PACK-13] …"""` rather than
+ * putting the id in the identifier, and it is the direct analogue of `it('[INV-DAY-01] …')`.
+ * Both forms are read, so neither lane's tests are invisible here.
+ *
+ * **Leading only.** A docstring scanned anywhere turns prose into coverage:
+ * `tools/coursekit/tests/test_ledger_unit.py` cites INV-MOD-13 in a docstring to explain
+ * why a test exists and does not test it, and a whole-docstring scan would report that id
+ * as owned — silently, in a green run, which is the failure this file exists to catch.
+ * Module docstrings and assertion messages sit outside a `def` and are never read.
+ */
+const PYTHON_TEST_DEF =
+  /^[ \t]*(?:async[ \t]+)?def[ \t]+(test_\w+)[ \t]*\([\s\S]*?\)[ \t]*(?:->[^:\n]*)?:[ \t]*\r?\n[ \t]*[rRuUbB]{0,2}("""|'{3}|"|')([\s\S]*?)\2/gm;
+const PYTHON_LEADING_CLAIM = /^[ \t]*\[(INV-[A-Z0-9]+-\d+)\]/;
 
 /** `inv_aud_08` -> `INV-AUD-08`. */
 export function idFromPythonName(family: string, number: string): string {
@@ -322,8 +340,9 @@ export function idFromPythonName(family: string, number: string): string {
  * merely mentions an id in prose is not. `docs/README.md` §Adding coverage states the
  * bracket form, and this is what makes it the contract rather than a suggestion.
  *
- * Python: the snake form above, in the `def test_…` identifier, for the reason `PYTHON_CLAIM`
- * gives. Both are the NAME the runner prints; neither is a comment or a docstring.
+ * Python: the snake form in the `def test_…` identifier, for the reason `PYTHON_CLAIM`
+ * gives, OR the bracketed ids leading the test's own docstring. Two lanes invented one
+ * convention each and both shipped real tests; reading only one would un-own them.
  */
 export function owningTests(root = repoRoot()): Map<string, string[]> {
   const files = TEST_ROOTS.flatMap((r) => walkTests(join(root, r), root, []));
@@ -345,6 +364,17 @@ export function owningTests(root = repoRoot()): Map<string, string[]> {
         const name = pyMatch[1] ?? '';
         for (const claim of name.matchAll(PYTHON_CLAIM)) {
           record(idFromPythonName(claim[1]!, claim[2]!), name);
+        }
+      }
+      PYTHON_TEST_DEF.lastIndex = 0;
+      let docMatch: RegExpExecArray | null;
+      while ((docMatch = PYTHON_TEST_DEF.exec(source)) !== null) {
+        const name = docMatch[1] ?? '';
+        let rest = docMatch[3] ?? '';
+        let leading: RegExpExecArray | null;
+        while ((leading = PYTHON_LEADING_CLAIM.exec(rest)) !== null) {
+          record(leading[1]!, name);
+          rest = rest.slice(leading[0].length);
         }
       }
       continue;

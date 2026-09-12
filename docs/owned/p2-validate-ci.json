@@ -14,7 +14,8 @@
       "producedBy": "p2-g9-package-loader (G9)",
       "consumedBy": ".github/workflows/pack-ci.yml, the `Collect the pack artefacts` step of `validate-es`",
       "assertion": "the file exists under that exact name; the step prints `::error::...is missing` and exits 1 otherwise",
-      "why": "nothing in tools/coursekit defines this filename. config/package.py is empty by design and owned by the G9 lane, so `es.pack` is a string this lane WROTE DOWN rather than imported. If G9 names its SQLite output anything else — `pack.sqlite`, `es-0.1.0.pack` — `validate-es` fails at the collect step and the failure reads as a missing build rather than as a disagreement about a name. Move it into a shared constant the moment G9 defines one."
+      "why": "nothing in tools/coursekit defines this filename. config/package.py is empty by design and owned by the G9 lane, so `es.pack` is a string this lane WROTE DOWN rather than imported. If G9 names its SQLite output anything else — `pack.sqlite`, `es-0.1.0.pack` — `validate-es` fails at the collect step and the failure reads as a missing build rather than as a disagreement about a name. Move it into a shared constant the moment G9 defines one.",
+      "resolvedAtIntegration": "RESOLVED at P2 integration: G9 writes `pack.sqlite` (config/g9.py PACK_DB_FILENAME), and pack-ci.yml's collect step now names that. The guess was wrong, which is what writing it down was for — the failure would have been a `::error:: es.pack is missing` on the first real build and would have read as a build that produced nothing."
     },
     {
       "artefact": "build/<lang>/g9/manifest.json",

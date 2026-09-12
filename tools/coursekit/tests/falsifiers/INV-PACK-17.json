@@ -1,8 +1,6 @@
 {
   "id": "INV-PACK-17",
-  "covers": [
-    "EC-PACK-56"
-  ],
+  "covers": ["EC-PACK-56"],
   "why": "Tatoeba is attribution-only and its CC0 subset is 2,266 bytes for Spanish against 313,297 for French, so three of the four v1 languages cannot avoid the credits screen. A licence that requires attribution with no reachable credit is a licence violation, which makes this a build gate and not a UI nicety.",
   "surface": "S152, reachable from the report sheet S045 and About S137. S152 is NOT in deep/00-PRODUCT-MAP.md, which stops at S151; the map owes a row before P4 renders it.",
   "cases": [
@@ -54,15 +52,8 @@
           "attribution_owner": null
         }
       ],
-      "creditedSources": [
-        "freelingo_authored",
-        "hermitdave",
-        "tatoeba"
-      ],
-      "shareAlike": [
-        "freelingo_authored",
-        "hermitdave"
-      ],
+      "creditedSources": ["freelingo_authored", "hermitdave", "tatoeba"],
+      "shareAlike": ["freelingo_authored", "hermitdave"],
       "violations": []
     },
     {

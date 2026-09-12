@@ -66,6 +66,7 @@ from ..config.g4 import (
     SORT_BY_LENGTH_ASCENDING,
     YIELD_NOTE_KEY,
 )
+from ..ledger import surface_tokens
 from ..runlog import require_successful
 from . import StageContext, StageResult, register_stage
 from .g3_solve import GrammarConcept, curriculum_path, load_curriculum
@@ -704,7 +705,7 @@ def short_candidates(texts: Iterable[str]) -> list[str]:
     return [
         text
         for text in texts
-        if CANDIDATE_TOKENS_MIN <= len(text.split()) <= CANDIDATE_TOKENS_MAX
+        if CANDIDATE_TOKENS_MIN <= len(surface_tokens(text)) <= CANDIDATE_TOKENS_MAX
     ]
 
 

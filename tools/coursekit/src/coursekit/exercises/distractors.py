@@ -59,6 +59,7 @@ from ..config.g7 import (
     RERANK_ENABLED,
     RERANK_UNAVAILABLE_REASON,
 )
+from ..ledger import surface_tokens
 
 __all__ = [
     "AlternativesIndex",
@@ -374,7 +375,7 @@ class L1DecoyPool:
         excluded = {normalise(lemma) for lemma in exclude_lemmas}
         seen: dict[str, str] = {}
         for translation in translations:
-            for position, raw in enumerate(translation.split()):
+            for position, raw in enumerate(surface_tokens(translation)):
                 token = raw.strip(".,!?;:\u00bf\u00a1\"\u201c\u201d")
                 if not token:
                     continue

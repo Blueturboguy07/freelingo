@@ -85,6 +85,7 @@ from ..exercises.distractors import (
 )
 from ..exercises.shapes import ExerciseDraft, shape
 from ..exercises.wordbank import Hint, build_hints, build_word_bank
+from ..ledger import surface_tokens
 from ..runlog import require_successful
 from ..validators.exercise import check_pack_07, check_pack_50, check_v5
 from . import StageContext, StageResult, register_stage
@@ -175,13 +176,17 @@ def _target_tokens(inputs: ExpansionInputs, sid: str | None, text: str) -> list[
     """
     if sid is not None and sid in inputs.analysed:
         return list(inputs.analysed[sid]["display_tokens"])
-    return text.split()
+    return list(surface_tokens(text))
 
 
 def _lemmas_for(inputs: ExpansionInputs, sid: str | None, text: str) -> list[str]:
     if sid is not None and sid in inputs.analysed:
         return list(inputs.analysed[sid]["lemmas"])
-    return [token.strip(".,¿?¡!").casefold() for token in text.split() if token.strip(".,¿?¡!")]
+    return [
+        token.strip(".,¿?¡!").casefold()
+        for token in surface_tokens(text)
+        if token.strip(".,¿?¡!")
+    ]
 
 
 def ending_split(surface: str, lemma: str, pos: str, lang: str) -> tuple[str, str] | None:
@@ -281,7 +286,7 @@ def expand_item(
     lesson = item["lesson_index"]
     concept = item["grammar_concept"]
     target_tokens = _target_tokens(inputs, sid, text)
-    source_tokens = translation.split()
+    source_tokens = list(surface_tokens(translation))
     lemmas = _lemmas_for(inputs, sid, text)
     audio = sentence_id(lang, text)
     pairs = tuple(sorted({(int(a), int(b)) for a, b in alignment}))
@@ -383,7 +388,7 @@ def _sentence_draft(
             # `está` and `conocerte` under the prompt `Write this in English`, and
             # `está` was a word of the Spanish sentence displayed above the bank.
             l1_side=reverse,
-            prompt_tokens=body.split(),
+            prompt_tokens=list(surface_tokens(body)),
         )
         bank = build_word_bank(answer_tokens, decoys, key=f"{key}:{chosen.id}")
         distractors = bank.extra_tiles
@@ -399,7 +404,7 @@ def _sentence_draft(
             key=key,
             accepted=list(accepted),
             alternatives=alternatives,
-            prompt_tokens=body.split(),
+            prompt_tokens=list(surface_tokens(body)),
         )
     elif chosen.id == "complete_the_translation":
         gap_index = _gap_index(target_tokens)
@@ -517,7 +522,7 @@ def _chat_distractor(
     _ = inputs
     forbidden = alternatives.forbidden_for(key) | {text.casefold()}
     for other in sorted(alternatives.everywhere):
-        if other not in forbidden and len(other.split()) > 1:
+        if other not in forbidden and len(surface_tokens(other)) > 1:
             return (alternatives.original(other),)
     raise NotEnoughDistractors(
         f"{key}: complete-the-chat needs one wrong reply line and the unit has no "
@@ -657,7 +662,7 @@ def _grammar_draft(
             key=key,
             accepted=list(accepted),
             alternatives=alternatives,
-            prompt_tokens=body.split(),
+            prompt_tokens=list(surface_tokens(body)),
         )
     return ExerciseDraft(
         lang=lang,
@@ -814,7 +819,7 @@ def build_glosses(
         row = inputs.analysed.get(sid)
         if row is None:
             continue
-        translation = inputs.translations.get(sid, "").split()
+        translation = list(surface_tokens(inputs.translations.get(sid, "")))
         tokens = row["tokens"]
         for source_index, target_index in pairs:
             if not (0 <= source_index < len(translation) and 0 <= target_index < len(tokens)):
@@ -882,7 +887,7 @@ def expand(ctx: StageContext) -> StageResult:
     alternatives = AlternativesIndex()
     for item in inputs.selected:
         text, translation, sid = _resolve_text(inputs, item)
-        pairs = aligner.align(translation.split(), _target_tokens(inputs, sid, text))
+        pairs = aligner.align(list(surface_tokens(translation)), _target_tokens(inputs, sid, text))
         alternatives.add(_alt_key(item, sid, text), [text, translation])
         if sid is not None:
             alignments[sid] = list(pairs)
@@ -1014,7 +1019,7 @@ def _hints_for(
     text, translation, sid = _resolve_text(inputs, item)
     if sid is None or sid not in inputs.analysed:
         return ()
-    source_tokens = translation.split()
+    source_tokens = list(surface_tokens(translation))
     target_tokens = _target_tokens(inputs, sid, text)
     tokens = inputs.analysed[sid]["tokens"]
     lemma_of_source: list[str] = []

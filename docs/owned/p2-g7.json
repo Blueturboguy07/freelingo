@@ -3,19 +3,8 @@
   "task": "p2-g7-expand",
   "module": "tools/coursekit/src/coursekit (exercises/, validators/exercise.py, stages/g7_expand.py, config/g7.py)",
   "phase": "P2",
-  "screens": [
-    "S032",
-    "S033",
-    "S034",
-    "S035",
-    "S036",
-    "S037",
-    "S038",
-    "S039",
-    "S040",
-    "S041"
-  ],
-  "owned": [],
+  "screens": ["S032", "S033", "S034", "S035", "S036", "S037", "S038", "S039", "S040", "S041"],
+  "owned": ["INV-PACK-07", "INV-PACK-08", "INV-PACK-50"],
   "owningTests": {
     "INV-PACK-07": "tools/coursekit/tests/test_validators_exercise.py (five tests carrying the id, driven by tests/falsifiers/INV-PACK-07.json) + tools/coursekit/tests/test_g7_expand.py::test_every_form_plan_row_carries_two_punitive_shapes and ::test_INV_PACK_07_the_written_pack_has_two_forms_for_every_missable_item",
     "INV-PACK-08": "tools/coursekit/tests/test_validators_exercise.py (four tests carrying the id, driven by tests/falsifiers/INV-PACK-08.json) + test_g7_expand.py::test_INV_PACK_08_the_written_packs_answers_are_all_in_the_declared_register. PARTIAL — see `partial` below.",
@@ -55,11 +44,7 @@
     "packages/core/src/journey/ownership.ts reads ONLY the `owned` array of every docs/owned/*.json and assumes (a) the id is in the P1 roster, (b) its owning test is a Vitest `it()` name, and (c) its falsifier is at packages/core/src/<module>/__falsifiers__/<id>.json. None of the three holds for a P2 pytest lane. REQUEST (integrate task, not this lane): a `phase` field honoured by p1Roster, a pytest test-name scan, and a falsifier search path that includes tools/coursekit/tests/falsifiers/. Until that lands, `owned` stays [] here."
   ],
   "falsifiers": "tools/coursekit/tests/falsifiers/INV-PACK-07.json, INV-PACK-08.json, INV-PACK-50.json. Each carries a `falsifier` block that MUST fail, a `repair` block that MUST pass, and a third block for the subtler failure mode of the same invariant (a non-punitive second form; a mixed-register answer; a lexeme-quoting prompt quoting something outside the tag set). Every record in every block is validated against the frozen `exercise` schema on load, so a falsifier that drifts from the contract fails loudly instead of being rejected by the gate for the wrong reason.",
-  "ownedByPytest": [
-    "INV-PACK-07",
-    "INV-PACK-08",
-    "INV-PACK-50"
-  ],
+  "ownedByPytest": ["INV-PACK-07", "INV-PACK-08", "INV-PACK-50"],
   "whyOwnedIsEmpty": "Not a deferral and not a gap: the tests exist, they carry the ids in their names, and they are driven by committed falsifier JSON with a must-fail and a must-pass block. What does not exist is a coverage map that can see a pytest name or a coursekit falsifier path. Listing the ids in `owned` before that lands does not make them covered; it makes four unrelated P1 gates fail, which is strictly worse than a gap somebody wrote down.",
   "adversarialReviewRound2": {
     "$comment": "Ten findings from the refuter that rejected the first attempt, and what each one cost. Every entry names the test that would now catch it.",
@@ -73,5 +58,6 @@
     "v6FalsePositiveOnThirdPersonSpanish": "FIXED. `le`, `les`, `su`, `sus`, `suyo`, `suya`, `suyos`, `suyas` and `consigo` are removed from ES_REGISTER_MARKERS['usted'] and kept as ES_AMBIGUOUS_THIRD_PERSON_FORMS so the regression has something to assert against. They are the ordinary third-person clitic, possessive and reflexive and carry no register; with them listed, `A él le gusta su casa.` was reported as a BLOCKING 'mixes registers' finding in a tuteo unit, i.e. any A1 Spanish pack containing `su casa` or `le gusta` was unshippable. test_register_of_is_lexical_and_accent_insensitive was asserting the wrong behaviour and now asserts {'tu'}; two new tests carry INV-PACK-08 (test_INV_PACK_08_ordinary_third_person_spanish_carries_no_register with the exact regression case the refuter named, and test_INV_PACK_08_a_third_person_answer_passes_v6_in_a_tu_unit). The `mixed_register` block of tests/falsifiers/INV-PACK-08.json depended on the bug — its answer was `Tu casa es su casa.` — and is now `Tu casa es la casa de usted.`, which mixes registers for real. SECOND BUG FOUND WHILE FIXING IT: `validators/exercise.py::_words` replaced only `¿` and `?`, so a marker at the END of a sentence was read as `usted.` and matched nothing — V6 silently missed every out-of-register answer that put the pronoun last, which in Spanish is where it usually goes. It now strips by Unicode category.",
     "propertyRunsDownscale": "FIXED, not recorded. tests/test_distractors.py::test_V5_the_rule_core_never_returns_a_valid_alternative runs the full PROPERTY_RUNS (10,000) like the other two, not PROPERTY_RUNS // 10. No property in this lane is below the plan's floor.",
     "staleJsEvidence": "The previous report cited /tmp/g7-js.log, which was written BEFORE docs/owned/p2-g7.json existed and which itself ended non-zero. The report for this round cites a JS run made on the final committed tree and names its exit code."
-  }
+  },
+  "$ownedAtIntegration": "Added at P2 integration. The lane wrote the owning tests and left the ids unclaimed because on its own branch the coverage map could not see a pytest claim at all — `scripts/coverage-map.ts` walked only packages/apps/e2e, and the two Python claim conventions were each readable by one lane's scanner. Both readers are now unioned in scripts/coverage-map.ts and packages/core/src/journey/ownership.ts, so the claim is load-bearing: delete a test and CI goes red."
 }

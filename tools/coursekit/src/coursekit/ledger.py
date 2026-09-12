@@ -36,12 +36,14 @@ which is the only thing separating 辛い (karai) from 辛い (tsurai).
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from .config import LANGUAGES
+from .config.g0 import SPACELESS_LANGUAGES
 from .config.g1 import (
     CONTENT_POS,
     LEDGER_UNIT_BY_LANGUAGE,
@@ -61,22 +63,28 @@ __all__ = [
     "RecyclingWindow",
     "assert_distinct_tile_labels",
     "assert_unique_keys",
+    "collapse_whitespace",
     "content_units",
     "count_units",
     "is_content_pos",
     "is_lexical_pos",
+    "is_spaceless",
     "item_from_token",
     "ledger_declaration",
     "ledger_key",
     "ledger_unit",
     "length_ok",
+    "letter_runs",
     "length_window",
     "mean_content_words_per_sentence",
     "new_item_budget",
     "normalized_form",
+    "pre_analysis_count",
+    "pre_analysis_units",
     "reading_form",
     "recycling_window",
     "speaking_tokens",
+    "surface_tokens",
     "units",
 ]
 
@@ -257,6 +265,90 @@ def units(analysed: Mapping[str, Any]) -> tuple[str, ...]:
 def count_units(analysed: Mapping[str, Any]) -> int:
     """How many ledger units this sentence carries. The length filter's input."""
     return len(units(analysed))
+
+
+# ---------------------------------------------------------------------------
+# The two definitions that are NOT the ledger unit, kept here for the same reason
+# ---------------------------------------------------------------------------
+#
+# A ledger unit needs an `analysed_sentence`, which only exists from G1 on. Two consumers
+# legitimately need a token before that record exists, and one needs a token that is not a
+# ledger unit at all:
+#
+#   - G0's length filter and profanity scan run BEFORE any morphology model is loaded.
+#   - The exercise layer splits a RENDERED string — an English prompt, a word-bank row, a
+#     gapped body — into the words a learner sees. A word-bank tile is a display token; it
+#     is not a lemma and must never be counted as one.
+#
+# Neither is the ledger unit, and both are still "what a token is", so both live here. The
+# thing INV-PACK-40 forbids is a *second* definition sitting in a consumer, where it drifts
+# unseen; a named definition in this module, with its limits written down, is the opposite.
+# `tests/test_ledger_unit.py`'s grep gate is what keeps them the only ones.
+
+#: The pre-analysis word pattern. Private and compiled here rather than declared in
+#: `config/g0.py`, because the grep gate reads the whole tree and a regex naming a word
+#: class in a config file is the same second definition wherever it is written.
+_PRE_ANALYSIS_TOKEN = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def collapse_whitespace(text: str) -> str:
+    """Runs of whitespace to one space, ends stripped. G0's normaliser calls this."""
+    return " ".join(text.split())
+
+
+def surface_tokens(text: str) -> tuple[str, ...]:
+    """The whitespace-delimited words of a RENDERED string. **Not a ledger unit.**
+
+    Word-bank tiles, the tokens an English prompt is diffed against, the body of a gapped
+    sentence, a distractor's position in a translation: every one of these is a property of
+    a string somebody reads, so it is counted in words-as-displayed and it is the same
+    count on both sides of the app/pipeline boundary.
+
+    Calling this where `units()` is meant is the bug INV-PACK-40 is about — it counts
+    `dámelo` as one item and `me lo das` as three — so the two are named apart and the
+    length filter, the new-item budget and V1/V2 all take `units()`.
+    """
+    return tuple(text.split())
+
+
+def letter_runs(text: str) -> tuple[str, ...]:
+    """Maximal runs of letters — no digits, no underscore, no punctuation.
+
+    The word-class pattern, named once. Language-independent on purpose: it is what
+    "a word" means to a filter that has not loaded a morphology model yet, and to the
+    difficulty proxy, which counts word forms rather than ledger items.
+    """
+    return tuple(_PRE_ANALYSIS_TOKEN.findall(text))
+
+
+def is_spaceless(lang: str) -> bool:
+    """Whether this script carries no word spacing (so a whitespace word count is nonsense).
+
+    Takes any language code, not only a declared pack language: G0 runs its profanity scan
+    over the L1 side too, and `en` is not a pack. Spacelessness is a property of a writing
+    system, and the ledger unit is a property of a pack; they are asked at different times
+    and only the second needs a declaration.
+    """
+    return lang in SPACELESS_LANGUAGES
+
+
+def pre_analysis_units(lang: str, text: str) -> tuple[str, ...]:
+    """A rough tokenisation for G0's filters ONLY, before a morphology model exists.
+
+    For a spaceless script the "tokens" are its non-space characters, because counting
+    whitespace words in Japanese counts a whole sentence as one — the mistake
+    `deep/10`'s edge case 6 catches in `ja_full.txt`.
+
+    Any language code, for the reason `is_spaceless` gives: G0 filters the L1 side too.
+    """
+    if is_spaceless(lang):
+        return tuple(character for character in text if not character.isspace())
+    return letter_runs(text)
+
+
+def pre_analysis_count(lang: str, text: str) -> int:
+    """How many pre-analysis tokens `text` carries. G0's length filter reads this."""
+    return len(pre_analysis_units(lang, text))
 
 
 def content_units(analysed: Mapping[str, Any]) -> tuple[str, ...]:

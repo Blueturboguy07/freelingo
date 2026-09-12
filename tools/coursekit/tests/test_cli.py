@@ -278,6 +278,43 @@ def test_resetting_the_registry_lets_discovery_run_again(empty_registry: None) -
     assert set(VALIDATORS.ids()) == rediscovered, "a second restore lost registrations"
 
 
+def test_a_restore_replaces_the_module_object_a_test_already_imported() -> None:
+    """A restore evicts modules, so an earlier `from … import x` keeps the OLD module.
+
+    This is the price of the eviction above and it is invisible until it is expensive.
+    `tests/test_g2_band.py` patched `coursekit.stages.g2_band.ELELEX_POS_MUST_MATCH` by
+    dotted path; after `tests/test_cli.py` had restored the registry, that path resolved
+    to a freshly imported module while the test's own `build_rows` still read the old
+    one's globals. The flag never moved, the relaxed branch never ran, and the failure
+    read as a banding bug. It passed when the file ran alone, which is why it survived
+    review and arrived at integration.
+
+    Asserted rather than commented, so the next lane that reaches for `monkeypatch.setattr`
+    on a stage module meets this instead of a two-hour bisect.
+    """
+    import importlib
+
+    from coursekit.stages import STAGES
+
+    STAGES.discover()
+    before = importlib.import_module("coursekit.stages.g0_ingest")
+    STAGES.reset_for_tests()
+    STAGES.restore_for_tests()
+    STAGES.discover()
+    after = importlib.import_module("coursekit.stages.g0_ingest")
+
+    assert after is not before, (
+        "restore_for_tests() no longer replaces the module object. If that is deliberate, "
+        "delete this test and the warning in Registry.restore_for_tests — but a dotted-path "
+        "monkeypatch is only safe once it is true."
+    )
+    assert before.normalise is not after.normalise
+    assert before.normalise.__globals__ is not after.normalise.__globals__, (
+        "the two module namespaces are shared after all, so a dotted-path patch would "
+        "reach the old function; re-read the warning in Registry.restore_for_tests"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------

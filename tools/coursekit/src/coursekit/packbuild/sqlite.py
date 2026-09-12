@@ -646,10 +646,14 @@ def character_lesson_rows(_inputs: PackInputs) -> list[dict[str, Any]]:
 
 
 def ledger_unit(lang: str) -> str:
-    """INV-PACK-40: declared exactly once per pack, read by every token consumer."""
-    from ..config.g9 import LEDGER_UNIT_BY_LANGUAGE
+    """INV-PACK-40: declared exactly once per pack, read by every token consumer.
 
-    return LEDGER_UNIT_BY_LANGUAGE[lang]
+    Re-exported from `coursekit.ledger` rather than looked up here, so the pack writer and
+    the manifest writer read the same declaration the length filter and V1/V2 read.
+    """
+    from ..ledger import ledger_unit as declared
+
+    return declared(lang)
 
 
 def cefr_checked(lang: str) -> bool:

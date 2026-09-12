@@ -48,6 +48,7 @@ from ..config.g6 import (
     SPELLCHECK_ISSUE_TYPE,
 )
 from ..engines import register_engine
+from ..ledger import surface_tokens
 from .languagetool import LanguageToolEngine
 
 __all__ = ["MockLanguageTool", "build", "mock_languagetool_server"]
@@ -96,7 +97,9 @@ class MockLanguageTool:
 
 
 def _words(text: str) -> list[str]:
-    return [token for token in "".join(c if c.isalpha() else " " for c in text).split() if token]
+    """Letter runs, via the ledger's one definition of a surface token (INV-PACK-40)."""
+    letters_only = "".join(c if c.isalpha() else " " for c in text)
+    return list(surface_tokens(letters_only))
 
 
 def _match(rule_id: str, issue_type: str, category_id: str, message: str) -> dict[str, Any]:

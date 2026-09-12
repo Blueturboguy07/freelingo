@@ -269,12 +269,10 @@ MAX_TOKENS: Final[int] = 12
 #: stream, not a linguistic rule.
 MAX_CHARS: Final[int] = 400
 
-#: A crude, language-agnostic token pattern for the LENGTH FILTER ONLY. G1 owns real
-#: tokenisation (spaCy for es/fr/de, SudachiPy Mode A for ja); this one only has to
-#: decide whether a candidate is roughly A1-sized before a morphology model is loaded.
-#: Japanese has no spaces, so the filter counts characters there instead — see
-#: `SPACELESS_LANGUAGES`.
-TOKEN_PATTERN: Final[str] = r"[^\W\d_]+"
+#: The pre-analysis token pattern is NOT declared here. It lives in `coursekit.ledger`
+#: as `letter_runs`, with the pre-analysis counter beside it, because INV-PACK-40's grep
+#: gate reads the whole tree and a word-class regex in a config file is the same second
+#: definition wherever it is written. G0 calls `ledger.pre_analysis_count`.
 
 #: Languages whose script carries no word spacing, where a whitespace token count is
 #: meaningless. Counting whitespace "words" for Japanese is the same mistake edge case 6

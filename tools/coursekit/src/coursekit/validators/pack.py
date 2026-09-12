@@ -25,7 +25,6 @@ items" is a blocking finding here, not a fast pass.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from statistics import fmean
@@ -49,6 +48,7 @@ from ..config.validate import (
     UNRESOLVED_LICENCE_VALUES,
     allowed_licences_for,
 )
+from ..ledger import letter_runs
 from . import Finding, ValidatorContext, register_validator
 
 __all__ = [
@@ -59,10 +59,6 @@ __all__ = [
     "word_tokens",
 ]
 
-#: Unicode word tokens: letters only, no digits, no underscore. The same rule the
-#: `es-mini` fixture's frequency list was built with, restated rather than imported so
-#: a change on one side shows up as a disagreement rather than as agreement.
-_TOKEN_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 
 
 class SuiteInputMissing(RuntimeError):
@@ -93,8 +89,15 @@ class ShippedItem:
 
 
 def word_tokens(text: str) -> list[str]:
-    """Lower-cased letter runs. The difficulty proxy's tokeniser."""
-    return [match.group(0).lower() for match in _TOKEN_RE.finditer(text)]
+    """Lower-cased letter runs. The difficulty proxy's tokeniser.
+
+    Through the ledger rather than through a regex restated here. INV-PACK-40 names V1/V2
+    as consumers that must read the declared unit, and a validator carrying its own
+    tokeniser is the second definition the invariant is about — it would agree with the
+    ledger on the `es-mini` fixture and disagree on every clitic, which is precisely the
+    disagreement a restatement is supposed to reveal and cannot.
+    """
+    return [token.lower() for token in letter_runs(text)]
 
 
 def _read(kind: str, lang: str) -> list[dict[str, Any]]:

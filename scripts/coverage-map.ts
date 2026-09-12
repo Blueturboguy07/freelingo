@@ -7,9 +7,12 @@
  * names carrying an id in brackets (`it('[INV-DAY-01] ...')`), and prints the map.
  *
  * Two languages of test, because the invariants are owned in two. A TypeScript test
- * claims in its name; a Python test claims in the bracketed ids LEADING its docstring
- * (`def test_x(...): """[INV-PACK-40] ..."""`), since a Python function name cannot
- * carry brackets. The content pipeline under `tools/coursekit` owns every `C`-kind
+ * claims in its name. A Python test claims **either** in its `def` name
+ * (`def test_inv_aud_08_…`, what `pytest -k` selects) **or** in the bracketed ids LEADING
+ * its docstring (`def test_x(...): """[INV-PACK-40] …"""`, since an identifier cannot
+ * carry brackets). Both are read: two P2 lanes invented one convention each and both
+ * shipped real tests, so reading one and not the other un-owns half of P2 while looking
+ * exactly right. The content pipeline under `tools/coursekit` owns every `C`-kind
  * invariant in the registry, so before `tools/` was scanned those ids were unownable by
  * construction — INV-PACK-13/15/17/40/51 all sat outside the only gate that can see them.
  *
@@ -219,9 +222,7 @@ export function claimedIdsInPython(source: string): Map<string, string[]> {
 }
 
 function claimedIdsIn(source: string, file: string): Map<string, string[]> {
-  return PYTHON_TEST_FILE.test(file)
-    ? claimedIdsInPython(source)
-    : claimedIdsInTypeScript(source);
+  return PYTHON_TEST_FILE.test(file) ? claimedIdsInPython(source) : claimedIdsInTypeScript(source);
 }
 
 const registry = new Set(
@@ -479,5 +480,7 @@ function selfTest(): void {
     console.error(`coverage-map --self-test FAILED\n  ${failures.join('\n  ')}`);
     process.exit(1);
   }
-  console.log('coverage-map --self-test: ownership union, duplicate/unknown-id gates, and the TypeScript + Python claim readers OK');
+  console.log(
+    'coverage-map --self-test: ownership union, duplicate/unknown-id gates, and the TypeScript + Python claim readers OK',
+  );
 }

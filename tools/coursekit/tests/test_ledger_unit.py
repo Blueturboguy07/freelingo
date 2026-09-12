@@ -328,6 +328,40 @@ _ALLOWED_TO_TOKENISE: dict[str, str] = {
         "this file: the patterns above are the gate's own detector, and the planted "
         "violations it runs against are written to a tmp_path, never to the tree"
     ),
+    # The six below were added at P2 integration, when eight lanes met in one tree. Every
+    # one was checked against the rule above — a `tests/` entry re-derives something in
+    # plain Python, or is not counting linguistic tokens at all — and every SOURCE file
+    # that had brought its own tokeniser was changed to call the ledger instead, which is
+    # the half that mattered. `test_the_exception_list_cannot_grow_into_src` is what stops
+    # this list from being the way out next time.
+    "tests/test_curriculum_es.py": (
+        "counts the words of a UNIT TITLE, a UI string nobody lemmatises; a title is not "
+        "a sentence and its length is not a ledger quantity"
+    ),
+    "tests/test_engines.py": (
+        "restates the word-class pattern to check the mock LanguageTool engine finds the "
+        "tokens it should — an independent re-derivation of the engine's own behaviour, "
+        "not a consumer counting ledger items"
+    ),
+    "tests/test_g4_select.py": (
+        "re-derives the candidate word count in plain Python so the length assertion "
+        "cannot agree with `short_candidates` by construction"
+    ),
+    "tests/test_g7_expand.py": (
+        "re-derives word-bank tiles and gapped bodies from the rendered strings, so a "
+        "bug in `ledger.surface_tokens` shows up as a disagreement rather than as "
+        "agreement with itself"
+    ),
+    "tests/test_g9_package.py": (
+        "builds the pack fixture's `display_tokens` and `lemmas` by hand (the fixture "
+        "must not be produced by the code under test), and parses `CREATE TABLE` DDL, "
+        "which is a field parse the pattern list cannot tell from a tokeniser"
+    ),
+    "tests/test_manifest.py": (
+        "`re.findall(r\"readonly (\\w+)\\??:\")` reads a TypeScript interface "
+        "declaration to check the two manifest shapes agree; it never sees natural "
+        "language, and `\\w+` in a grammar is not a notion of a word"
+    ),
 }
 
 

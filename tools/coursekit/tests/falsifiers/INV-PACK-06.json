@@ -13,12 +13,7 @@
       "function": "falsifier",
       "grammar_concept": "being",
       "register_slot": "n/a",
-      "target_lemmas": [
-        "el",
-        "gato",
-        "ser",
-        "pequeño"
-      ],
+      "target_lemmas": ["el", "gato", "ser", "pequeño"],
       "recycled_lemmas": [],
       "level_count": 1
     },
@@ -32,18 +27,8 @@
       "function": "falsifier",
       "grammar_concept": "articles",
       "register_slot": "n/a",
-      "target_lemmas": [
-        "libro",
-        "mesa",
-        "leer",
-        "nuevo"
-      ],
-      "recycled_lemmas": [
-        "el",
-        "gato",
-        "ser",
-        "pequeño"
-      ],
+      "target_lemmas": ["libro", "mesa", "leer", "nuevo"],
+      "recycled_lemmas": ["el", "gato", "ser", "pequeño"],
       "level_count": 1
     },
     {
@@ -56,21 +41,8 @@
       "function": "falsifier",
       "grammar_concept": "numbers",
       "register_slot": "n/a",
-      "target_lemmas": [
-        "uno",
-        "dos",
-        "tres",
-        "cuatro",
-        "cinco",
-        "seis",
-        "siete",
-        "ocho",
-        "nueve"
-      ],
-      "recycled_lemmas": [
-        "libro",
-        "mesa"
-      ],
+      "target_lemmas": ["uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"],
+      "recycled_lemmas": ["libro", "mesa"],
       "level_count": 1
     }
   ],
@@ -127,20 +99,8 @@
           "end": 20
         }
       ],
-      "lemmas": [
-        ".",
-        "el",
-        "gato",
-        "pequeño",
-        "ser"
-      ],
-      "display_tokens": [
-        "El",
-        "gato",
-        "es",
-        "pequeño",
-        "."
-      ]
+      "lemmas": [".", "el", "gato", "pequeño", "ser"],
+      "display_tokens": ["El", "gato", "es", "pequeño", "."]
     },
     {
       "schema_version": 1,
@@ -194,20 +154,8 @@
           "end": 19
         }
       ],
-      "lemmas": [
-        ".",
-        "el",
-        "libro",
-        "nuevo",
-        "ser"
-      ],
-      "display_tokens": [
-        "El",
-        "libro",
-        "es",
-        "nuevo",
-        "."
-      ]
+      "lemmas": [".", "el", "libro", "nuevo", "ser"],
+      "display_tokens": ["El", "libro", "es", "nuevo", "."]
     },
     {
       "schema_version": 1,
@@ -253,18 +201,8 @@
           "end": 14
         }
       ],
-      "lemmas": [
-        ".",
-        "el",
-        "leer",
-        "libro"
-      ],
-      "display_tokens": [
-        "Leo",
-        "el",
-        "libro",
-        "."
-      ]
+      "lemmas": [".", "el", "leer", "libro"],
+      "display_tokens": ["Leo", "el", "libro", "."]
     },
     {
       "schema_version": 1,
@@ -318,20 +256,8 @@
           "end": 18
         }
       ],
-      "lemmas": [
-        ".",
-        "el",
-        "mesa",
-        "nuevo",
-        "ser"
-      ],
-      "display_tokens": [
-        "La",
-        "mesa",
-        "es",
-        "nueva",
-        "."
-      ]
+      "lemmas": [".", "el", "mesa", "nuevo", "ser"],
+      "display_tokens": ["La", "mesa", "es", "nueva", "."]
     },
     {
       "schema_version": 1,
@@ -425,18 +351,7 @@
           "end": 49
         }
       ],
-      "lemmas": [
-        ".",
-        "cinco",
-        "cuatro",
-        "dos",
-        "nueve",
-        "ocho",
-        "seis",
-        "siete",
-        "tres",
-        "uno"
-      ],
+      "lemmas": [".", "cinco", "cuatro", "dos", "nueve", "ocho", "seis", "siete", "tres", "uno"],
       "display_tokens": [
         "Uno",
         "dos",
@@ -460,21 +375,12 @@
       "lesson_index": 1,
       "type": "translate",
       "prompt": "Translate this sentence.",
-      "accepted_answers": [
-        "the falsifier does not grade"
-      ],
+      "accepted_answers": ["the falsifier does not grade"],
       "distractors": [],
       "alignment": [],
       "item_tags": {
-        "lemmas": [
-          "el",
-          "gato",
-          "ser",
-          "pequeño"
-        ],
-        "grammar_concepts": [
-          "being"
-        ]
+        "lemmas": ["el", "gato", "ser", "pequeño"],
+        "grammar_concepts": ["being"]
       },
       "audio_ref": null,
       "register": "n/a",
@@ -488,21 +394,12 @@
       "lesson_index": 1,
       "type": "translate",
       "prompt": "Translate this sentence.",
-      "accepted_answers": [
-        "the falsifier does not grade"
-      ],
+      "accepted_answers": ["the falsifier does not grade"],
       "distractors": [],
       "alignment": [],
       "item_tags": {
-        "lemmas": [
-          "el",
-          "libro",
-          "ser",
-          "nuevo"
-        ],
-        "grammar_concepts": [
-          "being"
-        ]
+        "lemmas": ["el", "libro", "ser", "nuevo"],
+        "grammar_concepts": ["being"]
       },
       "audio_ref": null,
       "register": "n/a",
@@ -516,19 +413,12 @@
       "lesson_index": 1,
       "type": "translate",
       "prompt": "Translate this sentence.",
-      "accepted_answers": [
-        "the falsifier does not grade"
-      ],
+      "accepted_answers": ["the falsifier does not grade"],
       "distractors": [],
       "alignment": [],
       "item_tags": {
-        "lemmas": [
-          "el",
-          "gato"
-        ],
-        "grammar_concepts": [
-          "being"
-        ]
+        "lemmas": ["el", "gato"],
+        "grammar_concepts": ["being"]
       },
       "audio_ref": null,
       "register": "n/a",
@@ -542,19 +432,12 @@
       "lesson_index": 2,
       "type": "translate",
       "prompt": "Translate this sentence.",
-      "accepted_answers": [
-        "the falsifier does not grade"
-      ],
+      "accepted_answers": ["the falsifier does not grade"],
       "distractors": [],
       "alignment": [],
       "item_tags": {
-        "lemmas": [
-          "libro",
-          "mesa"
-        ],
-        "grammar_concepts": [
-          "being"
-        ]
+        "lemmas": ["libro", "mesa"],
+        "grammar_concepts": ["being"]
       },
       "audio_ref": null,
       "register": "n/a",
@@ -568,26 +451,12 @@
       "lesson_index": 3,
       "type": "translate",
       "prompt": "Translate this sentence.",
-      "accepted_answers": [
-        "the falsifier does not grade"
-      ],
+      "accepted_answers": ["the falsifier does not grade"],
       "distractors": [],
       "alignment": [],
       "item_tags": {
-        "lemmas": [
-          "uno",
-          "dos",
-          "tres",
-          "cuatro",
-          "cinco",
-          "seis",
-          "siete",
-          "ocho",
-          "nueve"
-        ],
-        "grammar_concepts": [
-          "numbers"
-        ]
+        "lemmas": ["uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"],
+        "grammar_concepts": ["numbers"]
       },
       "audio_ref": null,
       "register": "n/a",
@@ -601,21 +470,12 @@
       "lesson_index": 20,
       "type": "translate",
       "prompt": "Translate this sentence.",
-      "accepted_answers": [
-        "the falsifier does not grade"
-      ],
+      "accepted_answers": ["the falsifier does not grade"],
       "distractors": [],
       "alignment": [],
       "item_tags": {
-        "lemmas": [
-          "el",
-          "mesa",
-          "ser",
-          "nuevo"
-        ],
-        "grammar_concepts": [
-          "numbers"
-        ]
+        "lemmas": ["el", "mesa", "ser", "nuevo"],
+        "grammar_concepts": ["numbers"]
       },
       "audio_ref": null,
       "register": "n/a",
@@ -707,13 +567,8 @@
       "'libro' appears in unit 1 but is not introduced until unit 2",
       "'nuevo' appears in unit 1 but is not introduced until unit 2"
     ],
-    "V2": [
-      "4 new lemmas in one exercise",
-      "introduces 9 new lemmas"
-    ],
-    "V3": [
-      "'gato' re-appears 1 time(s)"
-    ],
+    "V2": ["4 new lemmas in one exercise", "introduces 9 new lemmas"],
+    "V3": ["'gato' re-appears 1 time(s)"],
     "V4": [
       "tagged with mesa, which the exercise does not contain",
       "tagged with grammar concept(s) being, which unit 2 does not teach",

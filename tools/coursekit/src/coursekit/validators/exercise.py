@@ -45,6 +45,7 @@ from ..config.g7 import (
     V6_UNIMPLEMENTED_MESSAGE,
 )
 from ..exercises.shapes import shape_of_record
+from ..ledger import surface_tokens
 from . import Finding, ValidatorContext, register_validator
 
 __all__ = [
@@ -74,7 +75,7 @@ def _words(text: str) -> list[str]:
         " " if unicodedata.category(char).startswith(("P", "S")) else char
         for char in _fold(text)
     )
-    return [word for word in stripped.split() if word]
+    return list(surface_tokens(stripped))
 
 
 def item_keys(record: Mapping[str, Any]) -> tuple[str, ...]:
@@ -349,7 +350,7 @@ def _dominant_pos(answers: Sequence[str], pos_of: Mapping[str, str]) -> str | No
     about option lists (picture select, meaning select, missing word), and asserting a
     POS for `Yo como pan` would be a category error."""
     for answer in answers:
-        if len(answer.split()) != 1:
+        if len(surface_tokens(answer)) != 1:
             return None
         found = pos_of.get(answer) or pos_of.get(_normalise(answer))
         if found is not None:

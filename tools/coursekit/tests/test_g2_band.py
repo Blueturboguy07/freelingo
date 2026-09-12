@@ -474,8 +474,18 @@ def test_relaxing_the_pos_match_bands_the_lemma_under_a_weaker_source(
     read `frequency_decile` and the course card still read "A1 - CEFR-checked". The flag's
     other branch is pinned here because a branch nobody has executed is a branch that does
     not work.
+
+    Patched on `build_rows.__globals__` rather than by dotted module path, and that is not
+    style. `Registry.restore_for_tests()` restores registration by EVICTING its modules
+    from `sys.modules`, so the next discovery builds a *fresh* `coursekit.stages.g2_band`
+    object while this file's `build_rows` — bound at import time — keeps the old one. A
+    dotted-path patch then sets the flag on a module nobody calls, the function reads the
+    real `True`, and the test fails with `frequency_decile` for a reason that has nothing
+    to do with banding. It passed alone and failed after `tests/test_cli.py` had run,
+    which is how it reached integration. A function's own globals are the thing it
+    actually reads, whatever `sys.modules` has been through.
     """
-    monkeypatch.setattr("coursekit.stages.g2_band.ELELEX_POS_MUST_MATCH", False)
+    monkeypatch.setitem(build_rows.__globals__, "ELELEX_POS_MUST_MATCH", False)
     ordered = [("ser", "AUX", 100), ("casa", "NOUN", 10), ("xyzzy", "NOUN", 1)]
     lexicon = {("ser", "VERB"): "A1", ("casa", "NOUN"): "A2"}
 

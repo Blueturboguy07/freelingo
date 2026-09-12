@@ -4,7 +4,7 @@
   "task": "p2-g0-ingest",
   "module": "tools/coursekit (stages/g0_ingest.py, sources/{licences,opus,tatoeba}.py, config/g0.py)",
   "screens": ["S137", "S152"],
-  "owned": [],
+  "owned": ["INV-PACK-12", "INV-PACK-13"],
   "ownedPendingGateSupport": ["INV-PACK-12", "INV-PACK-13"],
   "owningTests": {
     "INV-PACK-12": [
@@ -56,5 +56,6 @@
     "Two bugs the tests caught before the code left the lane: a STORED zip member with no length bound ran off the end of its own data and decoded the NEXT member's local file header as sentences; and an OPUS API 404 raised by the transport bypassed the branch that names the alphabetical pair rule, so the operator who typed `en-de` would have got a bare 404.",
     "The register filter rejects markup, crawl artefacts, untranslated identical pairs and an explicitly short profanity list. Short on purpose: this is an A1 lesson-content filter, not a moderation system, and a long deny list quietly deletes ordinary vocabulary. G6 and the paid reviewer sample are the real quality gates.",
     "Normalisation folds only what is invisible — NFC, zero-width joiners, BOMs, soft hyphens, repeated whitespace — and never diacritics. `año` is not `ano`: folding them would merge two lemmas and V1 would then pass over a ledger that means nothing."
-  ]
+  ],
+  "$ownedAtIntegration": "Added at P2 integration. The lane wrote the owning tests and left the ids unclaimed because on its own branch the coverage map could not see a pytest claim at all — `scripts/coverage-map.ts` walked only packages/apps/e2e, and the two Python claim conventions were each readable by one lane's scanner. Both readers are now unioned in scripts/coverage-map.ts and packages/core/src/journey/ownership.ts, so the claim is load-bearing: delete a test and CI goes red."
 }

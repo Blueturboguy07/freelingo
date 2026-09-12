@@ -169,12 +169,35 @@ describe.skipIf(UNDER_STRYKER)('P1 phase roster', () => {
     const fromPython = [...owners].filter(([, where]) =>
       where.some((entry) => entry.includes('.py ::')),
     );
+    const pythonIds = fromPython.map(([id]) => id).sort();
     expect(
-      fromPython.map(([id]) => id).sort(),
+      pythonIds,
       'the pytest scan found no claims. tools/coursekit/tests carries INV-PACK-15 and ' +
         'INV-AUD-08 in its `def test_inv_…` names; if this is empty the scanner is broken, ' +
         'not the tests.',
-    ).toEqual(['INV-AUD-08', 'INV-PACK-15']);
+    ).toEqual(expect.arrayContaining(['INV-AUD-08', 'INV-PACK-15']));
+
+    /*
+     * Both Python claim conventions, each pinned to a file that uses ONLY that one.
+     *
+     * This was an exact-equality assertion on ['INV-AUD-08', 'INV-PACK-15'] when the bake
+     * lane was the only Python lane in the tree. Eight lanes later, five of them claim by
+     * the bracketed ids leading a test docstring and one by the `def test_inv_…` name, and
+     * an exact list would have to be edited by every lane that adds a pytest claim — which
+     * is how a list stops being read. What must not regress is that BOTH readers work, so
+     * that is what is asserted: drop either one and one of these two goes missing.
+     */
+    const whereFor = (id: string): string[] => owners.get(id) ?? [];
+    expect(
+      whereFor('INV-AUD-08').some((entry) => /test_inv_aud_08/.test(entry)),
+      'the `def test_inv_…` name reader found nothing (tools/coursekit/tests/test_cast.py)',
+    ).toBe(true);
+    expect(
+      whereFor('INV-PACK-13').some((entry) => entry.includes('.py ::')),
+      'the leading-docstring reader found nothing (tools/coursekit/tests/test_licences.py ' +
+        'claims INV-PACK-13 as `"""[INV-PACK-13] …"""` and never in an identifier)',
+    ).toBe(true);
+
     // And the id it built is the registry's spelling, zero-padding included.
     for (const [id] of fromPython) expect(registry.has(id)).toBe(true);
   });

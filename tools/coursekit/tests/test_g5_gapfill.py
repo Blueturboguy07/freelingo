@@ -41,6 +41,7 @@ from typing import Any
 
 import pytest
 
+import coursekit.config as coursekit_config
 from coursekit.adapters import ADAPTERS
 from coursekit.artifacts import read_records, write_records
 from coursekit.config.g5 import (
@@ -664,15 +665,16 @@ SHARED_WINDOW_TUPLES = (
 )
 
 #: Config modules that are not this lane's, scanned for a second copy of the window.
-OTHER_CONFIG_MODULES = (
-    "coursekit.config.base",
-    "coursekit.config.ingest",
-    "coursekit.config.select",
-    "coursekit.config.analyze",
-    "coursekit.config.band",
-    "coursekit.config.curriculum",
-    "coursekit.config.gapfill",
-    "coursekit.config.validate",
+#: Every config module except G5's own, enumerated from the package rather than listed.
+#:
+#: It WAS a list, and the list went stale the moment another lane renamed
+#: `config/analyze.py` to `config/g1.py`: the scan then raised ModuleNotFoundError, which
+#: is at least loud. The quieter half is the one that matters — a renamed module simply
+#: stops being scanned, and the drift this gate exists to catch walks straight through it.
+OTHER_CONFIG_MODULES = tuple(
+    f"coursekit.config.{module.stem}"
+    for module in sorted(Path(coursekit_config.__file__).parent.glob("*.py"))
+    if module.stem not in {"__init__", "g5"}
 )
 
 

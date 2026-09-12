@@ -165,13 +165,45 @@ grammar_concepts:
     cefr: A1
     probe:
       pos_any: [ADP, ADV]
-      lemma_any: [en, sobre, bajo, entre, cerca, lejos, dentro, fuera, junto, detrás, delante, encima, debajo]
+      lemma_any:
+        [
+          en,
+          sobre,
+          bajo,
+          entre,
+          cerca,
+          lejos,
+          dentro,
+          fuera,
+          junto,
+          detrás,
+          delante,
+          encima,
+          debajo,
+        ]
 
   - id: time_expressions
     label: Saying the time, the day and how often
     cefr: A1
     probe:
-      lemma_any: [hora, día, semana, lunes, martes, miércoles, jueves, viernes, sábado, domingo, siempre, nunca, hoy, mañana, ayer]
+      lemma_any:
+        [
+          hora,
+          día,
+          semana,
+          lunes,
+          martes,
+          miércoles,
+          jueves,
+          viernes,
+          sábado,
+          domingo,
+          siempre,
+          nunca,
+          hoy,
+          mañana,
+          ayer,
+        ]
 
   - id: weather_impersonal
     label: Impersonal weather expressions
@@ -239,7 +271,27 @@ grammar_concepts:
     cefr: A1
     probe:
       pos_any: [VERB]
-      lemma_any: [pensar, perder, dormir, jugar, soñar, recordar, mostrar, encender, contar, volver, empezar, cerrar, entender, preferir, servir, pedir, repetir, probar]
+      lemma_any:
+        [
+          pensar,
+          perder,
+          dormir,
+          jugar,
+          soñar,
+          recordar,
+          mostrar,
+          encender,
+          contar,
+          volver,
+          empezar,
+          cerrar,
+          entender,
+          preferir,
+          servir,
+          pedir,
+          repetir,
+          probar,
+        ]
 
   - id: comparatives_basic
     label: Comparing two things with más, menos and tan
@@ -294,100 +346,410 @@ sections:
         grammar_concept: subject_pronouns
         register_slot: binary_t_v
         target_lexemes:
-          [hola, bueno, día, tarde, noche, adiós, gracias, por, favor, sí,
-           'no', yo, tú, usted, él, ella, nosotros, ellos, llamarse, ser,
-           nombre, apellido, señor, señora, mucho, gusto, encantado, cómo, bien, mal,
-           hasta, luego, y]
+          [
+            hola,
+            bueno,
+            día,
+            tarde,
+            noche,
+            adiós,
+            gracias,
+            por,
+            favor,
+            sí,
+            'no',
+            yo,
+            tú,
+            usted,
+            él,
+            ella,
+            nosotros,
+            ellos,
+            llamarse,
+            ser,
+            nombre,
+            apellido,
+            señor,
+            señora,
+            mucho,
+            gusto,
+            encantado,
+            cómo,
+            bien,
+            mal,
+            hasta,
+            luego,
+            y,
+          ]
 
       - title: Count the people and things around you
         function: counting and stating quantity
         grammar_concept: numbers_quantity
         register_slot: n/a
         target_lexemes:
-          [uno, dos, tres, cuatro, cinco, seis, siete, ocho, nueve, diez,
-           once, doce, trece, catorce, quince, veinte, treinta, cuarenta, cincuenta, cien,
-           número, cuánto, poco, todo, cada, otro, más, menos, primero, segundo,
-           tercero, último, contar]
+          [
+            uno,
+            dos,
+            tres,
+            cuatro,
+            cinco,
+            seis,
+            siete,
+            ocho,
+            nueve,
+            diez,
+            once,
+            doce,
+            trece,
+            catorce,
+            quince,
+            veinte,
+            treinta,
+            cuarenta,
+            cincuenta,
+            cien,
+            número,
+            cuánto,
+            poco,
+            todo,
+            cada,
+            otro,
+            más,
+            menos,
+            primero,
+            segundo,
+            tercero,
+            último,
+            contar,
+          ]
 
       - title: Say where you are from
         function: stating origin and nationality
         grammar_concept: ser_identity
         register_slot: n/a
         target_lexemes:
-          [de, en, país, ciudad, extranjero, frontera, mapa, bandera, costa, isla,
-           español, inglés, francés, alemán, italiano, idioma, lengua, hablar, vivir, nacer,
-           dónde, aquí, allí, nacionalidad, mundo, europeo, americano, capital, pueblo, región,
-           norte, sur, oeste]
+          [
+            de,
+            en,
+            país,
+            ciudad,
+            extranjero,
+            frontera,
+            mapa,
+            bandera,
+            costa,
+            isla,
+            español,
+            inglés,
+            francés,
+            alemán,
+            italiano,
+            idioma,
+            lengua,
+            hablar,
+            vivir,
+            nacer,
+            dónde,
+            aquí,
+            allí,
+            nacionalidad,
+            mundo,
+            europeo,
+            americano,
+            capital,
+            pueblo,
+            región,
+            norte,
+            sur,
+            oeste,
+          ]
 
       - title: Name what is in the room
         function: naming everyday objects
         grammar_concept: definite_articles
         register_slot: n/a
         target_lexemes:
-          [el, mesa, silla, puerta, ventana, libro, cuaderno, lápiz, bolígrafo, papel,
-           teléfono, ordenador, llave, bolso, reloj, vaso, plato, cuchara, tenedor, cuchillo,
-           taza, cama, lámpara, espejo, caja, bolsa, cosa, cartera, mochila, pared,
-           suelo, techo, cajón]
+          [
+            el,
+            mesa,
+            silla,
+            puerta,
+            ventana,
+            libro,
+            cuaderno,
+            lápiz,
+            bolígrafo,
+            papel,
+            teléfono,
+            ordenador,
+            llave,
+            bolso,
+            reloj,
+            vaso,
+            plato,
+            cuchara,
+            tenedor,
+            cuchillo,
+            taza,
+            cama,
+            lámpara,
+            espejo,
+            caja,
+            bolsa,
+            cosa,
+            cartera,
+            mochila,
+            pared,
+            suelo,
+            techo,
+            cajón,
+          ]
 
       - title: Introduce the people in your family
         function: talking about family
         grammar_concept: possessive_adjectives
         register_slot: n/a
         target_lexemes:
-          [mi, tu, su, nuestro, madre, padre, hermano, hermana, hijo, hija,
-           abuelo, abuela, tío, tía, primo, prima, familia, esposo, esposa, marido,
-           mujer, hombre, niño, niña, bebé, amigo, amiga, vecino, pareja, nieto,
-           sobrino, cuñado, gente]
+          [
+            mi,
+            tu,
+            su,
+            nuestro,
+            madre,
+            padre,
+            hermano,
+            hermana,
+            hijo,
+            hija,
+            abuelo,
+            abuela,
+            tío,
+            tía,
+            primo,
+            prima,
+            familia,
+            esposo,
+            esposa,
+            marido,
+            mujer,
+            hombre,
+            niño,
+            niña,
+            bebé,
+            amigo,
+            amiga,
+            vecino,
+            pareja,
+            nieto,
+            sobrino,
+            cuñado,
+            gente,
+          ]
 
       - title: Say what you have and how old you are
         function: stating possession and age
         grammar_concept: tener_possession
         register_slot: n/a
         target_lexemes:
-          [tener, año, edad, viejo, joven, nuevo, cumpleaños, mayor, menor, adulto,
-           anciano, cumplir, nacimiento, fecha, mes, enero, febrero, marzo, abril, mayo,
-           junio, julio, agosto, septiembre, octubre, noviembre, diciembre, calendario, semana, hoy,
-           mañana, ayer, siempre]
+          [
+            tener,
+            año,
+            edad,
+            viejo,
+            joven,
+            nuevo,
+            cumpleaños,
+            mayor,
+            menor,
+            adulto,
+            anciano,
+            cumplir,
+            nacimiento,
+            fecha,
+            mes,
+            enero,
+            febrero,
+            marzo,
+            abril,
+            mayo,
+            junio,
+            julio,
+            agosto,
+            septiembre,
+            octubre,
+            noviembre,
+            diciembre,
+            calendario,
+            semana,
+            hoy,
+            mañana,
+            ayer,
+            siempre,
+          ]
 
       - title: Ask a stranger a simple question
         function: asking for information
         grammar_concept: question_words
         register_slot: binary_t_v
         target_lexemes:
-          [qué, quién, cuál, cuándo, porque, para, con, sin, sobre, pregunta,
-           preguntar, responder, respuesta, decir, saber, conocer, entender, repetir, explicar, ayuda,
-           ayudar, perdón, disculpar, claro, seguro, quizá, vez, también, tampoco, entonces,
-           pues, cierto, duda]
+          [
+            qué,
+            quién,
+            cuál,
+            cuándo,
+            porque,
+            para,
+            con,
+            sin,
+            sobre,
+            pregunta,
+            preguntar,
+            responder,
+            respuesta,
+            decir,
+            saber,
+            conocer,
+            entender,
+            repetir,
+            explicar,
+            ayuda,
+            ayudar,
+            perdón,
+            disculpar,
+            claro,
+            seguro,
+            quizá,
+            vez,
+            también,
+            tampoco,
+            entonces,
+            pues,
+            cierto,
+            duda,
+          ]
 
       - title: Describe what something looks like
         function: describing objects and people
         grammar_concept: adjective_agreement
         register_slot: n/a
         target_lexemes:
-          [grande, pequeño, alto, bajo, largo, corto, gordo, delgado, guapo, feo,
-           bonito, limpio, sucio, caliente, frío, fuerte, débil, rápido, lento, fácil,
-           difícil, caro, barato, lleno, vacío, blando, duro, ligero, pesado, ancho,
-           estrecho, redondo, cuadrado]
+          [
+            grande,
+            pequeño,
+            alto,
+            bajo,
+            largo,
+            corto,
+            gordo,
+            delgado,
+            guapo,
+            feo,
+            bonito,
+            limpio,
+            sucio,
+            caliente,
+            frío,
+            fuerte,
+            débil,
+            rápido,
+            lento,
+            fácil,
+            difícil,
+            caro,
+            barato,
+            lleno,
+            vacío,
+            blando,
+            duro,
+            ligero,
+            pesado,
+            ancho,
+            estrecho,
+            redondo,
+            cuadrado,
+          ]
 
       - title: Ask for a drink at the counter
         function: making a simple request
         grammar_concept: querer_poder_modals
         register_slot: binary_t_v
         target_lexemes:
-          [querer, poder, beber, café, té, agua, leche, zumo, cerveza, vino,
-           azúcar, hielo, cuenta, camarero, bar, propina, servir, traer, pedir, tomar,
-           necesitar, deber, probar, terminar, empezar, abrir, cerrar, esperar, pagar, precio,
-           euro, dinero, tarjeta]
+          [
+            querer,
+            poder,
+            beber,
+            café,
+            té,
+            agua,
+            leche,
+            zumo,
+            cerveza,
+            vino,
+            azúcar,
+            hielo,
+            cuenta,
+            camarero,
+            bar,
+            propina,
+            servir,
+            traer,
+            pedir,
+            tomar,
+            necesitar,
+            deber,
+            probar,
+            terminar,
+            empezar,
+            abrir,
+            cerrar,
+            esperar,
+            pagar,
+            precio,
+            euro,
+            dinero,
+            tarjeta,
+          ]
 
       - title: Say where something is
         function: locating things and places
         grammar_concept: estar_state_location
         register_slot: n/a
         target_lexemes:
-          [estar, cerca, lejos, dentro, fuera, arriba, abajo, delante, detrás, encima,
-           debajo, entre, junto, lado, izquierda, derecha, centro, esquina, calle, plaza,
-           parque, tienda, banco, mercado, estación, hospital, farmacia, escuela, oficina, edificio,
-           piso, planta, ascensor]
+          [
+            estar,
+            cerca,
+            lejos,
+            dentro,
+            fuera,
+            arriba,
+            abajo,
+            delante,
+            detrás,
+            encima,
+            debajo,
+            entre,
+            junto,
+            lado,
+            izquierda,
+            derecha,
+            centro,
+            esquina,
+            calle,
+            plaza,
+            parque,
+            tienda,
+            banco,
+            mercado,
+            estación,
+            hospital,
+            farmacia,
+            escuela,
+            oficina,
+            edificio,
+            piso,
+            planta,
+            ascensor,
+          ]
 
   - index: 2
     cefr_prose: early A1
@@ -399,100 +761,410 @@ sections:
         grammar_concept: present_ar_verbs
         register_slot: n/a
         target_lexemes:
-          [trabajar, estudiar, llegar, entrar, llamar, buscar, encontrar, comprar, usar, mirar,
-           escuchar, descansar, cenar, desayunar, firmar, enviar, guardar, cambiar, arreglar, ganar,
-           trabajo, jefe, empresa, reunión, correo, informe, tarea, horario, sueldo, contrato,
-           compañero, proyecto, cliente]
+          [
+            trabajar,
+            estudiar,
+            llegar,
+            entrar,
+            llamar,
+            buscar,
+            encontrar,
+            comprar,
+            usar,
+            mirar,
+            escuchar,
+            descansar,
+            cenar,
+            desayunar,
+            firmar,
+            enviar,
+            guardar,
+            cambiar,
+            arreglar,
+            ganar,
+            trabajo,
+            jefe,
+            empresa,
+            reunión,
+            correo,
+            informe,
+            tarea,
+            horario,
+            sueldo,
+            contrato,
+            compañero,
+            proyecto,
+            cliente,
+          ]
 
       - title: Say what you eat and drink
         function: talking about food and meals
         grammar_concept: present_er_ir_verbs
         register_slot: n/a
         target_lexemes:
-          [comer, escribir, leer, subir, salir, recibir, aprender, comprender, correr, vender,
-           partir, pan, queso, carne, pescado, huevo, arroz, fruta, manzana, naranja,
-           plátano, tomate, patata, verdura, ensalada, sopa, postre, sal, aceite, comida,
-           cena, desayuno, almuerzo]
+          [
+            comer,
+            escribir,
+            leer,
+            subir,
+            salir,
+            recibir,
+            aprender,
+            comprender,
+            correr,
+            vender,
+            partir,
+            pan,
+            queso,
+            carne,
+            pescado,
+            huevo,
+            arroz,
+            fruta,
+            manzana,
+            naranja,
+            plátano,
+            tomate,
+            patata,
+            verdura,
+            ensalada,
+            sopa,
+            postre,
+            sal,
+            aceite,
+            comida,
+            cena,
+            desayuno,
+            almuerzo,
+          ]
 
       - title: Buy food at the market
         function: shopping for groceries
         grammar_concept: hay_existence
         register_slot: binary_t_v
         target_lexemes:
-          [haber, supermercado, panadería, carnicería, frutería, pescadería, kilo, gramo, litro, botella,
-           paquete, lata, docena, oferta, descuento, cola, carro, estante, producto, marca,
-           fresco, maduro, caducar, pesar, elegir, llevar, costar, rebaja, efectivo, cambio,
-           moneda, billete, cesta]
+          [
+            haber,
+            supermercado,
+            panadería,
+            carnicería,
+            frutería,
+            pescadería,
+            kilo,
+            gramo,
+            litro,
+            botella,
+            paquete,
+            lata,
+            docena,
+            oferta,
+            descuento,
+            cola,
+            carro,
+            estante,
+            producto,
+            marca,
+            fresco,
+            maduro,
+            caducar,
+            pesar,
+            elegir,
+            llevar,
+            costar,
+            rebaja,
+            efectivo,
+            cambio,
+            moneda,
+            billete,
+            cesta,
+          ]
 
       - title: Say what you like and what you do not
         function: expressing preference
         grammar_concept: gustar_liking
         register_slot: n/a
         target_lexemes:
-          [gustar, encantar, interesar, importar, preferir, odiar, amar, molestar, parecer, música,
-           canción, serie, baile, bailar, cantar, pintar, dibujar, cocinar, viajar, nadar,
-           pasear, deporte, arte, teatro, cine, concierto, afición, favorito, divertido, aburrido,
-           entretenido, preferencia, interés]
+          [
+            gustar,
+            encantar,
+            interesar,
+            importar,
+            preferir,
+            odiar,
+            amar,
+            molestar,
+            parecer,
+            música,
+            canción,
+            serie,
+            baile,
+            bailar,
+            cantar,
+            pintar,
+            dibujar,
+            cocinar,
+            viajar,
+            nadar,
+            pasear,
+            deporte,
+            arte,
+            teatro,
+            cine,
+            concierto,
+            afición,
+            favorito,
+            divertido,
+            aburrido,
+            entretenido,
+            preferencia,
+            interés,
+          ]
 
       - title: Give someone directions on the street
         function: giving and following directions
         grammar_concept: prepositions_place
         register_slot: binary_t_v
         target_lexemes:
-          [seguir, girar, cruzar, doblar, torcer, continuar, parar, volver, bajar, avanzar,
-           recto, semáforo, acera, paso, cruce, rotonda, puente, avenida, camino, carretera,
-           dirección, ruta, señal, bloque, salida, entrada, kilómetro, metro, minuto, distancia,
-           perdido, encontrarse, indicar]
+          [
+            seguir,
+            girar,
+            cruzar,
+            doblar,
+            torcer,
+            continuar,
+            parar,
+            volver,
+            bajar,
+            avanzar,
+            recto,
+            semáforo,
+            acera,
+            paso,
+            cruce,
+            rotonda,
+            puente,
+            avenida,
+            camino,
+            carretera,
+            dirección,
+            ruta,
+            señal,
+            bloque,
+            salida,
+            entrada,
+            kilómetro,
+            metro,
+            minuto,
+            distancia,
+            perdido,
+            encontrarse,
+            indicar,
+          ]
 
       - title: Tell the time and name the day
         function: telling the time
         grammar_concept: time_expressions
         register_slot: n/a
         target_lexemes:
-          [hora, media, cuarto, punto, temprano, pronto, antes, después, durante, mientras,
-           todavía, ya, nunca, frecuente, lunes, martes, miércoles, jueves, viernes, sábado,
-           domingo, fin, cita, plan, quedar, reservar, retraso, puntual, agenda, madrugada,
-           mediodía, medianoche, rato]
+          [
+            hora,
+            media,
+            cuarto,
+            punto,
+            temprano,
+            pronto,
+            antes,
+            después,
+            durante,
+            mientras,
+            todavía,
+            ya,
+            nunca,
+            frecuente,
+            lunes,
+            martes,
+            miércoles,
+            jueves,
+            viernes,
+            sábado,
+            domingo,
+            fin,
+            cita,
+            plan,
+            quedar,
+            reservar,
+            retraso,
+            puntual,
+            agenda,
+            madrugada,
+            mediodía,
+            medianoche,
+            rato,
+          ]
 
       - title: Say what the weather is doing
         function: talking about the weather
         grammar_concept: weather_impersonal
         register_slot: n/a
         target_lexemes:
-          [hacer, llover, nevar, sol, lluvia, nieve, viento, nube, nublado, tormenta,
-           calor, helada, niebla, grado, temperatura, clima, primavera, verano, otoño, invierno,
-           soleado, lluvioso, ventoso, húmedo, seco, paraguas, abrigo, bufanda, guante, sombra,
-           cielo, granizo, brisa]
+          [
+            hacer,
+            llover,
+            nevar,
+            sol,
+            lluvia,
+            nieve,
+            viento,
+            nube,
+            nublado,
+            tormenta,
+            calor,
+            helada,
+            niebla,
+            grado,
+            temperatura,
+            clima,
+            primavera,
+            verano,
+            otoño,
+            invierno,
+            soleado,
+            lluvioso,
+            ventoso,
+            húmedo,
+            seco,
+            paraguas,
+            abrigo,
+            bufanda,
+            guante,
+            sombra,
+            cielo,
+            granizo,
+            brisa,
+          ]
 
       - title: Show someone around your home
         function: describing a home
         grammar_concept: noun_number_agreement
         register_slot: n/a
         target_lexemes:
-          [casa, habitación, cocina, baño, salón, dormitorio, garaje, jardín, terraza, balcón,
-           pasillo, escalera, mueble, sofá, armario, estantería, alfombra, cortina, almohada, manta,
-           sábana, toalla, jabón, ducha, bañera, grifo, nevera, horno, lavadora, fregadero,
-           basura, vecindario, alquiler]
+          [
+            casa,
+            habitación,
+            cocina,
+            baño,
+            salón,
+            dormitorio,
+            garaje,
+            jardín,
+            terraza,
+            balcón,
+            pasillo,
+            escalera,
+            mueble,
+            sofá,
+            armario,
+            estantería,
+            alfombra,
+            cortina,
+            almohada,
+            manta,
+            sábana,
+            toalla,
+            jabón,
+            ducha,
+            bañera,
+            grifo,
+            nevera,
+            horno,
+            lavadora,
+            fregadero,
+            basura,
+            vecindario,
+            alquiler,
+          ]
 
       - title: Say what you are going to do next
         function: making plans
         grammar_concept: ir_a_future
         register_slot: n/a
         target_lexemes:
-          [ir, venir, planear, organizar, decidir, invitar, aceptar, rechazar, avisar, confirmar,
-           cancelar, apuntar, próximo, siguiente, futuro, pasado, presente, idea, propuesta, invitación,
-           evento, encuentro, compromiso, disponible, ocupado, libre, listo, preparado, intención, objetivo,
-           meta, programa, actividad]
+          [
+            ir,
+            venir,
+            planear,
+            organizar,
+            decidir,
+            invitar,
+            aceptar,
+            rechazar,
+            avisar,
+            confirmar,
+            cancelar,
+            apuntar,
+            próximo,
+            siguiente,
+            futuro,
+            pasado,
+            presente,
+            idea,
+            propuesta,
+            invitación,
+            evento,
+            encuentro,
+            compromiso,
+            disponible,
+            ocupado,
+            libre,
+            listo,
+            preparado,
+            intención,
+            objetivo,
+            meta,
+            programa,
+            actividad,
+          ]
 
       - title: Say no, and put a mistake right
         function: refusing and correcting
         grammar_concept: negation_no
         register_slot: n/a
         target_lexemes:
-          [nada, nadie, ninguno, ni, jamás, apenas, sino, error, equivocarse, corregir,
-           falso, verdadero, verdad, mentira, mentir, negar, negativo, positivo, contrario, diferente,
-           igual, mismo, similar, contra, aunque, pero, excepto, salvo, casi, bastante,
-           demasiado, suficiente, incorrecto]
+          [
+            nada,
+            nadie,
+            ninguno,
+            ni,
+            jamás,
+            apenas,
+            sino,
+            error,
+            equivocarse,
+            corregir,
+            falso,
+            verdadero,
+            verdad,
+            mentira,
+            mentir,
+            negar,
+            negativo,
+            positivo,
+            contrario,
+            diferente,
+            igual,
+            mismo,
+            similar,
+            contra,
+            aunque,
+            pero,
+            excepto,
+            salvo,
+            casi,
+            bastante,
+            demasiado,
+            suficiente,
+            incorrecto,
+          ]
 
   - index: 3
     cefr_prose: high A1
@@ -504,97 +1176,407 @@ sections:
         grammar_concept: reflexive_daily_routine
         register_slot: n/a
         target_lexemes:
-          [levantarse, ducharse, vestirse, peinarse, lavarse, afeitarse, acostarse, dormirse, despertarse, sentarse,
-           quedarse, irse, ponerse, quitarse, prepararse, arreglarse, maquillarse, cepillarse, secarse, bañarse,
-           despedirse, reunirse, acordarse, olvidarse, alegrarse, enfadarse, cansarse, aburrirse, divertirse, moverse,
-           caerse, perderse, sentirse]
+          [
+            levantarse,
+            ducharse,
+            vestirse,
+            peinarse,
+            lavarse,
+            afeitarse,
+            acostarse,
+            dormirse,
+            despertarse,
+            sentarse,
+            quedarse,
+            irse,
+            ponerse,
+            quitarse,
+            prepararse,
+            arreglarse,
+            maquillarse,
+            cepillarse,
+            secarse,
+            bañarse,
+            despedirse,
+            reunirse,
+            acordarse,
+            olvidarse,
+            alegrarse,
+            enfadarse,
+            cansarse,
+            aburrirse,
+            divertirse,
+            moverse,
+            caerse,
+            perderse,
+            sentirse,
+          ]
 
       - title: Pick out clothes by colour
         function: talking about clothes and colour
         grammar_concept: demonstratives
         register_slot: n/a
         target_lexemes:
-          [este, ese, aquel, ropa, camisa, camiseta, pantalón, falda, vestido, chaqueta,
-           jersey, zapato, bota, calcetín, sombrero, cinturón, corbata, traje, blusa, color,
-           blanco, negro, rojo, azul, verde, amarillo, gris, marrón, rosa, morado,
-           talla, moda, tela]
+          [
+            este,
+            ese,
+            aquel,
+            ropa,
+            camisa,
+            camiseta,
+            pantalón,
+            falda,
+            vestido,
+            chaqueta,
+            jersey,
+            zapato,
+            bota,
+            calcetín,
+            sombrero,
+            cinturón,
+            corbata,
+            traje,
+            blusa,
+            color,
+            blanco,
+            negro,
+            rojo,
+            azul,
+            verde,
+            amarillo,
+            gris,
+            marrón,
+            rosa,
+            morado,
+            talla,
+            moda,
+            tela,
+          ]
 
       - title: Ask for help at a service desk
         function: asking for help politely
         grammar_concept: formal_informal_address
         register_slot: binary_t_v
         target_lexemes:
-          [vosotros, ustedes, señorita, don, doña, tutear, formal, informal, cortés, amable,
-           educado, respeto, permiso, molestia, atención, atender, solicitar, rogar, agradecer, saludar,
-           despedir, presentar, tratar, dirigirse, recepción, mostrador, turno, fila, formulario, documento,
-           firma, trámite, gestión]
+          [
+            vosotros,
+            ustedes,
+            señorita,
+            don,
+            doña,
+            tutear,
+            formal,
+            informal,
+            cortés,
+            amable,
+            educado,
+            respeto,
+            permiso,
+            molestia,
+            atención,
+            atender,
+            solicitar,
+            rogar,
+            agradecer,
+            saludar,
+            despedir,
+            presentar,
+            tratar,
+            dirigirse,
+            recepción,
+            mostrador,
+            turno,
+            fila,
+            formulario,
+            documento,
+            firma,
+            trámite,
+            gestión,
+          ]
 
       - title: Get yourself across a city
         function: travelling and using transport
         grammar_concept: contractions_al_del
         register_slot: n/a
         target_lexemes:
-          [a, al, del, viaje, maleta, equipaje, avión, tren, autobús, coche,
-           barco, bicicleta, taxi, aeropuerto, puerto, andén, vuelo, hotel, museo, playa,
-           montaña, excursión, vacaciones, pasaporte, turista, conducir, aparcar, gasolina, carnet, asiento,
-           ventanilla, transbordo, maletero]
+          [
+            a,
+            al,
+            del,
+            viaje,
+            maleta,
+            equipaje,
+            avión,
+            tren,
+            autobús,
+            coche,
+            barco,
+            bicicleta,
+            taxi,
+            aeropuerto,
+            puerto,
+            andén,
+            vuelo,
+            hotel,
+            museo,
+            playa,
+            montaña,
+            excursión,
+            vacaciones,
+            pasaporte,
+            turista,
+            conducir,
+            aparcar,
+            gasolina,
+            carnet,
+            asiento,
+            ventanilla,
+            transbordo,
+            maletero,
+          ]
 
       - title: Say how you feel today
         function: describing health and feelings
         grammar_concept: estar_gerund
         register_slot: n/a
         target_lexemes:
-          [doler, dolor, enfermo, sano, salud, médico, enfermera, consulta, receta, medicina,
-           pastilla, fiebre, tos, gripe, resfriado, herida, cabeza, garganta, estómago, espalda,
-           brazo, pierna, mano, pie, ojo, oreja, boca, nariz, diente, corazón,
-           cuerpo, piel, hueso]
+          [
+            doler,
+            dolor,
+            enfermo,
+            sano,
+            salud,
+            médico,
+            enfermera,
+            consulta,
+            receta,
+            medicina,
+            pastilla,
+            fiebre,
+            tos,
+            gripe,
+            resfriado,
+            herida,
+            cabeza,
+            garganta,
+            estómago,
+            espalda,
+            brazo,
+            pierna,
+            mano,
+            pie,
+            ojo,
+            oreja,
+            boca,
+            nariz,
+            diente,
+            corazón,
+            cuerpo,
+            piel,
+            hueso,
+          ]
 
       - title: Talk about what you are studying
         function: talking about school and study
         grammar_concept: stem_changing_verbs
         register_slot: n/a
         target_lexemes:
-          [pensar, perder, dormir, jugar, soñar, recordar, mostrar, encender, colgar, clase,
-           alumno, profesor, maestro, universidad, instituto, colegio, examen, nota, apunte, pizarra,
-           curso, asignatura, carrera, título, beca, biblioteca, aula, recreo, matrícula, diploma,
-           lección, ejercicio, resumen]
+          [
+            pensar,
+            perder,
+            dormir,
+            jugar,
+            soñar,
+            recordar,
+            mostrar,
+            encender,
+            colgar,
+            clase,
+            alumno,
+            profesor,
+            maestro,
+            universidad,
+            instituto,
+            colegio,
+            examen,
+            nota,
+            apunte,
+            pizarra,
+            curso,
+            asignatura,
+            carrera,
+            título,
+            beca,
+            biblioteca,
+            aula,
+            recreo,
+            matrícula,
+            diploma,
+            lección,
+            ejercicio,
+            resumen,
+          ]
 
       - title: Put two things side by side
         function: comparing and measuring
         grammar_concept: comparatives_basic
         register_slot: n/a
         target_lexemes:
-          [tanto, como, mejor, peor, superior, inferior, doble, mitad, cantidad, tamaño,
-           peso, altura, anchura, longitud, comparar, medir, aumentar, disminuir, crecer, reducir,
-           alcanzar, superar, nivel, escala, rango, promedio, máximo, mínimo, suma, resta,
-           total, parte, porcentaje]
+          [
+            tanto,
+            como,
+            mejor,
+            peor,
+            superior,
+            inferior,
+            doble,
+            mitad,
+            cantidad,
+            tamaño,
+            peso,
+            altura,
+            anchura,
+            longitud,
+            comparar,
+            medir,
+            aumentar,
+            disminuir,
+            crecer,
+            reducir,
+            alcanzar,
+            superar,
+            nivel,
+            escala,
+            rango,
+            promedio,
+            máximo,
+            mínimo,
+            suma,
+            resta,
+            total,
+            parte,
+            porcentaje,
+          ]
 
       - title: Follow a match with friends
         function: talking about sport and hobbies
         grammar_concept: direct_object_pronouns
         register_slot: n/a
         target_lexemes:
-          [lo, me, te, nos, os, se, fútbol, baloncesto, tenis, natación,
-           ciclismo, atletismo, equipo, partido, jugador, entrenador, árbitro, gol, campo, cancha,
-           gimnasio, entrenar, empatar, competir, marcar, lanzar, saltar, patinar, escalar, pelota,
-           red, raqueta, torneo]
+          [
+            lo,
+            me,
+            te,
+            nos,
+            os,
+            se,
+            fútbol,
+            baloncesto,
+            tenis,
+            natación,
+            ciclismo,
+            atletismo,
+            equipo,
+            partido,
+            jugador,
+            entrenador,
+            árbitro,
+            gol,
+            campo,
+            cancha,
+            gimnasio,
+            entrenar,
+            empatar,
+            competir,
+            marcar,
+            lanzar,
+            saltar,
+            patinar,
+            escalar,
+            pelota,
+            red,
+            raqueta,
+            torneo,
+          ]
 
       - title: Order a coffee and settle the bill
         function: ordering in a café
         grammar_concept: yes_no_questions
         register_slot: binary_t_v
         target_lexemes:
-          [menú, carta, ración, tapa, bocadillo, tortilla, churro, magdalena, galleta, chocolate,
-           helado, tarta, bollo, servilleta, barra, cafetería, cucharilla, infusión, manzanilla, cortado,
-           capuchino, descafeinado, templado, encargar, compartir, recomendar, disfrutar, sabor, dulce, salado,
-           amargo, rico, merienda]
+          [
+            menú,
+            carta,
+            ración,
+            tapa,
+            bocadillo,
+            tortilla,
+            churro,
+            magdalena,
+            galleta,
+            chocolate,
+            helado,
+            tarta,
+            bollo,
+            servilleta,
+            barra,
+            cafetería,
+            cucharilla,
+            infusión,
+            manzanilla,
+            cortado,
+            capuchino,
+            descafeinado,
+            templado,
+            encargar,
+            compartir,
+            recomendar,
+            disfrutar,
+            sabor,
+            dulce,
+            salado,
+            amargo,
+            rico,
+            merienda,
+          ]
 
       - title: Bring a present to a celebration
         function: taking part in a celebration
         grammar_concept: indefinite_articles
         register_slot: n/a
         target_lexemes:
-          [un, fiesta, boda, bautizo, aniversario, celebración, celebrar, regalo, regalar, felicitación,
-           felicitar, brindis, brindar, invitado, anfitrión, adorno, globo, vela, pastel, disfraz,
-           cohete, desfile, procesión, tradición, costumbre, navidad, feria, verbena, romería, recuerdo,
-           alegría, sorpresa, banquete]
+          [
+            un,
+            fiesta,
+            boda,
+            bautizo,
+            aniversario,
+            celebración,
+            celebrar,
+            regalo,
+            regalar,
+            felicitación,
+            felicitar,
+            brindis,
+            brindar,
+            invitado,
+            anfitrión,
+            adorno,
+            globo,
+            vela,
+            pastel,
+            disfraz,
+            cohete,
+            desfile,
+            procesión,
+            tradición,
+            costumbre,
+            navidad,
+            feria,
+            verbena,
+            romería,
+            recuerdo,
+            alegría,
+            sorpresa,
+            banquete,
+          ]

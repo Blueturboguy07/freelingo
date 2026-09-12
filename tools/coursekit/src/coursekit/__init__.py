@@ -105,6 +105,15 @@ class Registry[T]:
         reads at once as "the whole suite is green" and as "my validator isn't running",
         which are the two things this project can least afford to confuse. Measured on
         this commit before the fix: register V10-V12, reset, ask again, get `()`.
+
+        **The cost of that mechanism, written down because it bit once.** Eviction means
+        the next discovery builds a NEW module object for every registered module. Any
+        name a test imported earlier — `from coursekit.stages.g2_band import build_rows` —
+        still points at the old object, so `monkeypatch.setattr("coursekit.stages.g2_band.
+        FLAG", ...)` patches a module that nothing calls. A test that patches a stage
+        module global must patch the function's own `__globals__`; see
+        `tests/test_cli.py::test_a_restore_replaces_the_module_object_a_test_already_imported`,
+        which pins this so the next lane meets a failing test rather than a banding bug.
         """
         self._entries.clear()
         self._discovered = False

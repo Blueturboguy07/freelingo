@@ -130,14 +130,14 @@ MANIFEST_EXTRA_FIELDS: Final[tuple[str, ...]] = (
     "builtAt",
 )
 
-#: INV-PACK-40 / EC-PACK-37: "token" means the language adapter's unit, declared exactly
-#: once per pack. A Mode-A morpheme for Japanese, a lemma everywhere else.
-LEDGER_UNIT_BY_LANGUAGE: Final[dict[str, str]] = {
-    "es": "lemma",
-    "fr": "lemma",
-    "de": "lemma",
-    "ja": "morpheme",
-}
+#: INV-PACK-40 / EC-PACK-37: the ledger unit is NOT declared here. It is declared once, in
+#: `config/g1.py`, and read only through `coursekit.ledger.ledger_unit`. A copy lived here
+#: while G9 and G1 were separate branches, and by the time the two met it had already
+#: drifted: this file said Japanese counts a `morpheme`, `config/g1.py` says
+#: `morpheme_mode_a`, and `LEDGER_UNITS` does not carry the first — so a `ja` pack built
+#: through G9 would have shipped a manifest naming a unit the ledger refuses. That is
+#: falsifier case 2 ("two declarations is worse than none") happening for real, which is
+#: why the gate greps for the NAME rather than comparing values.
 
 #: A sentence G5 authored has no corpus behind it: its licence is the pack's own
 #: (CC BY-NC-SA 4.0), whose BY clause still requires a credit, and the credits surface

@@ -31,7 +31,6 @@ is where G4 enforces that; G0's job is to make sure the verdict is on the row.
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -49,21 +48,18 @@ from ..config.g0 import (
     PROFANITY_TOKENS,
     REGISTER_REJECT_SUBSTRINGS,
     REJECT_REASONS,
-    SPACELESS_LANGUAGES,
     SPACELESS_MAX_CHARS,
     SPACELESS_MIN_CHARS,
-    TOKEN_PATTERN,
     UNRESOLVED_LICENCE,
 )
 from ..inputs import MissingInput
+from ..ledger import collapse_whitespace, is_spaceless, pre_analysis_count, pre_analysis_units
 from ..runlog import StageEntry
 from ..sources import opus, tatoeba
 from ..sources.licences import HttpTransport, IngestPermit, Transport, permit
 from . import StageContext, StageResult, register_stage
 
 __all__ = ["Candidate", "IngestReport", "ingest", "normalise", "token_count"]
-
-_TOKEN = re.compile(TOKEN_PATTERN, re.UNICODE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,26 +105,26 @@ def normalise(text: str) -> str:
     for character in INVISIBLE_CHARS:
         text = text.replace(character, "")
     text = unicodedata.normalize(NORMALISATION_FORM, text)
-    return " ".join(text.split())
+    return collapse_whitespace(text)
 
 
 def token_count(text: str, lang: str) -> int:
     """A rough token count for the LENGTH FILTER ONLY. G1 owns real tokenisation.
 
-    For a language with no word spacing the count is characters, not whitespace "words":
-    counting whitespace tokens in Japanese is the same mistake edge case 6 catches in
-    `ja_full.txt`, where whitespace-split "words" are sentence fragments.
+    The counting itself is `coursekit.ledger.pre_analysis_count`, not a tokeniser written
+    here: INV-PACK-40 is about a *second* definition, and "G0 runs before the morphology
+    model exists" is a reason for the ledger to name a pre-analysis unit, not a reason for
+    this stage to invent one. For a language with no word spacing the ledger counts
+    characters rather than whitespace "words" — edge case 6 in `ja_full.txt`.
     """
-    if lang in SPACELESS_LANGUAGES:
-        return len([character for character in text if not character.isspace()])
-    return len(_TOKEN.findall(text))
+    return pre_analysis_count(lang, text)
 
 
 def _length_verdict(text: str, lang: str) -> tuple[int, str | None]:
     count = token_count(text, lang)
     low, high = (
         (SPACELESS_MIN_CHARS, SPACELESS_MAX_CHARS)
-        if lang in SPACELESS_LANGUAGES
+        if is_spaceless(lang)
         else (MIN_TOKENS, MAX_TOKENS)
     )
     if count < low:
@@ -147,11 +143,11 @@ def _register_verdict(text: str, translation: str, lang: str) -> str | None:
         deny = PROFANITY_TOKENS.get(code, ())
         if not deny:
             continue
-        if code in SPACELESS_LANGUAGES:
+        if is_spaceless(code):
             if any(token in side for token in deny):
                 return "profanity"
             continue
-        tokens = {token.casefold() for token in _TOKEN.findall(side)}
+        tokens = {token.casefold() for token in pre_analysis_units(code, side)}
         if tokens & set(deny):
             return "profanity"
     return None
