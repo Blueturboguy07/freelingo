@@ -665,10 +665,11 @@ re-running a failed CI job as the brief requires and then watching the next sha 
 
 ## Disk
 
-`df -h ~` before the build: **65 GiB free of 460 GiB (85% used)**. After it: **64 GiB**,
-`df -g` agreeing at 64. Well above the 15 GB floor the brief names, so no cache was
-cleared and `apps/mobile/ios/build`, `apps/mobile/android/build` and
-`~/Library/Developer/Xcode/DerivedData/Freelingo-*` were left alone.
+`df -h ~` at the start of the integration: **66 GiB free of 460 GiB (84% used)**. Before
+the build: 65 GiB. At the end: **65 GiB**, `df -g` agreeing. Well above the 15 GB floor
+the brief names, so no cache was cleared and `apps/mobile/ios/build`,
+`apps/mobile/android/build` and `~/Library/Developer/Xcode/DerivedData/Freelingo-*` were
+left alone.
 
 P0's target of ≥ 80 GB free is still unmet and nothing in P2 needed it. What this round
 added locally and does not need again: `build/` 520 MB (the G0–G5 tree, gitignored),
