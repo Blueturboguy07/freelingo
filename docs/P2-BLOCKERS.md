@@ -1241,17 +1241,30 @@ produced the starved-slot defect at the last one.
 
 ---
 
-## B20 — `ci.yml` fails with 1,316 of 1,316 tests passing — OPEN, measured
+## B20 — `ci.yml` intermittently fails with 1,316 of 1,316 tests passing — OPEN, measured
 
 `Error: [vitest-worker]: Timeout calling "onTaskUpdate"`, with
 `Test Files 114 passed | 1 skipped`, `Tests 1316 passed | 6 skipped`, on a 227-second
 wall / 604-second test-time run. It is the reporter's RPC to the worker timing out, not a
 test.
 
-Round 2 saw it once, re-ran the job, got green, and wrote it down as a flake
-(`docs/P2-REPORT-round2.md` §ci.yml). **This round it failed on both attempts of the same
-sha** — `86f2430` attempt 1 and attempt 2 — so it is no longer a flake that a re-run
-clears, and `ci.yml` is RED with nothing wrong with any test.
+`docs/P2-REPORT-round2.md` saw it once, re-ran the job, got green, and wrote it down as a
+flake. **This round it failed on both attempts of the same sha** — `86f2430` attempt 1 and
+attempt 2 — and then **passed first time on `859f3fb`**, a tree that differs from it by
+content, one script and documentation and by no TypeScript at all. So it is a flake, and
+the thing worth recording is its hit rate rather than its existence: two consecutive
+failures on one sha and a clean pass on the next, over an identical suite.
+
+Every attempt, in order:
+
+| sha | attempt | run | result |
+| --- | --- | --- | --- |
+| `86f2430` | 1 | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | FAILURE, 1,316/1,316 pass, 2 errors |
+| `86f2430` | 2 | same run, `gh run rerun --failed` | FAILURE, 1,316/1,316 pass, 1 error |
+| `859f3fb` | 1 | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, 1,316/1,316 pass |
+
+A re-run on the same sha is therefore not a reliable way to clear it, which is what the
+"re-run once before calling it a regression" rule assumes.
 
 Not fixed here on purpose. The suite is 27 s wall on this Mac and 227 s on the runner, so
 there is no way to reproduce the timing locally, and a change pushed as a fix that cannot

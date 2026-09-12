@@ -205,8 +205,10 @@ out_of_vocabulary  (not reached)  ->  283   rows the NEW window rejects, by name
 465 of 494 slots filled
 ```
 
-What is left is authoring, not a re-key: **22 slots with no candidate at all** (440 rows)
-and **7 with twenty-plus and no survivor**. And one contradiction the new gap list
+What is left is authoring, not a re-key: **22 slots with no candidate at all** — 440
+candidates to write, at the over-generation floor of 20 each — and **7 slots with twenty
+or more and no survivor**, which need fresh texts against the new window rather than a
+re-key. And one contradiction the new gap list
 contains: `u1/l3/s3` is reserved to teach the lemma `usted`
 (`content/es/curriculum.yaml:420`) in a course whose register is `tu`, where V6 treats an
 `usted` marker in an accepted answer as **blocking** — the rule 218 rows were rewritten
@@ -259,7 +261,7 @@ invariant behind it.
 Two runs of the same pipeline over the same content:
 
 - **CI, `pack-ci` / `build-es`** — the only run that makes evidence. See §CI.
-- **This Mac, 2026-09-12, 16:07–16:20 UTC** — _corroboration_. A LanguageTool 6.6
+- **This Mac, 2026-09-12, 16:07–16:21 UTC** — _corroboration_. A LanguageTool 6.6
   sidecar (Java 22.0.1) on `http://localhost:8081`, the `align` and `tts` groups
   installed (torch 2.14.0, `kokoro-onnx`), the pinned Kokoro weights at
   `~/.kokoro` (353,753,249 B). Unlike every previous round's local run there is **no
@@ -379,7 +381,7 @@ CI's; anything marked _corroboration_ is this Mac's.
 | `pnpm typecheck`                                                                         | **GREEN**                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ci.yml                |
 | `pnpm format:check`                                                                      | **GREEN**                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ci.yml                |
 | `pnpm invariants:check`                                                                  | **GREEN** — 424 ids, digest matches the corpus                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                |
-| `pnpm test`                                                                              | **RED, and no test failed** — 1,316 passed / 6 skipped, then `Timeout calling "onTaskUpdate"`, on both attempts. B20                                                                                                                                                                                                                                                                                                                                             | ci.yml                |
+| `pnpm test`                                                                              | **GREEN on the final sha** — 1,316 passed / 6 skipped on `859f3fb`, first attempt. It FAILED on both attempts of `86f2430` with the same 1,316 passing and `Timeout calling "onTaskUpdate"`: an intermittent reporter RPC timeout, recorded as B20 with all three attempts                                                                                                                                                                                                                                                                                                                                             | ci.yml                |
 | `pnpm test:falsify`                                                                      | **GREEN** — 280 committed falsifier cases                                                                                                                                                                                                                                                                                                                                                                                                                        | ci.yml                |
 | `pnpm test:coverage-map`                                                                 | **GREEN** — no unowned id, no id claimed twice                                                                                                                                                                                                                                                                                                                                                                                                                   | ci.yml                |
 | `uv run ruff check .` + `uv run pytest`                                                  | **GREEN** — ruff clean; pytest all passed                                                                                                                                                                                                                                                                                                                                                                                                                        | pack-ci `coursekit`   |
@@ -403,16 +405,25 @@ CI's; anything marked _corroboration_ is this Mac's.
 
 All three workflows ran on the integration sha **`86f2430`** — the merge queue plus the
 first two integration fixes and the format sweep. The re-key (`2d16f5f`) and the blockers
-(`a81b729`) landed after it, so a **second round** is quoted below.
+(`a81b729`) landed after it, so **a second CI pass** ran on `859f3fb` and is quoted below.
+
+"Round 2" in this file always means the second CI pass of this integration. The previous
+phase round's report is `docs/P2-REPORT-round2.md` and is called that by name.
 
 | Workflow         | Run                                                                    | Result                                                                                                 |
 | ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | **FAILURE on both attempts** — 1,316/1,316 tests pass, then `Timeout calling "onTaskUpdate"`. B20      |
 | `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497734> | **FAILURE at G5**, `validate-es` skipped on `needs:`                                                   |
-| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the round-2 push, not by a failure |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497731> | **CANCELLED** — three of four jobs green; the iOS job was killed by the second CI pass's push, not by a failure |
 | `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                                    |
 
-### `ci.yml` — RED, twice on the same sha, with every test passing
+### The second CI pass, on `859f3fb`
+
+TBD-ROUND2
+
+
+
+### `ci.yml` — red twice on one sha, green on the next, with every test passing throughout
 
 ```
 Test Files  114 passed | 1 skipped (115)
@@ -423,17 +434,25 @@ Test Files  114 passed | 1 skipped (115)
 Error: [vitest-worker]: Timeout calling "onTaskUpdate"
 ```
 
-The reporter's RPC to the worker times out on a 227-second run. No test failed, on either
-attempt. Round 2 met this once, re-ran the job and got green, and recorded it as a flake.
-The brief's rule is to re-run once on the identical sha before calling a failure a
-regression — that was done, `gh run rerun 34704497896 --failed`, and **attempt 2 failed
-the same way**. So it is not a flake this round and `ci.yml` is RED with nothing wrong
-with any test. Both attempts are on the one run URL above; the job is
-`lint + typecheck + unit/property tests`, and the other two jobs
-(`golden-DB migrations`, `gitleaks`) are green on both.
+The reporter's RPC to the worker times out on a 227-second run. No test failed, on any
+attempt. `docs/P2-REPORT-round2.md` met this once, re-ran the job, got green, and recorded
+it as a flake. The brief's rule is to re-run once on the identical sha before calling a
+failure a regression — that was done (`gh run rerun 34704497896 --failed`) and **attempt 2
+failed the same way**, which looked like a deterministic failure. Then the second CI pass
+on `859f3fb` **passed first time**, over an identical TypeScript tree.
 
-Recorded as **B20** with the levers, and not fixed here: the same suite is 26 s on this
-Mac against 227 s on the runner, so no fix could have been measured before pushing it.
+| sha | attempt | result |
+| --- | --- | --- |
+| `86f2430` | 1 | FAILURE — 1,316/1,316 pass, 2 errors |
+| `86f2430` | 2 (`--failed` re-run) | FAILURE — 1,316/1,316 pass, 1 error |
+| `859f3fb` | 1 | **SUCCESS** — 1,316/1,316 pass |
+
+So it is a flake, and what is worth recording is the hit rate rather than the existence:
+**two consecutive failures on one sha do not mean a regression, and a re-run on the same
+sha is not a reliable way to clear it** — which is precisely what the "re-run once" rule
+assumes. Recorded as **B20** with all three attempts and the levers, and not fixed here:
+the same suite is 26 s on this Mac against 227 s on the runner, so no fix could have been
+measured before pushing it.
 
 ### `pack-ci.yml`
 
@@ -503,8 +522,8 @@ X iOS simulator                                              CANCELLED
 **The iOS job was cancelled, not failed**, and this is the hazard `docs/P2-REPORT-round2.md`
 already named: `pack-ci` and `native-e2e` share a concurrency group with the branch, so
 the push that carried the re-key (`2d16f5f` … `859f3fb`) killed a job that had been
-running for 27 minutes. Recorded as a cancellation. Round 2 of CI below re-runs it on the
-final sha, which is the only honest way to get the iOS half back.
+running for 27 minutes. Recorded as a cancellation. The second CI pass below re-runs it on the
+final code sha, which is the only honest way to get the iOS half back.
 
 `flows exist` and `prebuild-determinism` are the two jobs that can lie cheaply and both
 are green: `maestro test` over an empty directory exits 0, and two `expo prebuild` runs
