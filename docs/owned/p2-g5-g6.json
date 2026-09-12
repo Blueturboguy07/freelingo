@@ -1,0 +1,109 @@
+{
+  "$comment": "Invariant ids owned by the P2 task `p2-g5-g6-gapfill-language`: G5 gap-fill, G6 validate-language, the three build-time engines and V8. Both ids are owned by pytest tests in tools/coursekit. THIS BRANCH TURNS FOUR REPO GATES RED, and all four are named below in `gatesThisBranchTurnsRed` with the exact test names, the exact reproduction commands and the exact fix. None of the four files that would fix them is in this lane's file ownership, and the same four gates go red for every P2 lane that claims a PACK id (five of the eight do), so the fix is one change at integrate rather than five conflicting ones here. The ids are not un-claimed to buy a green tick: the plan's rule 4 calls an unowned invariant worse than a failing one.",
+  "phase": "P2",
+  "task": "p2-g5-g6-gapfill-language",
+  "module": "tools/coursekit",
+  "owned": ["INV-PACK-10", "INV-PACK-14"],
+  "owningTests": {
+    "INV-PACK-10": [
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_no_repair_path_exists_in_the_generator",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_no_repair_path_exists_anywhere_in_the_lane",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_identifier_half_alone_still_catches_a_named_repair_helper",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_scanner_rejects_every_falsifier",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_scanner_accepts_prose_and_the_shape_the_invariant_asks_for",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_scanner_is_walking_something",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_every_emitted_text_is_an_authored_text",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_a_candidate_one_accent_from_correct_is_discarded_not_corrected",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_10_no_engine_is_handed_a_text_other_than_the_one_on_the_row",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_g6_narrows_the_surviving_set_and_changes_no_text"
+    ],
+    "INV-PACK-14": [
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_v8_never_reports_a_pass_over_a_run_that_checked_nothing (11 parametrised cases)",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_the_corpus_covers_both_verdicts_and_both_degradation_directions",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_japanese_degrades_on_spellcheck_and_says_so",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_no_kenlm_model_degrades_to_grammar_only_and_is_not_blocked",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_every_degradation_direction_has_a_name_and_a_cost",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_a_mock_engine_is_a_warning_and_never_a_silent_pass",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_v8_copies_all_four_engine_fields_into_its_own_entry",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_a_mock_grammar_engine_announces_itself_in_the_artefact"
+    ]
+  },
+  "falsifiers": {
+    "INV-PACK-10": "tools/coursekit/tests/falsifiers/INV-PACK-10.json — eight repair-shaped sources the scanner must reject, five near-misses it must accept (two of them prose describing the rule, one the discard-and-resample loop the invariant asks for), and one behavioural case: an authored candidate one accent from correct, which every repair path anyone would write fixes.",
+    "INV-PACK-14": "tools/coursekit/tests/falsifiers/INV-PACK-14.json — eleven G6 runlog shapes that all report zero errors on at least one axis. Three are a pass, seven are blocking, one is Japanese, where a missing spell checker is correct and must not block. BOTH degradation directions are covered in both a named and an unnamed form; the corpus originally carried only 'grammar engine missing' and a real defect (an unnamed grammar-only state) survived nine cases and a green suite because of it. The corpus is parametrised directly into the test, so a V8 that always blocks fails it as surely as one that never does."
+  },
+  "gatesThisBranchTurnsRed": {
+    "$summary": "Four assertions, in two files, all caused by this file claiming two PACK ids against a roster derived for P1. `pnpm test` is ci.yml's FIRST gate, ahead of the coverage map. Measured on this branch 2026-09-12: a full `pnpm test` is 4 failed | 1254 passed over 112 files in 28.12 s, and the four failures are exactly the ones below — nothing else on the branch is red. Reproduce them alone in ~400 ms with: npx vitest run --project core src/journey/phase-roster.test.ts src/journey/falsifier-corpus.test.ts (4 failed | 26 passed; origin/main 7e90cbd: 30 passed).",
+    "failingAssertions": [
+      {
+        "test": "packages/core/src/journey/phase-roster.test.ts :: P1 phase roster > no ownership file claims an id outside the phase roster",
+        "message": "expected [ 'INV-PACK-10', 'INV-PACK-14' ] to deeply equal []",
+        "cause": "ownership.ts::p1Roster derives the roster from the P1 families plus INV-SEC-01/02 plus docs/owned/journey.json `engineParts`. A P2 PACK id is in none of those, so it reads as UNDECLARED."
+      },
+      {
+        "test": "packages/core/src/journey/phase-roster.test.ts :: P1 phase roster > every owned id has an owning test whose name carries the id in brackets",
+        "message": "expected [ 'INV-PACK-10', 'INV-PACK-14' ] to deeply equal []",
+        "cause": "ownership.ts::owningTests scans TEST_ROOTS = ['packages','apps','e2e'] for /\\.(test|spec)\\.(ts|tsx)$|\\.ya?ml$/ and reads ids out of `it()`/`test()` call syntax. The owning tests are Python, in tools/, and carry the id in the test NAME and in the first line of the docstring."
+      },
+      {
+        "test": "packages/core/src/journey/phase-roster.test.ts :: P1 phase roster > the phase owns what the plan says it owns (P1 + P0, counted)",
+        "message": "expected 219 to be 217",
+        "cause": "The count is union(all ownership files) vs roster.expected. Two P2 ids in the union, none in the roster."
+      },
+      {
+        "test": "packages/core/src/journey/falsifier-corpus.test.ts :: falsifier corpus > every owned invariant id has a committed falsifier input",
+        "message": "expected [ 'INV-PACK-10', 'INV-PACK-14' ] to deeply equal []",
+        "cause": "falsifier-corpus.ts::discoverCorpusFiles walks CORPUS_ROOTS = ['packages'] for directories literally named `__falsifiers__`. This lane's corpora are committed at tools/coursekit/tests/falsifiers/, which the walk never enters, so two ids that DO have committed falsifying inputs read as having none."
+      }
+    ],
+    "alsoRed": {
+      "test": "pnpm test:coverage-map",
+      "message": "coverage-map: no owning test for: INV-PACK-10, INV-PACK-14 (exit 1)",
+      "cause": "scripts/coverage-map.ts has its own copy of the same scan: TEST_ROOTS = ['packages','apps','e2e'], TEST_FILE_PATTERN = /\\.(test|spec)\\.(ts|tsx)$|\\.ya?ml$/, and claimedIdsIn reads only `it()`/`test()` call syntax."
+    },
+    "notAttributableToThisBranch": "The adversarial pass also saw 15 'Test timed out in 60000ms' failures under a full `pnpm test` on this machine, on fast-check properties in src/scheduler, src/day, src/data, src/streak and packages/schema (one file reported 357765 ms). They did NOT reproduce here: the same command on the same branch on 2026-09-12 finished the whole suite in 28.12 s with 1254 passing and only the four assertions above failing. Load artefacts from concurrent agent runs on this box, not a property of the branch.",
+    "whyNotFixedHere": "None of packages/core/src/journey/ownership.ts, packages/core/src/journey/phase-roster.test.ts, packages/core/src/journey/falsifier-corpus.ts or scripts/coverage-map.ts is in this task's file ownership. They are also not this lane's problem alone: five of the eight P2 lanes claim a PACK id (p2-g0-ingest INV-PACK-12/13, p2-g3-g4 INV-PACK-06, this lane INV-PACK-10/14, p2-g7 INV-PACK-07/08/50, p2-g8 INV-PACK-15 + INV-AUD-08, p2-g9 INV-PACK-17/41 — eleven ids over five files), and every one of them turns the same four assertions red the same way. Five lanes each editing ownership.ts would be five conflicting edits to one file for one fix.",
+    "owner": "the P2 integrate task",
+    "theFix": {
+      "1_roster": "packages/core/src/journey/ownership.ts: the roster is P1's. Give it a phase. Smallest honest shape: add `P2_FAMILIES`/`P2_EXTRA_IDS` (or read a `phase` field off each docs/owned/*.json — every P2 file already carries \"phase\": \"P2\") and union the phase rosters before comparing, so a P2 id is checked against P2's roster rather than P1's. Then `the phase owns what the plan says it owns` derives its count from the roster instead of comparing to a pinned 217 — the review's wording, and the same reason docs/README.md gives for the registry digest: a hand-pinned count goes stale the first time the tree moves and nothing says so.",
+      "2_owningTestScan": "packages/core/src/journey/ownership.ts::owningTests and scripts/coverage-map.ts (two copies of one scan): add 'tools' to TEST_ROOTS; add `|^test_.*\\.py$` to TEST_FILE_PATTERN; and extend claimedIdsIn/owningTests to read ids out of Python test DOCSTRINGS as well as `it()`/`test()` call syntax. Every test in this lane carries the id twice — in the function name (test_INV_PACK_10_…) and in brackets on the first line of its docstring (\"\"\"[INV-PACK-10] …\"\"\") — so either form is enough; the bracket form matches the existing contract in docs/README.md §Adding coverage.",
+      "3_falsifierCorpus": "packages/core/src/journey/falsifier-corpus.ts: add 'tools' to CORPUS_ROOTS, and accept `falsifiers` alongside `__falsifiers__` as the directory name (or register a pointer). The consumption half needs the same two edits as the scan above: testFilesUnder matches /\\.test\\.tsx?$/ and must also match ^test_.*\\.py$, and moduleRootFor resolves to tools/coursekit/tests, whose Python test files do read the directory (tests/test_g5_gapfill.py and tests/test_g6_validate_language.py both `FALSIFIERS / \"INV-PACK-…json\"`). Both corpus files now carry a top-level `why` key, which is what falsifier-corpus.ts::REASON_KEYS requires, so no further edit to this lane's files is needed once the walk reaches them.",
+      "4_nothingElse": "No change to docs/invariants.md, docs/invariants-owned.json or any other lane's ownership file is needed. Both ids are in the registry already (`no ownership file claims an id that is absent from docs/invariants.md` passes)."
+    }
+  },
+  "heldWithoutAnInvariantId": [
+    "R1 was re-derived rather than copied, and this time the jar is on disk. The adversarial pass could not corroborate the previous claim of a LanguageTool sidecar, and it was right to flag it. So it was done again and recorded: LanguageTool-6.6.zip (252 MB, sha from languagetool.org/download, build f3e8d91 dated 2025-03-27) unzipped, `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081` under Java 22.0.1, 2026-09-12 08:14 UTC. `/v2/languages` returns 60 entries including es, es-ES, fr, de-DE, ja-JP. Probes: es `La casa es blanca y yo vivo con mi hermano.` -> []; es `La casa es blanco.` -> CONCORDANCIAS_ATRIBUTO / inconsistency / AGREEMENT_VERBS; es and es-ES `Yo xqzptv en la casa.` -> MORFOLOGIK_RULE_ES / misspelling / TYPOS; de-DE `Ich xqzptv in dem Haus.` -> GERMAN_SPELLER_RULE / misspelling / TYPOS; ja-JP `わたしは xqzptv にいます。` and three further nonce shapes -> [] each. So Spanish has 1,644 XML rules AND a Morfologik spell checker and degrades on neither axis; Japanese is grammar rules with no spell checker, which is R1's correction and the inverse of deep/10 §S6. The capability is still PROBED at run time (engines/languagetool.py::probe) rather than encoded, because this fact has been got wrong once by reading a table.",
+    "Running the jar also found a bug in this lane's own probe. `SPELLCHECK_PROBE['fr']` was `Je xqzptv dans la maison.`, which raises JE_VERBE / uncategorized / CAT_GRAMMAIRE and NO misspelling: a nonce token straight after `Je` is claimed by a grammar rule and the speller never fires, so the probe would have concluded French has no spell checker and degraded every French pack on an axis that works. `La maison xqzptv est grande.` raises FR_SPELLING_RULE / misspelling / TYPOS. The constant is corrected, the whole measurement table is in config/g6.py, and tests/test_engines.py::test_the_spellcheck_probe_sentences_are_the_measured_ones pins it. The mock cannot catch this class of bug — it flags any unknown token wherever it sits — which is the argument for running the jar at least once per fact.",
+    "The perplexity band is percentiles of the training corpus, not absolute perplexities. A band is a property of a model — pyproject.toml pins KenLM to a commit precisely because a band computed against one build and enforced against another drifts with no diff — so engines/kenlm.py derives it from a held-out slice at PERPLEXITY_BAND_PERCENTILES and writes band.json beside the binary; a model with neither a band file nor an explicit --set kenlm_band is REFUSED, because a perplexity with no band is a number nobody can fail.",
+    "Both degradation directions are named, and only one of them was in the spec. scope2/00 §2.4 names `perplexity_only` (grammar engine missing); the inverse had no name, `_degraded_to` returned '' for it, and V8 blocked a grammar-only run with \"perplexity_engine did not run and G6 named the fallback as ''\" — a message asking the operator to name the fallback after the engine that was MISSING. That is the likelier configuration at P2, since a LanguageTool sidecar is one command and a perplexity band needs a model trained over a corpus G0 has not produced. `DEGRADED_TO_GRAMMAR_ONLY = 'grammar_only'` now names it, `DEGRADATION_NAMES` maps missing engine -> surviving state for both, `DEGRADATION_COST` carries what the pack lost and the command that restores it, and V8 WARNS rather than blocking in both directions — one engine that can find an error did run, so the pack is weaker rather than unchecked. Only the empty intersection blocks.",
+    "A mock engine is now a named warning rather than an invisible pass. `mock_lt` counts as an engine that can find an error, which is what lets pack-ci.yml exercise G6 with no JDK; left there, a pack validated entirely against a forty-line mock passed V8 exactly as one validated against 1,644 XML rules. MOCK_ENGINE_IDS + a V8 warning (\"validated against a stand-in… a release pack must be re-validated against the jar\") close that without blocking CI, and the live run against the real jar produces no such warning, which is what makes the warning discriminating.",
+    "The back-translation axis is an agent's judgement against a published rubric (content/es/gapfill-rubric.md) and says so in the artefact: the engine id is `agent_rubric/v1 (agent-authored rubric score, not a model round-trip)`, which G6 writes to the runlog, V8 copies into its own entry, and INV-PACK-55 renders on the pack card. There is no hosted model in this environment and the plan's ruling makes the agent the author; what must never happen is a reader coming to believe a translation model checked these sentences.",
+    "content/es/candidates.jsonl is 160 candidates over 8 slots, 20 per slot, every sentence written for this repository. `allowed_lemmas` on each row is the ledger window the candidate was authored against, and the `stale_ledger` axis refuses the whole file when G4 disagrees with it — which is what makes an offline authoring step safe before G3/G4 have landed.",
+    "The A1 length window is still G5's own copy, and now it cannot drift in silence. config/ingest.py (G0's) is an empty scaffold and config/base.py — where this repo's own rule puts a constant two stages share — declares no length window, so there is nothing to import yet and neither file is in this lane's ownership. tests/test_g5_gapfill.py::test_the_length_window_cannot_drift_from_g0s scans every other config module for a window under any of six scalar names or five tuple names and fails the build the moment one disagrees with 3-12; a companion test proves the lookup finds a constant when there is one, so the scan is not passing because it sees nothing. When G0 lands its window the fix is one line: delete G5's copy and import it.",
+    "The repair-path scanner now covers the whole lane, in two strengths. The identifier half (REPAIR_WORDS over function/class/argument/attribute/keyword/alias names) runs over engines/kenlm.py, engines/languagetool.py, engines/mock_lt.py, engines/backtranslation.py, validators/language.py, config/g5.py and config/g6.py as well as the two stages — a `_repair_text` helper one import away satisfied the letter of a two-file scan. The string-mutator half stays on the two stages, because it rests on an argument that is true there and false in the engines: languagetool.py builds a URL with rstrip('/'), backtranslation.py reads a rubric with line.strip(), mock_lt.py builds a category name with .title(). A gate that has to be silenced is a gate whose enforcement gets silenced first. The behavioural half was widened instead: test_INV_PACK_10_no_engine_is_handed_a_text_other_than_the_one_on_the_row records every string the three engines receive during a real G6 run and asserts it is a candidate text verbatim (plus the grammar engine's own nonce capability probe), which catches a repair that happens BEFORE the check and therefore never reaches emitted text.",
+    "The LanguageTool public API is refused by hostname at construction (FORBIDDEN_LANGUAGETOOL_HOSTS). A 6,000-item batch against the hosted service returns part real errors and part timeouts, and that shape reads as a pass.",
+    "engines/mock_lt.py is a real HTTP server on a real ephemeral port, not a stubbed method, so the client's transport, payload shape and version extraction are under test. It is registered as an engine rather than hidden in the test tree because a mock that can be run in a build must announce itself in the artefact."
+  ],
+  "liveRunAgainstTheRealJar": {
+    "$comment": "Not a test — a live G4->G5->G6->V8 pass with the real languagetool-server.jar on :8081 and NO kenlm model, which is the exact configuration that produced the defect the adversarial pass found. Log: see the implementer report.",
+    "g5": "ok=True :: 8/8 slots filled from 160 candidates",
+    "g6": "ok=True :: 113 checked, 2 narrowed",
+    "grammar_engine": "languagetool/6.6/es",
+    "spellcheck_engine": "languagetool/6.6/es",
+    "perplexity_engine": "none",
+    "backtranslation_engine": "agent_rubric/v1 (agent-authored rubric score, not a model round-trip)",
+    "degraded_to": "grammar_only",
+    "xml_rule_count": 1644,
+    "server_version": "6.6",
+    "rejected_by_axis": { "backtranslation": 2, "grammar": 0, "perplexity_out_of_band": 0 },
+    "text_unchanged": true,
+    "v8": "no blocking finding; one warning naming grammar_only with the KenLM remedy, one info naming the two narrowed candidates. No mock warning, because no mock ran.",
+    "reading": "0 of 113 authored Spanish sentences trip a blocking LanguageTool rule out of 1,644. That is a quality signal about the authored file and not a validator that did nothing: the same run rejects two candidates on the rubric axis, and the same engine raises MORFOLOGIK_RULE_ES on its own capability probe in the same pass."
+  },
+  "measuredFindingsForOtherLanes": {
+    "g1-analyze": "es_core_news_md 3.8.0 does not lemmatise several first-person present forms: `duermo` -> 'duermo', `ceno` -> 'ceno', `cenamos` -> 'cenamos' (but `duerme` -> 'dormir'). A ledger keyed on this model's `lemma_` therefore contains surface forms masquerading as lemmas, and V1's 'lemma-level, never surface' guarantee is weaker than it reads for -ir/-er verbs in the first person. Measured 2026-09-12 with the pinned wheel.",
+    "deps-scaffold": "Registry.reset_for_tests() plus Registry.discover() cannot restore a registration: discovery goes through importlib.import_module, which returns the cached module without re-running @register_stage. After conftest's `empty_registry` runs once, every registry stays empty for the rest of the pytest session. Two consequences: a lane's own stage tests fail with 'g5 is not registered' under `pytest tests/` while passing under `pytest tests/test_g5_gapfill.py`, and test_cli.py::test_discovery_finds_nothing_yet_and_that_is_the_correct_state now passes because the registry was emptied rather than because nothing is registered. tests/test_g5_gapfill.py::ensure_registered is the local workaround; the fix belongs in coursekit/__init__.py.",
+    "g0-ingest": "When G0 declares the A1 length window, tools/coursekit/tests/test_g5_gapfill.py::test_the_length_window_cannot_drift_from_g0s will compare it to G5's 3-12 and fail on a disagreement. It scans MIN_TOKENS / MAX_TOKENS / A1_MIN_TOKENS / A1_MAX_TOKENS / MIN_TOKENS_A1 / MAX_TOKENS_A1 and the tuples LENGTH_WINDOW / TOKEN_WINDOW / A1_LENGTH_WINDOW / A1_TOKEN_WINDOW / SENTENCE_LENGTH_WINDOW across every other config module. A window under some other name is invisible to it — say so in the G0 lane's ownership file and the name list gets extended.",
+    "p7-french": "config/g6.py::SPELLCHECK_PROBE['fr'] is a MEASURED constant, not a phrase. `Je xqzptv dans la maison.` makes LanguageTool 6.6 report no spell checker for French at all (JE_VERBE claims the nonce token). Do not 'tidy' it."
+  }
+}
