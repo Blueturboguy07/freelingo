@@ -509,9 +509,11 @@ shard and a runtime override, neither of which exists any more — and are in
 - **`coursekit validate es`** over that pack: **11/17 green, 0 unregistered, 0 skipped,
   210 blocking, 48 warnings** — V9 171 in-unit sentence reuses, V6 13 register, V11 13
   difficulty falls, V2 8 new-lemma budget, V4 4, V12 1 glyph. None of the 210 is G7/G8/G9's.
-  B17's ruling has landed since that run, so the 13 V11 findings split by section
-  boundary now; the other 197 are unchanged and none of them is measured on this tree.
-- **the full-course bake is outside `build-es`'s budget**: 2,898 clips at ~15/minute is
+  B17's ruling has landed since that run and the split is now measured — 1 blocking, 12
+  warnings — so **that 210 is 198 blocking today**; the other 197 findings are unchanged
+  and none of them has been measured on this tree.
+- **the full-course bake is outside `build-es`'s budget**, and this is the next wall after
+  B19: 2,898 clips at ~15/minute is
   about 3 hours against a 90-minute job. INV-AUD-08 is why it is slow (loudness measured
   on the decoded file, re-encoded until it lands inside half the tolerance), so the fix is
   a budget, a cache keyed on the re-bake key, or a bake job of its own — not a faster loop.
