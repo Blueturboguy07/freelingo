@@ -16,6 +16,18 @@ and function, the grammar concept, the lemmas the learner already has, the lemma
 is reserved to teach, the token window, and the `ledger_digest` an authored candidate has
 to carry.
 
+**`token_window` is per slot, and it is the number G5 enforces.** It is
+`[3, 12]` on almost every row and `[1, 12]` on a slot whose permitted vocabulary contains
+no lemma the G2 lexicon tags `VERB` or `AUX` — founder ruling B9(b), with
+`verbless_window: true` beside it so a `1` does not read as a typo, and a
+`verbless_slots` count on the header line. A lesson with no verb in its window cannot hold
+a sentence in any language, so it holds words and fixed phrases instead (`Hola.`,
+`Buenos días.`), which is what a level-1 lesson of the reference product is.
+
+That row is the reason `u1/l1/s0 … s8` went unauthored through two rounds: the brief said
+three tokens, three tokens of `{bueno, día, hola, noche, tarde}` is a word list, and two
+independent lanes wrote the same eleven word lists and refused to ship them.
+
 Regenerate it, never edit it:
 
 ```sh
@@ -42,6 +54,18 @@ One file per lane, read in sorted filename order after the legacy
 `content/es/candidates.jsonl`. Two shards naming the same `(slot, text)` is a hard stop,
 not a dedup — it would leave the slot nineteen deep while the floor still read twenty.
 
+**Read order is not ship order, and guessing that it is will cost you an item.** G5
+reports a slot filled by the FIRST accepted candidate it reads, so sorted filename order
+is what decides that number. But `g7_expand.py` builds its lookup as
+`candidates[key] = row` over every accepted row, so **G7 expands the LAST accepted
+candidate for the slot**. If your shard and another lane's both have an accepted candidate
+for one slot, G5's runlog names yours and the pack may ship theirs, silently. Two
+consequences for you: keep exactly one admissible candidate per slot (the other nineteen
+are over-generation and should fail a real axis), and do not assume a low-sorting filename
+protects a slot from a shard that sorts after yours. This is a known defect recorded
+against the expand lane in `docs/owned/p2r3-gapfill-lesson1.json`; until it is fixed,
+content that accepts once per slot is content for which the two stages agree.
+
 Each row:
 
 ```json
@@ -67,6 +91,29 @@ Each row:
 digest is a witness, not a description: it cannot be edited into agreement with a ledger
 it does not describe, which is the point of carrying it instead of a copy of the 928-lemma
 allowed set.
+
+### What the twenty are for, and what they are not
+
+The twenty exist so that a candidate which fails an axis costs the next candidate and
+nothing else (INV-PACK-10: discard and resample, never patch). So they have to be twenty
+DISTINCT texts, and every one of them has to be a text the lane would ship if it were
+admissible. A slot padded with the same string twenty times satisfies
+`MIN_CANDIDATES_PER_SLOT` and defeats it.
+
+They do **not** all have to be admissible, and in a tight window most of them are not.
+`content/es/candidates/u01-l01.jsonl` is the extreme case and the honest shape of one:
+nine slots, one admissible candidate each, and nineteen real level-1 greetings per slot
+that reach outside the five-lemma window (`Buenos días, señora.`, `Hola, ¿cómo estás?`,
+`Adiós, buenas noches.`) and are discarded `out_of_vocabulary`. That is what a generator
+asked nine times for a greeting in this window actually produces, and the reject count it
+generates is the measurement that says the window is five lemmas wide. Nothing in that
+file is edited to fit, and none of the eleven word lists is in it.
+
+**One admissible candidate per slot is a property worth keeping, not an accident.** G5
+fills a slot with the FIRST accepted candidate; `g7_expand` builds its lookup with
+`candidates[key] = row` over every accepted row, so G7 expands the LAST one. Two accepted
+candidates for one slot therefore means the sentence G5 reports filled the slot and the
+sentence the learner sees can be different rows, with nothing in either stage saying so.
 
 ## `axis-fixture.jsonl`
 

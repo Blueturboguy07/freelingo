@@ -49,10 +49,13 @@ from coursekit.config.g5 import (
     CONTENT_ROOT_ENV_VAR,
     GAPFILL_RUBRIC_FILENAME,
     LEDGER_DIGEST_CHARS,
+    MAX_NEW_LEMMAS_PER_ITEM,
     MAX_TOKENS,
     MIN_CANDIDATES_PER_SLOT,
     MIN_TOKENS,
+    MIN_TOKENS_VERBLESS_LESSON,
     REJECT_AXES,
+    min_tokens_for_slot,
 )
 from coursekit.inputs import MissingInput
 from coursekit.runlog import RunLog, UpstreamStageMissing, read_entries
@@ -63,6 +66,7 @@ from coursekit.stages.g5_gapfill import (
     authored_candidates_paths,
     authored_shard_dir,
     ledger_digest,
+    pos_by_lemma,
 )
 from coursekit.validators import VALIDATORS
 
@@ -1212,3 +1216,806 @@ def test_INV_PACK_12_g5_calls_the_adapter_the_way_every_other_stage_does(
     # `display_tokens` is the word count G5's `length` axis uses; `tokens` carries
     # punctuation with offsets and would make the 3-12 window a different window.
     assert len(record["display_tokens"]) <= len(record["tokens"])
+
+
+# ---------------------------------------------------------------------------
+# B9(b) — the per-lesson length floor, and the nine slots it exists for
+# ---------------------------------------------------------------------------
+
+#: `content/es/candidates/u01-l01.jsonl`, this lane's shard: `u1/l1/s0 … s8`, twenty
+#: candidates each. Named here rather than discovered so a renamed file is a failing test
+#: and not a silently unchecked one.
+LESSON_ONE_SHARD = REPO_ROOT / "content" / "es" / "candidates" / "u01-l01.jsonl"
+
+#: Every authored file that is course content (the fixture above is not).
+COMMITTED_SHARDS = tuple(
+    sorted((REPO_ROOT / "content" / "es" / "candidates").glob("*.jsonl"))
+) + tuple(path for path in [REPO_ROOT / "content" / "es" / "candidates.jsonl"] if path.is_file())
+
+#: The window G4 emits for every slot of `u1/l1`, measured off the committed brief. Five
+#: lemmas, no verb, which is the whole of blocker B9.
+LESSON_ONE_WINDOW = frozenset({"bueno", "día", "hola", "noche", "tarde"})
+
+#: The nine slots this lane authored.
+LESSON_ONE_SLOTS = frozenset(Slot(1, 1, index) for index in range(9))
+
+#: Founder ruling B9(a)'s normalisation table, as a lookup, so this file can state what
+#: "in vocabulary" means for lesson 1 without waiting on the adapter that will absorb it.
+#:
+#: `es_core_news_md` 3.8.0 lemmatises every prenominal form of `bueno` to something that
+#: is not `bueno` — and which of the four it gives depends on the POSITION and the
+#: punctuation, which is why the table is four entries and not one. Measured here,
+#: 2026-09-12, on the pinned model:
+#:
+#:     'Buenos días.'          -> ['buenos', 'día']        Buenos is PROPN, sentence-initial
+#:     'Hola, buenos días.'    -> ['hola', 'buen', 'día']  buenos is ADJ mid-sentence
+#:     'Hola, buenas tardes.'  -> ['hola', 'buena', 'tarde']
+#:     'Buenas.'               -> ['buenas']
+PRENOMINAL_BUENO = {"buen": "bueno", "buena": "bueno", "buenos": "bueno", "buenas": "bueno"}
+
+
+def _ledger_lemmas(analysis: dict[str, Any]) -> list[str]:
+    """The analysis's lemmas with B9(a)'s prenominal table applied."""
+    return [PRENOMINAL_BUENO.get(lemma, lemma) for lemma in analysis["lemmas"]]
+
+
+def authored_shard(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+
+def test_min_tokens_for_slot_relaxes_only_a_window_that_cannot_hold_a_verb() -> None:
+    """B9(b)'s predicate, over the four cases that decide a slot's floor."""
+    verbless = {"bueno": "ADJ", "día": "NOUN", "hola": "PROPN", "noche": "NOUN", "tarde": "NOUN"}
+    assert min_tokens_for_slot(["bueno", "día"], ["hola"], verbless) == MIN_TOKENS_VERBLESS_LESSON
+
+    with_verb = {**verbless, "ser": "AUX"}
+    assert min_tokens_for_slot(["bueno", "ser"], ["hola"], with_verb) == MIN_TOKENS
+    assert min_tokens_for_slot(["bueno"], ["ser"], with_verb) == MIN_TOKENS, (
+        "the NEW lemma is inside the window too; a slot reserved to teach a verb is not "
+        "a verbless slot"
+    )
+    assert min_tokens_for_slot(["comer"], [], {"comer": "VERB"}) == MIN_TOKENS
+
+
+def test_min_tokens_for_slot_keeps_the_strict_floor_when_it_cannot_prove_verblessness() -> None:
+    """An unknown tag and an empty window both keep `MIN_TOKENS`.
+
+    The failure direction is the whole design. A floor that drops because a lemma was
+    missing from the lexicon admits a one-word candidate into a lesson that could have
+    held a sentence, and nothing downstream can tell that apart from a lesson that had to
+    be words. The empty window is sharper still: an empty `known | new` is the B1a defect
+    — every gap row G4 emitted carried `known_lemmas: []` — and rewarding it with the
+    loosest possible length axis would have turned that silent bug into 918 one-word
+    "lessons" that every gate downstream would have accepted.
+    """
+    assert min_tokens_for_slot(["bueno", "grumo"], [], {"bueno": "ADJ"}) == MIN_TOKENS
+    assert min_tokens_for_slot([], [], {}) == MIN_TOKENS
+    assert min_tokens_for_slot(["bueno"], [], {}) == MIN_TOKENS
+
+
+def test_the_verbless_floor_is_relaxed_only_on_a_proved_window_over_10k_draws() -> None:
+    """B9(b)'s predicate as a PROPERTY, at the plan's floor of `PROPERTY_RUNS` draws.
+
+    The seven example cases above pin both failure directions on hand-picked windows. This
+    is the shape the plan's §Verification asks for at a decision this cheap to get wrong:
+    `min_tokens_for_slot` is the one place in the pipeline that can lower a gate, and the
+    thing that must never happen is a relaxation on a window nobody proved verbless.
+
+    Both implications, over random (window, lexicon) pairs drawn from a vocabulary that
+    deliberately mixes verbal tags, non-verbal tags and UNTAGGED lemmas:
+
+    * `floor < MIN_TOKENS` ⟹ the window is non-empty AND every lemma in it carries a tag
+      in the lexicon AND no tag is in `VERBAL_POS`. This is the direction that ships bad
+      content, so it is asserted as a biconditional rather than trusted.
+    * the converse: an empty window, one untagged lemma, or one verbal tag ⟹ `MIN_TOKENS`.
+    * the return value is one of exactly two integers. A floor of 2 is not in the ruling,
+      and an arithmetic floor (`len(window) - 1`, say) would satisfy both implications on
+      some draws and is excluded here rather than left to a reviewer.
+
+    `base_min_tokens` is varied too: the predicate must return the CALLER's strict floor,
+    not the module constant, or rerouting the axis through `ledger.length_window` for `ja`
+    (a `(4, 18)` window — see the blocker entry) would silently keep enforcing 3.
+    """
+    import random
+
+    from coursekit.config.g5 import VERBAL_POS
+    from coursekit.config.g7 import PROPERTY_RUNS
+
+    # A vocabulary whose tags span the three outcomes that matter. `hola` is `PROPN` and
+    # `sí` is `INTJ` because those are the real tags of the two lemmas lesson 1 turns on.
+    tagged = {
+        "bueno": "ADJ", "día": "NOUN", "hola": "PROPN", "noche": "NOUN", "tarde": "NOUN",
+        "sí": "INTJ", "no": "ADV", "por": "ADP", "favor": "NOUN", "adiós": "INTJ",
+        "ser": "AUX", "estar": "AUX", "haber": "AUX", "comer": "VERB", "hablar": "VERB",
+    }
+    untagged = ("grumo", "zarpe", "flunco")
+    vocabulary = sorted(tagged) + list(untagged)
+
+    rng = random.Random(20260912)
+    seen_relaxed = 0
+    seen_strict = 0
+    for _run in range(PROPERTY_RUNS):
+        size = rng.randint(0, 6)
+        window = rng.sample(vocabulary, size)
+        rng.shuffle(window)
+        split = rng.randint(0, len(window))
+        known, new = window[:split], window[split:]
+        # The lexicon is a SUBSET of the tags, so a tagged lemma can also be missing from
+        # the lexicon this call is handed — which is the `pos_by_lemma.get(...) is None`
+        # branch arriving by draw rather than by construction.
+        lexicon = {
+            lemma: tag
+            for lemma, tag in tagged.items()
+            if rng.random() < 0.85
+        }
+        base = rng.choice((MIN_TOKENS, 4, 7))
+
+        floor = min_tokens_for_slot(known, new, lexicon, base_min_tokens=base)
+
+        assert floor in {MIN_TOKENS_VERBLESS_LESSON, base}, (floor, base, known, new)
+
+        tags = [lexicon.get(lemma) for lemma in set(window)]
+        provably_verbless = bool(window) and all(
+            tag is not None and tag not in VERBAL_POS for tag in tags
+        )
+        if floor < base:
+            seen_relaxed += 1
+            assert provably_verbless, (
+                f"the floor dropped to {floor} on a window nobody proved verbless: "
+                f"known={known} new={new} tags={tags}"
+            )
+            assert floor == MIN_TOKENS_VERBLESS_LESSON
+        else:
+            seen_strict += 1
+            assert not provably_verbless, (
+                f"the floor stayed at {floor} on a provably verbless window: "
+                f"known={known} new={new} tags={tags}"
+            )
+
+    # A property that only ever drew one side of the branch proves nothing about the other.
+    assert seen_relaxed > 0 and seen_strict > 0, (seen_relaxed, seen_strict)
+
+
+def test_the_verbless_floor_is_derived_from_the_ledger_and_cannot_be_declared() -> None:
+    """There is no per-lesson override anywhere: the only input is the slot's own window.
+
+    B9's option 3 as written ("a per-lesson `MIN_TOKENS` of 1 for a lesson whose window
+    has no verb") is one keystroke from a config table a curriculum author can set, and a
+    course that could declare `min_tokens: 1` for a lesson that teaches `ser` would ship
+    one-word items for a lesson that can hold a sentence. So the signature is the gate:
+    `min_tokens_for_slot` takes the two lemma lists G4 emitted and the G2 lexicon, and
+    nothing else, and no config module names a per-lesson minimum.
+    """
+    import inspect
+
+    parameters = inspect.signature(min_tokens_for_slot).parameters
+    assert list(parameters) == ["known_lemmas", "new_lemmas", "pos_by_lemma", "base_min_tokens"]
+
+    for module_name in OTHER_CONFIG_MODULES + ("coursekit.config.g5",):
+        module = importlib.import_module(module_name)
+        for name in dir(module):
+            if "MIN_TOKENS" not in name:
+                continue
+            value = getattr(module, name)
+            assert not isinstance(value, dict), (
+                f"{module_name}.{name} is a per-key minimum token count. The verbless "
+                f"floor is derived from the ledger; a table lets a curriculum declare it."
+            )
+
+
+def test_the_length_window_cannot_drift_from_the_per_pack_window() -> None:
+    """G5's 3-12 must be `coursekit.ledger.length_window("es")`, which is the real one.
+
+    The window is PER PACK — `config/g1.LENGTH_WINDOW_BY_LANGUAGE` is `(3, 12)` for the
+    Latin-script languages and `(4, 18)` for `ja`, because a Mode-A morpheme is a smaller
+    unit than a lemma. G5's own two constants are therefore right for `es`/`fr`/`de` and
+    WRONG for `ja`; that is recorded in `docs/owned/p2r3-gapfill-lesson1.json` (under
+    `blockers`) rather than fixed here, and it is recorded THERE rather than in
+    `docs/P2-BLOCKERS.md` because this lane does not own that file — `config/g5.py`'s
+    comment on `MIN_TOKENS` names the same destination. Rerouting the axis changes the
+    window of every G5 test and belongs in the round that lands the Japanese pack. This
+    test is what stops the es numbers drifting apart in the meantime, and it names the
+    mismatch so it cannot be rediscovered.
+    """
+    from coursekit.ledger import length_window
+
+    assert length_window("es") == (MIN_TOKENS, MAX_TOKENS)
+    assert length_window("ja") != (MIN_TOKENS, MAX_TOKENS), (
+        "if ja's window becomes 3-12, delete the ja paragraph from config/g5.py and the "
+        "ja blocker entry from docs/owned/p2r3-gapfill-lesson1.json rather than leaving "
+        "a warning about a thing that is no longer true"
+    )
+
+
+# ---------------------------------------------------------------------------
+# B9(b) — the behaviour, over a staged verbless slot
+# ---------------------------------------------------------------------------
+
+
+def _lesson_one_gap(slot_index: int, new_lemmas: list[str]) -> dict[str, Any]:
+    """A `selected_item` gap row shaped exactly like the ones G4 emits for `u1/l1`."""
+    return {
+        "schema_version": 1,
+        "lang": "es",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "slot_index": slot_index,
+        "sentence_id": None,
+        "provenance": "llm",
+        "gap": True,
+        "new_lemmas": new_lemmas,
+        "known_lemmas": sorted(LESSON_ONE_WINDOW - set(new_lemmas)),
+        "grammar_concept": "subject_pronouns",
+    }
+
+
+def _banded(lemma: str, pos: str, rank: int) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": lemma,
+        "pos": pos,
+        "rank": rank,
+        "frequency": 1000 - rank,
+        "decile": 1,
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": None,
+    }
+
+
+def _stage_lexicon(pairs: dict[str, str]) -> None:
+    """Write the G2 artefact `pos_by_lemma` reads, one row per lemma."""
+    write_records(
+        "banded_lemma",
+        [_banded(lemma, pos, rank) for rank, (lemma, pos) in enumerate(sorted(pairs.items()), 1)],
+        lang="es",
+    )
+
+
+def _authored(
+    slot_index: int,
+    new_lemmas: list[str],
+    text: str,
+    known: list[str] | None = None,
+) -> dict[str, Any]:
+    """One authored row for a `u1/l1` slot, digested over the window it names.
+
+    `known` is a parameter because the digest is the first axis G5 evaluates: a test that
+    widens the gap's window and leaves the row's digest alone gets `stale_ledger`, not the
+    axis it was written about. (Measured, on this change, which is the axis order working.)
+    """
+    window = sorted(LESSON_ONE_WINDOW - set(new_lemmas)) if known is None else sorted(known)
+    return {
+        "slot": {"unit_index": 1, "lesson_index": 1, "slot_index": slot_index},
+        "ledger_digest": ledger_digest(window, new_lemmas),
+        "new_lemmas": list(new_lemmas),
+        "text": text,
+        "translation": "Hello.",
+        "author": "test",
+        "generated_at": "2026-09-12",
+        "provenance": "llm",
+        "backtranslation": {
+            "back_translation": "Hello.",
+            "score": 4,
+            "judged_by": "agent",
+            "rubric_version": "1",
+        },
+    }
+
+
+VERBLESS_LEXICON = {
+    "bueno": "ADJ",
+    "día": "NOUN",
+    "hola": "PROPN",
+    "noche": "NOUN",
+    "tarde": "NOUN",
+}
+
+
+def test_a_one_word_fixed_phrase_fills_a_verbless_slot(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Hola.` is one display token and it fills `u1/l1/s0`. That is the whole of B9(b).
+
+    Before this, the same row was rejected `length` — three tokens of
+    `{bueno, día, hola, noche, tarde}` is a word list, and two independent authoring
+    lanes wrote the same eleven word lists and refused to ship them. The slot stayed
+    empty for two rounds and `coursekit build es` exited 4 at G5.
+    """
+    _write_shards(
+        tmp_path,
+        monkeypatch,
+        {"lesson-one.jsonl": [_authored(0, ["hola"], "Hola.")] * MIN_CANDIDATES_PER_SLOT},
+    )
+    stage_g4("es", [_lesson_one_gap(0, ["hola"])])
+    _stage_lexicon(VERBLESS_LEXICON)
+
+    result = run_g5()
+    assert result.ok, result.message
+    accepted = [row for row in read_records("candidate", lang="es") if row["accepted"]]
+    assert [row["text"] for row in accepted] == ["Hola."]
+
+
+def test_the_same_one_word_candidate_is_rejected_when_the_window_holds_a_verb(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The falsifier for the relaxation: add `ser` to the lexicon and `Hola.` is `length`.
+
+    Same candidate, same text, same slot; the only thing that moves is whether the
+    permitted window contains a lemma the lexicon tags `AUX`. A relaxation that could not
+    be switched off by the ledger would not be derived from it.
+    """
+    with_ser = sorted([*(LESSON_ONE_WINDOW - {"hola"}), "ser"])
+    _write_shards(
+        tmp_path,
+        monkeypatch,
+        {
+            "lesson-one.jsonl": [_authored(0, ["hola"], "Hola.", known=with_ser)]
+            * MIN_CANDIDATES_PER_SLOT
+        },
+    )
+    gap = _lesson_one_gap(0, ["hola"])
+    gap["known_lemmas"] = with_ser
+    stage_g4("es", [gap])
+    _stage_lexicon({**VERBLESS_LEXICON, "ser": "AUX"})
+
+    result = run_g5()
+    assert not result.ok
+    assert "exhausted every candidate" in result.message
+    rows = list(read_records("candidate", lang="es"))
+    assert {row["reject_reason"] for row in rows} == {"length"}
+
+
+def test_INV_PACK_10_the_verbless_floor_is_a_window_and_never_a_patch(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-10] A rejected short candidate is discarded; nothing is padded to fit.
+
+    The cheap wrong fix for B9 is a repair: pad `Hola.` out to three tokens, or drop a
+    token off a twelve-token candidate. Both would turn the gate green and both are what
+    the invariant forbids, and neither is visible in the output — a padded sentence
+    carries the same fields as one that passed. So the behavioural half is asserted here
+    over the boundary the relaxation moved: with the STRICT floor in force, every emitted
+    text is still a text somebody authored, character for character.
+    """
+    with_ser = sorted([*(LESSON_ONE_WINDOW - {"hola"}), "ser"])
+    authored = [
+        _authored(0, ["hola"], "Hola.", known=with_ser),
+        *[_authored(0, ["hola"], "Hola, buenas tardes.", known=with_ser)]
+        * (MIN_CANDIDATES_PER_SLOT - 1),
+    ]
+    _write_shards(tmp_path, monkeypatch, {"lesson-one.jsonl": authored})
+    gap = _lesson_one_gap(0, ["hola"])
+    gap["known_lemmas"] = with_ser
+    stage_g4("es", [gap])
+    _stage_lexicon({**VERBLESS_LEXICON, "ser": "AUX"})
+
+    run_g5()
+    emitted = {row["text"] for row in read_records("candidate", lang="es")}
+    assert emitted <= {row["text"] for row in authored}
+    assert "Hola." in emitted, "the rejected row is WRITTEN, not dropped: it is the count"
+
+
+def test_the_runlog_says_which_slots_got_the_relaxed_floor_and_whether_it_asked(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`verbless_slots` and `lexicon_pos_rows`, because they fail the same way.
+
+    "No verb in the window" and "no G2 lexicon to ask" both produce the strict floor, and
+    afterwards they must not read the same. `lexicon_pos_rows: 0` is the second one.
+    """
+    _write_shards(
+        tmp_path,
+        monkeypatch,
+        {"lesson-one.jsonl": [_authored(0, ["hola"], "Hola.")] * MIN_CANDIDATES_PER_SLOT},
+    )
+    stage_g4("es", [_lesson_one_gap(0, ["hola"])])
+    _stage_lexicon(VERBLESS_LEXICON)
+    run_g5()
+    notes = [entry for entry in read_entries("es", stage="g5")][-1]["notes"]
+    assert notes["verbless_slots"] == ["u1/l1/s0"]
+    assert notes["lexicon_pos_rows"] == len(VERBLESS_LEXICON)
+    assert notes["min_tokens_verbless_lesson"] == MIN_TOKENS_VERBLESS_LESSON
+    assert notes["token_window"] == [MIN_TOKENS, MAX_TOKENS]
+
+
+def test_a_build_with_no_g2_lexicon_keeps_the_strict_floor_and_says_so(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No `banded_lemma` artefact is not an error, and it is not the relaxed floor either."""
+    _write_shards(
+        tmp_path,
+        monkeypatch,
+        {"lesson-one.jsonl": [_authored(0, ["hola"], "Hola.")] * MIN_CANDIDATES_PER_SLOT},
+    )
+    stage_g4("es", [_lesson_one_gap(0, ["hola"])])
+    assert pos_by_lemma("es") == {}
+
+    result = run_g5()
+    assert not result.ok, "with no lexicon the window cannot be proved verbless"
+    notes = [entry for entry in read_entries("es", stage="g5")][-1]["notes"]
+    assert notes["verbless_slots"] == []
+    assert notes["lexicon_pos_rows"] == 0
+
+
+# ---------------------------------------------------------------------------
+# The authored lesson-one shard itself
+# ---------------------------------------------------------------------------
+
+
+def test_the_lesson_one_shard_covers_nine_slots_at_twenty_each() -> None:
+    """`u1/l1/s0 … s8`, twenty candidates each, and the twenty are distinct.
+
+    Distinct matters more here than anywhere else in the course. The window is five
+    lemmas wide, so the cheapest way to reach twenty is the same string twenty times —
+    which satisfies `MIN_CANDIDATES_PER_SLOT` and gives the reject loop nothing to
+    resample from, i.e. defeats the floor while counting as it.
+    """
+    rows = authored_shard(LESSON_ONE_SHARD)
+    per_slot: dict[str, list[str]] = {}
+    for row in rows:
+        per_slot.setdefault(str(Slot.of(row["slot"])), []).append(row["text"])
+    assert sorted(per_slot) == [f"u1/l1/s{index}" for index in range(9)]
+    for slot, texts in per_slot.items():
+        assert len(texts) == MIN_CANDIDATES_PER_SLOT, (slot, len(texts))
+        assert len(set(texts)) == MIN_CANDIDATES_PER_SLOT, (slot, "a repeated candidate")
+
+
+def test_the_lesson_one_shard_carries_the_ledger_digest_g4_emits_for_that_window() -> None:
+    """Every row's digest is `ledger_digest` over `{bueno, día, hola, noche, tarde}`.
+
+    All nine slots of `u1/l1` share one window — `known | new` is the same five lemmas
+    whichever of them the slot is reserved to teach — so they share one digest, and this
+    recomputes it rather than copying the string out of the brief. A candidates file that
+    agreed with a brief that disagreed with the course is the shape INV-PACK-40 forbids.
+    """
+    expected = ledger_digest(sorted(LESSON_ONE_WINDOW), [])
+    rows = authored_shard(LESSON_ONE_SHARD)
+    assert {row["ledger_digest"] for row in rows} == {expected}
+    assert brief_by_slot()[Slot(1, 1, 0)]["ledger_digest"] == expected
+
+
+def test_the_lesson_one_shard_declares_the_new_lemma_g4_reserved_for_each_slot() -> None:
+    """`new_lemmas` is copied from G4's gap row, not chosen by the author.
+
+    G4 deals unit 1's target lexemes across its lessons in authored order and reserves
+    the head of what is still pending to each gap slot, so `s0 … s4` reserve `hola`,
+    `bueno`, `día`, `tarde`, `noche` in that order and `s5 … s8` reserve nothing. The
+    `stale_ledger` axis compares this set, not just the digest: same window, a different
+    idea of which lemmas are new, is still a stale row.
+    """
+    reserved = {index: brief_by_slot()[Slot(1, 1, index)]["new_lemmas"] for index in range(9)}
+    assert reserved[0] == ["hola"] and reserved[8] == []
+    for row in authored_shard(LESSON_ONE_SHARD):
+        slot = Slot.of(row["slot"])
+        assert row["new_lemmas"] == reserved[slot.slot_index], slot
+
+
+def test_INV_PACK_06_exactly_one_candidate_per_lesson_one_slot_is_inside_its_window(
+    es_adapter: None,
+) -> None:
+    """[INV-PACK-06] V1/V2 from the authoring side, over this lane's nine ship texts.
+
+    Two claims, and the second one is the one that stops a latent defect.
+
+    **V1.** Each slot has exactly one candidate every lemma of which is inside
+    `known | new` under B9(a)'s prenominal table, and that candidate carries the lemma
+    the slot is reserved to teach. Measured with the pinned `es_core_news_md`, per row,
+    here — not asserted from the authoring notes.
+
+    **Exactly one, not at least one.** G5 fills a slot with the FIRST accepted candidate;
+    `g7_expand.py` builds its `candidates` map with `candidates[key] = row` over every
+    accepted row, so G7 expands the LAST one. Two accepted candidates for one slot means
+    the sentence G5 reports and the sentence the learner sees are different rows, and
+    nothing in either stage says so. Until that is reconciled (recorded in
+    `docs/owned/p2r3-gapfill-lesson1.json`; `docs/P2-BLOCKERS.md` is another lane's file),
+    content that accepts once per slot is content for which the two agree.
+    """
+    analyser = _spacy_analyser()
+    reserved = {index: brief_by_slot()[Slot(1, 1, index)]["new_lemmas"] for index in range(9)}
+    in_window: dict[int, list[str]] = {index: [] for index in range(9)}
+
+    for row in authored_shard(LESSON_ONE_SHARD):
+        slot = Slot.of(row["slot"])
+        lemmas = _ledger_lemmas(analyser.analyse(sentence_id="0" * 16, text=row["text"]))
+        if set(lemmas) <= LESSON_ONE_WINDOW:
+            in_window[slot.slot_index].append(row["text"])
+
+    for index, texts in in_window.items():
+        assert len(texts) == 1, (f"u1/l1/s{index}", texts)
+        lemmas = _ledger_lemmas(analyser.analyse(sentence_id="0" * 16, text=texts[0]))
+        assert set(reserved[index]) <= set(lemmas), (
+            f"u1/l1/s{index} is reserved to teach {reserved[index]} and its only "
+            f"in-window candidate {texts[0]!r} does not contain it"
+        )
+        assert len(set(lemmas) & set(reserved[index])) <= MAX_NEW_LEMMAS_PER_ITEM
+
+
+def test_INV_PACK_06_the_lesson_one_ship_texts_are_one_to_twelve_tokens() -> None:
+    """[INV-PACK-06] The relaxed floor is 1, the ceiling never moved, and 1 is used.
+
+    `Hola.` and `Buenas.` are one display token each; without B9(b) they are `length`
+    rejects and lesson 1 has no content at all.
+    """
+    analyser = _spacy_analyser()
+    counts = {}
+    for row in authored_shard(LESSON_ONE_SHARD):
+        analysis = analyser.analyse(sentence_id="0" * 16, text=row["text"])
+        if set(_ledger_lemmas(analysis)) <= LESSON_ONE_WINDOW:
+            counts[row["text"]] = len(analysis["display_tokens"])
+    assert counts, "no in-window candidate at all; the shard is not what this test reads"
+    assert all(MIN_TOKENS_VERBLESS_LESSON <= count <= MAX_TOKENS for count in counts.values()), (
+        counts
+    )
+    assert min(counts.values()) < MIN_TOKENS, (
+        f"every in-window candidate is >= {MIN_TOKENS} tokens, so B9(b) bought nothing "
+        f"and the nine slots were fillable all along: {counts}"
+    )
+
+
+def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
+    """The G7 consequence of B9(b), measured HERE because this lane is what unlocks it.
+
+    B9(b) makes one-token sentences reachable for the first time. `config/g7.py`
+    SENTENCE_FORM_PLAN row 3 is (`fill_in_the_blank`, `complete_the_translation`,
+    `listen_for_the_missing_word`) and a sentence item takes row `slot_index % 5`;
+    `g7_expand.py` builds the body as `_gapped(tokens, _gap_index(tokens))`, which over a
+    SINGLE token returns the gap marker and nothing else. A prompt that is one blank is
+    the same unanswerable class the code already refuses for endings via
+    `MIN_ENDING_STEM_CHARS` — so the guard exists in one place and not the other.
+
+    This lane's nine ship texts escape it BY CONTENT LUCK AND NOT BY A GUARD, and that is
+    the fact worth pinning: the two one-token texts are at s0 and s5, and
+    `0 % 5 == 5 % 5 == 0` draws the row with no cloze in it. The day someone authors a
+    one-token text at a slot index congruent to 3 mod 5 — u1/l2/s3 is the live case, its
+    verbless window makes `Sí.` shippable — a bare-blank item ships. Recorded as a blocker
+    against the expand lane in `docs/owned/p2r3-gapfill-lesson1.json`; this test is the
+    half that fails if it becomes this lane's problem.
+
+    Nothing in `g7_expand.py` or `config/g7.py` is changed here: they are read as data.
+    """
+    from coursekit.config.g7 import GAP_MARKER, SENTENCE_FORM_PLAN
+    from coursekit.stages.g7_expand import _gap_index, _gapped
+
+    cloze_forms = {"fill_in_the_blank", "listen_for_the_missing_word", "complete_the_translation"}
+    cloze_rows = {
+        index
+        for index, row in enumerate(SENTENCE_FORM_PLAN)
+        if cloze_forms & set(row)
+    }
+    assert cloze_rows, "no plan row carries a cloze shape; this test is reading the wrong table"
+
+    # The hazard itself, demonstrated rather than described.
+    for text in ("Hola.", "Buenas.", "Sí."):
+        tokens = [text]
+        assert _gapped(tokens, _gap_index(tokens)) == GAP_MARKER, text
+    two = ["Buenas", "tardes."]
+    assert _gapped(two, _gap_index(two)) != GAP_MARKER, "a two-token cloze still has a stem"
+
+    # And the claim about THIS lane's content: no one-token ship text draws a cloze row.
+    analyser = _spacy_analyser()
+    offenders = []
+    for row in authored_shard(LESSON_ONE_SHARD):
+        analysis = analyser.analyse(sentence_id="0" * 16, text=row["text"])
+        if not set(_ledger_lemmas(analysis)) <= LESSON_ONE_WINDOW:
+            continue
+        if len(analysis["display_tokens"]) > 1:
+            continue
+        slot = Slot.of(row["slot"])
+        if slot.slot_index % len(SENTENCE_FORM_PLAN) in cloze_rows:
+            offenders.append((row["slot"], row["text"]))
+    assert offenders == [], (
+        f"a one-token ship text sits at a slot index whose SENTENCE_FORM_PLAN row carries "
+        f"a cloze shape, so G7 would render a prompt that is nothing but {GAP_MARKER!r}: "
+        f"{offenders}. Either move the text to another slot or land the expand lane's "
+        f"two-token cloze guard (see blockers in docs/owned/p2r3-gapfill-lesson1.json)."
+    )
+
+
+def test_INV_PACK_08_no_authored_candidate_anywhere_is_ustedeo() -> None:
+    """[INV-PACK-08] V6: the es course declares `tu`, so `usted`/`ustedes` is blocking.
+
+    Over EVERY committed shard, not only this lane's. The es course declares one register
+    for the whole run — `DEFAULT_REGISTER_BY_SLOT["binary_t_v"] == "tu"` — and V6 returns
+    a blocking finding for an accepted answer carrying a marker from the other row. 218
+    rows of one shard were `usted` before the round-2 fix; this is the gate that keeps
+    them gone, and it reads the register table rather than spelling the two words, so a
+    marker added to `ES_REGISTER_MARKERS` is covered the day it is added.
+    """
+    from coursekit.config.g7 import DEFAULT_REGISTER_BY_SLOT, ES_REGISTER_MARKERS
+    from coursekit.validators.exercise import register_of
+
+    assert DEFAULT_REGISTER_BY_SLOT["binary_t_v"] == "tu"
+    assert ES_REGISTER_MARKERS["usted"], "an empty marker row makes this check nothing"
+
+    # `register_of` is V6's OWN function, imported. A local tokenise-and-compare here
+    # would be a second definition of what a register marker is, and the one that
+    # matters is the one the validator runs — it case-folds and strips accents on both
+    # sides, which a hand-rolled whitespace tokeniser in a test does not. (Writing the
+    # literal call here is itself a hit for `test_ledger_unit.py`'s grep gate, which is
+    # the gate working: the scanner cannot tell a comment from a consumer.)
+    offenders: list[str] = []
+    scanned = 0
+    for path in COMMITTED_SHARDS:
+        for row in authored_shard(path):
+            scanned += 1
+            if "usted" in register_of(str(row["text"]), "es"):
+                offenders.append(f"{path.name}: {row['text']!r}")
+    assert scanned > 9000, f"only {scanned} rows scanned; the shard glob found nothing"
+    assert offenders == [], offenders[:5]
+
+
+def test_INV_PACK_08_the_ustedeo_scan_would_catch_one() -> None:
+    """[INV-PACK-08] The falsifier. The scan above is a glob and a set intersection, and
+    both of them pass loudly when they see nothing."""
+    from coursekit.validators.exercise import register_of
+
+    assert register_of("Buenos días, ¿cómo está usted?", "es") == {"usted"}
+    assert register_of("¿Cómo te llamas tú?", "es") == {"tu"}
+    assert register_of("Hola, buenos días.", "es") == set(), (
+        "a register-neutral greeting must carry no marker, or the gate blocks the course"
+    )
+
+
+def test_every_lesson_one_candidate_is_machine_authored_with_a_rubric_score() -> None:
+    """Same rule as the rest of the course: `provenance: llm`, a real integer score.
+
+    The nineteen over-generated candidates per slot are scored too, and honestly: they
+    are rejected on VOCABULARY, not on the rubric, so a low score on them would be a
+    second reason invented to justify a rejection that already has one.
+    """
+    from coursekit.config.g6 import BACKTRANSLATION_MIN_SCORE, BACKTRANSLATION_SCORE_RANGE
+
+    low, high = BACKTRANSLATION_SCORE_RANGE
+    rows = authored_shard(LESSON_ONE_SHARD)
+    assert {row["provenance"] for row in rows} == {"llm"}
+    assert {row["backtranslation"]["judged_by"] for row in rows} == {"agent"}
+    for row in rows:
+        score = row["backtranslation"]["score"]
+        assert isinstance(score, int) and low <= score <= high, row["text"]
+        assert score >= BACKTRANSLATION_MIN_SCORE, (
+            f"{row['text']!r} is authored below the rubric's ship bar. A candidate this "
+            f"lane does not believe in is not one of the twenty; it is a row G6 discards "
+            f"for the second time."
+        )
+
+
+def test_the_lesson_one_shard_ships_none_of_the_eleven_word_lists() -> None:
+    """The eleven strings two rounds refused, by name, in every committed shard.
+
+    They were committed once — 55 rows of `content/es/candidates/u01-u06.jsonl` keyed
+    `u1/l1`, written by the lane that also documented why they should not ship.
+
+    **Why they had to be deleted, stated correctly.** Not because of read order: G5 reads
+    shards in SORTED FILENAME order (`authored_candidates_paths`) and `u01-l01.jsonl`
+    sorts BEFORE `u01-u06.jsonl` (`'l' < 'u'`), so G5's first survivor for `u1/l1` was
+    always going to be this lane's shard and `Hola, hola.` could never have become the
+    course's first item that way. The measured order is
+    `p2fix-integrate, u01-l01, u01-u06, u07-u14, u15-u23, u24-u30`.
+
+    They had to go because of the OTHER defect this lane measured: `g7_expand.py` builds
+    its lookup as `candidates[key] = row` over every accepted row, so G7 expands the LAST
+    accepted candidate for a slot while G5 reports the FIRST. Leaving the word lists in a
+    later-sorting shard would therefore have SHIPPED one of them — G5 would have said
+    `Hola.` filled `u1/l1/s0` and the pack would have carried `Hola, hola.` — the moment
+    B9(a) and B9(b) made them admissible. The read-order story is the wrong rule to teach
+    the next authoring lane: what decides what ships today is last-wins at G7, which is
+    why the fix is recorded as a blocker against the expand lane.
+    """
+    word_lists = {
+        "Bueno, bueno.",
+        "Bueno, hola, hola.",
+        "Bueno, hola.",
+        "Día, noche.",
+        "Día, tarde, noche.",
+        "Hola, bueno.",
+        "Hola, día, tarde, noche.",
+        "Hola, hola.",
+        "Hola, noche.",
+        "Hola, tarde.",
+        "Tarde, noche.",
+    }
+    found = [
+        f"{path.name}: {row['text']!r}"
+        for path in COMMITTED_SHARDS
+        for row in authored_shard(path)
+        if row["text"] in word_lists and Slot.of(row["slot"]) in LESSON_ONE_SLOTS
+    ]
+    assert found == [], found
+
+    # Narrowed to `u1/l1` DELIBERATELY, and the number is recorded rather than asserted
+    # away: 217 rows of `u01-u06.jsonl` still carry one of these eleven strings for OTHER
+    # slots of unit 1 (272 in origin/main, minus the 55 keyed `u1/l1` deleted above),
+    # where they are over-generation the `duplicate` and
+    # `out_of_vocabulary` axes deal with. Whether any of them SURVIVES for one of those
+    # slots — i.e. whether `Hola, hola.` is the first accepted candidate anywhere — is a
+    # question about another lane's shard against a real G4, not about this gate, and it
+    # is written up in `docs/owned/p2r3-gapfill-lesson1.json` instead of being guessed
+    # at here.
+    elsewhere = [
+        row["text"]
+        for path in COMMITTED_SHARDS
+        for row in authored_shard(path)
+        if row["text"] in word_lists
+    ]
+    assert len(elsewhere) == 217, (
+        f"{len(elsewhere)} word-list rows outside u1/l1, not 217. If the number went "
+        f"DOWN a lane cleaned up; if it went UP, a lane is padding with them again."
+    )
+
+
+def test_the_pinned_lemmatiser_still_has_not_absorbed_the_prenominal_table() -> None:
+    """B9(a) IS NOT LANDED, and this is what says so out loud rather than in a comment.
+
+    The nine ship texts above are in vocabulary under `PRENOMINAL_BUENO`. They are NOT in
+    vocabulary under the registered adapter today: `es_core_news_md` 3.8.0 lemmatises
+    `Buenos` to `buenos`, `buenos` to `buen` and `buenas` to `buena`/`buenas`, none of
+    which is a ledger lemma, so `Buenos días.` is out of vocabulary in the lesson that
+    teaches both `bueno` and `día`. Founder ruling B9 bundles three changes and (a) — the
+    adapter's lemma-normalisation table — is owned by another lane.
+
+    **The day that lane lands, this test fails**, which is the point: it is the only place
+    that will notice, and its failure means "delete `PRENOMINAL_BUENO` from this file and
+    the B9(a) paragraphs from `docs/P2-BLOCKERS.md`", not "the adapter regressed". Same
+    mechanism as `test_the_invocation_build_es_uses_today_leaves_v8_with_nothing`: a
+    blocker with a test attached is a blocker somebody has to close on purpose.
+
+    It also pins the SECOND trap, which B9 as written does not mention and which the
+    prenominal table alone does not fix: sentence-initial `Buenas noches.` comes out as
+    `['buenas', 'noches']` — `noches` is tagged `PROPN` and is not lemmatised to `noche`
+    at all — so `Buenas noches.` stays out of vocabulary even with the table, and the
+    only surface that reaches the lemma `noche` in this window is the mid-sentence one
+    (`Hola, buenas noches.` -> `['hola', 'buena', 'noche']`). That is why `s4` ships the
+    three-token form.
+    """
+    analyser = _spacy_analyser()
+    measured = {
+        text: analyser.analyse(sentence_id="0" * 16, text=text)["lemmas"]
+        for text in ("Buenos días.", "Buenas.", "Hola, buenas tardes.", "Buenas noches.")
+    }
+    assert measured == {
+        "Buenos días.": ["buenos", "día"],
+        "Buenas.": ["buenas"],
+        "Hola, buenas tardes.": ["hola", "buena", "tarde"],
+        "Buenas noches.": ["buenas", "noches"],
+    }, measured
+    assert not set(measured["Buenos días."]) <= LESSON_ONE_WINDOW, (
+        "the adapter now produces `bueno` for a prenominal form: B9(a) has landed. Delete "
+        "PRENOMINAL_BUENO and this test."
+    )
+    assert "noches" in measured["Buenas noches."], (
+        "`noches` now lemmatises to `noche`: the PROPN-plural half of the trap is gone too"
+    )
+
+
+def test_analysis_is_null_on_exactly_the_rows_the_analyser_never_ran_on(
+    es_course: list[dict[str, Any]],
+) -> None:
+    """B16 option 2, write side, as an IFF over a whole run rather than over one row.
+
+    `test_an_emitted_candidate_carries_the_analysis_g7_will_read` proves the analysis is
+    real (it re-derives it from a second adapter call) and
+    `test_a_stale_row_carries_a_null_analysis_because_the_analyser_never_ran` proves the
+    nullable case exists. Neither says how many rows are null, and that is the number G7
+    depends on: the contract's own rule is "non-null exactly when G7 will read it", which
+    no schema keyword can express, so it has to be asserted over the population.
+
+    `stale_ledger` is the only axis evaluated above the `_analyse` call, so it is the only
+    `reject_reason` that may carry a null analysis. A second short-circuit added above
+    that call — a cheap early-out on length, say, using a whitespace count — would make an
+    accepted-looking population of rows G7 must refuse, and this is what notices.
+    """
+    result = run_g5()
+    assert result.ok, result.message
+    rows = list(read_records("candidate", lang="es"))
+    assert rows, "no candidates written; this test would pass over nothing"
+    null_reasons = {row["reject_reason"] for row in rows if row["analysis"] is None}
+    assert null_reasons <= {"stale_ledger"}, null_reasons
+    for row in rows:
+        if row["reject_reason"] == "stale_ledger":
+            continue
+        analysis = row["analysis"]
+        assert analysis is not None, row["text"]
+        assert analysis["lemmas"] and analysis["display_tokens"] and analysis["tokens"]
+        assert analysis["analyser"]["model"], "the pin rides on the row, not on the run"

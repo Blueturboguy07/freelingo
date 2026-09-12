@@ -57,12 +57,32 @@ and not there.
 
 ## Two worked judgements from this file
 
-| Candidate                             | Shown English                      | Round trip                          | Score | Why                                                                                                                                            |
-| ------------------------------------- | ---------------------------------- | ----------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Nosotros nos llamamos Ana y Carlos.` | Our names are Ana and Carlos.      | We call ourselves Ana and Carlos.   | 2     | The reflexive reads as self-styling. A learner taking the round trip as the meaning learns `llamarse` wrong in the one lesson that teaches it. |
-| `El pan de la cocina es nuevo.`       | The bread in the kitchen is fresh. | The bread of the kitchen is new.    | 2     | `nuevo` for bread is not "fresh" — `fresco` or `recién hecho` is. The shown English is what the author meant; the Spanish does not say it.     |
-| `¿Tú te llamas Ana?`                  | Is your name Ana?                  | Are you called Ana?                 | 3     | Same question, different English idiom. Nothing a learner is misled by.                                                                        |
-| `Buenos días, ¿cómo está usted?`      | Good morning, how are you?         | Good morning, how are you? (formal) | 3     | `usted` is unrecoverable in the shown English. Register lost, meaning intact.                                                                  |
+| Candidate                             | Shown English                      | Round trip                          | Score | Why                                                                                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------- | ----------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Nosotros nos llamamos Ana y Carlos.` | Our names are Ana and Carlos.      | We call ourselves Ana and Carlos.   | 2     | The reflexive reads as self-styling. A learner taking the round trip as the meaning learns `llamarse` wrong in the one lesson that teaches it.                                                                                                                    |
+| `El pan de la cocina es nuevo.`       | The bread in the kitchen is fresh. | The bread of the kitchen is new.    | 2     | `nuevo` for bread is not "fresh" — `fresco` or `recién hecho` is. The shown English is what the author meant; the Spanish does not say it.                                                                                                                        |
+| `¿Tú te llamas Ana?`                  | Is your name Ana?                  | Are you called Ana?                 | 3     | Same question, different English idiom. Nothing a learner is misled by.                                                                                                                                                                                           |
+| `Buenos días, ¿cómo está usted?`      | Good morning, how are you?         | Good morning, how are you? (formal) | 3     | `usted` is unrecoverable in the shown English. Register lost, meaning intact.                                                                                                                                                                                     |
+| `Buenas.`                             | Hello.                             | Hello. (clipped greeting)           | 3     | A clipped `Buenas tardes/noches`. English has no clipped greeting at all, so the shown English is the closest thing there is — a fixed-phrase choice English makes differently, which is what 3 is for. It is not 4: a learner is not told the Spanish is casual. |
+
+## Scoring a one-word item
+
+Founder ruling B9(b) makes a one-token candidate shippable for a lesson whose window
+holds no verb, so the rubric is now asked to score `Hola.` and `Buenas.` as well as
+sentences. The scale does not change and the question does not either — _would a learner
+shown this English be misled about what the Spanish says?_ — but two of its rows need
+reading carefully at this length:
+
+- **1 (Fragmentary) is not the score for a short item.** "The round trip is not a
+  sentence" is about a round trip that LOST a clause. `Hola.` is a complete utterance;
+  "Hello." is a complete round trip of it. A greeting is not a fragment of a sentence.
+- **3 rather than 4 is where the clipping goes.** `Buenas.` and `Hola, buenas.` are
+  casual clippings with no English equivalent, so the shown English cannot carry the
+  register. That is row 3's own case (`a fixed-phrase choice English makes differently`),
+  and it is the same judgement the `usted` row above records from the other direction.
+
+Everything else in `content/es/candidates/u01-l01.jsonl` is 4: `Buenos días.` /
+"Good morning." is the round trip, word for word.
 
 ## What this rubric does not do
 
