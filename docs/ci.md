@@ -8,7 +8,7 @@ slow one that proves the app exists on real devices; `mutation.yml` is nightly a
 | ---------------- | ---------------------- | ----------------------------------------------------------------------------- |
 | `ci.yml`         | ubuntu-latest          | lint, typecheck, `pnpm test`, registry digest, coverage map, gitleaks         |
 | `native-e2e.yml` | ubuntu + macos-15      | flows exist, they pass on a simulator and an emulator, INV-PLAT-02            |
-| `mutation.yml`   | ubuntu-latest, nightly | Stryker, reporting only — see "the mutation job has never produced a score"   |
+| `mutation.yml`   | ubuntu-latest, nightly | Stryker, reporting only — no score has ever printed; see below                |
 | `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests; the whole es pack is built, baked, validated and signed |
 
 (`cla.yml` is the CLA bot on pull requests and proves nothing about the code.)

@@ -358,10 +358,13 @@ Stryker refuses to score a tree whose initial run is red.
 `PROPERTY_RUNS = 10_000`, deliberately: a property that is too slow has a loose generator,
 and buying a mutation score by weakening every property is buying the wrong number.
 
-**What the real fix is, and why it is not in this lane.** The timing-out property is
-`packages/core/src/data/import.test.ts:277`,
-`it('[INV-DAT-04] the classifier puts history before the gap, for any generated overlap')`
-— a fast-check property over generated import archives, in `packages/core/src/data/`. The
+**What the real fix is, and why it is not in this lane.** The property this run died on
+is `packages/core/src/data/import.test.ts:392`,
+`it('[INV-DAT-09] an archive whose config raises the freeze cap never raises this build s cap')`;
+the one CI named is `:277`,
+`it('[INV-DAT-04] the classifier puts history before the gap, for any generated overlap')`.
+Both are fast-check properties over generated import archives, in
+`packages/core/src/data/`, and either can be the first to blow the clock. The
 `p2fix-downstream` file lane grants `packages/core/src/day/` (DAY, the civil-date module),
 not `packages/core/src/data/` (DAT, import/export). They are different modules and the id
 prefix `INV-DAT-` belongs to the second. So the two things that would actually work — a
