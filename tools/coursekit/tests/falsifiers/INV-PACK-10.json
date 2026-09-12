@@ -1,0 +1,83 @@
+{
+  "invariant": "INV-PACK-10",
+  "statement": "Generated content that fails a filter axis is discarded and resampled, never patched. Gate: no repair path exists in the generator.",
+  "registry": "docs/invariants.md § 14 — Content packs",
+  "covers": "EC-STO-18 — a generated radio script fails a filter axis -> discard and resample, never patch (D06-17)",
+  "why_a_source_gate_and_not_an_output_gate": "A patched sentence is indistinguishable from a sentence that passed: same shape, same fields, inside the ledger, inside the length window. Nothing downstream can tell them apart, and the learner sees the difference as a sentence a native speaker would not have said. So the invariant is written about the generator's SOURCE, and the test that owns it parses coursekit/stages/g5_gapfill.py and coursekit/stages/g6_validate_language.py rather than reading their output.",
+  "what_the_scanner_looks_at": "Identifiers only — function and class names, argument names, attribute names, keyword-argument names, and names bound by assignment — plus calls to string-mutating methods. Never string literals, docstrings or comments: this file's own module documentation says 'never patched' in prose, and a scanner that read prose would fail on the documentation of the rule it enforces.",
+  "must_reject": [
+    {
+      "name": "a function whose name is the repair path",
+      "why": "The most direct form. A helper called from the reject branch, with 'the candidate was nearly right' as its rationale.",
+      "source": "def _repair_candidate(row, axis):\n    return row\n"
+    },
+    {
+      "name": "a patch helper under a different verb",
+      "why": "Renaming the function does not change what it is; the scanner is a word list for exactly this reason.",
+      "source": "def patch_out_of_vocabulary(text, allowed):\n    return text\n"
+    },
+    {
+      "name": "str.replace on candidate text",
+      "why": "The commonest accidental repair: collapse the double space, drop the stray comma, and the candidate now passes.",
+      "source": "def emit(row):\n    text = row[\"text\"].replace(\"  \", \" \")\n    return text\n"
+    },
+    {
+      "name": "re.sub over candidate text",
+      "why": "Same act, spelled as normalisation.",
+      "source": "import re\n\n\ndef emit(row):\n    return re.sub(r\"\\s+\", \" \", row[\"text\"])\n"
+    },
+    {
+      "name": "strip as tidying",
+      "why": "Trimming whitespace is an edit. A candidate that only passes the length axis after trimming did not pass the length axis.",
+      "source": "def emit(row):\n    cleaned = row[\"text\"].strip()\n    return cleaned\n"
+    },
+    {
+      "name": "capitalize as presentation",
+      "why": "Casing is content in a sentence a learner types back.",
+      "source": "def emit(row):\n    return row[\"text\"].capitalize()\n"
+    },
+    {
+      "name": "a variable named for the fix",
+      "why": "Assignment targets are scanned, so the intent cannot hide in a local.",
+      "source": "def emit(row):\n    fixed_text = row[\"text\"]\n    return fixed_text\n"
+    },
+    {
+      "name": "a keyword argument that carries the repair",
+      "why": "Keyword names are scanned too; a call site is as much a declaration as a def.",
+      "source": "def emit(row, writer):\n    writer.write(row, sanitize=True)\n"
+    }
+  ],
+  "must_accept": [
+    {
+      "name": "prose about the rule",
+      "why": "The module that implements the invariant has to be able to describe it. If this trips the scanner, the scanner is reading English, and its first false positive is its own documentation.",
+      "source": "\"\"\"Content that fails an axis is discarded and resampled, never patched.\n\nNo repair path exists here; a rejected candidate is written as it arrived.\n\"\"\"\n\n\ndef emit(row):\n    return row[\"text\"]\n"
+    },
+    {
+      "name": "a comment naming the rule",
+      "why": "Same, for comments.",
+      "source": "def emit(row):\n    # Never patch: the next candidate is the remedy.\n    return row[\"text\"]\n"
+    },
+    {
+      "name": "discard and resample",
+      "why": "The shape the invariant asks for must pass, or the gate is just 'write no code'.",
+      "source": "def fill(slot, pool, axis_of):\n    for row in pool:\n        if axis_of(row) is None:\n            return row\n    return None\n"
+    },
+    {
+      "name": "joining message fragments",
+      "why": "str.join builds an error message, not content. Banning it would push the module into worse diagnostics for no gain.",
+      "source": "def message(names):\n    return \"missing: \" + \", \".join(names)\n"
+    },
+    {
+      "name": "lowercasing a lemma for comparison",
+      "why": "A comparison key is not the shipped string. The emitted text is asserted separately to be the authored object.",
+      "source": "def known(lemma, allowed):\n    return lemma.lower() in allowed\n"
+    }
+  ],
+  "behavioural_falsifier": {
+    "why": "The source gate is necessary and not sufficient: a repair could arrive through a helper in another module. So one authored candidate is written a single accent away from correct, inside the vocabulary and inside the length window on every other axis.",
+    "text": "El jardin es grande.",
+    "correct_form": "El jardín es grande.",
+    "requirement": "G5 must emit this row with accepted=false and reject_reason=out_of_vocabulary, and the multiset of emitted texts must equal the multiset of authored texts. The accented form is separately an authored candidate in this slot, so its mere presence proves nothing — a repair path shows up as a SECOND copy of it and one fewer of the unaccented row."
+  }
+}

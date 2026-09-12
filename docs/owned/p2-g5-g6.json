@@ -1,0 +1,47 @@
+{
+  "$comment": "Invariant ids owned by the P2 task `p2-g5-g6-gapfill-language`: G5 gap-fill, G6 validate-language, the three build-time engines and V8. Both ids are owned by pytest tests in tools/coursekit, which scripts/coverage-map.ts cannot see today — see `coverageMapGap` below. That is a real gap and it is named here rather than worked around by claiming nothing.",
+  "phase": "P2",
+  "task": "p2-g5-g6-gapfill-language",
+  "module": "tools/coursekit",
+  "owned": ["INV-PACK-10", "INV-PACK-14"],
+  "owningTests": {
+    "INV-PACK-10": [
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_no_repair_path_exists_in_the_generator",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_scanner_rejects_every_falsifier",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_scanner_accepts_prose_and_the_shape_the_invariant_asks_for",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_the_scanner_is_walking_something",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_every_emitted_text_is_an_authored_text",
+      "tools/coursekit/tests/test_g5_gapfill.py::test_INV_PACK_10_a_candidate_one_accent_from_correct_is_discarded_not_corrected",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_g6_narrows_the_surviving_set_and_changes_no_text"
+    ],
+    "INV-PACK-14": [
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_v8_never_reports_a_pass_over_a_run_that_checked_nothing (9 cases)",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_the_corpus_covers_both_verdicts",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_japanese_degrades_on_spellcheck_and_says_so",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_v8_copies_all_four_engine_fields_into_its_own_entry",
+      "tools/coursekit/tests/test_g6_validate_language.py::test_INV_PACK_14_a_mock_grammar_engine_announces_itself_in_the_artefact"
+    ]
+  },
+  "falsifiers": {
+    "INV-PACK-10": "tools/coursekit/tests/falsifiers/INV-PACK-10.json — eight repair-shaped sources the scanner must reject, five near-misses it must accept (two of them prose describing the rule, one the discard-and-resample loop the invariant asks for), and one behavioural case: an authored candidate one accent from correct, which every repair path anyone would write fixes.",
+    "INV-PACK-14": "tools/coursekit/tests/falsifiers/INV-PACK-14.json — nine G6 runlog shapes that all produce zero grammar errors. Two are a pass, six are blocking, one is Japanese, where a missing spell checker is correct and must not block. The corpus is parametrised directly into the test, so a V8 that always blocks fails it as surely as one that never does."
+  },
+  "coverageMapGap": {
+    "problem": "scripts/coverage-map.ts scans TEST_ROOTS = ['packages','apps','e2e'] for files matching /\\.(test|spec)\\.(ts|tsx)$|\\.ya?ml$/, and reads ids out of `it('[INV-…] …')` call syntax. No Python file in tools/ is scanned, so `pnpm test:coverage-map` reports these two ids as MISS even though both have owning tests that run in pack-ci.yml.",
+    "consequence": "`pnpm test:coverage-map` exits 1 on this branch. That is the gate working: an id is owned and the scanner cannot see its test. It is not a reason to un-claim the ids — the plan's rule 4 calls an unowned invariant worse than a failing one.",
+    "fix": "One change in scripts/coverage-map.ts, which this lane does not own: add 'tools' to TEST_ROOTS, add `|^test_.*\\.py$` to TEST_FILE_PATTERN, and extend claimedIdsIn to read ids out of Python test docstrings (every test here carries `\"\"\"[INV-PACK-10] …\"\"\"` on the first line) as well as out of `it()`/`test()` call syntax. Every P2 lane that owns a PACK invariant needs it.",
+    "owner": "the P2 integrate task"
+  },
+  "heldWithoutAnInvariantId": [
+    "R1 was re-derived rather than copied. The brief asked what V8 actually degrades to for Spanish, and the answer came from a local LanguageTool 6.6 sidecar (languagetool-server.jar, Java 22, port 8081, 2026-09-12) rather than from the rule table: `La casa es blanco.` raises CONCORDANCIAS_ATRIBUTO / inconsistency / AGREEMENT_VERBS, `Yo xqzptv en la casa.` raises MORFOLOGIK_RULE_ES / misspelling / TYPOS, and the same nonce probe in ja-JP raises NOTHING. So Spanish has 1,644 grammar rules AND a Morfologik spell checker and degrades on neither axis, which is what neither deep/10 §S6 nor its correction says; Japanese degrades on spellcheck_engine alone, which is R1's correction reproduced from the server. The capability is PROBED at run time (engines/languagetool.py::probe) rather than encoded, because this fact has already been got wrong once by reading a table.",
+    "The perplexity band is percentiles of the training corpus, not absolute perplexities. A band is a property of a model — pyproject.toml pins KenLM to a commit precisely because a band computed against one build and enforced against another drifts with no diff — so engines/kenlm.py derives it from a held-out slice at PERPLEXITY_BAND_PERCENTILES and writes band.json beside the binary; a model with neither a band file nor an explicit --set kenlm_band is REFUSED, because a perplexity with no band is a number nobody can fail.",
+    "The back-translation axis is an agent's judgement against a published rubric (content/es/gapfill-rubric.md) and says so in the artefact: the engine id is `agent_rubric/v1 (agent-authored rubric score, not a model round-trip)`, which G6 writes to the runlog, V8 copies into its own entry, and INV-PACK-55 renders on the pack card. There is no hosted model in this environment and the plan's ruling makes the agent the author; what must never happen is a reader coming to believe a translation model checked these sentences.",
+    "content/es/candidates.jsonl is 160 candidates over 8 slots, 20 per slot, every sentence written for this repository. `allowed_lemmas` on each row is the ledger window the candidate was authored against, and the `stale_ledger` axis refuses the whole file when G4 disagrees with it — which is what makes an offline authoring step safe before G3/G4 have landed.",
+    "The LanguageTool public API is refused by hostname at construction (FORBIDDEN_LANGUAGETOOL_HOSTS). A 6,000-item batch against the hosted service returns part real errors and part timeouts, and that shape reads as a pass.",
+    "engines/mock_lt.py is a real HTTP server on a real ephemeral port, not a stubbed method, so the client's transport, payload shape and version extraction are under test. It is registered as an engine rather than hidden in the test tree because a mock that can be run in a build must announce itself in the artefact: its probe reports `mock_lt/...`, and a course validated against it says so on the pack card."
+  ],
+  "measuredFindingsForOtherLanes": {
+    "g1-analyze": "es_core_news_md 3.8.0 does not lemmatise several first-person present forms: `duermo` -> 'duermo', `ceno` -> 'ceno', `cenamos` -> 'cenamos' (but `duerme` -> 'dormir'). A ledger keyed on this model's `lemma_` therefore contains surface forms masquerading as lemmas, and V1's 'lemma-level, never surface' guarantee is weaker than it reads for -ir/-er verbs in the first person. Measured 2026-09-12 with the pinned wheel.",
+    "deps-scaffold": "Registry.reset_for_tests() plus Registry.discover() cannot restore a registration: discovery goes through importlib.import_module, which returns the cached module without re-running @register_stage. After conftest's `empty_registry` runs once, every registry stays empty for the rest of the pytest session. Two consequences: a lane's own stage tests fail with 'g5 is not registered' under `pytest tests/` while passing under `pytest tests/test_g5_gapfill.py`, and test_cli.py::test_discovery_finds_nothing_yet_and_that_is_the_correct_state now passes because the registry was emptied rather than because nothing is registered. tests/test_g5_gapfill.py::ensure_registered is the local workaround; the fix belongs in coursekit/__init__.py."
+  }
+}
