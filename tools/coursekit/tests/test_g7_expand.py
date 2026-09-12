@@ -61,7 +61,7 @@ from coursekit.exercises.wordbank import build_hints, build_word_bank, tile_coun
 from coursekit.inputs import group_is_installed
 from coursekit.runlog import RunLog, read_entries
 from coursekit.stages import STAGES
-from coursekit.stages.g7_expand import ending_split
+from coursekit.stages.g7_expand import _display_split, _target_tokens, ending_split
 
 
 @pytest.fixture(autouse=True)
@@ -1063,3 +1063,41 @@ def test_build_hints_refuses_a_positional_guess_and_honours_the_new_lemma_gate()
         lemma_of_source_index=["con", "leche"],
     )
     assert hints[0].gloss == "con leche"
+
+
+# ---------------------------------------------------------------------------
+# The fallback for an authored candidate
+# ---------------------------------------------------------------------------
+
+
+def test_INV_PACK_40_an_authored_candidates_tiles_carry_no_punctuation() -> None:
+    """[INV-PACK-40] the fallback split is the same KIND of list as G1's display tokens.
+
+    An authored candidate has no `analysed_sentence`, so G7 falls back to a whitespace
+    split. It used to be a bare split, which makes `Hola,` and `noche.` word-bank tiles;
+    the distractor core is then asked for two same-POS same-band lexemes for a string
+    that is in no lexicon and raises `NotEnoughDistractors`, failing the stage on a
+    sentence that is perfectly good. Measured against the real corpus on 2026-09-12:
+
+        g7 failed: NotEnoughDistractors: concept:subject_pronouns: needed 2 distractors
+        for 'Hola,' (POS , band unbanded) and the rule core found 0.
+
+    `_lemmas_for`'s fallback had always stripped the same characters, so one sentence
+    produced clean lemmas and dirty tiles — which is what made it findable.
+    """
+    assert _display_split("Hola, buenas noches.") == ["Hola", "buenas", "noches"]
+    assert _display_split("¿Qué tal, señor?") == ["Qué", "tal", "señor"]
+    assert _display_split("Sí, por favor.") == ["Sí", "por", "favor"]
+    # An authored candidate is `sid=None`, which is the branch that used to leak.
+    tokens = _target_tokens(_EMPTY_INPUTS, None, "Perdón, mi teléfono no responde.")
+    assert tokens == ["Perdón", "mi", "teléfono", "no", "responde"]
+    assert not any(token.strip(".,¿?¡!") != token for token in tokens)
+
+
+class _EmptyInputs:
+    """Just enough of `ExpansionInputs` for the `sid is None` branch."""
+
+    analysed: dict[str, Any] = {}
+
+
+_EMPTY_INPUTS: Any = _EmptyInputs()

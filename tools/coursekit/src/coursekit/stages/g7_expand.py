@@ -52,7 +52,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 from .. import __version__
 from ..artifacts import read_records, sentence_id, write_records
@@ -167,26 +167,51 @@ def _resolve_text(inputs: ExpansionInputs, item: Mapping[str, Any]) -> tuple[str
     return inputs.texts[sid], inputs.translations[sid], sid
 
 
-def _target_tokens(inputs: ExpansionInputs, sid: str | None, text: str) -> list[str]:
-    """G1's `display_tokens` where the sentence was analysed, else a whitespace split.
+#: The characters a whitespace split leaves glued to a word. G1's `display_tokens` are
+#: LEXICAL surfaces — spaCy has already put punctuation in its own token with its own
+#: offsets — so a fallback that keeps them produces a different kind of list from the
+#: same sentence depending on which stage saw it first.
+_EDGE_PUNCTUATION: Final[str] = ".,¿?¡!:;«»\"'()…—-"
 
-    An authored candidate has not been through G1, and re-running a lemmatiser here
-    would put a second analyser version into the pipeline. The split is recorded as
-    such rather than dressed up as analysis.
+
+def _display_split(text: str) -> list[str]:
+    """A whitespace split, stripped to lexical surfaces. G1's shape, without a model.
+
+    THE PUNCTUATION MATTERS AND IT STOPPED A BUILD. An authored candidate has no
+    `analysed_sentence` — G5 lemmatises it to filter it and the frozen `candidate`
+    record has nowhere to put the result — so G7 falls back to a split here. It used to
+    be a bare `text.split()`, which makes `Hola,` and `noche.` word-bank tiles, and the
+    distractor core is then asked for two same-POS same-band lexemes for a string that
+    is in no lexicon: POS empty, band `unbanded`, zero candidates, `NotEnoughDistractors`,
+    and the whole stage fails on a sentence that is perfectly good. Measured on this Mac,
+    2026-09-12, against the real corpus:
+
+        g7 failed: NotEnoughDistractors: concept:subject_pronouns: needed 2 distractors
+        for 'Hola,' (POS , band unbanded) and the rule core found 0.
+
+    The asymmetry was the tell: `_lemmas_for`'s fallback already stripped the same
+    characters, so the lemmas were clean and the tiles were not, from one sentence.
+
+    Still not analysis, and deliberately not: no lemmatiser runs here, because a second
+    analyser version in the pipeline is the drift INV-PACK-40 is about. This is the same
+    whitespace split it always was, with the edges trimmed.
     """
+    return [
+        stripped for token in surface_tokens(text) if (stripped := token.strip(_EDGE_PUNCTUATION))
+    ]
+
+
+def _target_tokens(inputs: ExpansionInputs, sid: str | None, text: str) -> list[str]:
+    """G1's `display_tokens` where the sentence was analysed, else a stripped split."""
     if sid is not None and sid in inputs.analysed:
         return list(inputs.analysed[sid]["display_tokens"])
-    return list(surface_tokens(text))
+    return _display_split(text)
 
 
 def _lemmas_for(inputs: ExpansionInputs, sid: str | None, text: str) -> list[str]:
     if sid is not None and sid in inputs.analysed:
         return list(inputs.analysed[sid]["lemmas"])
-    return [
-        token.strip(".,¿?¡!").casefold()
-        for token in surface_tokens(text)
-        if token.strip(".,¿?¡!")
-    ]
+    return [token.casefold() for token in _display_split(text)]
 
 
 def ending_split(surface: str, lemma: str, pos: str, lang: str) -> tuple[str, str] | None:
