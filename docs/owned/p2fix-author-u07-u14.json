@@ -152,12 +152,36 @@
       "Not in the unit-7 window and commonly reached for: 'estar', 'que' (unit 21), 'a' (never a target lexeme), 'se', 'hacer', 'ir', 'muy', 'este'. No relative clauses and no personal 'a' before unit 21."
     ],
     "verifier": "scratchpad/verify_shard.py reproduces G5's REJECT_AXES order over a shard against a gap brief, reading G5's own constants (MIN_TOKENS, MAX_TOKENS, MAX_NEW_LEMMAS_PER_ITEM, MIN_CANDIDATES_PER_SLOT, AUTHORED_PROVENANCE, _AUTHORED_REQUIRED, Slot) so it cannot drift from the stage. It reports filled/unfilled/thin/orphan slots, the per-axis reject counts, and the backtranslation score distribution, and it FAILS on a uniform-4 score file's shape by printing the distribution rather than a pass.",
-    "pilotVerified": "24 unit-7 lesson-37 question-word candidates were authored and run through the pinned es_core_news_md against the computed 198-lemma window: 23 pass the vocabulary and 3-12 token axes, 1 rejects (`primos` is left unlemmatised by the pinned model, so a plural that is in the window as `primo` is out of vocabulary as `primos`). That is the method working end to end on real output, and the one reject is a lemmatiser quirk every authoring lane will hit and should check for rather than assume."
+    "pilotVerified": "24 unit-7 lesson-37 question-word candidates were authored and run through the pinned es_core_news_md against the computed 198-lemma window: 23 pass the vocabulary and 3-12 token axes, 1 rejects (`primos` is left unlemmatised by the pinned model, so a plural that is in the window as `primo` is out of vocabulary as `primos`). That is the method working end to end on real output, and the one reject is a lemmatiser quirk every authoring lane will hit and should check for rather than assume.",
+    "lemmatiserTrapsMeasuredNotAssumed": {
+      "$comment": "Every one of these is a form whose LEMMA is not the window entry an author would expect, measured by running the pinned es_core_news_md over authored candidates. Each one costs a candidate on the out_of_vocabulary axis and none of them is visible by reading the window list. An authoring lane should run its texts through the analyser before it writes translations for them, not after.",
+      "primos": "stays 'primos'. 'primo' is in the window; the plural is not lemmatised to it.",
+      "cuántas": "lemmatises to 'cuántos', not 'cuánto'. The window carries 'cuánto', so every '¿Cuántas ...?' is out of vocabulary.",
+      "buena": "lemmatises to 'buen', not 'bueno'.",
+      "ninguna": "lemmatises to 'ninguno', which is in no unit's target list.",
+      "ayudo": "first person singular stays 'ayudo' in some contexts rather than 'ayudar'.",
+      "disculpe / disculpa": "stay as the surface form; 'disculpar' is in the window and is never reached from the imperative.",
+      "un / una": "DO lemmatise to 'uno', which IS in the window from unit 2. Indefinite articles are usable.",
+      "a": "the preposition is in no unit's target_lexemes anywhere in the course, so the personal 'a' ('¿Conoces a mi hermana?') can never be authored. 'que' arrives only at unit 21, so no relative clauses either."
+    },
+    "pilotBank": {
+      "where": "scratchpad/bank/l37..l42.txt, the six lessons of unit 7 (the unit that was 100% gaps at 281b623: 54 of 54 slots)",
+      "authored": 144,
+      "passVocabularyAndLengthAxes": 130,
+      "rate": "90.3%",
+      "note": "Texts only. They are NOT committed as candidates, because a candidate needs the slot's ledger_digest and new_lemmas, and both are outputs of a build that has not run. The 9.7% that reject are the trap table above, which is the reason a text bank has to be analysed before it is dressed as a row."
+    }
   },
   "shardState": {
     "file": "content/es/candidates/u07-u14.jsonl",
     "rowsAuthored": 0,
     "rowsRequired": "222 slots x 20 = 4,440 at the 281b623 measurement (u7 54, u8 24, u9 23, u10 21, u11 21, u12 8, u13 40, u14 31)",
     "why": "Not one valid row can be written before the gap brief exists. G5 evaluates `stale_ledger` FIRST and by SET EQUALITY on both allowed_lemmas and new_lemmas, so a row authored against a guessed ledger fails whole, and a file of 4,440 guessed rows would fail 4,440 times while looking exactly like a finished lane. The file is left empty rather than filled with rows that cannot pass — which is the same rule INV-PACK-10 states for a single candidate, applied to a shard."
+  },
+  "gatesRun": {
+    "pnpm lint": "clean (eslint .)",
+    "pnpm typecheck": "clean (tsc -p tsconfig.json --noEmit + @freelingo/mobile)",
+    "pnpm test": "114 files / 1316 tests passed, 34.30s. An earlier run of the same suite reported 2 files failed with '[vitest-worker]: Timeout calling onTaskUpdate' while three vitest processes and a spaCy pipeline shared the machine; re-run alone it is green, so that pair was contention, not a regression.",
+    "needsDevice": false
   }
 }
