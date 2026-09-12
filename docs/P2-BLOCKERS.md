@@ -31,30 +31,30 @@ So the status column distinguishes three things, and the distinction is the poin
   going green and leaving the block invisible.
 - **OPEN / NON-GATING** — neither.
 
-| Id      | What                                                                                       | Kind                 | Status                                                                                                                                                        |
-| ------- | ------------------------------------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **B1**  | the candidate sentences do not exist                                                       | authoring            | **AUTHORED 2026-09-12** — 9,687 rows, 481/490 slots; 9 short = B9                                                                                             |
-| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5   | code                 | **RESOLVED** — p2fix/ledger-freeze                                                                                                                            |
-| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                   | code + decision      | **DECIDED + BUILT** — course-global is canonical; fixture verified                                                                                            |
-| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                          | code                 | **RESOLVED 2026-09-12** — deleted                                                                                                                             |
-| **B3**  | the wrong-item rate is `None`, not 2%                                                      | **founder decision** | **DECIDED, MEASURED at 4.00%** (12/300, agent-scored, over the populations G7 would expand); the published rate is still `None` because no sheet exists — B19 |
-| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                                | docs                 | **RESOLVED 2026-09-12**                                                                                                                                       |
-| **B5**  | S152 has a validator, F3, and no row in the product map                                    | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen                                                                                                        |
-| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                     | **founder decision** | **DECIDED, BUILT** — 5/5 at the round-3 integration                                                                                                           |
-| **B7**  | `mutation.yml` has never produced a score                                                  | pre-existing         | **NON-GATING by ruling** — still no score, measured                                                                                                           |
-| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed                | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                                                                                                             |
-| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable      | **founder decision** | **DECIDED, BUILT** — all three parts landed at the r3 integration                                                                                             |
-| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)              | content              | **RESOLVED 2026-09-12** — rewritten                                                                                                                           |
-| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing        | code                 | **RESOLVED 2026-09-12**                                                                                                                                       |
-| **B12** | the gate's `coursekit validate es --pack … --report …` spelling does not exist             | docs                 | **RESOLVED 2026-09-12** — docs only                                                                                                                           |
-| **B13** | `build-es` synced no `align` group                                                         | code (CI)            | **RESOLVED 2026-09-12** — pack-ci.yml                                                                                                                         |
-| **B14** | a starved slot crashes G7 instead of failing by name                                       | code                 | **DECIDED, BUILT** — `StarvedSlot(LookupError)`, message verbatim                                                                                             |
-| **B15** | G7 made word-bank tiles out of punctuation                                                 | code                 | **RESOLVED 2026-09-12**                                                                                                                                       |
-| **B16** | G7 looks a distractor up by SURFACE, and an authored candidate has no analysis             | code                 | **DECIDED, BUILT** — writer (deps) + reader (`_anchor_lemma`)                                                                                                 |
-| **B17** | V11 sees mean difficulty fall across 13 unit boundaries                                    | content + code       | **DECIDED, BUILT, MEASURED** — 1 blocking (u10→u11, −1.039, across s1→s2) and 12 within-section warnings, not 13 blocking                                     |
-| **B18** | the accent dimension B6 made load-bearing has nothing to listen to                         | code                 | **OPEN, measured** — found 2026-09-12 by this round                                                                                                           |
-| **B19** | B9(a)+(c) moved the ledger, so 18 authored slots died and 22 new gap slots appeared        | content              | **OPEN — the phase blocker**; re-key done, 29 slots to author                                                                                                 |
-| **B20** | `ci.yml` fails with every test passing: `Timeout calling "onTaskUpdate"`, twice on one sha | infrastructure       | **OPEN, measured — a flake, 2 of 4 attempts**; green on the last two shas                                                                                     |
+| Id      | What                                                                                     | Kind                 | Status                                                                                                                                                        |
+| ------- | ---------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **B1**  | the candidate sentences do not exist                                                     | authoring            | **AUTHORED 2026-09-12** — 9,687 rows, 481/490 slots; 9 short = B9                                                                                             |
+| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                 | **RESOLVED** — p2fix/ledger-freeze                                                                                                                            |
+| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision      | **DECIDED + BUILT** — course-global is canonical; fixture verified                                                                                            |
+| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                 | **RESOLVED 2026-09-12** — deleted                                                                                                                             |
+| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision** | **DECIDED, MEASURED at 4.00%** (12/300, agent-scored, over the populations G7 would expand); the published rate is still `None` because no sheet exists — B19 |
+| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                 | **RESOLVED 2026-09-12**                                                                                                                                       |
+| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen                                                                                                        |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, BUILT** — 5/5 at the round-3 integration                                                                                                           |
+| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing         | **NON-GATING by ruling** — still no score, measured                                                                                                           |
+| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                                                                                                             |
+| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision** | **DECIDED, BUILT** — all three parts landed at the r3 integration                                                                                             |
+| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)            | content              | **RESOLVED 2026-09-12** — rewritten                                                                                                                           |
+| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                 | **RESOLVED 2026-09-12**                                                                                                                                       |
+| **B12** | the gate's `coursekit validate es --pack … --report …` spelling does not exist           | docs                 | **RESOLVED 2026-09-12** — docs only                                                                                                                           |
+| **B13** | `build-es` synced no `align` group                                                       | code (CI)            | **RESOLVED 2026-09-12** — pack-ci.yml                                                                                                                         |
+| **B14** | a starved slot crashes G7 instead of failing by name                                     | code                 | **DECIDED, BUILT** — `StarvedSlot(LookupError)`, message verbatim                                                                                             |
+| **B15** | G7 made word-bank tiles out of punctuation                                               | code                 | **RESOLVED 2026-09-12**                                                                                                                                       |
+| **B16** | G7 looks a distractor up by SURFACE, and an authored candidate has no analysis           | code                 | **DECIDED, BUILT** — writer (deps) + reader (`_anchor_lemma`)                                                                                                 |
+| **B17** | V11 sees mean difficulty fall across 13 unit boundaries                                  | content + code       | **DECIDED, BUILT, MEASURED** — 1 blocking (u10→u11, −1.039, across s1→s2) and 12 within-section warnings, not 13 blocking                                     |
+| **B18** | the accent dimension B6 made load-bearing has nothing to listen to                       | code                 | **OPEN, measured** — found 2026-09-12 by this round                                                                                                           |
+| **B19** | B9(a)+(c) moved the ledger, so 18 authored slots died and 22 new gap slots appeared      | content              | **OPEN — the phase blocker**; re-key done, 29 slots to author                                                                                                 |
+| **B20** | `ci.yml` fails with every test passing: `Timeout calling "onTaskUpdate"`                 | infrastructure       | **OPEN, measured — a flake, 3 of 7 attempts**, and every failure is a slow run                                                                                |
 
 **The four rows above were re-measured on `main` at the P2 round-3 integration**, because
 each was written on a lane that could not see its sibling's files and each had gone stale
@@ -1295,32 +1295,44 @@ failures on one sha and a clean pass on the next, over an identical suite.
 
 Every attempt, in order:
 
-| sha       | attempt | run                                                                    | result                              |
-| --------- | ------- | ---------------------------------------------------------------------- | ----------------------------------- |
-| `86f2430` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | FAILURE, 1,316/1,316 pass, 2 errors |
-| `86f2430` | 2       | same run, `gh run rerun --failed`                                      | FAILURE, 1,316/1,316 pass, 1 error  |
-| `859f3fb` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, 1,316/1,316 pass       |
-| `42b0be3` | 1       | <https://github.com/Blueturboguy07/freelingo/actions/runs/34708331247> | **SUCCESS**, 1,316/1,316 pass       |
+| sha       | attempt               | run                                                                    | result                              |
+| --------- | --------------------- | ---------------------------------------------------------------------- | ----------------------------------- |
+| `86f2430` | 1                     | <https://github.com/Blueturboguy07/freelingo/actions/runs/34704497896> | FAILURE, 1,316/1,316 pass, 2 errors |
+| `86f2430` | 2                     | same run, `gh run rerun --failed`                                      | FAILURE, 1,316/1,316 pass, 1 error  |
+| `859f3fb` | 1                     | <https://github.com/Blueturboguy07/freelingo/actions/runs/34705920961> | **SUCCESS**, 1,316/1,316 pass       |
+| `42b0be3` | 1                     | <https://github.com/Blueturboguy07/freelingo/actions/runs/34708331247> | **SUCCESS**, 1,316/1,316 pass       |
+| `bbf3f05` | 1                     | <https://github.com/Blueturboguy07/freelingo/actions/runs/34709926066> | **SUCCESS**, 1,316/1,316 pass       |
+| `682f7f2` | 1                     | <https://github.com/Blueturboguy07/freelingo/actions/runs/34711264263> | FAILURE, 1,316/1,316 pass, 1 error  |
+| `682f7f2` | 2 (`--failed` re-run) | same run                                                               | **SUCCESS**, 1,316/1,316 pass       |
 
-A re-run on the same sha is therefore not a reliable way to clear it, which is what the
-"re-run once before calling it a regression" rule assumes.
+A re-run on the same sha is therefore not a _reliable_ way to clear it — it failed twice
+running on `86f2430` and cleared first try on `682f7f2` — which is what the "re-run once
+before calling it a regression" rule assumes and does not get.
 
-**Added at the third integration pass, and it changes the row's wording rather than its
-status.** The summary row used to read "not a flake any more", which contradicted this
-section's own conclusion two paragraphs up ("So it is a flake") — the row was written in
-the hour when both attempts on `86f2430` had failed and no later sha had passed yet, and
-nothing updated it when `859f3fb` went green. `42b0be3` is now the **second consecutive
-green**, so the measured rate is **2 failures in 4 attempts, both on one sha**, and the
-row says that instead.
+**Rewritten at the third integration pass, and then again when it reappeared.** The
+summary row used to read "not a flake any more", which contradicted this section's own
+conclusion two paragraphs up ("So it is a flake") — the row was written in the hour when
+both attempts on `86f2430` had failed and no later sha had passed yet, and nothing updated
+it when `859f3fb` went green. The measured rate over seven attempts on four shas is
+**3 failures in 7**.
 
-The third pass also produced the first evidence about the mechanism rather than the rate.
-`42b0be3` ran the identical suite in **152.73 s wall / 401.53 s test-time** against
-`86f2430`'s 227.31 s / 604.56 s — a 33% faster wall clock on the same tests — and the two
-failures are the two slowest runs recorded. That is consistent with the reporter-RPC
-timeout being a function of runner speed rather than of anything in the suite, which
-matters for whoever fixes it: it predicts the failure will reappear on a slow runner
-without any change to the tests, and that a green run is not evidence a fix worked. The
-levers below are unchanged.
+**The wall-clock correlation is now the one real finding, and it held up out of sample.**
+Ranking every attempt by duration:
+
+| sha       | wall     | test-time | result      |
+| --------- | -------- | --------- | ----------- |
+| `86f2430` | 227.31 s | 604.56 s  | **FAILURE** |
+| `682f7f2` | 212.36 s | 567.11 s  | **FAILURE** |
+| `42b0be3` | 152.73 s | 401.53 s  | SUCCESS     |
+
+The failures are the slowest runs and the successes are the fastest, on an identical
+suite of 1,316 tests — which was written down after the first two failures as a
+prediction, and `682f7f2` then failed at 212 s and cleared on a re-run, which is the
+prediction coming true rather than being fitted. So the reporter-RPC timeout is a function
+of **runner speed**, not of anything in the test suite, and two things follow for whoever
+takes it: it will reappear on a slow runner with no change to the tests, and **a green run
+is not evidence that a fix worked** — only a green run at 220 s+ would be. The levers below
+are unchanged.
 
 Not fixed here on purpose. The suite is 27 s wall on this Mac and 227 s on the runner, so
 there is no way to reproduce the timing locally, and a change pushed as a fix that cannot
