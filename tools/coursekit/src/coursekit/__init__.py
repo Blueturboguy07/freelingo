@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import sys
 from collections.abc import Iterator
 
 __version__ = "0.1.0"
@@ -47,6 +48,7 @@ class Registry[T]:
         self._what = what
         self._entries: dict[str, T] = {}
         self._discovered = False
+        self._imported: list[str] = []
 
     # -- registration ------------------------------------------------------
 
@@ -70,17 +72,45 @@ class Registry[T]:
         for module in pkgutil.iter_modules(package.__path__):
             if module.name.startswith("_"):
                 continue
-            importlib.import_module(f"{self._package}.{module.name}")
+            name = f"{self._package}.{module.name}"
+            importlib.import_module(name)
+            if name not in self._imported:
+                self._imported.append(name)
 
     def reset_for_tests(self) -> None:
-        """Forget everything, including that discovery ran.
+        """Empty the registry and keep it empty until `restore_for_tests()`.
 
         Tests need an empty registry to prove the "unregistered exits 2, never 0" rule
         is not vacuous, and need a populated one to prove the success path is reachable.
         Named for what it is so nobody reaches for it in production code.
+
+        Discovery is marked **done** rather than pending, which is the part that is not
+        obvious. Once a lane has landed a real module in the package, a reset that left
+        discovery pending would repopulate on the very next lookup — so
+        `empty_registry` would stop producing an empty registry the day the first
+        validator landed, and a test asserting exit 2 would silently start asserting
+        something else. Suppressing discovery makes "empty" mean empty for every lane.
+        """
+        self._entries.clear()
+        self._discovered = True
+
+    def restore_for_tests(self) -> None:
+        """Undo `reset_for_tests()`: the next lookup re-runs every registration.
+
+        The `sys.modules` eviction is the whole mechanism. A registration happens as a
+        side effect of importing a module, `importlib.import_module` returns a cached
+        module without re-running it, so clearing `_discovered` alone made the next
+        `discover()` a no-op: every test after the first user of the `empty_registry`
+        fixture saw a permanently empty registry, whatever the package contained. That
+        reads at once as "the whole suite is green" and as "my validator isn't running",
+        which are the two things this project can least afford to confuse. Measured on
+        this commit before the fix: register V10-V12, reset, ask again, get `()`.
         """
         self._entries.clear()
         self._discovered = False
+        for name in self._imported:
+            sys.modules.pop(name, None)
+        self._imported.clear()
 
     # -- lookup ------------------------------------------------------------
 
