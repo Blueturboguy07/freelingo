@@ -625,36 +625,43 @@ rather than copying them: each had been written on a lane that could not see its
 siblings' files, and each had gone stale in the same direction — done, and reported
 undone. Where it stands on `main`:
 
-| Id         | What                                                               | Kind                 | Status after this round                                                                                                                                             |
-| ---------- | ------------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1/B1a/B1b | the candidates, the empty ledger, the lesson numbering             | authoring + code     | **RESOLVED**                                                                                                                                                        |
-| B2         | `pack-bake.yml` could not succeed on any dispatch                  | code                 | **RESOLVED** (deleted)                                                                                                                                              |
-| B3         | the wrong-item rate is `None`, not 2%                              | **founder decision** | **DECIDED** — agent-scored gate; the rate is still unmeasured because the sheet is downstream of B19                                                                |
-| B4         | `coursekit sample es --n 300` is not a spelling the CLI has        | docs                 | **RESOLVED**                                                                                                                                                        |
-| B5         | S152 has validator F3 and no product-map row                       | **founder decision** | **DECIDED** — Surface 16; P4 builds it                                                                                                                              |
-| B6         | Azure is dead; Spanish bakes on Kokoro                             | **founder decision** | **DECIDED, BUILT 5/5** — re-measured here                                                                                                                           |
-| B7         | `mutation.yml` has never produced a score                          | pre-existing         | **NON-GATING by ruling**, still no score                                                                                                                            |
-| B8         | `build-es` named no language engine                                | code (CI)            | **RESOLVED** — sidecar                                                                                                                                              |
-| B9         | unit 1 lesson 1 cannot hold a sentence                             | **founder decision** | **DECIDED, BUILT** — (a)+(b)+(c) all on `main`; re-measured here                                                                                                    |
-| B10        | 218 candidate texts were `usted` in a `tu` course                  | content              | **RESOLVED**                                                                                                                                                        |
-| B11        | G6 read one candidates file and there are nine                     | code                 | **RESOLVED**                                                                                                                                                        |
-| B12        | the gate's `validate --pack … --report …` spelling                 | docs                 | **RESOLVED**                                                                                                                                                        |
-| B13        | `build-es` synced no `align` group                                 | code (CI)            | **RESOLVED**                                                                                                                                                        |
-| B14        | a starved slot crashed G7 instead of failing by name               | code                 | **DECIDED, BUILT** — `StarvedSlot(LookupError)`; re-measured here                                                                                                   |
-| B15        | G7 made word-bank tiles out of punctuation                         | code                 | **RESOLVED**                                                                                                                                                        |
-| B16        | G7 looked a distractor up by surface                               | code                 | **DECIDED, BUILT** — writer + reader; re-measured here                                                                                                              |
-| B17        | V11 sees mean difficulty fall across unit boundaries               | content + code       | **DECIDED, BUILT** — severity splits on the section boundary; re-measured here                                                                                      |
-| B18        | the accent dimension B6 made load-bearing has nothing to listen to | code                 | **OPEN, measured** — `SampleItem` carries no clip ref and no voice role                                                                                             |
-| B19        | B9(a)+(c) moved the ledger: 18 slots died, 22 appeared             | content              | **OPEN — the phase blocker.** Re-key done (`stale_ledger` 9,269 → 0); 22 slots need 440 candidates, 7 need fresh ones, `u1/l3/s3` reserves `usted` in a `tu` course |
-| B20        | `ci.yml` fails with 1,316 of 1,316 passing                         | infrastructure       | **OPEN, measured** — `Timeout calling "onTaskUpdate"` twice on `86f2430`                                                                                            |
+| Id         | What                                                               | Kind                 | Status after this round                                                                                                                                                            |
+| ---------- | ------------------------------------------------------------------ | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1/B1a/B1b | the candidates, the empty ledger, the lesson numbering             | authoring + code     | **RESOLVED**                                                                                                                                                                       |
+| B2         | `pack-bake.yml` could not succeed on any dispatch                  | code                 | **RESOLVED** (deleted)                                                                                                                                                             |
+| B3         | the wrong-item rate is `None`, not 2%                              | **founder decision** | **DECIDED, and now MEASURED at 4.00%** by the reviewer lane — over the populations G7 would expand, not over a sheet; the _published_ rate is still `None` because no sheet exists |
+| B4         | `coursekit sample es --n 300` is not a spelling the CLI has        | docs                 | **RESOLVED**                                                                                                                                                                       |
+| B5         | S152 has validator F3 and no product-map row                       | **founder decision** | **DECIDED** — Surface 16; P4 builds it                                                                                                                                             |
+| B6         | Azure is dead; Spanish bakes on Kokoro                             | **founder decision** | **DECIDED, BUILT 5/5** — re-measured here                                                                                                                                          |
+| B7         | `mutation.yml` has never produced a score                          | pre-existing         | **NON-GATING by ruling**, still no score                                                                                                                                           |
+| B8         | `build-es` named no language engine                                | code (CI)            | **RESOLVED** — sidecar                                                                                                                                                             |
+| B9         | unit 1 lesson 1 cannot hold a sentence                             | **founder decision** | **DECIDED, BUILT** — (a)+(b)+(c) all on `main`; re-measured here                                                                                                                   |
+| B10        | 218 candidate texts were `usted` in a `tu` course                  | content              | **RESOLVED**                                                                                                                                                                       |
+| B11        | G6 read one candidates file and there are nine                     | code                 | **RESOLVED**                                                                                                                                                                       |
+| B12        | the gate's `validate --pack … --report …` spelling                 | docs                 | **RESOLVED**                                                                                                                                                                       |
+| B13        | `build-es` synced no `align` group                                 | code (CI)            | **RESOLVED**                                                                                                                                                                       |
+| B14        | a starved slot crashed G7 instead of failing by name               | code                 | **DECIDED, BUILT** — `StarvedSlot(LookupError)`; re-measured here                                                                                                                  |
+| B15        | G7 made word-bank tiles out of punctuation                         | code                 | **RESOLVED**                                                                                                                                                                       |
+| B16        | G7 looked a distractor up by surface                               | code                 | **DECIDED, BUILT** — writer + reader; re-measured here                                                                                                                             |
+| B17        | V11 sees mean difficulty fall across unit boundaries               | content + code       | **DECIDED, BUILT** — severity splits on the section boundary; re-measured here                                                                                                     |
+| B18        | the accent dimension B6 made load-bearing has nothing to listen to | code                 | **OPEN, measured** — `SampleItem` carries no clip ref and no voice role                                                                                                            |
+| B19        | B9(a)+(c) moved the ledger: 18 slots died, 22 appeared             | content              | **OPEN — the phase blocker.** Re-key done (`stale_ledger` 9,269 → 0); 22 slots need 440 candidates, 7 need fresh ones, `u1/l3/s3` reserves `usted` in a `tu` course                |
+| B20        | `ci.yml` intermittently fails with 1,316 of 1,316 passing          | infrastructure       | **OPEN, measured** — twice on `86f2430`, then green on `859f3fb`; a same-sha re-run does not reliably clear it                                                                     |
 
-**B19 is the phase blocker and it is one question**: who authors the 29 slots, and does
-`usted` stay a target lexeme? Everything else on this list is resolved, decided-and-built,
-or non-gating. The three blocked gate items — `validate`, `sample`, `sign` — are all
-downstream of it, and so is the whole automated half of B3.
+**B19 is the phase blocker, and it is one decision plus one lane's work**: who authors the
+29 slots, and does `usted` stay a target lexeme? Everything else on this list is resolved,
+decided-and-built, or non-gating. The three blocked gate items — `validate`, `sample`,
+`sign` — are all downstream of it.
 
-Two rows are new and both were found by running the thing rather than reading it: B19 by
-the pipeline, B20 by re-running a failed CI job as the brief requires.
+**B3 is no longer unmeasured, and that changes what the founder is looking at.** The
+reviewer lane measured 4.00% over the content the pack would be built from. It is above
+the 2% gate, three repeated patterns account for half the defects, and fixing them lands
+exactly 2.00% — so the content question now has a number and a route, where two rounds ago
+it had neither. The _published_ rate stays `None` until a sheet exists, which is B19 again.
+
+Two rows are new and both came from running the thing rather than reading it: B19 from the
+pipeline (twice, independently — this integration and the reviewer lane), B20 from
+re-running a failed CI job as the brief requires and then watching the next sha pass.
 
 ## Disk
 
