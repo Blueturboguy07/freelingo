@@ -11,3 +11,4 @@ export * from './install.js';
 export * from './items.js';
 export * from './ed25519.js';
 export * from './hashing.js';
+export * from './loader.js';

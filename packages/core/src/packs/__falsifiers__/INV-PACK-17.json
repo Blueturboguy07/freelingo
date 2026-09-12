@@ -1,0 +1,223 @@
+{
+  "invariant": "INV-PACK-17",
+  "source": "EC-PACK-56",
+  "why": "Tatoeba is attribution-only and its CC0 subset is 2,266 bytes for Spanish against 313,297 for French, so three of the four v1 languages cannot avoid the credits screen. A licence that requires attribution and has no reachable credit is a licence violation, not a missing UI nicety — and the half that matters on a device is `reachable`, because the builder is not what ships.",
+  "surface": "S152, reachable from the report sheet S045 and About S137. S152 is NOT in deep/00-PRODUCT-MAP.md, which stops at S151; the map owes it a row before P4 renders it.",
+  "rule": "`credits()` renders the `attribution:` rows of `meta` and nothing else. `creditsViolations()` walks `sentence` and `audio`, which `credits()` never reads, and reports anything attributed whose source or owner the surface does not carry. The two halves must stay computed from disjoint rows: a check derived from the query it is checking cannot fail.",
+  "usedBy": ["packages/core/src/packs/loader.test.ts"],
+  "note": "Each case is a whole pack, not a diff: `credits` are the `attribution:` meta rows the build wrote, and `sentences`/`audio` are the tables it wrote beside them. `violations` is the EXACT sorted set of lines, never a count — one ownerless asset produces two facts (the asset, and the credits row that would render blank) and a test that counted them would pass on either alone.",
+  "cases": [
+    {
+      "why": "The clean case, and it is an assertion in its own right: a gate that only ever proves `no violations` passes just as well when the surface renders nothing at all. Five Tatoeba sentences under one credit, one Piper voice, one share-alike derived list.",
+      "credits": [
+        {
+          "kind": "sentence",
+          "source_id": "tatoeba",
+          "owner": "Tatoeba contributors",
+          "licence": "CC-BY-2.0-FR",
+          "share_alike": false,
+          "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2",
+          "items": 5
+        },
+        {
+          "kind": "voice",
+          "source_id": "voice:piper",
+          "owner": "Piper (Rhasspy)",
+          "licence": "CC-BY-NC-SA-4.0",
+          "share_alike": true,
+          "url": "https://github.com/rhasspy/piper",
+          "items": 1
+        },
+        {
+          "kind": "derived-list",
+          "source_id": "hermitdave",
+          "owner": "hermitdave/FrequencyWords",
+          "licence": "CC-BY-SA-4.0",
+          "share_alike": true,
+          "url": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt",
+          "items": 1
+        }
+      ],
+      "sentences": [
+        {
+          "sentence_id": "s1",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": 1,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "audio": [
+        {
+          "audio_id": "a1",
+          "engine": "piper",
+          "voice_id": "es_ES-sharvard",
+          "licence": "CC-BY-NC-SA-4.0",
+          "attribution_required": 1,
+          "attribution_owner": "Piper (Rhasspy)"
+        }
+      ],
+      "violations": []
+    },
+    {
+      "why": "EC-PACK-56 itself: a shipped sentence from an attribution-requiring corpus whose owner nobody recorded. Insertable only because the test drops the schema CHECK — a real pack refuses the row — and the scan must catch it anyway, because a constraint is not a substitute for the check that runs on what shipped.",
+      "credits": [
+        {
+          "kind": "sentence",
+          "source_id": "tatoeba",
+          "owner": "Tatoeba contributors",
+          "licence": "CC-BY-2.0-FR",
+          "share_alike": false,
+          "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2",
+          "items": 1
+        }
+      ],
+      "sentences": [
+        {
+          "sentence_id": "s1",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": 1,
+          "attribution_owner": null
+        }
+      ],
+      "audio": [],
+      "violations": ["sentence s1 requires attribution and names no owner"]
+    },
+    {
+      "why": "The reachability case, and the reason `credits()` may not scan `sentence`: the row names an owner, so the ownerless check is happy, but the build wrote no `attribution:` row for its corpus and S152 would render nothing about it. While `credits()` grouped this same table, no input could reach this line.",
+      "credits": [
+        {
+          "kind": "derived-list",
+          "source_id": "hermitdave",
+          "owner": "hermitdave/FrequencyWords",
+          "licence": "CC-BY-SA-4.0",
+          "share_alike": true,
+          "url": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt",
+          "items": 1
+        }
+      ],
+      "sentences": [
+        {
+          "sentence_id": "s1",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": 1,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "audio": [],
+      "violations": ["sentence s1 cites tatoeba, which the credits surface does not render"]
+    },
+    {
+      "why": "The corpus is credited, but to somebody else. A licence row edited in one place and not the other ships a credit that names the wrong party, which is a worse outcome than no credit at all.",
+      "credits": [
+        {
+          "kind": "sentence",
+          "source_id": "tatoeba",
+          "owner": "Tatoeba contributors",
+          "licence": "CC-BY-2.0-FR",
+          "share_alike": false,
+          "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2",
+          "items": 1
+        }
+      ],
+      "sentences": [
+        {
+          "sentence_id": "s1",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": 1,
+          "attribution_owner": "Somebody else entirely"
+        }
+      ],
+      "audio": [],
+      "violations": [
+        "sentence s1 is attributed to Somebody else entirely, which the credits surface does not render"
+      ]
+    },
+    {
+      "why": "Review R7: a voice engine's code licence is not its voices' licence. Piper is GPL-3.0 code whose one Japanese voice is CC BY-NC-SA, so the obligation rides per clip — and a whitespace owner is not an owner.",
+      "credits": [],
+      "sentences": [],
+      "audio": [
+        {
+          "audio_id": "a1",
+          "engine": "piper",
+          "voice_id": "ja_JP-test",
+          "licence": "CC-BY-NC-SA-4.0",
+          "attribution_required": 1,
+          "attribution_owner": "   "
+        }
+      ],
+      "violations": ["voice clip a1 requires attribution and names no owner"]
+    },
+    {
+      "why": "The voice reachability case. The clip names its owner and the surface renders a sentence credit, but nothing on S152 covers the engine — voices are credited once per engine (`voice:<engine>`), never once per clip, and the read side has to mint the same id the build does or it is comparing two vocabularies.",
+      "credits": [
+        {
+          "kind": "sentence",
+          "source_id": "tatoeba",
+          "owner": "Tatoeba contributors",
+          "licence": "CC-BY-2.0-FR",
+          "share_alike": false,
+          "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2",
+          "items": 1
+        }
+      ],
+      "sentences": [],
+      "audio": [
+        {
+          "audio_id": "a1",
+          "engine": "piper",
+          "voice_id": "ja_JP-test",
+          "licence": "CC-BY-NC-SA-4.0",
+          "attribution_required": 1,
+          "attribution_owner": "Piper (Rhasspy)"
+        }
+      ],
+      "violations": ["voice clip a1 cites voice:piper, which the credits surface does not render"]
+    },
+    {
+      "why": "A derived list that is share-alike and has no owner recorded. The frequency ordering reaches the learner as the order the units are taught in; it is neither a sentence nor a voice and has no row of its own anywhere else in the pack, which is exactly how it gets forgotten.",
+      "credits": [
+        {
+          "kind": "derived-list",
+          "source_id": "hermitdave",
+          "owner": "",
+          "licence": "CC-BY-SA-4.0",
+          "share_alike": true,
+          "url": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt",
+          "items": 1
+        }
+      ],
+      "sentences": [],
+      "audio": [],
+      "violations": ["derived list hermitdave requires attribution and names no owner"]
+    },
+    {
+      "why": "CC0 text and an Apache-2.0 voice: nothing requires attribution, so an empty credits surface is correct rather than suspicious. Without this case the gate would be satisfiable by reporting every row.",
+      "credits": [],
+      "sentences": [
+        {
+          "sentence_id": "s1",
+          "source_id": "tatoeba_cc0",
+          "licence": "CC0-1.0",
+          "attribution_required": 0,
+          "attribution_owner": null
+        }
+      ],
+      "audio": [
+        {
+          "audio_id": "a1",
+          "engine": "kokoro",
+          "voice_id": "ef_dora",
+          "licence": "Apache-2.0",
+          "attribution_required": 0,
+          "attribution_owner": null
+        }
+      ],
+      "violations": []
+    }
+  ]
+}

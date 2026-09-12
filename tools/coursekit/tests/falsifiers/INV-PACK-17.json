@@ -1,0 +1,235 @@
+{
+  "id": "INV-PACK-17",
+  "covers": [
+    "EC-PACK-56"
+  ],
+  "why": "Tatoeba is attribution-only and its CC0 subset is 2,266 bytes for Spanish against 313,297 for French, so three of the four v1 languages cannot avoid the credits screen. A licence that requires attribution with no reachable credit is a licence violation, which makes this a build gate and not a UI nicety.",
+  "surface": "S152, reachable from the report sheet S045 and About S137. S152 is NOT in deep/00-PRODUCT-MAP.md, which stops at S151; the map owes a row before P4 renders it.",
+  "cases": [
+    {
+      "why": "The clean case. Five Tatoeba sentences, one authored sentence, an Apache-2.0 voice that needs no credit, and the CC BY-SA-4.0 frequency list the unit ordering is derived from. Three credits, three kinds covered.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa1",
+          "text": "Hola.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [
+        {
+          "text": "Ella es mi amiga.",
+          "accepted": true
+        }
+      ],
+      "clips": [
+        {
+          "clip_id": "cccccccccccccc01",
+          "engine": "kokoro",
+          "licence": "Apache-2.0"
+        }
+      ],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        },
+        {
+          "source_id": "hermitdave",
+          "licence": "CC-BY-SA-4.0",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "hermitdave/FrequencyWords"
+        },
+        {
+          "source_id": "kokoro",
+          "licence": "Apache-2.0",
+          "verdict": "shippable",
+          "attribution_required": false,
+          "attribution_owner": null
+        }
+      ],
+      "creditedSources": [
+        "freelingo_authored",
+        "hermitdave",
+        "tatoeba"
+      ],
+      "shareAlike": [
+        "freelingo_authored",
+        "hermitdave"
+      ],
+      "violations": []
+    },
+    {
+      "why": "EC-PACK-56 itself: a shipped sentence from an attribution-requiring corpus whose owner string is empty. The build fails; nothing is written.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa2",
+          "text": "Buenos dias.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": ""
+        }
+      ],
+      "candidates": [],
+      "clips": [],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": null
+        }
+      ],
+      "violations": [
+        "sentence aaaaaaaaaaaaaaa2 is CC-BY-2.0-FR (attribution required) and names no owner",
+        "credits row tatoeba (CC-BY-2.0-FR) renders no owner"
+      ]
+    },
+    {
+      "why": "A voice whose engine nobody declared. Review R7: Piper is GPL-3.0 code whose one Japanese voice is CC BY-NC-SA, so a voice licence is never inherited from its engine — an unknown one requires attribution and has no owner, and must stop the build rather than ship uncredited.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa3",
+          "text": "Me llamo Ana.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [],
+      "clips": [
+        {
+          "clip_id": "cccccccccccccc02",
+          "engine": "azure",
+          "licence": "NOASSERTION"
+        }
+      ],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "violations": [
+        "voice clip cccccccccccccc02 (azure/v1) is NOASSERTION (attribution required) and names no owner",
+        "credits row voice:azure (NOASSERTION) renders no owner"
+      ]
+    },
+    {
+      "why": "A derived list that is share-alike and has no owner recorded. The frequency ordering reaches the learner as the order the units are taught in; it is neither a sentence nor a voice and has no row of its own anywhere else, which is how it gets forgotten.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa4",
+          "text": "Soy de Mexico.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [],
+      "clips": [],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        },
+        {
+          "source_id": "hermitdave",
+          "licence": "CC-BY-SA-4.0",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": null
+        }
+      ],
+      "violations": [
+        "credits row hermitdave (CC-BY-SA-4.0) renders no owner",
+        "derived list hermitdave is CC-BY-SA-4.0 (attribution required) and names no owner"
+      ]
+    },
+    {
+      "why": "A licence row that simply OMITS `attribution_required`. This used to default to False in the derived-list walk while `licence_for_source` defaulted to True, so a frequency ordering whose row lost one flag produced neither a credit nor a violation. An undeclared licence question must stop the build, never pass it.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa5",
+          "text": "Soy de Mexico.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [],
+      "clips": [],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        },
+        {
+          "source_id": "hermitdave",
+          "licence": "CC-BY-SA-4.0",
+          "verdict": "shippable"
+        }
+      ],
+      "violations": [
+        "credits row hermitdave (CC-BY-SA-4.0) renders no owner",
+        "derived list hermitdave is CC-BY-SA-4.0 (attribution required) and names no owner"
+      ]
+    },
+    {
+      "why": "CEFRLex is `oracle_only` — its own text never ships — but the BAND it produces is written onto every `lexeme` row of the pack, so something derived from it does ship. The derived-list walk used to filter on `verdict`, which dropped exactly this row: an NC share-alike source credited nowhere, in a pack whose whole licence story is that the NC data is allowed because the pack is NC.",
+      "sentences": [
+        {
+          "sentence_id": "aaaaaaaaaaaaaaa6",
+          "text": "Soy de Mexico.",
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        }
+      ],
+      "candidates": [],
+      "clips": [],
+      "licences": [
+        {
+          "source_id": "tatoeba",
+          "licence": "CC-BY-2.0-FR",
+          "verdict": "shippable",
+          "attribution_required": true,
+          "attribution_owner": "Tatoeba contributors"
+        },
+        {
+          "source_id": "cefrlex",
+          "licence": "CC-BY-NC-SA-4.0",
+          "verdict": "oracle_only",
+          "attribution_required": true,
+          "attribution_owner": null
+        }
+      ],
+      "violations": [
+        "credits row cefrlex (CC-BY-NC-SA-4.0) renders no owner",
+        "derived list cefrlex is CC-BY-NC-SA-4.0 (attribution required) and names no owner"
+      ]
+    }
+  ],
+  "note": "`violations` is the EXACT set of lines the gate must produce, not a count: one ownerless asset produces two facts (the asset, and the credits row that would render blank), and a test that only counted them would pass on either one alone."
+}
