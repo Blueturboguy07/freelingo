@@ -1,0 +1,12 @@
+{
+  "invariant": "INV-PATH-13",
+  "why": "A jump-here node exists iff its target unit is locked, and removing it must not re-flow the nodes below. The naive implementation places the overlay as a real node at index 0 of the target unit, which shifts every serpentine offset by one step (EC-PTH-26).",
+  "shape": [
+    [
+      ["lesson", "unitReview"],
+      ["lesson", "lesson", "unitReview"]
+    ]
+  ],
+  "completedNodeCount": 0,
+  "expect": { "overlayTargets": [1] }
+}

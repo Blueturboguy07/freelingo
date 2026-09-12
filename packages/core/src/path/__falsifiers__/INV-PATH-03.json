@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-PATH-03",
+  "why": "screens/deep/084: the completed-node popup shows the unit title, `Prove your proficiency with Legendary`, PRACTICE and LEGENDARY. No counter, no START. A naive implementation reuses the incomplete popup and leaves `Lesson 3 of 3` and the START pill on it.",
+  "node": { "type": "lesson", "subLessonsDone": 3, "subLessonsTotal": 3, "legendary": false },
+  "expect": { "subLessonCounter": null, "hasStart": false, "buttons": ["PRACTICE", "LEGENDARY"] }
+}

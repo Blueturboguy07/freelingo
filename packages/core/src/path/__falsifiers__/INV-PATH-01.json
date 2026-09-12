@@ -1,0 +1,16 @@
+{
+  "invariant": "INV-PATH-01",
+  "why": "deep/03's rules table carried 'complete only the FIRST level of a unit to advance' next to 'the next node unlocks on finishing the last sub-lesson'. Ruling EC-PTH-21 strikes the first rule. This input is the exact state the struck rule gets wrong: unit 0's first node is complete and nothing else is.",
+  "shape": [
+    [
+      ["lesson", "lesson", "unitReview"],
+      ["lesson", "unitReview"]
+    ]
+  ],
+  "completedNodeCount": 1,
+  "expect": {
+    "unit0Node1Unlocked": true,
+    "unit1Node0Unlocked": false,
+    "unitUnlocked1": false
+  }
+}

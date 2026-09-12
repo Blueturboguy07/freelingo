@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-PATH-08",
+  "why": "EC-PTH-12 / EC-PTH-13: Daily Refresh is locked iff the course is incomplete, and the unlock ceremony fires exactly once. A latch-free implementation re-fires the unlock every time a pack update re-completes the course.",
+  "shape": [[["lesson", "unitReview"]]],
+  "expect": { "lockedWhenIncomplete": true, "unlocksOnce": 1 }
+}

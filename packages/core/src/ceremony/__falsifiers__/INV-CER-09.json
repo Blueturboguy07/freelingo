@@ -1,0 +1,21 @@
+{
+  "invariant": "INV-CER-09",
+  "why": "EC-CER-13: a chest pays gems AND a freeze AND a boost. Duplicate screens per reward type is the bug; one generic screen over the bundle, copy selected by contents, is the fix. Gate: no second gems-only screen exists anywhere in the slot list.",
+  "bundles": [
+    { "gems": 5, "freezes": 0, "boost": null, "tierGrant": null },
+    { "gems": 5, "freezes": 1, "boost": null, "tierGrant": null },
+    {
+      "gems": 5,
+      "freezes": 0,
+      "boost": { "multiplier": 2, "durationMinutes": 15 },
+      "tierGrant": null
+    },
+    {
+      "gems": 5,
+      "freezes": 1,
+      "boost": { "multiplier": 2, "durationMinutes": 30 },
+      "tierGrant": null
+    }
+  ],
+  "expect": { "screensPerBundle": 1, "distinctCopies": 4 }
+}

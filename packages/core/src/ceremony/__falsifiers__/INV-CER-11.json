@@ -1,0 +1,8 @@
+{
+  "invariant": "INV-CER-11",
+  "why": "EC-CER-18: day 12, Score 4; a lesson introduces five lexemes FSRS will not call mastered for weeks, yet S3 fires on nearly every session. Split the quantity - the displayed fraction is cumulative exposure so any answered item advances it, while the integer stays mastery-gated and monotone. The falsifier is a 30-session casual run in which the Score screen fires on under 90% of sessions.",
+  "sessions": 30,
+  "gradedItemsPerSession": 12,
+  "masteryDeltaPerSession": 0,
+  "expect": { "scoreScreenFraction": 1 }
+}

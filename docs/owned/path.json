@@ -1,0 +1,39 @@
+{
+  "$comment": "Invariant ids the P1 task `p1-path-and-ceremony` turns green in packages/core/src/path/. The integrate task merges these into docs/invariants-owned.json, which `pnpm test:coverage-map` reads; this file is the per-task manifest so two lanes cannot silently clobber each other's list.",
+  "task": "p1-path-and-ceremony",
+  "module": "packages/core/src/path",
+  "phase": "P1",
+  "owned": [
+    "INV-PATH-01",
+    "INV-PATH-02",
+    "INV-PATH-03",
+    "INV-PATH-04",
+    "INV-PATH-05",
+    "INV-PATH-06",
+    "INV-PATH-07",
+    "INV-PATH-08",
+    "INV-PATH-09",
+    "INV-PATH-13",
+    "INV-PATH-14",
+    "INV-PATH-15",
+    "INV-PATH-16",
+    "INV-PATH-17",
+    "INV-PATH-18",
+    "INV-PATH-19",
+    "INV-PATH-20",
+    "INV-PATH-21",
+    "INV-PATH-22",
+    "INV-PATH-23",
+    "INV-PATH-25",
+    "INV-PATH-26",
+    "INV-PACK-03",
+    "INV-PACK-56"
+  ],
+  "notOwnedHere": {
+    "INV-PATH-10": "S, E - the section-complete canvas. UI, P3.",
+    "INV-PATH-11": "S - exactly one pinned header at every scroll offset. UI, P3.",
+    "INV-PATH-12": "P, E - the guidebook route. UI + scheduler, P3.",
+    "INV-PATH-24": "U, C - the PathNode component registry with per-state art. packages/ui, P3."
+  },
+  "falsifiers": "packages/core/src/path/__falsifiers__/*.json, one per invariant, consumed by the tests whose names contain `falsifier` (pnpm test:falsify)."
+}

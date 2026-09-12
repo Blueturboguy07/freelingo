@@ -1,0 +1,9 @@
+{
+  "invariant": "INV-PATH-14",
+  "why": "EC-PTH-29: three sessions on one node below 60% inside an hour, out of 20 that day, is an ordinary bad afternoon. Without the two caps a heavy learner is prompted weekly. This trace is the 20-session day.",
+  "sessionsThatDay": 20,
+  "failuresPerNode": 3,
+  "accuracy": 0.4,
+  "localDay": 100,
+  "expect": { "offersFired": 1 }
+}

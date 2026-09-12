@@ -1,0 +1,8 @@
+{
+  "invariant": "INV-PATH-23",
+  "why": "deep/03 listed a 'Rewind arrow' path node; its own adversarial pass (M4) showed the string neighbours are the practice-session picker, and EC-PTH-41 rules it out of v1. The falsifier for the second half is the double entry point: the hub recommendation and the path section list on the SAME local day must pay once.",
+  "entries": ["hub-hero", "section-list", "switch-session"],
+  "unitId": "u3",
+  "localDay": 20260911,
+  "expect": { "awardsPaid": 1 }
+}

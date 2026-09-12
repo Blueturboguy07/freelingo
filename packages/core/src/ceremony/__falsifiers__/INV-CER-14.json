@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-CER-14",
+  "why": "EC-CER-22: the day-1 picker renders with `I CAN DO IT` disabled and the learner backgrounds the app. That is a DEFER, not a choice. Re-show once more, then write a DECLINED sentinel distinct from null so the predicate is permanently false. The falsifier is a 30-session trace rendering the picker a third time, or any ceremony screen whose only control is disabled with no dismiss path.",
+  "sessions": 30,
+  "expect": { "presentations": 2, "goalAfter": "DECLINED", "everScreenWithNoExit": false }
+}

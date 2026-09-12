@@ -1,0 +1,5 @@
+{
+  "invariant": "INV-CER-13",
+  "why": "EC-CER-21: a 20-session learner taps CONTINUE 60+ times a day. `Skip all` is presentation-only because rewards commit atomically before the first screen - but a naive skip swallows the one-time screens, and the streak-milestone screen is gone forever.",
+  "expect": { "ledgerIdentical": true, "oneTimeScreensKept": true }
+}

@@ -1,0 +1,17 @@
+{
+  "invariant": "INV-CER-09",
+  "why": "Ruling EC-CER-14: after 5 consecutive goal-met days, S078 + S080 collapse into a row on S067 ONLY when the bundle is gems-only. Any freeze, boost or tier grant keeps its full screen. The falsifier is a 30-day Casual run whose day-6 chest also carries a one-time Streak Freeze and gets collapsed away.",
+  "consecutiveGoalMetDays": 6,
+  "bundles": {
+    "gemsOnly": { "gems": 5, "freezes": 0, "boost": null, "tierGrant": null },
+    "withFreeze": { "gems": 5, "freezes": 1, "boost": null, "tierGrant": null },
+    "withBoost": {
+      "gems": 5,
+      "freezes": 0,
+      "boost": { "multiplier": 2, "durationMinutes": 15 },
+      "tierGrant": null
+    },
+    "withTierGrant": { "gems": 5, "freezes": 0, "boost": null, "tierGrant": "VIP Status" }
+  },
+  "expect": { "gemsOnlyCollapses": true, "othersKeepFullScreen": true }
+}

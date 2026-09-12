@@ -1,0 +1,33 @@
+{
+  "invariant": "INV-PATH-04",
+  "why": "EC-PTH-05 / EC-PTH-08: failing Legendary or a jump-here is not a loss. Everything except the attempt log must be byte-identical, the retry must be free, and no challenge progress may be retained between attempts (EC-PTH-27: deep/02 EC11 wins over deep/01 S20).",
+  "attempts": [
+    {
+      "kind": "legendary",
+      "nodeId": "u0n0",
+      "localDay": 5,
+      "passed": false,
+      "reachedCheckpoint": true
+    },
+    {
+      "kind": "legendary",
+      "nodeId": "u0n0",
+      "localDay": 5,
+      "passed": false,
+      "reachedCheckpoint": true
+    },
+    {
+      "kind": "jumpHere",
+      "nodeId": "u1n0",
+      "localDay": 5,
+      "passed": false,
+      "reachedCheckpoint": false
+    }
+  ],
+  "expect": {
+    "modelUnchanged": true,
+    "retryCostGems": 0,
+    "retainedProgress": null,
+    "consolationsPayable": 1
+  }
+}

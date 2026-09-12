@@ -1,0 +1,12 @@
+{
+  "invariant": "INV-PATH-20",
+  "why": "EC-PTH-38: a learner advances through units skipping chests, stories and trophies via jump-here. A section fraction that counts `unit_advanced` reads 100% with an unearned trophy. The fraction must count only units with EVERY node complete.",
+  "shape": [
+    [
+      ["lesson", "chest", "unitReview"],
+      ["lesson", "unitReview"]
+    ]
+  ],
+  "jumpTo": 1,
+  "expect": { "unitsCompleted": 0, "fraction": 0 }
+}

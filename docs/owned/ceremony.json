@@ -1,0 +1,32 @@
+{
+  "$comment": "Invariant ids the P1 task `p1-path-and-ceremony` turns green in packages/core/src/ceremony/. The integrate task merges these into docs/invariants-owned.json.",
+  "task": "p1-path-and-ceremony",
+  "module": "packages/core/src/ceremony",
+  "phase": "P1",
+  "owned": [
+    "INV-CER-01",
+    "INV-CER-02",
+    "INV-CER-03",
+    "INV-CER-04",
+    "INV-CER-05",
+    "INV-CER-06",
+    "INV-CER-07",
+    "INV-CER-08",
+    "INV-CER-09",
+    "INV-CER-10",
+    "INV-CER-11",
+    "INV-CER-13",
+    "INV-CER-14",
+    "INV-CER-15",
+    "INV-CER-17"
+  ],
+  "notOwnedHere": {
+    "INV-CER-12": "E - back press on every ceremony screen. Maestro, P4.",
+    "INV-CER-16": "S - the macaw token on every Score-chain CTA. packages/ui, P3."
+  },
+  "note": "INV-CER-01 was already owned at P0. This task fixed its two properties: they drew session ids from fc.string(), so the ledger-collision branch was unreachable in 20,000 cases. Ids now come from an eight-value pool and a new test asserts the branch is actually hit.",
+  "rulings": {
+    "EC-CER-14": "After 5 consecutive goal-met days S078 + S080 collapse into a row on S067 ONLY when the bundle is gems-only; any freeze, boost or tier grant keeps its full screen. Implemented in bundle.ts:collapseGoalChain, falsified in __falsifiers__/EC-CER-14.json."
+  },
+  "falsifiers": "packages/core/src/ceremony/__falsifiers__/*.json, consumed by the tests whose names contain `falsifier` (pnpm test:falsify)."
+}

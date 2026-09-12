@@ -1,0 +1,7 @@
+{
+  "invariant": "INV-PATH-05",
+  "why": "EC-PTH-34: a unit that also holds a chest and ends in a Unit Review. A denominator that folds over EVERY node makes the trophy unreachable - the chest can never be legendary.",
+  "unitShape": ["lesson", "lesson", "chest", "unitReview"],
+  "legendaryNodes": ["lesson", "lesson"],
+  "expect": { "trophyLegendary": true, "denominatorSize": 2 }
+}

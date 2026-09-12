@@ -1,0 +1,8 @@
+{
+  "invariant": "INV-CER-08",
+  "why": "EC-CER-12: the Score reaches the course ceiling. Never let a recurring ceremony screen vanish without a terminal beat after 200 appearances. The beat fires exactly once in a course's lifetime and the progress screen is permanently suppressed afterwards.",
+  "sessions": 200,
+  "ceiling": 29,
+  "masteryDeltaPerSession": 1,
+  "expect": { "maxedBeats": 1, "progressScreensAfterBeat": 0 }
+}

@@ -1,0 +1,6 @@
+{
+  "invariant": "INV-CER-04",
+  "why": "EC-CER-29 / ADV 02/A5: deep/02's S6 prose chained both screens, and the two flags were modelled as independent booleans that can drift apart - a session showing the count-up AND `Day N of your streak starts tomorrow!`, or neither. One discriminant, two derived rows.",
+  "beats": ["extended", "already-extended"],
+  "expect": { "exactlyOneOf": ["S071_streakCountUp", "S074_streakStartsTomorrow"] }
+}

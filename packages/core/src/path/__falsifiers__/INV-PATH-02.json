@@ -1,0 +1,12 @@
+{
+  "invariant": "INV-PATH-02",
+  "why": "EC-PTH-07: a node left at 1 of 4 and revisited days later must show the same ring and the same counter. The falsifier for a decaying implementation is the pair below: identical progress, arbitrarily different elapsed time, and the visual must be byte-identical. The engine has no clock at all, so the test is the source grep plus this equality.",
+  "progress": { "subLessonsDone": 1, "subLessonsTotal": 4, "legendary": false },
+  "expect": {
+    "state": "in-progress",
+    "ringFraction": 0.25,
+    "showsRing": true,
+    "showsCheck": false,
+    "gold": false
+  }
+}
