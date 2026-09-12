@@ -1,0 +1,621 @@
+{
+  "candidates": [
+    {
+      "accepted": true,
+      "author": "opus-5 (agent-authored, no API key in this environment)",
+      "candidate_id": "9abf1889f7f35a9c",
+      "generated_at": "2026-09-12T00:00:00+00:00",
+      "lang": "es",
+      "lesson_index": 2,
+      "provenance": "llm",
+      "reject_reason": null,
+      "schema_version": 1,
+      "slot_index": 1,
+      "text": "Ella es mi amiga.",
+      "translation": "She is my friend.",
+      "unit_index": 2
+    }
+  ],
+  "clips": [
+    {
+      "bitrate_kbps": 20,
+      "bytes": 137,
+      "clip_id": "33bc78a7d26fb193",
+      "codec": "opus",
+      "duration_ms": 1200,
+      "engine": "kokoro",
+      "lang": "es",
+      "licence": "Apache-2.0",
+      "path": "audio/33bc78a7d26fb193.opus",
+      "pipeline": "lesson",
+      "schema_version": 1,
+      "text": "Hola, ¿cómo estás?",
+      "voice_id": "ef_dora"
+    },
+    {
+      "bitrate_kbps": 20,
+      "bytes": 129,
+      "clip_id": "6320f588ed9bd7b7",
+      "codec": "opus",
+      "duration_ms": 1350,
+      "engine": "kokoro",
+      "lang": "es",
+      "licence": "Apache-2.0",
+      "path": "audio/6320f588ed9bd7b7.opus",
+      "pipeline": "lesson",
+      "schema_version": 1,
+      "text": "Me llamo Ana.",
+      "voice_id": "em_alex"
+    },
+    {
+      "bitrate_kbps": 20,
+      "bytes": 133,
+      "clip_id": "93c4b846ee16444c",
+      "codec": "opus",
+      "duration_ms": 1500,
+      "engine": "kokoro",
+      "lang": "es",
+      "licence": "Apache-2.0",
+      "path": "audio/93c4b846ee16444c.opus",
+      "pipeline": "lesson",
+      "schema_version": 1,
+      "text": "Ella es mi amiga.",
+      "voice_id": "ef_dora"
+    }
+  ],
+  "course_id": "en-es",
+  "defect_rate": 0.0133,
+  "exercises": [
+    {
+      "accepted_answers": ["Hello, how are you?"],
+      "alignment": [],
+      "audio_ref": "33bc78a7d26fb193",
+      "distractors": ["Hello, who are you?", "Hi, where are you?"],
+      "exercise_id": "5bd10ac4d2136587",
+      "item_tags": {
+        "grammar_concepts": ["present-estar"],
+        "lemmas": ["hola", "cómo", "estar"]
+      },
+      "lang": "es",
+      "lesson_index": 1,
+      "prompt": "Hola, ¿cómo estás?",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": "e86cb26408c8fa61",
+      "type": "translate",
+      "unit_index": 1
+    },
+    {
+      "accepted_answers": ["Good morning."],
+      "alignment": [],
+      "audio_ref": null,
+      "distractors": ["Good night.", "Good evening."],
+      "exercise_id": "f54f7b33dbfce1ba",
+      "item_tags": {
+        "grammar_concepts": ["present-estar"],
+        "lemmas": ["bueno", "día"]
+      },
+      "lang": "es",
+      "lesson_index": 1,
+      "prompt": "Buenos días.",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": "50bb39597827af06",
+      "type": "word_bank",
+      "unit_index": 1
+    },
+    {
+      "accepted_answers": ["Hola, ¿cómo estás?"],
+      "alignment": [],
+      "audio_ref": "33bc78a7d26fb193",
+      "distractors": [],
+      "exercise_id": "cae4b01b726939e3",
+      "item_tags": {
+        "grammar_concepts": ["present-estar"],
+        "lemmas": ["hola", "estar"]
+      },
+      "lang": "es",
+      "lesson_index": 1,
+      "prompt": "Hola, ¿cómo estás?",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": "e86cb26408c8fa61",
+      "type": "listen",
+      "unit_index": 1
+    },
+    {
+      "accepted_answers": ["Me llamo Ana."],
+      "alignment": [],
+      "audio_ref": null,
+      "distractors": ["Me llama Ana.", "Mi llamo Ana."],
+      "exercise_id": "6716b6fa3ab27bb7",
+      "item_tags": {
+        "grammar_concepts": ["present-estar"],
+        "lemmas": ["llamar"]
+      },
+      "lang": "es",
+      "lesson_index": 2,
+      "prompt": "My name is Ana.",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": null,
+      "type": "reverse_translate",
+      "unit_index": 1
+    },
+    {
+      "accepted_answers": ["Where are you from?"],
+      "alignment": [],
+      "audio_ref": null,
+      "distractors": ["Where do you go?", "Who are you?"],
+      "exercise_id": "b2f1119b9afc0b8c",
+      "item_tags": {
+        "grammar_concepts": ["present-ser"],
+        "lemmas": ["dónde", "ser"]
+      },
+      "lang": "es",
+      "lesson_index": 1,
+      "prompt": "¿De dónde eres?",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": "afe86b419efe3659",
+      "type": "translate",
+      "unit_index": 2
+    },
+    {
+      "accepted_answers": ["de"],
+      "alignment": [],
+      "audio_ref": null,
+      "distractors": ["en", "a"],
+      "exercise_id": "579143979b3de7fd",
+      "item_tags": {
+        "grammar_concepts": ["present-ser"],
+        "lemmas": ["ser"]
+      },
+      "lang": "es",
+      "lesson_index": 1,
+      "prompt": "Soy ___ México.",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": null,
+      "type": "cloze",
+      "unit_index": 2
+    },
+    {
+      "accepted_answers": ["She is my friend."],
+      "alignment": [],
+      "audio_ref": "93c4b846ee16444c",
+      "distractors": ["He is my friend.", "She is my sister."],
+      "exercise_id": "f3159e1a3781e7b5",
+      "item_tags": {
+        "grammar_concepts": ["present-ser"],
+        "lemmas": ["amigo", "ser"]
+      },
+      "lang": "es",
+      "lesson_index": 2,
+      "prompt": "Ella es mi amiga.",
+      "register": "informal",
+      "schema_version": 1,
+      "source_sentence_id": "e13643b4dc0d07e4",
+      "type": "translate",
+      "unit_index": 2
+    }
+  ],
+  "lang": "es",
+  "lemmas": [
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 1,
+      "frequency": 9100,
+      "lang": "es",
+      "lemma": "hola",
+      "pos": "INTJ",
+      "rank": 1,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 1,
+      "frequency": 8800,
+      "lang": "es",
+      "lemma": "estar",
+      "pos": "VERB",
+      "rank": 2,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 1,
+      "frequency": 8400,
+      "lang": "es",
+      "lemma": "ser",
+      "pos": "VERB",
+      "rank": 3,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 2,
+      "frequency": 6100,
+      "lang": "es",
+      "lemma": "cómo",
+      "pos": "PRON",
+      "rank": 4,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 2,
+      "frequency": 5900,
+      "lang": "es",
+      "lemma": "bueno",
+      "pos": "ADJ",
+      "rank": 5,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 2,
+      "frequency": 5400,
+      "lang": "es",
+      "lemma": "día",
+      "pos": "NOUN",
+      "rank": 6,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 3,
+      "frequency": 4300,
+      "lang": "es",
+      "lemma": "llamar",
+      "pos": "VERB",
+      "rank": 7,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 3,
+      "frequency": 3900,
+      "lang": "es",
+      "lemma": "dónde",
+      "pos": "PRON",
+      "rank": 8,
+      "schema_version": 1
+    },
+    {
+      "band": "A1",
+      "band_source": "cefrlex",
+      "band_source_licence": "CC-BY-NC-SA-4.0",
+      "decile": 4,
+      "frequency": 3100,
+      "lang": "es",
+      "lemma": "amigo",
+      "pos": "NOUN",
+      "rank": 9,
+      "schema_version": 1
+    }
+  ],
+  "licences": [
+    {
+      "attribution_owner": "Tatoeba contributors",
+      "attribution_required": true,
+      "licence": "CC-BY-2.0-FR",
+      "source_id": "tatoeba",
+      "verdict": "shippable"
+    },
+    {
+      "attribution_owner": "hermitdave/FrequencyWords",
+      "attribution_required": true,
+      "licence": "CC-BY-SA-4.0",
+      "source_id": "hermitdave",
+      "verdict": "shippable"
+    },
+    {
+      "attribution_owner": "NLLB / OPUS (Schwenk et al. 1911.04944; Fan et al. 2010.11125)",
+      "attribution_required": true,
+      "licence": "ODC-By-1.0",
+      "source_id": "nllb",
+      "verdict": "oracle_only"
+    },
+    {
+      "attribution_owner": null,
+      "attribution_required": false,
+      "licence": "Apache-2.0",
+      "source_id": "kokoro",
+      "verdict": "shippable"
+    },
+    {
+      "attribution_owner": "CENTAL, UCLouvain (Francois et al., LREC 2014)",
+      "attribution_required": true,
+      "licence": "CC-BY-NC-SA-4.0",
+      "source_id": "cefrlex",
+      "verdict": "oracle_only"
+    }
+  ],
+  "major": 0,
+  "pack_id": "freelingo-es",
+  "selected": [
+    {
+      "gap": false,
+      "grammar_concept": "present-estar",
+      "known_lemmas": [],
+      "lang": "es",
+      "lesson_index": 1,
+      "new_lemmas": ["hola", "cómo", "estar"],
+      "provenance": "corpus",
+      "schema_version": 1,
+      "sentence_id": "e86cb26408c8fa61",
+      "slot_index": 0,
+      "unit_index": 1
+    },
+    {
+      "gap": false,
+      "grammar_concept": "present-estar",
+      "known_lemmas": ["hola"],
+      "lang": "es",
+      "lesson_index": 1,
+      "new_lemmas": ["bueno", "día"],
+      "provenance": "corpus",
+      "schema_version": 1,
+      "sentence_id": "50bb39597827af06",
+      "slot_index": 1,
+      "unit_index": 1
+    },
+    {
+      "gap": false,
+      "grammar_concept": "present-estar",
+      "known_lemmas": ["hola"],
+      "lang": "es",
+      "lesson_index": 2,
+      "new_lemmas": ["llamar"],
+      "provenance": "corpus",
+      "schema_version": 1,
+      "sentence_id": "74f3f18e7c65426e",
+      "slot_index": 0,
+      "unit_index": 1
+    },
+    {
+      "gap": false,
+      "grammar_concept": "present-ser",
+      "known_lemmas": ["ser"],
+      "lang": "es",
+      "lesson_index": 1,
+      "new_lemmas": ["dónde"],
+      "provenance": "corpus",
+      "schema_version": 1,
+      "sentence_id": "afe86b419efe3659",
+      "slot_index": 0,
+      "unit_index": 2
+    },
+    {
+      "gap": false,
+      "grammar_concept": "present-ser",
+      "known_lemmas": ["dónde"],
+      "lang": "es",
+      "lesson_index": 1,
+      "new_lemmas": ["ser"],
+      "provenance": "corpus",
+      "schema_version": 1,
+      "sentence_id": "2d4644c1da7d0338",
+      "slot_index": 1,
+      "unit_index": 2
+    },
+    {
+      "gap": true,
+      "grammar_concept": "present-ser",
+      "known_lemmas": ["ser"],
+      "lang": "es",
+      "lesson_index": 2,
+      "new_lemmas": ["amigo"],
+      "provenance": "llm",
+      "schema_version": 1,
+      "sentence_id": null,
+      "slot_index": 1,
+      "unit_index": 2
+    }
+  ],
+  "sentences": [
+    {
+      "attribution_owner": "Tatoeba contributors",
+      "attribution_required": true,
+      "corpus": "Tatoeba",
+      "corpus_version": "2026-09-05",
+      "dedup_hash": "f1a9c919c490323cc3e9f651b0aab56d",
+      "l1": "en",
+      "lang": "es",
+      "licence": "CC-BY-2.0-FR",
+      "licence_verdict": "shippable",
+      "schema_version": 1,
+      "sentence_id": "e86cb26408c8fa61",
+      "source_id": "tatoeba",
+      "text": "Hola, ¿cómo estás?",
+      "token_count": 3,
+      "translation": "Hello, how are you?"
+    },
+    {
+      "attribution_owner": "Tatoeba contributors",
+      "attribution_required": true,
+      "corpus": "Tatoeba",
+      "corpus_version": "2026-09-05",
+      "dedup_hash": "5a149190911bf658783c72d9f36c4967",
+      "l1": "en",
+      "lang": "es",
+      "licence": "CC-BY-2.0-FR",
+      "licence_verdict": "shippable",
+      "schema_version": 1,
+      "sentence_id": "50bb39597827af06",
+      "source_id": "tatoeba",
+      "text": "Buenos días.",
+      "token_count": 2,
+      "translation": "Good morning."
+    },
+    {
+      "attribution_owner": "Tatoeba contributors",
+      "attribution_required": true,
+      "corpus": "Tatoeba",
+      "corpus_version": "2026-09-05",
+      "dedup_hash": "c0b78bd88420182230a835465d500a27",
+      "l1": "en",
+      "lang": "es",
+      "licence": "CC-BY-2.0-FR",
+      "licence_verdict": "shippable",
+      "schema_version": 1,
+      "sentence_id": "74f3f18e7c65426e",
+      "source_id": "tatoeba",
+      "text": "Me llamo Ana.",
+      "token_count": 3,
+      "translation": "My name is Ana."
+    },
+    {
+      "attribution_owner": "Tatoeba contributors",
+      "attribution_required": true,
+      "corpus": "Tatoeba",
+      "corpus_version": "2026-09-05",
+      "dedup_hash": "36ba17ceca89c3f08218b70f34d9072f",
+      "l1": "en",
+      "lang": "es",
+      "licence": "CC-BY-2.0-FR",
+      "licence_verdict": "shippable",
+      "schema_version": 1,
+      "sentence_id": "afe86b419efe3659",
+      "source_id": "tatoeba",
+      "text": "¿De dónde eres?",
+      "token_count": 3,
+      "translation": "Where are you from?"
+    },
+    {
+      "attribution_owner": "Tatoeba contributors",
+      "attribution_required": true,
+      "corpus": "Tatoeba",
+      "corpus_version": "2026-09-05",
+      "dedup_hash": "4c9c1b4d2ef5eed9b3217330dc4d7e7c",
+      "l1": "en",
+      "lang": "es",
+      "licence": "CC-BY-2.0-FR",
+      "licence_verdict": "shippable",
+      "schema_version": 1,
+      "sentence_id": "2d4644c1da7d0338",
+      "source_id": "tatoeba",
+      "text": "Soy de México.",
+      "token_count": 3,
+      "translation": "I am from Mexico."
+    }
+  ],
+  "units": [
+    {
+      "function": "Greet and ask how somebody is",
+      "grammar_concept": "present-estar",
+      "lang": "es",
+      "level_count": 3,
+      "recycled_lemmas": [],
+      "register_slot": "binary_t_v",
+      "schema_version": 1,
+      "section_cefr": "A1",
+      "section_index": 1,
+      "target_lemmas": ["hola", "cómo", "estar"],
+      "unit_index": 1,
+      "unit_title": "Greet someone"
+    },
+    {
+      "function": "Give your name and where you are from",
+      "grammar_concept": "present-ser",
+      "lang": "es",
+      "level_count": 3,
+      "recycled_lemmas": ["hola"],
+      "register_slot": "binary_t_v",
+      "schema_version": 1,
+      "section_cefr": "A1",
+      "section_index": 1,
+      "target_lemmas": ["ser", "llamar", "dónde"],
+      "unit_index": 2,
+      "unit_title": "Say who you are"
+    }
+  ],
+  "validator_report": {
+    "F1": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F2": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F3": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F4": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F5": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V1": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V10": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V11": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V12": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V2": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V3": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V4": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V5": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V6": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V7": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V8": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V9": {
+      "findings": 0,
+      "status": "ok"
+    }
+  },
+  "version": "0.1.0-fixture"
+}

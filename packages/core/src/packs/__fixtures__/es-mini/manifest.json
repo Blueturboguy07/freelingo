@@ -1,0 +1,200 @@
+{
+  "attribution": [
+    {
+      "items": 1,
+      "kind": "sentence",
+      "licence": "CC-BY-NC-SA-4.0",
+      "owner": "Freelingo contributors (machine-authored)",
+      "share_alike": true,
+      "source_id": "freelingo_authored",
+      "url": null
+    },
+    {
+      "items": 1,
+      "kind": "derived-list",
+      "licence": "CC-BY-SA-4.0",
+      "owner": "hermitdave/FrequencyWords",
+      "share_alike": true,
+      "source_id": "hermitdave",
+      "url": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt"
+    },
+    {
+      "items": 5,
+      "kind": "sentence",
+      "licence": "CC-BY-2.0-FR",
+      "owner": "Tatoeba contributors",
+      "share_alike": false,
+      "source_id": "tatoeba",
+      "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2"
+    }
+  ],
+  "audio": {
+    "bitrateKbps": 20,
+    "budgetMb": 120,
+    "bytes": 399,
+    "bytesByPipeline": {
+      "lesson": 399,
+      "radio": 0,
+      "story": 0
+    },
+    "clips": 3,
+    "codec": "opus"
+  },
+  "audioBytes": 399,
+  "builtAt": "2026-09-12T07:34:44+00:00",
+  "cefrClaim": "A1 · CEFR-checked",
+  "courseId": "en-es",
+  "defectRate": 0.0133,
+  "itemIds": [
+    "i_016b671fc93379a0",
+    "i_688672d0c85f8996",
+    "i_885e136033128dc7",
+    "i_9d5fd4dac45f777e",
+    "i_ac13a3e5ce136de7",
+    "i_f2f5ab484e05b966",
+    "i_f88f2008e7e368c1"
+  ],
+  "lang": "es",
+  "ledgerUnit": "lemma",
+  "licences": [
+    {
+      "attributionOwner": "CENTAL, UCLouvain (Francois et al., LREC 2014)",
+      "attributionRequired": true,
+      "licence": "CC-BY-NC-SA-4.0",
+      "licenceUrl": "https://cental.uclouvain.be/cefrlex/static/resources/es/",
+      "shareAlike": true,
+      "sourceId": "cefrlex",
+      "verdict": "oracle_only"
+    },
+    {
+      "attributionOwner": "hermitdave/FrequencyWords",
+      "attributionRequired": true,
+      "licence": "CC-BY-SA-4.0",
+      "licenceUrl": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt",
+      "shareAlike": true,
+      "sourceId": "hermitdave",
+      "verdict": "shippable"
+    },
+    {
+      "attributionOwner": null,
+      "attributionRequired": false,
+      "licence": "Apache-2.0",
+      "licenceUrl": null,
+      "shareAlike": false,
+      "sourceId": "kokoro",
+      "verdict": "shippable"
+    },
+    {
+      "attributionOwner": "NLLB / OPUS (Schwenk et al. 1911.04944; Fan et al. 2010.11125)",
+      "attributionRequired": true,
+      "licence": "ODC-By-1.0",
+      "licenceUrl": "https://opus.nlpl.eu/legacy/NLLB-v1.php",
+      "shareAlike": false,
+      "sourceId": "nllb",
+      "verdict": "oracle_only"
+    },
+    {
+      "attributionOwner": "Tatoeba contributors",
+      "attributionRequired": true,
+      "licence": "CC-BY-2.0-FR",
+      "licenceUrl": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2",
+      "shareAlike": false,
+      "sourceId": "tatoeba",
+      "verdict": "shippable"
+    }
+  ],
+  "major": 0,
+  "packId": "freelingo-es",
+  "payloadBytes": 131072,
+  "payloadSha256": "9af780cccf511aeab6e607ed33dda42346c6c490a595f1fbb5789d4c4770cc8f",
+  "provenance": {
+    "corpusPct": 83.33,
+    "machineAuthoredPct": 16.67,
+    "sentences": 6
+  },
+  "reviewerSampleItems": 300,
+  "schemaVersion": 1,
+  "shareAlike": [
+    {
+      "licence": "CC-BY-NC-SA-4.0",
+      "obligation": "A list or ordering derived from this source ships inside the pack, so the pack's own CC BY-NC-SA 4.0 terms carry this source's share-alike clause forward.",
+      "sourceId": "cefrlex"
+    },
+    {
+      "licence": "CC-BY-SA-4.0",
+      "obligation": "A list or ordering derived from this source ships inside the pack, so the pack's own CC BY-NC-SA 4.0 terms carry this source's share-alike clause forward.",
+      "sourceId": "hermitdave"
+    }
+  ],
+  "validatorReport": {
+    "F1": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F2": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F3": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F4": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "F5": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V1": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V10": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V11": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V12": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V2": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V3": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V4": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V5": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V6": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V7": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V8": {
+      "findings": 0,
+      "status": "ok"
+    },
+    "V9": {
+      "findings": 0,
+      "status": "ok"
+    }
+  },
+  "version": "0.1.0-fixture"
+}

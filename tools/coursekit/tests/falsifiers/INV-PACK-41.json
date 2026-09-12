@@ -1,0 +1,85 @@
+{
+  "id": "INV-PACK-41",
+  "covers": ["EC-PACK-38"],
+  "why": "Changing only a presentation field must leave every item id, and therefore every FSRS row, intact across a rebuild. The named falsifier is a ruby re-solve of 今日 orphaning its strength meter and re-showing NEW WORD; the P2 build half of it is a rebuild after a distractor swap that orphans a strength meter.",
+  "rule": "Hash over prompt, preferred surface, lexeme/concept/grapheme tags and register ONLY (EC-PACK-38). Ruby spans, audio hashes, stroke paths, illustration refs, the accepted-alternate set and the distractor pool are outside the hash.",
+  "base": {
+    "exercise_id": "eeeeeeeeeeeeeee1",
+    "unit_index": 1,
+    "lesson_index": 1,
+    "type": "translate",
+    "prompt": "今日は暑いです。",
+    "accepted_answers": ["It is hot today.", "Today it is hot."],
+    "distractors": ["It is cold today.", "It was hot today."],
+    "alignment": [],
+    "item_tags": { "lemmas": ["今日", "暑い"], "grammar_concepts": ["present-adjective"] },
+    "audio_ref": "cccccccccccccc01",
+    "register": "polite",
+    "source_sentence_id": "aaaaaaaaaaaaaaa1",
+    "ruby_json": "[{\"base\":\"今日\",\"ruby\":\"きょう\"}]",
+    "illustration_ref": "art/weather-hot.svg"
+  },
+  "cases": [
+    {
+      "why": "The falsifier proper: the distractor pool is swapped wholesale in a rebuild. A build that hashed the distractors would mint a new id, the learner's FSRS row would stop resolving, and the strength meter would empty on a sentence they have seen for weeks.",
+      "change": { "distractors": ["It is raining today.", "It is hot tomorrow."] },
+      "idChanges": false
+    },
+    {
+      "why": "EC-PACK-38's own case: a monthly JmdictFurigana release re-solves the ruby spans of 今日.",
+      "change": {
+        "ruby_json": "[{\"base\":\"今\",\"ruby\":\"きょ\"},{\"base\":\"日\",\"ruby\":\"う\"}]"
+      },
+      "idChanges": false
+    },
+    {
+      "why": "A reviewer adds an accepted katakana surface to an item with FSRS history. The enumerated answer set IS the tolerance budget (review R24), so it changes often — and it is outside the hash for exactly that reason.",
+      "change": { "accepted_answers": ["It is hot today.", "Today it is hot.", "It's hot today."] },
+      "idChanges": false
+    },
+    {
+      "why": "The bake re-renders one clip with a different voice; the audio hash moves.",
+      "change": { "audio_ref": "cccccccccccccc99" },
+      "idChanges": false
+    },
+    {
+      "why": "An illustration is swapped.",
+      "change": { "illustration_ref": "art/weather-hot-v2.svg" },
+      "idChanges": false
+    },
+    {
+      "why": "The exercise moves to another lesson. Position is not identity: a naive index carry-over is what remaps twelve weeks of history onto whatever now occupies slot 413.",
+      "change": { "lesson_index": 4 },
+      "idChanges": false
+    },
+    {
+      "why": "The tags arrive in the other order from a re-run tagger. Not a content change.",
+      "change": {
+        "item_tags": { "lemmas": ["暑い", "今日"], "grammar_concepts": ["present-adjective"] }
+      },
+      "idChanges": false
+    },
+    {
+      "why": "A SEMANTIC change: the prompt itself. This must mint a new id, or the rule would be 'ids never change', which is a different and useless property.",
+      "change": { "prompt": "明日は暑いです。" },
+      "idChanges": true
+    },
+    {
+      "why": "A semantic change: the preferred surface, which is the FIRST accepted answer. Adding an alternate does not move the id; replacing the preferred one does.",
+      "change": { "accepted_answers": ["Today it is hot.", "It is hot today."] },
+      "idChanges": true
+    },
+    {
+      "why": "A semantic change: the register. A1 Japanese is masu-form throughout and plain form is an explicit grammar concept, so a register flip is a different item.",
+      "change": { "register": "plain" },
+      "idChanges": true
+    },
+    {
+      "why": "A semantic change: a tag. A wrong tag silently corrupts the memory model, which is why the tags are inside the hash and why V4 exists.",
+      "change": {
+        "item_tags": { "lemmas": ["今日", "涼しい"], "grammar_concepts": ["present-adjective"] }
+      },
+      "idChanges": true
+    }
+  ]
+}

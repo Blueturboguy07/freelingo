@@ -1,0 +1,17 @@
+{
+  "$comment": "Invariant ids owned by the P2 task `p2-g9-package-loader`: G9 (the read-only SQLite pack, the audio bank, the signed manifest), the pack schema that `packages/schema` declares once for both languages, and the loader `packages/core` reads it with. One file per task: `pnpm test:coverage-map` unions docs/invariants-owned.json with every docs/owned/*.json and fails if two files claim the same id. Only the ids with an owning TypeScript test are claimed here, because coverage-map scans packages/, apps/ and e2e/ and cannot see pytest — the Python halves of both invariants are tested too (tools/coursekit/tests/test_attribution.py, test_itemid.py, test_g9_package.py, with committed falsifiers under tools/coursekit/tests/falsifiers/), and they are what fails the BUILD; the TypeScript tests are what fails on what SHIPS.",
+  "task": "p2-g9-package-loader",
+  "phase": "P2",
+  "module": "packages/schema/src/pack-schema.ts, packages/core/src/packs/loader.ts, tools/coursekit (G9)",
+  "owned": ["INV-PACK-17", "INV-PACK-41"],
+  "heldWithoutAnInvariantId": [
+    "INV-PACK-40's manifest half — `ledgerUnit` declared exactly once and nowhere else in the document — is implemented and tested (tools/coursekit/tests/test_manifest.py::test_ledger_unit_is_declared_exactly_once, and the loader reads the same value back out of the pack's own meta table). The id is NOT claimed: the invariant is about every token-counting consumer reading that declaration, and G4's length filter, the new-item budget and V1/V2 do not exist yet. The lane that writes them owns it.",
+    "INV-PACK-15's manifest half — codec, bitrate and measured bytes against the 120 MB budget for all three pipelines — is asserted by manifest_violations and tested, but the bank in this lane is a three-file fixture of text stubs. The id belongs to the bake lane, against a real bank.",
+    "INV-PACK-13's licence rows reach the manifest here (per corpus, with the OPUS legacy-page URL, and an UNRESOLVED row fails the build), but the invariant is an INGEST gate — 'checked before G0 reads a byte' — and G0 is another lane's.",
+    "INV-PACK-02's other half: item ids are content-hashed here and `applyPackUpdate` quarantines what a new pack no longer declares (P1). The loader test asserts the manifest's itemIds are exactly the ids in the database, because a disagreement there would retire a learner's FSRS rows in a pack that had lost nothing."
+  ],
+  "escalations": [
+    "S152, the per-sentence credits surface INV-PACK-17 names, does not exist in deep/00-PRODUCT-MAP.md at all — the map stops at S151, and S152 appears only in the plan's §Data model and in the invariant's own text. The map owes it a row (states, copy slots, and the two routes in: the report sheet S045 and About S137) before P4 renders it. The screen id is recorded as a named constant on both sides (CREDITS_SURFACE_SCREEN) so P4 can grep for it.",
+    "The frozen `exercise` artefact record carries unit and lesson but no slot index, so the pack derives a stable within-lesson order from the content-addressed exercise id. Nothing depends on a slot number — an FSRS row resolves through `item_id`, never a position — but a pack cannot express an AUTHORED order until that record grows a `slot_index`, which is G7's contract to change."
+  ]
+}
