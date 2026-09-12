@@ -29,6 +29,14 @@ import {
  * database hand-written to agree with this loader. A fixture written to match the reader
  * proves only that the reader agrees with itself.
  *
+ * **And a fixture is not the artefact.** `es-mini` is 30 rows built by a different
+ * invocation on a different day; the pack `pack-ci.yml` actually produces was uploaded as
+ * `es-pack-<sha>` and, until `real-pack.test.ts`, opened by nothing. That file is this
+ * one's other half: `validate-es` points it at `build/es/g9/pack.sqlite` through
+ * `FREELINGO_REAL_PACK` and it fails rather than skips when the pack is not there. This
+ * file stays the unit test — fast, committed, no build tree — and keeps every case a real
+ * pack cannot reach (see `relaxedPack` below).
+ *
  * Regenerate it (from `tools/coursekit`) with:
  *   uv run python -c "from coursekit.packbuild.sqlite import build_fixture_pack as b; b()"
  */

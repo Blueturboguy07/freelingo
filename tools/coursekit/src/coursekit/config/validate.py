@@ -41,6 +41,14 @@ SUITE_REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = (
     "ingested_sentence",
     "selected_item",
     "banded_lemma",
+    # V11 compares unit n to unit n+1 and, since founder ruling B17, only HARD-fails the
+    # comparison across a section boundary. It therefore has to know which section each
+    # unit is in, and `unit_assignment` (G3) is the only artefact that says. It is
+    # REQUIRED rather than optional because the alternative default — "treat every unit
+    # as one section" — turns every cross-section regression into a warning and lets V11
+    # report green over a course that got easier. That is the falsifier in
+    # `tests/test_validators_pack.py`.
+    "unit_assignment",
 )
 
 #: Artefacts the suite reads when they exist and names in the report when they do not.
@@ -117,6 +125,24 @@ DIFFICULTY_EPSILON: Final[float] = 1e-9
 #: A unit with fewer items than this cannot carry a meaningful mean, so V11 reports it
 #: as a blocking finding rather than comparing noise to noise.
 MIN_ITEMS_PER_UNIT_FOR_DIFFICULTY: Final[int] = 3
+
+#: **Founder ruling B17, 2026-09-12** (`docs/P2-BLOCKERS.md` §B17 and §Founder rulings):
+#: *"V11 hard-fails only across section boundaries; within a section a fall is a warning
+#: in the report."*
+#:
+#: The measurement behind it: the first real `coursekit validate es` run reported **13**
+#: unit boundaries where the mean falls, the largest **−3.222 at u18→u19**, and the three
+#: worst (units 19, 23, 16) are the gap-heavy ones. An authored gap-fill sentence is
+#: shorter and plainer than a corpus sentence that happened to fit the same window, so a
+#: unit with many gaps reads easier than the one before it even though its vocabulary is
+#: strictly larger. That is a content question the reviewer sample (B3) has to answer, not
+#: a reason to block the pack — while a section is the course's own promise of a level
+#: (`unit_assignment.section_cefr`), so a fall ACROSS one is a promise broken.
+#:
+#: `severity` is the whole of the difference: a within-section fall is still counted,
+#: still named, and still carries its measured delta into `validator-report.json`.
+WITHIN_SECTION_DIFFICULTY_FALL_SEVERITY: Final[str] = "warning"
+CROSS_SECTION_DIFFICULTY_FALL_SEVERITY: Final[str] = "blocking"
 
 #: The banded table is keyed by LEMMA and the difficulty proxy reads SURFACE tokens, so
 #: coverage is never 100%. Below this fraction the decile term is mostly
