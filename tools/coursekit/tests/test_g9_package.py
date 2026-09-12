@@ -25,7 +25,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from coursekit.artifacts import artifact_path, read_records, write_records
+from coursekit.artifacts import artifact_path, read_records, stage_dir, write_records
 from coursekit.cli import app
 from coursekit.config import (
     EXIT_FAILED,
@@ -109,6 +109,7 @@ def _replay_seed(lang: str = "es", *, licences: list[dict[str, Any]] | None = No
     for kind, key in _SEED_RECORDS.items():
         write_records(kind, SEED[key], lang=lang)
     write_records("analysed_sentence", _analysed(lang), lang=lang)
+    _replay_bank(lang)
 
     runlog = RunLog(lang, run_id="0" * 32)
     for stage_id in ("g0", "g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8"):
@@ -119,6 +120,23 @@ def _replay_seed(lang: str = "es", *, licences: list[dict[str, Any]] | None = No
         with runlog.stage(validator_id, tool=TOOL_NAME, tool_version="test") as entry:
             entry.note(findings=0)
     return runlog
+
+
+def _replay_bank(lang: str) -> None:
+    """Put the fixture's committed clip stubs where a real G8 leaves its bank.
+
+    `baked_clip.path` is `bank/<clip_id>.opus`, RELATIVE TO G8's STAGE DIRECTORY, and G9
+    copies from there into the pack. Without this the replay declared three clips and
+    left the pack's `audio/` empty — which is the defect G9 now refuses, so the fixture
+    has to be as honest as the gate: the bytes are the committed stubs', copied, never
+    invented.
+    """
+    bank = stage_dir(lang, "g8")
+    for clip in SEED["clips"]:
+        target = bank / str(clip["path"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        stub = repo_root() / FIXTURE_PACK_RELPATH / "audio" / f"{clip['clip_id']}.opus"
+        target.write_bytes(stub.read_bytes())
 
 
 def _analysed(lang: str) -> list[dict[str, Any]]:
@@ -224,6 +242,38 @@ def test_a_payload_key_that_is_not_a_column_fails_the_build(tmp_path: Path) -> N
     """The schema is read back out of SQLite, never restated here."""
     with pytest.raises(ValueError, match="has no column"):
         write_pack(tmp_path / "x.sqlite", {"meta": [{"key": "k", "value": "v", "extra": 1}]})
+
+
+def test_INV_PACK_51_a_repeated_lemma_is_one_join_row(tmp_path: Path) -> None:
+    """[INV-PACK-51] the join is a SET, and a sentence is not.
+
+    `item_tags.lemmas` is the token-aligned lemma list, so `El libro está sobre la
+    mesa.` carries `el` twice and `Hola, hola, hola.` carries `hola` three times — the
+    artefact being faithful to the text. `exercise_item_tag`'s key is `(exercise_id,
+    item_kind, item_ref)`, so the same pair twice is the same row twice. Measured on the
+    real course, 2026-09-12: G9 refused the pack with `UNIQUE constraint failed:
+    exercise_item_tag.exercise_id, exercise_item_tag.item_kind,
+    exercise_item_tag.item_ref` — AFTER the bake, which is the expensive place to learn
+    it. And `is_new` must be set by the FIRST row only, or a repeat marks the lexeme new
+    twice and S032's pill logic sees two introductions.
+    """
+    inputs = fixture_inputs()
+    first = dict(inputs.exercises[0])
+    lemma = first["item_tags"]["lemmas"][0]
+    first["item_tags"] = {**first["item_tags"], "lemmas": [lemma, lemma, lemma]}
+    from dataclasses import replace
+
+    grown = replace(inputs, exercises=(first, *inputs.exercises[1:]))
+    rows = build_rows(grown)
+    joined = [
+        row
+        for row in rows["exercise_item_tag"]
+        if row["exercise_id"] == first["exercise_id"] and row["item_ref"] == lemma
+    ]
+    assert len(joined) == 1, joined
+    assert joined[0]["is_new"] == 1
+    # And the pack is writable, which is the property the UNIQUE key expresses.
+    write_pack(tmp_path / "deduped.sqlite", rows)
 
 
 def test_a_dangling_reference_fails_the_build(tmp_path: Path) -> None:
@@ -416,6 +466,48 @@ def test_the_manifest_gate_fails_the_stage_and_also_writes_nothing(
     assert result.exit_code == EXIT_FAILED, result.output
     assert "UNRESOLVED" in result.output
     assert _pack_artefacts(isolated_build_root) == []
+
+
+def test_inv_pack_15_a_pack_that_declares_a_clip_it_does_not_carry_fails_the_stage(
+    isolated_build_root: Path,
+) -> None:
+    """[INV-PACK-15] the audio gate: a declared clip with no file refuses the pack.
+
+    This is a MEASURED field defect, not a hypothetical. Over units 1-3 of the real
+    Spanish course G9 built a pack that declared 125 clips at `audio/<id>.opus`, whose
+    `audio/` directory was empty, and whose manifest said `audioBytes: 0` — because G7
+    named clips with one function and G8 baked them under another (D-AUDIO-ID-FUNCTION),
+    so `_stage_audio_bank` found nothing to copy and copied nothing, quietly. Every
+    listening exercise in that pack resolves to no file on a device, and INV-PACK-15's
+    budget assertion passes trivially at zero bytes: the budget is about what a learner
+    downloads, and a pack that downloads nothing is inside every budget.
+
+    So the gate is the one that has to be pinned, and the falsifier is the state a real
+    bake reaches: the bank is there, the records are there, and ONE clip is gone. One
+    rather than all, so the assertion can be that the message names the missing id — a
+    gate that reported only a count would leave the operator re-running the bake to find
+    out which. Exit 4, and `_pack_artefacts` empty: gate 1 refuses before `_publish`, so
+    no `pack.sqlite`, no manifest, no `audio/`, no `pack_row` and no staging directory
+    outlives the refusal.
+    """
+    _replay_seed()
+    orphaned = SEED["clips"][0]
+    missing = stage_dir("es", "g8") / str(orphaned["path"])
+    assert missing.exists(), "the replay has to put a real bank there first"
+    missing.unlink()
+
+    result = runner.invoke(app, ["pack", "es"])
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "INV-PACK-15" in result.output
+    assert orphaned["clip_id"] in result.output, result.output
+    assert _pack_artefacts(isolated_build_root) == []
+
+    # And the runlog says which clips, so the next command does not have to guess.
+    from coursekit.runlog import read_entries
+
+    entry = [row for row in read_entries("es", stage="g9")][-1]
+    assert entry["status"] != "ok"
+    assert orphaned["clip_id"] in str(entry["notes"]["audio_clips_missing"])
 
 
 def test_the_schema_gate_fails_the_stage_and_also_writes_nothing(

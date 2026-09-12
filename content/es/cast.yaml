@@ -11,9 +11,16 @@
 schema_version: 1
 language: es
 
-# EC-PACK-17: one locale per course. Read the decision below before treating this as a
-# property of the voices — it is a property of the COURSE.
-locale: es-ES
+# Founder ruling B6, 2026-09-12. This file used to carry `locale: es-ES` under
+# EC-PACK-17's one-locale-per-course ruling, described as "a property of the COURSE".
+# The ruling replaced it with the language above plus the claim below, because a
+# regional tag on a Kokoro bank is a claim nothing in this toolchain can falsify — see
+# D-CAST-ES-01, which is kept as the record of how the file used to read and why.
+#
+# `unverified` is the only value `config/g8.py::ACCENT_CLAIMS` permits today, and the
+# only thing that can raise it is the 300-item native-reviewer sample (B3), whose brief
+# asks about accent consistency and about Rosa specifically (D-CAST-ES-02).
+accent_claim: unverified
 
 engine: kokoro
 engine_licence: Apache-2.0
@@ -74,14 +81,23 @@ decisions:
       (misaki first-classes only en, ja, ko, zh, vi), so no Peninsular phonology is
       asserted anywhere in the toolchain.
     decision: >-
-      `locale: es-ES` stays, as the EC-PACK-17 ruling requires, and it is recorded here
-      as a claim the COURSE makes about its content — the curriculum, the orthography
-      and the accepted-answer sets — and NOT a claim about the accent of the voices. A
-      native-reviewer sample (300 items, ≤2% wrong-item gate) is the thing that can
-      falsify it, and the accent question is explicitly on that reviewer's sheet.
+      SUPERSEDED BY FOUNDER RULING B6 (2026-09-12), and kept because the finding above
+      is still the reason. This row used to end "`locale: es-ES` stays, as the
+      EC-PACK-17 ruling requires, recorded as a claim the COURSE makes about its content
+      and NOT about the accent of the voices". The ruling went further: a tag no part of
+      the toolchain can falsify is not a claim worth shipping, so the key is GONE — from
+      this file, from `content/es/audio-manifest.json`, and from the pack manifest,
+      where the `audio` block now carries `accentClaim: "unverified"`. `tts/cast.py`
+      refuses a cast that still declares `locale:`. What replaces it is `language: es` +
+      `accent_claim: unverified`: the course still claims one variety in its curriculum,
+      its orthography and its accepted-answer sets, and claims nothing at all about the
+      voices until the 300-item native-reviewer sample (B3) says otherwise. That
+      sample's brief carries the accent question either way.
     consequence_if_overridden: >-
       Overriding this to "accent verified" costs a second vendor: the only way to buy a
       declared es-ES voice in this environment is a cloud key that does not exist here.
+      It also costs a code change: `ACCENT_CLAIMS` has one member on purpose, so
+      "verified" cannot be written into a YAML file before the evidence exists.
 
   - id: D-CAST-ES-02
     title: Four roles, three stock voices, two declared blends

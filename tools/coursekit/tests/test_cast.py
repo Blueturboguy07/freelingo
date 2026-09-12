@@ -17,8 +17,8 @@ from typing import Any
 import pytest
 import yaml
 
-from coursekit.config import LOCALE_BY_LANGUAGE
 from coursekit.config.g8 import (
+    ACCENT_CLAIMS,
     BAKE_ENGINE_BY_LANGUAGE,
     CAST_ROLES,
     CAST_SAMPLE_TEXT,
@@ -55,7 +55,7 @@ def _write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw: dict[str, Any])
 def test_the_committed_spanish_cast_loads() -> None:
     cast = load_cast("es")
     assert cast.engine == BAKE_ENGINE_BY_LANGUAGE["es"] == "kokoro"
-    assert cast.locale == LOCALE_BY_LANGUAGE["es"] == "es-ES"
+    assert cast.accent_claim == "unverified"
     assert [role.id for role in cast.roles] == list(CAST_ROLES)
     assert cast.target_lufs == TARGET_LUFS
     assert cast.tolerance_lu == LOUDNESS_TOLERANCE_LU
@@ -96,9 +96,9 @@ def test_the_cast_records_r15_as_a_decision_not_a_table_cell() -> None:
     """R15: a mixed-accent cast inside one course is a founder-visible choice.
 
     The Kokoro version of the finding is sharper than the Polly one — Kokoro publishes
-    no locale sub-tag for its Spanish voices at all — so the file has to say that
-    `es-ES` is a claim the COURSE makes. Asserted on the file rather than trusted,
-    because a decision block is exactly the kind of thing a later edit deletes.
+    no locale sub-tag for its Spanish voices at all — so the file has to say what it
+    does and does not claim. Asserted on the file rather than trusted, because a
+    decision block is exactly the kind of thing a later edit deletes.
     """
     raw = _raw()
     decisions = {entry["id"]: entry for entry in raw["decisions"]}
@@ -106,6 +106,28 @@ def test_the_cast_records_r15_as_a_decision_not_a_table_cell() -> None:
     assert decisions["D-CAST-ES-01"]["review"] == "R15"
     assert "locale" in decisions["D-CAST-ES-01"]["decision"]
     assert any(entry.get("invariant") == "INV-AUD-08" for entry in raw["decisions"])
+
+
+def test_the_committed_cast_declares_a_language_and_an_accent_claim_and_no_locale() -> None:
+    """Founder ruling B6, asserted on the committed FILE and not only on the loader.
+
+    The loader refusing `locale:` is half of it; the other half is that the file people
+    read and copy for fr/de/ja does not still carry the key. `es-ES` was vendor-backed
+    under Azure Neural (a locale sub-tag per voice) and became unfalsifiable under
+    Kokoro, which publishes none — so what the file claims now is the language, plus
+    how much is known about the accent, which is nothing until the reviewer sample.
+    """
+    raw = _raw()
+    assert "locale" not in raw
+    assert raw["language"] == "es"
+    assert raw["accent_claim"] == "unverified"
+    assert ACCENT_CLAIMS == ("unverified",), (
+        "a second accent claim may exist only when the evidence that produces it does "
+        "— the 300-item native-reviewer sample (B3)"
+    )
+    # And the decision block records the supersession rather than quietly dropping it.
+    decisions = {entry["id"]: entry for entry in raw["decisions"]}
+    assert "B6" in decisions["D-CAST-ES-01"]["decision"]
 
 
 def test_kokoro_ships_three_spanish_voices_and_the_cast_knows_it() -> None:
@@ -199,9 +221,11 @@ def test_inv_aud_08_the_rebake_key_changes_with_voice_rate_text_and_loudness() -
     assert base != rebake_key(replace(cast, target_lufs=-18.0), "narrator", "Hola"), "loudness"
     assert base != rebake_key(replace(cast, bitrate_kbps=24), "narrator", "Hola"), "bitrate"
 
-    # The locale is a claim about the COURSE (D-CAST-ES-01), not an input to synthesis.
-    # Hashing it would re-bake a whole bank for a label change.
-    assert base == rebake_key(replace(cast, locale="es-419"), "narrator", "Hola")
+    # The accent claim is a claim about the COURSE (D-CAST-ES-01, ruling B6), not an
+    # input to synthesis. Hashing it would re-bake a whole bank for a label change —
+    # and it would mean a reviewer's verdict, arriving months later, silently
+    # invalidated every clip in the bank.
+    assert base == rebake_key(replace(cast, accent_claim="reviewer_verified"), "narrator", "Hola")
 
 
 def test_one_edited_line_re_renders_exactly_one_file() -> None:
@@ -247,13 +271,38 @@ def test_a_missing_role_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         load_cast("es")
 
 
-def test_a_locale_that_contradicts_ec_pack_17_is_refused(
+def test_a_cast_that_still_declares_a_locale_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Ruling B6. The key is not ignored — the FILE is refused, and the error says why.
+
+    Ignoring it would leave a regional claim sitting in a cast that nothing reads and
+    nothing enforces, which is the state the ruling exists to end. `es-MX` is the case
+    that used to be caught (a locale contradicting EC-PACK-17's one-per-course rule);
+    the declared `es-ES` is now caught too, and that is the point.
+    """
+    for value in ("es-MX", "es-ES"):
+        raw = _raw()
+        raw["locale"] = value
+        _write(tmp_path, monkeypatch, raw)
+        with pytest.raises(CastError, match="ruling B6"):
+            load_cast("es")
+
+
+def test_an_accent_claim_outside_the_permitted_set_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing claim is not a pass, and a stronger one needs evidence, not YAML."""
     raw = _raw()
-    raw["locale"] = "es-MX"
+    del raw["accent_claim"]
     _write(tmp_path, monkeypatch, raw)
-    with pytest.raises(CastError, match="one locale per course"):
+    with pytest.raises(CastError, match="accent_claim"):
+        load_cast("es")
+
+    raw = _raw()
+    raw["accent_claim"] = "peninsular"
+    _write(tmp_path, monkeypatch, raw)
+    with pytest.raises(CastError, match="native-reviewer sample"):
         load_cast("es")
 
 

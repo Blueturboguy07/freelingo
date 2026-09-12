@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,9 +48,9 @@ from ..config import (
     ARTIFACT_SCHEMA_VERSION,
     AUDIO_BUDGET_MB,
     AUDIO_PIPELINES,
-    LOCALE_BY_LANGUAGE,
     OPUS_BITRATE_KBPS,
 )
+from ..config.g7 import GAP_MARKER
 from ..config.g8 import (
     AUDIO_BUDGET_BYTES,
     AUDIO_MANIFEST_FILENAME,
@@ -67,10 +68,11 @@ from ..config.g8 import (
     PIPELINE_RESERVED_SECONDS,
     RADIO_EPISODE_COUNT_RESERVED,
     RADIO_MINUTES_EACH,
+    SPOKEN_TEXT_SOURCE,
     STORY_COUNT_RESERVED,
     STORY_MINUTES_EACH,
-    TARGET_TEXT_FIELD_BY_TYPE,
 )
+from ..exercises.shapes import shape_of_record
 from ..runlog import require_successful
 from ..stages import StageContext, StageResult, register_stage
 from ..tts import TTS
@@ -78,7 +80,7 @@ from ..tts.cast import Cast, load_cast, rebake_key
 from ..tts.loudness import master, measure_lufs, trim_gain
 from ..tts.transcode import decode, encode, require_tools
 
-__all__ = ["Utterance", "bake", "bank_dir", "manifest_path", "plan_utterances"]
+__all__ = ["Utterance", "bake", "bank_dir", "manifest_path", "plan_utterances", "spoken_text"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,7 +133,7 @@ def plan_utterances(cast: Cast, exercises: list[dict[str, Any]]) -> list[Utteran
         )
 
     for exercise in exercises:
-        text = _target_text(exercise)
+        text = spoken_text(exercise)
         if text is None:
             continue
         clip_id = rebake_key(cast, LESSON_ROLE, text)
@@ -149,19 +151,43 @@ def plan_utterances(cast: Cast, exercises: list[dict[str, Any]]) -> list[Utteran
     return [planned[clip_id] for clip_id in sorted(planned)]
 
 
-def _target_text(exercise: dict[str, Any]) -> str | None:
-    field = TARGET_TEXT_FIELD_BY_TYPE.get(exercise["type"])
-    if field is None:
+def spoken_text(exercise: Mapping[str, Any]) -> str | None:
+    """What this exercise's clip SAYS, or `None` when the shape has no clip.
+
+    The one function G8 and V7 both read, so "every renderable string has audio" and
+    "every audio file has a string" are the same join asked from two sides. The shape
+    decides — see `SPOKEN_TEXT_SOURCE` for the three defects that came of asking the
+    coarse type instead.
+
+    Raises `UnknownShape` for a record whose prompt no shape renders: a record G8 cannot
+    place is a record whose audio nobody can name, and guessing is what this whole
+    function exists to stop.
+    """
+    found = shape_of_record(dict(exercise))
+    source = SPOKEN_TEXT_SOURCE.get(found.id)
+    if source is None:
+        if found.needs_audio:  # pragma: no cover - the table test forbids this
+            raise ValueError(
+                f"{found.id!r} declares needs_audio and SPOKEN_TEXT_SOURCE has no entry "
+                f"for it, so nothing can say what its clip is of"
+            )
         return None
-    if field == "accepted_answers":
-        answers = exercise["accepted_answers"]
+    answers = [str(answer) for answer in exercise["accepted_answers"]]
+    if source == "accepted_answer":
         # The FIRST accepted answer, not all of them. The set is a grading tolerance
         # (Japanese enumerates kanji, kana and katakana forms of one sentence); baking
         # every member would produce several clips of the same spoken line under
         # different ids and a bank several times the budget.
-        return str(answers[0]) if answers else None
-    value = exercise.get(field)
-    return str(value) if value else None
+        return answers[0] if answers else None
+    parts = str(exercise["prompt"]).split("\n", 1)
+    body = parts[1] if len(parts) > 1 else ""
+    if source == "body":
+        return body or None
+    if source == "body_with_the_gap_filled":
+        if not answers or GAP_MARKER not in body:
+            return None
+        return body.replace(GAP_MARKER, answers[0])
+    raise ValueError(f"SPOKEN_TEXT_SOURCE names {source!r}, which this function cannot read")
 
 
 # ---------------------------------------------------------------------------
@@ -361,7 +387,11 @@ def build_manifest(cast: Cast, entries: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "schema_version": AUDIO_MANIFEST_VERSION,
         "language": cast.language,
-        "locale": LOCALE_BY_LANGUAGE[cast.language],
+        # Ruling B6. This field used to be `locale: es-ES`, read from
+        # LOCALE_BY_LANGUAGE — a regional claim that was vendor-backed under Azure and
+        # unfalsifiable under Kokoro. The manifest now says the language and how much is
+        # known about the accent, and F2 refuses a manifest that still carries a locale.
+        "accent_claim": cast.accent_claim,
         "engine": cast.engine,
         "engine_pin": cast.engine_pin,
         "engine_licence": cast.engine_licence,

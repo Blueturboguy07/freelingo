@@ -29,6 +29,7 @@ from coursekit.config import (
     AUDIO_PIPELINES,
     OPUS_BITRATE_KBPS,
 )
+from coursekit.config.g7 import GAP_MARKER, SHAPES
 from coursekit.config.g8 import (
     AUDIO_BUDGET_BYTES,
     BUDGET_HEADROOM_BYTES,
@@ -39,14 +40,33 @@ from coursekit.config.g8 import (
     MASTER_MAX_PASSES,
     PEAK_CEILING_DBFS,
     PIPELINE_RESERVED_BYTES,
-    TARGET_TEXT_FIELD_BY_TYPE,
+    SPOKEN_TEXT_SOURCE,
 )
+from coursekit.exercises.shapes import prompt_for, shape
 from coursekit.inputs import group_is_installed
-from coursekit.stages.g8_bake import build_manifest, plan_utterances
+from coursekit.stages.g8_bake import build_manifest, plan_utterances, spoken_text
 from coursekit.tts.cast import load_cast, rebake_key
 
 FALSIFIERS = Path(__file__).parent / "falsifiers"
 PACK15 = json.loads((FALSIFIERS / "INV-PACK-15.json").read_text(encoding="utf-8"))["input"]
+
+
+def _shaped(shape_id: str, body: str, answer: str, index: int = 1) -> dict[str, Any]:
+    """One exercise record of a NAMED SHAPE, with the prompt that shape really renders.
+
+    A hand-written prompt is no longer enough: G8 decodes the shape from the instruction
+    line, because a coarse type is up to four shapes and they do not speak the same
+    string (`SPOKEN_TEXT_SOURCE`). `prompt_for` is the same renderer G7 uses, so a
+    record built here is a record the stage could have written.
+    """
+    chosen = shape(shape_id)
+    hint = "perro" if "{hint}" in chosen.instruction else None
+    return _exercise(
+        chosen.type,
+        prompt_for(shape_id, lang="es", body=body, hint=hint),
+        answer,
+        index,
+    )
 
 
 def _exercise(kind: str, prompt: str, answer: str, index: int = 1) -> dict[str, Any]:
@@ -107,20 +127,76 @@ def test_two_exercises_showing_one_sentence_share_one_file() -> None:
     text = "El gato duerme en la silla."
     planned = plan_utterances(
         cast,
-        [_exercise("listen", "The cat sleeps", text, 1), _exercise("word_bank", "x", text, 2)],
+        [
+            _shaped("tap_what_you_hear", "", text, 1),
+            _shaped("type_what_you_hear", "", text, 2),
+        ],
     )
     lesson = [u for u in planned if not u.role_sample]
     assert len(lesson) == 1
     assert lesson[0].clip_id == rebake_key(cast, LESSON_ROLE, text)
 
 
-def test_a_match_exercise_asks_for_no_clip() -> None:
-    """`match`'s audio is per tile at P6; a pair has no single spoken string, and
-    inventing one would hand V7 a clip nothing ever plays."""
+def test_a_shape_with_no_audio_asks_for_no_clip() -> None:
+    """A clip nothing plays is bytes inside the 120 MB budget doing nothing.
+
+    It used to happen wholesale: the plan was keyed by coarse TYPE, `translate` and
+    `word_bank` mapped to a field, and NO shape of either type declares `needs_audio` —
+    so every typed translation and every word bank in the course was baked and played by
+    nothing. `match`'s exclusion is the one that was always deliberate: the grid's audio
+    is per tile at P6, and pretending a pair has one spoken string would hand V7 a clip
+    nothing plays.
+    """
     cast = load_cast("es")
-    assert TARGET_TEXT_FIELD_BY_TYPE["match"] is None
-    planned = plan_utterances(cast, [_exercise("match", "rojo", "red")])
-    assert all(u.role_sample for u in planned)
+    silent = [
+        _shaped("typed_translate_forward", "The dog runs.", "El perro corre.", 1),
+        _shaped("word_bank_forward", "The dog runs.", "El perro corre.", 2),
+        _shaped("match_pairs", "perro", "perro = dog", 3),
+        _shaped("fill_in_the_blank", f"El {GAP_MARKER} corre.", "perro", 4),
+    ]
+    assert all(spoken_text(record) is None for record in silent)
+    assert all(u.role_sample for u in plan_utterances(cast, silent))
+
+
+def test_every_shape_that_declares_audio_says_where_its_clip_comes_from() -> None:
+    """The keys ARE the audio-bearing shapes, asserted against the table.
+
+    A shape that declares `needs_audio` and is missing from `SPOKEN_TEXT_SOURCE` is a
+    record G8 cannot name a clip for; a key that is not audio-bearing is a clip nothing
+    plays. Both used to be possible because the two tables were keyed differently.
+    """
+    assert set(SPOKEN_TEXT_SOURCE) == {item.id for item in SHAPES if item.needs_audio}
+
+
+def test_the_missing_word_drill_speaks_the_whole_sentence() -> None:
+    """S038 is "audio plus a sentence with one gap" (`deep/01` §S038).
+
+    Its accepted answer is ONE TOKEN, so a plan keyed by coarse type baked the token and
+    left the sentence G7 named unbaked — measured on the real course: 198 of 198
+    `audio_ref` values dangling and `sqlite3.IntegrityError: FOREIGN KEY constraint
+    failed` out of G9. The sentence is recovered from the rendered body, which keeps its
+    punctuation, so the recovery is the sentence byte for byte.
+    """
+    cast = load_cast("es")
+    sentence = "¿Dónde está la estación de tren?"
+    gapped = sentence.replace("estación", GAP_MARKER)
+    record = _shaped("listen_for_the_missing_word", gapped, "estación", 1)
+    assert spoken_text(record) == sentence
+    planned = [u for u in plan_utterances(cast, [record]) if not u.role_sample]
+    assert [u.clip_id for u in planned] == [rebake_key(cast, LESSON_ROLE, sentence)]
+
+
+def test_a_speak_prompts_clip_is_the_sentence_not_the_instruction() -> None:
+    """`prompt` is `instruction\\nbody`, so the type-keyed table baked the instruction.
+
+    A clip of "Speak this sentence. El pan está caliente." is a clip with an English
+    sentence in a Spanish bank, and it is what shipped for every `speak` and every
+    `translate` record before the source was named per shape.
+    """
+    sentence = "El pan está caliente."
+    record = _shaped("speak_this_sentence", sentence, sentence, 1)
+    assert "Speak this sentence" in record["prompt"]
+    assert spoken_text(record) == sentence
 
 
 def test_the_plan_is_ordered_by_clip_id_not_by_exercise() -> None:
@@ -128,7 +204,7 @@ def test_the_plan_is_ordered_by_clip_id_not_by_exercise() -> None:
     a re-bake's diff stops being "the clips that changed"."""
     cast = load_cast("es")
     planned = plan_utterances(
-        cast, [_exercise("listen", "x", f"Frase {n}.", n) for n in range(10)]
+        cast, [_shaped("type_what_you_hear", "", f"Frase {n}.", n) for n in range(10)]
     )
     assert [u.clip_id for u in planned] == sorted(u.clip_id for u in planned)
 
@@ -138,7 +214,7 @@ def test_the_target_string_is_the_target_language_side() -> None:
     English prompt would produce a bank of English audio that every other check passes."""
     cast = load_cast("es")
     planned = plan_utterances(
-        cast, [_exercise("listen", "Where is the station?", "¿Dónde está la estación?")]
+        cast, [_shaped("tap_what_you_hear", "", "¿Dónde está la estación?")]
     )
     texts = {u.text for u in planned if not u.role_sample}
     assert texts == {"¿Dónde está la estación?"}

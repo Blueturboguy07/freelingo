@@ -34,7 +34,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from ..artifacts import read_records, write_records
+from ..artifacts import read_records, stage_dir, write_records
 from ..config import ARTIFACT_SCHEMA_VERSION, BUILD_STAGE_IDS, PACK_STAGE_ID, VALIDATOR_IDS
 from ..config.g9 import AUDIO_DIRNAME, PACK_DB_FILENAME
 from ..packbuild.attribution import attribution_violations
@@ -94,22 +94,44 @@ def _pack_inputs(ctx: StageContext) -> PackInputs:
     )
 
 
-def _stage_audio_bank(clips: tuple[dict[str, Any], ...], destination: Path) -> int:
+def _stage_audio_bank(
+    lang: str, clips: tuple[dict[str, Any], ...], destination: Path
+) -> tuple[int, list[str]]:
     """Copy the baked clips into the pack's own `audio/` directory, content-addressed.
 
     Copied rather than referenced: a pack is one directory that can be zipped, uploaded
     to a GitHub release and unpacked into a device's cache, and a bank that lived in the
     bake's run directory would ship as a set of broken paths.
+
+    `baked_clip.path` IS `bank/<clip_id>.opus` AND IT IS RELATIVE TO G8'S STAGE
+    DIRECTORY. It used to be resolved as `Path(str(clip["path"]))` — relative to the
+    process's working directory — so `source.exists()` was false for every clip and the
+    function copied NOTHING, counted nothing, and said nothing. Measured on the real
+    course, 2026-09-12: a pack whose `audio` table declared 125 clips at
+    `audio/<id>.opus`, whose `audio/` directory was empty, and whose manifest said
+    `audioBytes: 0` — so INV-PACK-15's assertion against the budget was being made about
+    zero bytes, and every listening exercise on the device would have hit S151's
+    missing-file path.
+
+    Returns `(copied, missing)`. A declared clip whose file is not there is returned
+    rather than skipped: the caller turns it into a failed stage, because a pack that
+    declares audio it does not carry is the partial pack the six-state enum exists to
+    keep off a device.
     """
+    bank_root = stage_dir(lang, "g8")
     destination.mkdir(parents=True, exist_ok=True)
     copied = 0
+    missing: list[str] = []
     for clip in clips:
-        source = Path(str(clip["path"]))
+        source = bank_root / str(clip["path"])
         target = destination / f"{clip['clip_id']}.opus"
-        if source.exists() and source.resolve() != target.resolve():
+        if not source.exists():
+            missing.append(f"{clip['clip_id']} ({source})")
+            continue
+        if source.resolve() != target.resolve():
             shutil.copyfile(source, target)
             copied += 1
-    return copied
+    return copied, missing
 
 
 def _publish(staging: Path, pack_dir: Path) -> Path:
@@ -184,7 +206,21 @@ def package(ctx: StageContext) -> StageResult:
 
         # Gate 2: the schema. Foreign keys are ON inside `write_pack`.
         database = write_pack(staging / PACK_DB_FILENAME, rows_by_table)
-        clips_copied = _stage_audio_bank(inputs.clips, staging / AUDIO_DIRNAME)
+        clips_copied, clips_missing = _stage_audio_bank(
+            ctx.lang, inputs.clips, staging / AUDIO_DIRNAME
+        )
+        if clips_missing:
+            ctx.entry.note(audio_clips_missing=clips_missing[:20])
+            return StageResult(
+                ok=False,
+                message=(
+                    f"{len(clips_missing)} baked clip(s) the pack declares are not in "
+                    f"G8's bank, so the pack would ship an `audio` table whose files do "
+                    f"not exist and a manifest asserting 0 bytes against the 120 MB "
+                    f"budget (INV-PACK-15): {clips_missing[0]}"
+                ),
+                detail={"missing": len(clips_missing)},
+            )
 
         # Gate 3: the manifest.
         manifest = build_manifest(inputs, database, audio_dir=staging / AUDIO_DIRNAME)

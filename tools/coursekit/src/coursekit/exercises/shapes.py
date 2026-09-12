@@ -41,6 +41,7 @@ from ..config.g7 import (
     FORBIDDEN_SHAPE_REASON,
     L1_LANGUAGE_NAME,
     LANGUAGE_NAME,
+    LEXEME_FOCUS_MAX_DISPLAY_TOKENS,
     PHASE_ORDER,
     SHAPES,
     ExerciseShape,
@@ -54,6 +55,7 @@ __all__ = [
     "ShapeNotAvailable",
     "UnknownShape",
     "assert_pill_shapes_quote_lexemes",
+    "focus_for_item",
     "forbidden_shape_guard",
     "instruction_for",
     "mistake_queue_eligible",
@@ -155,6 +157,29 @@ def shapes_for_focus(focus: Focus, *, phase: str = CURRENT_PHASE) -> tuple[Exerc
         and PHASE_ORDER.index(item.available_from) <= limit
         and not (item.quotes_lexeme and focus != "lexeme")
     )
+
+
+def focus_for_item(display_tokens: int) -> Focus:
+    """Which focus an item of this many display tokens carries. Ruling B9(b).
+
+    One or two display tokens is a WORD or a FIXED PHRASE — `Hola.`, `Buenas tardes.` —
+    and lesson 1 of a Spanish course is made of them. Above that it is a sentence.
+
+    This is the other half of the routing doctrine, and it is a rule about the ITEM where
+    `route()` is a rule about the shape. `route()` cannot catch a one-token item handed to
+    `word_bank_forward`: the focus is `sentence`, the shape carries `sentence`, and the
+    record that comes out is a well-formed word bank whose answer is one tile among four.
+    The sentence shapes all degenerate that way on one or two tokens and every one of them
+    degenerates into a VALID record, so the length has to decide the focus before a draft
+    exists. By the SHAPES table, a `lexeme` focus then reaches S032/S033/S034 and nothing
+    else (`shapes_for_focus`), which is what the ruling asks for.
+    """
+    if display_tokens <= 0:
+        raise RoutingError(
+            "an item with no display tokens has no focus and no shape; an empty "
+            "sentence is a content failure upstream of this stage"
+        )
+    return "lexeme" if display_tokens <= LEXEME_FOCUS_MAX_DISPLAY_TOKENS else "sentence"
 
 
 def missable_shapes() -> tuple[str, ...]:
