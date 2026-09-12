@@ -62,6 +62,14 @@ four commits are on `main` ahead of this round (`52f411a`, `d73d295`, `61bc272`,
 | 5   | `p2r3/provenance-docs`      | `ca76cce` | `1b2ad66`         | none              |
 | 6   | `p2r3/reviewer-sample-300`  | `f9a9b16` | `034f14d`         | none              |
 
+Every one of the seven lane branches is fully merged — `git rev-list --count main..<branch>`
+is **0** for all of `p2r3/deps-contract`, `lemma-reachability`, `gapfill-lesson1`,
+`expand-bake-package`, `validators-ci-loader`, `provenance-docs` and
+`reviewer-sample-300`. One eighth branch exists, `p2r3/sheet-draw-scratch`, four commits
+ahead of `main` and **all four of them merges** (`git log --no-merges main..` is empty):
+it is the throwaway worktree the reviewer lane used for its diagnostic builds and says it
+deliberately did not commit. Nothing is left unmerged.
+
 **No textual conflict in any of the six.** `git merge-tree` over each branch against
 `main` reported none before the queue ran and none appeared inside it. Every defect below
 is a **semantic** conflict or a thing only a real run could find: each branch was green
