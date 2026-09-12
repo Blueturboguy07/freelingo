@@ -82,3 +82,66 @@ export function livedDays(ledger: DayLedger): Set<LocalDay> {
   }
   return lived;
 }
+
+/**
+ * What the streak calendar (S127) draws for a civil date.
+ *
+ * The product map lists **six** cell states for S127 and the plan's non-negotiable 3 says
+ * every product-map state has a defined render — so every one of them must be reachable
+ * from engine output, not invented in the view. Two of the six exist only because of
+ * Freelingo's own rulings:
+ *
+ * - `unlived` — a civil date the device never experienced (INV-DAY-03).
+ * - `half-flame` — the streak was credited by the 5-minute grace window while the XP,
+ *   quests and goal chest landed on the NEXT day (EC-STK-13, retired by INV-DAY-08).
+ *   Without its own cell the learner sees a flame on a day whose XP row is empty, with
+ *   no explanation. Its copy slot is `Just made it!`.
+ *
+ * A seventh, `recovered`, is Freelingo's own: EC-FRZ-19 rules that a restored date is
+ * "neither flame nor snowflake", so it gets its own glyph and the calendar stays truthful.
+ */
+export type DayCell =
+  | 'flame'
+  | 'half-flame'
+  | 'snowflake'
+  | 'grey'
+  | 'outline'
+  | 'unlived'
+  | 'recovered';
+
+/** The copy slot each cell carries on S127. `null` where the cell speaks for itself. */
+export const DAY_CELL_PROVENANCE: Readonly<Record<DayCell, string | null>> = {
+  flame: null,
+  'half-flame': 'Just made it!',
+  snowflake: 'Streak frozen',
+  grey: null,
+  outline: null,
+  unlived: 'This date never happened here',
+  recovered: 'Streak restored',
+};
+
+/**
+ * The cell for one civil date. `graceCredited` is the day-engine fact written by the
+ * rollover walk from `SessionRow.creditedByGrace`; it is what makes a `half-flame`
+ * distinguishable from an ordinary flame.
+ */
+export function dayCellOf(
+  disposition: DayDisposition | undefined,
+  graceCredited = false,
+): DayCell {
+  switch (disposition) {
+    case 'completed':
+      return graceCredited ? 'half-flame' : 'flame';
+    case 'frozen':
+      return 'snowflake';
+    case 'missed':
+      return 'grey';
+    case 'unlived':
+      return 'unlived';
+    case 'recovered':
+      return 'recovered';
+    default:
+      // No decision yet: today-incomplete, or a date before the engine started.
+      return 'outline';
+  }
+}

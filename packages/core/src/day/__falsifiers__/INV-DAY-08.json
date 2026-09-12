@@ -1,15 +1,24 @@
 {
   "id": "INV-DAY-08",
-  "falsifier": "a grace-credited session that also moves its XP, goal chest or Daily Most XP to the start day",
-  "source": "EC-STK-12 / EC-STK-13, deep/04 cases 41-45: streak to the start day, everything else to completion time",
+  "falsifier": "a grace-credited session that also moves its XP, goal chest or Daily Most XP to the start day, a grace-credited day that renders as an ordinary flame, or a session spanning TWO local midnights that grace-credits the day it began",
+  "source": "EC-STK-12 / EC-STK-13, deep/04 cases 41-45: streak to the start day, everything else to completion time, and the grace-credited day renders as a distinct half-flame cell with `Just made it!` provenance",
   "input": {
     "tz": "America/Los_Angeles",
     "startUtc": "2026-09-12T06:58:00Z",
     "durationMs": 360000,
     "startDay": "2026-09-11",
     "completionDay": "2026-09-12",
-    "goalXp": 20
+    "goalXp": 20,
+    "twoMidnights": {
+      "startUtc": "2026-09-12T06:58:00Z",
+      "durationMs": 86760000,
+      "startDay": "2026-09-11",
+      "completionDay": "2026-09-13",
+      "note": "starts on the build date itself, not before it: an earlier start day trips the 1970-install guard (INV-DAY-14) and the row's day keying is deferred, which would hide what this case is testing"
+    }
   },
-  "mustNotBe": "a goal chest on the start day, or a second chest for the same completion day",
-  "usedBy": ["day/boundary.test.ts"]
+  "mustNotBe": "a goal chest on the start day, a second chest for the same completion day, a `flame` cell for a grace-credited date, or `creditedByGrace === true` on a session that crossed two local midnights",
+  "usedBy": [
+    "day/boundary.test.ts"
+  ]
 }

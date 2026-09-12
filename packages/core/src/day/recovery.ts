@@ -2,8 +2,16 @@
  * Both recovery mechanics, side by side.
  *
  * EC-FRZ-08 was a contradiction — one reading deleted the repair modal, another kept it.
- * The plan's ruling is **both**, and the old INV-REC-01 grep gate forbidding the string
- * "Streak Repair" is DELETED. What replaces it:
+ * The plan's ruling is **both**.
+ *
+ * (A correction to an earlier version of this comment: the plan's ruling row says the old
+ * INV-REC-01 grep gate forbidding the string "Streak Repair" "is deleted", but no such
+ * gate ever existed in this repository — `grep -rn 'Streak Repair' scripts/ .github/ docs/
+ * packages/` on origin/main finds nothing, and docs/invariants.md already carries the
+ * amended INV-REC-01. Nothing was removed here. What the ruling means in practice is the
+ * rule below.)
+ *
+ * What INV-REC-01 requires:
  *
  * - **The 3-lesson recovery challenge**, window **2 local days** from `broken_on` (the
  *   bundle's own "Only 2 days left" ladder, not the invented 7). Its lessons pay full XP,
@@ -24,7 +32,16 @@ import { milestonesCrossed } from '../streak/milestones.js';
 import type { DayEngineState, RecoveryChallenge } from './state.js';
 
 export type RecoveryDecline =
-  'no-break' | 'window-expired' | 'too-many-uncovered-days' | 'nothing-to-restore';
+  | 'no-break'
+  | 'window-expired'
+  | 'too-many-uncovered-days'
+  | 'nothing-to-restore'
+  /**
+   * The restore ran but did not reach `previous_streak + 1`, so it was ABANDONED and the
+   * break record kept. A restore that half-works is the worst outcome available: the
+   * learner loses the streak and the offer at once. See `completeChallenge`.
+   */
+  | 'restore-incomplete';
 
 export type RepairDecline =
   RecoveryDecline | 'month-already-repaired' | 'break-too-large-for-repair';
@@ -123,7 +140,7 @@ export function armChallenge(state: DayEngineState, today: LocalDay): DayEngineS
     expiresAfterDay: addCivilDays(offer.brokenOn, DAY_CONFIG.recoveryChallengeWindowLocalDays),
     lessonsRequired: DAY_CONFIG.recoveryChallengeLessons,
     lessonsDone: 0,
-    uncoveredDays: [...offer.uncoveredDays],
+    earnedOnDay: null,
   };
   return { ...state, challenge };
 }
@@ -152,9 +169,14 @@ export function recordChallengeLesson(
 ): DayEngineState {
   if (!challengeEligibleAtStart(state, startedOnDay)) return state;
   const challenge = state.challenge!;
+  const lessonsDone = challenge.lessonsDone + 1;
   return {
     ...state,
-    challenge: { ...challenge, lessonsDone: challenge.lessonsDone + 1 },
+    challenge: {
+      ...challenge,
+      lessonsDone,
+      earnedOnDay: lessonsDone >= challenge.lessonsRequired ? startedOnDay : null,
+    },
   };
 }
 
@@ -167,6 +189,16 @@ export function expireChallengeIfLapsed(state: DayEngineState, today: LocalDay):
   const challenge = state.challenge;
   if (challenge === null) return state;
   if (today <= challenge.expiresAfterDay) return state;
+  // INV-REC-05 deliberately lets a session STARTED inside the window finish late, and the
+  // third such lesson is already recorded here. An earned challenge is therefore awaiting
+  // its commit, not lapsed, and the walk must not delete it out from under the ceremony —
+  // but the wait is BOUNDED by the day the work was actually done, so an earned challenge
+  // cannot sit open forever waiting for a commit that never comes.
+  if (challenge.lessonsDone >= challenge.lessonsRequired) {
+    if (challenge.earnedOnDay === null) return state;
+    const deadline = addCivilDays(challenge.earnedOnDay, DAY_CONFIG.challengeCommitGraceLocalDays);
+    if (today <= deadline) return state;
+  }
   return { ...state, challenge: null };
 }
 
@@ -203,50 +235,61 @@ function repaint(
  * (EC-FRZ-09, INV-REC-02). The caller has already committed the third lesson's XP.
  */
 export function completeChallenge(state: DayEngineState, today: LocalDay): RestoreResult {
-  const challenge = state.challenge;
-  if (challenge === null) {
-    return {
-      state,
-      restored: false,
-      streakBefore: streakFromDispositions(state.dispositions, today),
-      streakAfter: streakFromDispositions(state.dispositions, today),
-      milestones: [],
-      repaintedDays: [],
-      declinedBecause: 'no-break',
-    };
-  }
-  if (challenge.lessonsDone < challenge.lessonsRequired) {
-    const streak = streakFromDispositions(state.dispositions, today);
-    return {
-      state,
-      restored: false,
-      streakBefore: streak,
-      streakAfter: streak,
-      milestones: [],
-      repaintedDays: [],
-      declinedBecause: 'nothing-to-restore',
-    };
-  }
   const streakBefore = streakFromDispositions(state.dispositions, today);
-  const { map, repainted } = repaint(state.dispositions, challenge.uncoveredDays);
+  const decline = (because: RecoveryDecline): RestoreResult => ({
+    state,
+    restored: false,
+    streakBefore,
+    streakAfter: streakBefore,
+    milestones: [],
+    repaintedDays: [],
+    declinedBecause: because,
+  });
+  const challenge = state.challenge;
+  if (challenge === null) return decline('no-break');
+  // The BREAK RECORD is the live copy of what has to be repainted, and the challenge row
+  // holds no copy of its own. `rolloverTo` appends every further missed day inside the
+  // window to `brk.uncoveredDays`, so reading it here — and only here, at completion
+  // time — is what makes a challenge armed on day one still restore a break that grew on
+  // day two (INV-REC-02, INV-REC-07).
+  const brk = state.brk;
+  if (brk === null || brk.brokenOn !== challenge.brokenOn) return decline('no-break');
+  if (challenge.lessonsDone < challenge.lessonsRequired) return decline('nothing-to-restore');
+  // The commit's own bound. Eligibility was settled at session START (INV-REC-05), so a
+  // late finish is fine; a commit days after the work was done is not.
+  if (
+    challenge.earnedOnDay !== null &&
+    today > addCivilDays(challenge.earnedOnDay, DAY_CONFIG.challengeCommitGraceLocalDays)
+  ) {
+    return decline('window-expired');
+  }
+
+  const { map, repainted } = repaint(state.dispositions, brk.uncoveredDays);
   // Today is satisfied by the challenge's own third lesson.
   map.set(today, 'completed');
+  const streakAfter = streakFromDispositions(map, today);
+  // A restore that cannot reach `previous_streak + 1` has not restored anything, and the
+  // one thing it must never do is clear `brk` on the way out: that is the only record of
+  // `previous_streak`, and losing it costs the learner the streak AND the second offer.
+  // Refuse, keep every fact, and let the caller show the offer again.
+  if (streakAfter < brk.previousStreak + 1) return decline('restore-incomplete');
+
   const restored: DayEngineState = {
     ...state,
     dispositions: map,
     challenge: null,
     brk: null,
   };
-  const streakAfter = streakFromDispositions(map, today);
   return {
     state: restored,
     restored: true,
     streakBefore,
     streakAfter,
     // Measured from `previous_streak`, not from the broken 0: the learner already
-    // celebrated 7 and 14 on the way up to 22, and a restore must not replay them. Since
-    // `streakAfter <= previousStreak + 1`, this is at most one screen (INV-REC-07).
-    milestones: milestonesCrossed(challenge.previousStreak, streakAfter),
+    // celebrated 7 and 14 on the way up to 22, and a restore must not replay them. The
+    // restore's own contribution is one lived day — today — so this is at most one
+    // screen (INV-REC-07).
+    milestones: milestonesCrossed(brk.previousStreak, streakAfter),
     repaintedDays: repainted,
     declinedBecause: null,
   };
@@ -285,6 +328,11 @@ export function repairStreak(state: DayEngineState, today: LocalDay): RestoreRes
     return decline('break-too-large-for-repair');
   }
   const { map, repainted } = repaint(state.dispositions, offer.uncoveredDays);
+  const streakIfRepaired = streakFromDispositions(map, today);
+  // Same discipline as the challenge: a repair that cannot restore `previous_streak`
+  // spends the monthly allowance for nothing and destroys the break record on its way
+  // out. Refuse instead, and keep both.
+  if (streakIfRepaired < offer.previousStreak) return decline('restore-incomplete');
   const repaired: DayEngineState = {
     ...state,
     dispositions: map,
@@ -295,7 +343,7 @@ export function repairStreak(state: DayEngineState, today: LocalDay): RestoreRes
       { monthKey, onDay: today, restoredStreak: offer.previousStreak, repaintedDays: repainted },
     ],
   };
-  const streakAfter = streakFromDispositions(map, today);
+  const streakAfter = streakIfRepaired;
   return {
     state: repaired,
     restored: true,

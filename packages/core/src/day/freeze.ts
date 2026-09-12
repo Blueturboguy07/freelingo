@@ -62,8 +62,6 @@ export interface FreezeLedger {
   readonly cap: number;
   readonly grants: readonly FreezeGrant[];
   readonly consumptions: readonly FreezeConsumption[];
-  /** `society_tier_entered_at` values already honoured, so a replay mints nothing. */
-  readonly societyTierKeys: readonly string[];
 }
 
 /**
@@ -87,7 +85,6 @@ export function newFreezeLedger(
       },
     ],
     consumptions: [],
-    societyTierKeys: [],
   };
 }
 
@@ -162,10 +159,46 @@ export function grantFreezes(ledger: FreezeLedger, request: GrantRequest): Grant
 }
 
 /**
- * Streak Society tier entry: the cap rises AND the freezes are granted (EC-FRZ-07 —
- * 2/2 → 3/3, not a ceiling the learner must then fill at 200 gems). Idempotent on
+ * The Streak Society grant key. Derived from `society_tier_entered_at`, which is what
+ * INV-FRZ-04 names as the idempotency key, and fed straight to `grantFreezes` — whose
+ * own `grantKey` check is therefore the guard, with nothing shadowing it.
+ *
+ * There used to be a second list, `FreezeLedger.societyTierKeys`, checked before this
+ * one. It was dead: it held exactly the same strings as the grant rows, so deleting it
+ * changed no outcome and a mutation that removed it left the suite green. A guard the
+ * tests cannot fail is worse than no guard, because it reads as protection. One key,
+ * one check, one test that dies without it.
+ */
+export function societyTierGrantKey(tier: string, societyTierEnteredAt: string): string {
+  return `society_tier:${tier}:${societyTierEnteredAt}`;
+}
+
+/**
+ * Has this tier ever been entered, under ANY `society_tier_entered_at`?
+ *
+ * The second half of INV-FRZ-04's "a clock-tamper replay mints nothing". A replay of the
+ * same event is caught by the grant key; a clock wound back far enough to re-cross the
+ * tier's streak threshold arrives with a NEW `entered_at` and a new key, and the tier
+ * would otherwise be entered twice. Society tiers are monotone — Ember at 60, Blaze at
+ * 180, Phoenix at 365 — so a tier is entered exactly once in an account's life.
+ */
+export function hasEnteredTier(ledger: FreezeLedger, tier: string): boolean {
+  const prefix = `society_tier:${tier}:`;
+  return ledger.grants.some((g) => g.grantKey.startsWith(prefix));
+}
+
+/**
+ * Streak Society tier entry: the cap rises AND the balance is topped up to it (EC-FRZ-07
+ * — 2/2 → 3/3, "not a ceiling the learner must then fill at 200 gems"). Idempotent on
  * `society_tier_entered_at`, so winding the clock back and re-entering the tier mints
  * nothing (INV-FRZ-04).
+ *
+ * The grant is `cap − held`, not `cap − old_cap`. Those are the same number only for a
+ * learner sitting at a full balance; for one who has spent a freeze, entering Ember at
+ * 1/2 gives 3/3 rather than 2/3, which is what "the cap rises AND the freezes are
+ * granted" says. It is also what makes the idempotency key load-bearing: a replay of a
+ * tier entry AFTER the learner has spent freezes would refill the balance from the same
+ * event, which is exactly the clock-tamper mint INV-FRZ-04 forbids.
  */
 export function enterSocietyTier(
   ledger: FreezeLedger,
@@ -173,23 +206,16 @@ export function enterSocietyTier(
   societyTierEnteredAt: string,
   ownedFromDay: LocalDay,
 ): GrantOutcome {
-  const key = `society_tier:${tier}:${societyTierEnteredAt}`;
-  if (ledger.societyTierKeys.includes(key)) return { ledger, applied: 0, ceremony: false };
   const tierConfig = DAY_CONFIG.societyTiers.find((t) => t.tier === tier);
   if (tierConfig === undefined) return { ledger, applied: 0, ceremony: false };
+  if (hasEnteredTier(ledger, tier)) return { ledger, applied: 0, ceremony: false };
   const raised = Math.max(ledger.cap, tierConfig.cap);
-  const increase = raised - ledger.cap;
-  const withCap: FreezeLedger = {
-    ...ledger,
-    cap: raised,
-    societyTierKeys: [...ledger.societyTierKeys, key],
-  };
-  if (increase === 0) return { ledger: withCap, applied: 0, ceremony: false };
+  const withCap: FreezeLedger = ledger.cap === raised ? ledger : { ...ledger, cap: raised };
   return grantFreezes(withCap, {
-    grantKey: key,
+    grantKey: societyTierGrantKey(tier, societyTierEnteredAt),
     channel: 'milestone_grant',
     ownedFromDay,
-    amount: increase,
+    amount: Math.max(0, raised - freezesHeld(withCap)),
   });
 }
 

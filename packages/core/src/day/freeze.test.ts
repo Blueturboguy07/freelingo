@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 import { addCivilDays, toLocalDay, type LocalDay } from './civil.js';
 import { DAY_CONFIG } from './config.js';
+import { daysUntilFreezeRefill } from './predicates.js';
 import {
   FREEZE_CHANNELS,
   consumeFreezeFor,
@@ -12,6 +13,7 @@ import {
   freezesHeld,
   freezesOwnedBefore,
   grantFreezes,
+  hasEnteredTier,
   newFreezeLedger,
   type FreezeChannel,
   type FreezeLedger,
@@ -44,7 +46,6 @@ describe('freeze ledger', () => {
       cap: input.cap,
       grants: [],
       consumptions: [],
-      societyTierKeys: [],
     };
     const keys: string[] = [];
     for (const channel of FREEZE_CHANNELS) {
@@ -75,6 +76,40 @@ describe('freeze ledger', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it('[INV-FRZ-03] the timed_refill channel drives S121 `Refills in {{n}} day(s)`', () => {
+    // S121's copy slot has no number behind it anywhere in the corpus, so the interval is
+    // a DERIVED named constant rather than a literal in a view. Null at a full balance:
+    // there is nothing to refill and the card shows `{{n}} / {{cap}} EQUIPPED` instead.
+    const full = newFreezeLedger(addCivilDays(DAY, -1), 2);
+    expect(freezesHeld(full)).toBe(full.cap);
+    expect(daysUntilFreezeRefill(full, DAY)).toBeNull();
+
+    const spent = consumeFreezeFor(full, DAY, DAY).ledger;
+    expect(freezesHeld(spent)).toBe(1);
+    const refilled = grantFreezes(spent, {
+      grantKey: 'refill-1',
+      channel: 'timed_refill',
+      ownedFromDay: DAY,
+      amount: 1,
+    });
+    expect(refilled.applied).toBe(1);
+    expect(refilled.ceremony).toBe(true);
+
+    // Counted from the most recent timed refill, in civil days, and always in 1..period.
+    const spentAgain = consumeFreezeFor(refilled.ledger, addCivilDays(DAY, 1), DAY).ledger;
+    for (let i = 0; i <= DAY_CONFIG.freezeRefillIntervalDays * 3; i += 1) {
+      const n = daysUntilFreezeRefill(spentAgain, addCivilDays(DAY, i));
+      expect(n).not.toBeNull();
+      expect(n!).toBeGreaterThanOrEqual(1);
+      expect(n!).toBeLessThanOrEqual(DAY_CONFIG.freezeRefillIntervalDays);
+    }
+    expect(daysUntilFreezeRefill(spentAgain, addCivilDays(DAY, 1))).toBe(
+      DAY_CONFIG.freezeRefillIntervalDays - 1,
+    );
+    expect(daysUntilFreezeRefill(spentAgain, addCivilDays(DAY, DAY_CONFIG.freezeRefillIntervalDays)))
+      .toBe(DAY_CONFIG.freezeRefillIntervalDays);
+  });
+
   it('[INV-FRZ-03] the balance never exceeds the cap, however many grants arrive', () => {
     const arbChannel = fc.constantFrom<FreezeChannel>(...FREEZE_CHANNELS);
     fc.assert(
@@ -88,7 +123,7 @@ describe('freeze ledger', () => {
           },
         ),
         (cap, grants) => {
-          let ledger: FreezeLedger = { cap, grants: [], consumptions: [], societyTierKeys: [] };
+          let ledger: FreezeLedger = { cap, grants: [], consumptions: [] };
           for (const [keyIndex, channel, amount] of grants) {
             const outcome = grantFreezes(ledger, {
               grantKey: `k${keyIndex}`,
@@ -128,6 +163,11 @@ describe('freeze ledger', () => {
       startingCap: number;
       expectedCap: number;
       replayEnteredAt: string;
+      spendThenReplay: {
+        spendOnDays: string[];
+        heldAfterSpending: number;
+        heldAfterReplay: number;
+      };
     };
     // EC-FRZ-07: 2/2 → 3/3. The cap rises AND the freeze is granted; a raised ceiling the
     // learner must then fill at 200 gems would be a non-event.
@@ -147,6 +187,39 @@ describe('freeze ledger', () => {
     expect(replay.ceremony).toBe(false);
     expect(freezesHeld(replay.ledger)).toBe(input.expectedCap);
     expect(replay.ledger.cap).toBe(input.expectedCap);
+
+    // …and the replay writes no second grant row either.
+    expect(replay.ledger.grants).toEqual(entered.ledger.grants);
+
+    // THE GUARD ITSELF. The assertions above are satisfied by cap arithmetic alone: with
+    // the balance already full there is no room, so deleting the idempotency check leaves
+    // them green. Spend the freezes first and the replay has somewhere to land — now the
+    // only thing standing between a clock-tamper re-entry and a refilled balance is the
+    // key derived from `society_tier_entered_at`. Delete that check and this fails.
+    const spend = input.spendThenReplay;
+    let spent: FreezeLedger = ledger;
+    for (const day of spend.spendOnDays) {
+      const result = consumeFreezeFor(spent, toLocalDay(day), toLocalDay(day));
+      expect(result.consumed).toBe(true);
+      spent = result.ledger;
+    }
+    expect(freezesHeld(spent)).toBe(spend.heldAfterSpending);
+    expect(spent.cap - freezesHeld(spent)).toBeGreaterThan(0); // there IS room to refill
+
+    const tamperReplay = enterSocietyTier(spent, input.tier, input.replayEnteredAt, DAY);
+    expect(tamperReplay.applied).toBe(0);
+    expect(tamperReplay.ceremony).toBe(false);
+    expect(freezesHeld(tamperReplay.ledger)).toBe(spend.heldAfterReplay);
+    expect(tamperReplay.ledger.grants).toEqual(spent.grants);
+
+    // A DIFFERENT `entered_at` for the same tier is a different key — and still mints
+    // nothing, because the cap has already risen and tier entry only tops up to it.
+    const reEntered = enterSocietyTier(spent, input.tier, '2027-01-01T00:00:00Z', DAY);
+    expect(hasEnteredTier(spent, input.tier)).toBe(true);
+    expect(reEntered.applied).toBe(0);
+    expect(reEntered.ceremony).toBe(false);
+    expect(freezesHeld(reEntered.ledger)).toBe(spend.heldAfterReplay);
+    expect(reEntered.ledger.grants).toEqual(spent.grants);
 
     // The next tier is a different key and does raise the cap again.
     const next = DAY_CONFIG.societyTiers.find((t) => t.cap > input.expectedCap);
@@ -185,7 +258,7 @@ describe('freeze ledger', () => {
     const gapDay = toLocalDay(input.gapDay);
     const returnDay = toLocalDay(input.returnDay);
     const ledger = grantFreezes(
-      { cap: input.amount, grants: [], consumptions: [], societyTierKeys: [] },
+      { cap: input.amount, grants: [], consumptions: [] },
       {
         grantKey: 'bought-on-return',
         channel: 'timed_refill',
@@ -231,7 +304,6 @@ describe('freeze ledger', () => {
               consumedForDay: dayOf(offset),
               consumedOnDay: DAY,
             })),
-            societyTierKeys: [],
           };
           const day = dayOf(dayOffset);
           const expected =

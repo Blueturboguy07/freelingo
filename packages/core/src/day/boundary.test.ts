@@ -11,15 +11,18 @@ import {
 } from '@freelingo/testkit';
 import {
   addCivilDays,
+  civilDaysBetween,
   localDayFromOffset,
   localDayOf,
   localMidnightUtcMs,
+  secondsPastLocalMidnight,
   toLocalDay,
   type LocalDay,
 } from './civil.js';
 import { DAY_CONFIG } from './config.js';
 import { streakFromDispositions, type DayDisposition } from './dispositions.js';
 import {
+  calendarCells,
   dailyMostXp,
   goalChestDays,
   isNocturnal,
@@ -232,6 +235,13 @@ describe('day boundary', () => {
       completionTz: string;
       startDay: string;
       completionDay: string;
+      sameZone: {
+        tz: string;
+        startUtc: string;
+        durationMs: number;
+        startDay: string;
+        completionDay: string;
+      };
     };
     const unsatisfied = rowAt({
       sessionId: 's1',
@@ -268,6 +278,23 @@ describe('day boundary', () => {
       satisfied: [toLocalDay(input.startDay), toLocalDay(input.completionDay)],
     });
     expect(bothSatisfied.creditedLocalDay).toBe(toLocalDay(input.startDay));
+
+    // The recorded DEVIATION (see the comment in session.ts). With NO zone change, the
+    // "prefer the start day" rule does not apply: a four-hour session begun at 21:00 and
+    // finished at 01:00 credits the day it FINISHED on, even though the start day is
+    // unsatisfied and the completion day is not. EC-STK-12 is the reason — otherwise a
+    // learner holds a streak forever by opening a lesson each evening.
+    const sameZone = rowAt({
+      sessionId: 's4',
+      startUtc: input.sameZone.startUtc,
+      durationMs: input.sameZone.durationMs,
+      tzId: input.sameZone.tz,
+    });
+    expect(sameZone.startZone.tzId).toBe(sameZone.completionZone.tzId);
+    expect(sameZone.startedLocalDay).toBe(toLocalDay(input.sameZone.startDay));
+    expect(sameZone.completedLocalDay).toBe(toLocalDay(input.sameZone.completionDay));
+    expect(sameZone.creditedLocalDay).toBe(toLocalDay(input.sameZone.completionDay));
+    expect(sameZone.creditedByGrace).toBe(false);
   });
 
   it('[INV-DAY-04] a zone change alone never produces a local_day regression, in every zone', () => {
@@ -322,6 +349,12 @@ describe('day boundary', () => {
       startDay: string;
       completionDay: string;
       goalXp: number;
+      twoMidnights: {
+        startUtc: string;
+        durationMs: number;
+        startDay: string;
+        completionDay: string;
+      };
     };
     const graced = rowAt({
       sessionId: 'g1',
@@ -353,6 +386,58 @@ describe('day boundary', () => {
     });
     expect(late.creditedByGrace).toBe(false);
     expect(late.creditedLocalDay).toBe(toLocalDay(input.completionDay));
+
+    // The grace window is ONE midnight wide. A session whose monotonic elapsed spans two
+    // or more local midnights and lands within `graceSeconds` of the LAST one must not
+    // reach back and save the day it began on — the mutation that drops the
+    // `addCivilDays(startedLocalDay, 1) === completedLocalDay` clause dies here.
+    const twoMidnights = rowAt({
+      sessionId: 'g3',
+      startUtc: input.twoMidnights.startUtc,
+      durationMs: input.twoMidnights.durationMs,
+      tzId: input.tz,
+      xp: input.goalXp,
+    });
+    expect(twoMidnights.startedLocalDay).toBe(toLocalDay(input.twoMidnights.startDay));
+    expect(twoMidnights.completedLocalDay).toBe(toLocalDay(input.twoMidnights.completionDay));
+    expect(
+      civilDaysBetween(twoMidnights.startedLocalDay, twoMidnights.completedLocalDay),
+    ).toBeGreaterThanOrEqual(2);
+    // …and it did land inside the window of the last midnight, so only the one-midnight
+    // clause can be what refuses it.
+    expect(
+      secondsPastLocalMidnight(
+        new Date(twoMidnights.derivedCompletionUtcMs),
+        twoMidnights.completionZone.utcOffsetMinutes,
+      ),
+    ).toBeLessThanOrEqual(DAY_CONFIG.graceSeconds);
+    expect(twoMidnights.creditedByGrace).toBe(false);
+    expect(twoMidnights.creditedLocalDay).toBe(toLocalDay(input.twoMidnights.completionDay));
+
+    // S127: the grace-credited day is a DISTINCT cell, not an ordinary flame. EC-STK-13
+    // (retired by this invariant) rules it renders as a half-flame with `Just made it!`
+    // provenance — otherwise the learner sees a flame on a day whose XP row is empty.
+    // The flag therefore has to survive the session row and reach the calendar.
+    const startDay = toLocalDay(input.startDay);
+    const completionDay = toLocalDay(input.completionDay);
+    const ordinaryDay = addCivilDays(startDay, -1);
+    const base = stateWithStreak({ lastDay: ordinaryDay, streak: 3, freezes: 0 });
+    const walked = rolloverTo(base, addCivilDays(completionDay, 1), {
+      completedDays: new Set([startDay, completionDay]),
+      graceCreditedDays: new Set(
+        [graced].filter((row) => row.creditedByGrace).map((row) => row.creditedLocalDay!),
+      ),
+    }).state;
+    expect(walked.graceCreditedDays.has(startDay)).toBe(true);
+    const cells = new Map(
+      calendarCells(walked, ordinaryDay, completionDay).map((c) => [c.day, c]),
+    );
+    expect(cells.get(startDay)?.cell).toBe('half-flame');
+    expect(cells.get(startDay)?.provenance).toBe('Just made it!');
+    expect(cells.get(ordinaryDay)?.cell).toBe('flame');
+    expect(cells.get(completionDay)?.cell).toBe('flame');
+    // A grace-credited day still counts for the streak exactly like any completed day.
+    expect(streakFromDispositions(walked.dispositions, completionDay)).toBe(5);
   });
 
   it('[INV-DAY-08] goal chests over a 400-day span equal the distinct days whose XP crossed the goal', () => {

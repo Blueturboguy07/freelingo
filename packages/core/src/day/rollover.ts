@@ -30,9 +30,10 @@ import {
   monthKeyOf,
   type LocalDay,
 } from './civil.js';
-import { DAY_CONFIG } from './config.js';
+import { DAY_CONFIG, type DayConfig } from './config.js';
 import { streakFromDispositions, type DayDisposition } from './dispositions.js';
 import { freezesOwnedBefore, type FreezeConsumption, type FreezeLedger } from './freeze.js';
+import { expireChallengeIfLapsed } from './recovery.js';
 import type { BreakRecord, DayEngineState, LongAbsence, MonthSettlement } from './state.js';
 
 export interface RolloverContext {
@@ -40,6 +41,16 @@ export interface RolloverContext {
   readonly completedDays: ReadonlySet<LocalDay>;
   /** Civil dates the local clock jumped over via a zone change (`unlived.ts`). */
   readonly unlivedDays?: ReadonlySet<LocalDay>;
+  /**
+   * The subset of `completedDays` whose credit came from the midnight grace window —
+   * `SessionRow.creditedByGrace` on the row that credited the day (INV-DAY-08).
+   *
+   * The walk records it rather than dropping it, because S127's `half-flame` cell is a
+   * product-map state and an undefined state is a build bug: without this the calendar
+   * cannot tell a day the learner finished from a day the grace window saved, and the
+   * `Just made it!` provenance has nowhere to come from.
+   */
+  readonly graceCreditedDays?: ReadonlySet<LocalDay>;
 }
 
 export type RolloverEvent =
@@ -62,6 +73,8 @@ export interface RolloverResult {
 /** A mutable draft of everything the walk touches. Frozen back into state at the end. */
 interface Draft {
   dispositions: Map<LocalDay, DayDisposition>;
+  graceCreditedDays: Set<LocalDay>;
+  longestStreak: number;
   consumptions: FreezeConsumption[];
   settlements: MonthSettlement[];
   lastProcessedMonth: string | null;
@@ -141,7 +154,9 @@ function decideDay(
   }
   if (ctx.completedDays.has(day)) {
     dispose(draft, day, 'completed');
+    if (ctx.graceCreditedDays?.has(day) === true) draft.graceCreditedDays.add(day);
     draft.activeStreak += 1;
+    if (draft.activeStreak > draft.longestStreak) draft.longestStreak = draft.activeStreak;
     draft.breakOpen = false;
     return;
   }
@@ -192,6 +207,8 @@ function seal(
     lastProcessedDay,
     maxLocalDaySeen: maxSeen,
     dispositions: draft.dispositions,
+    graceCreditedDays: draft.graceCreditedDays,
+    longestStreak: draft.longestStreak,
     ledger:
       draft.consumptions.length === ledger.consumptions.length
         ? ledger
@@ -208,7 +225,24 @@ function seal(
  * — it is not over yet, and deciding it is exactly the bug that burns a freeze on a day
  * the learner is about to save (see `rolloverDeferral`).
  */
+/**
+ * Walk to `today`, then run the challenge's own lifecycle.
+ *
+ * `expireChallengeIfLapsed` used to be exported and called by nobody: a lapsed challenge
+ * row survived every rollover and was killed only if a caller happened to ask. The walk
+ * is the one place that always runs, so it is where the window closes.
+ */
 export function rolloverTo(
+  state: DayEngineState,
+  today: LocalDay,
+  ctx: RolloverContext,
+): RolloverResult {
+  const result = walkTo(state, today, ctx);
+  const expired = expireChallengeIfLapsed(result.state, today);
+  return expired === result.state ? result : { ...result, state: expired };
+}
+
+function walkTo(
   state: DayEngineState,
   today: LocalDay,
   ctx: RolloverContext,
@@ -216,6 +250,8 @@ export function rolloverTo(
   const ledger = state.ledger;
   const draft: Draft = {
     dispositions: new Map(state.dispositions),
+    graceCreditedDays: new Set(state.graceCreditedDays),
+    longestStreak: state.longestStreak,
     consumptions: [...ledger.consumptions],
     settlements: [...state.settlements],
     lastProcessedMonth: state.lastProcessedMonth,
@@ -292,6 +328,7 @@ export function rolloverTo(
   }
 
   draft.activeStreak = streakFromDispositions(draft.dispositions, state.lastProcessedDay, false);
+  if (draft.activeStreak > draft.longestStreak) draft.longestStreak = draft.activeStreak;
   // A break recorded earlier is still open only if nothing has been completed since.
   draft.breakOpen = state.brk !== null && draft.activeStreak === 0;
   draft.ownedFreezes = freezesOwnedBefore(ledger, start);
@@ -370,10 +407,21 @@ export function rolloverDeferral(
   nowMs: number,
   localMidnightMs: number,
   ctx: { readonly sessionInProgress: boolean; readonly lastCheckpointMs: number | null },
+  /**
+   * Injectable so a test can raise the ceiling and watch the session-staleness term
+   * actually move. At the shipped values `graceSeconds === maxRolloverDeferralSeconds`,
+   * so the ceiling always binds and the staleness term is arithmetically inert — a test
+   * written only against the shipped numbers cannot tell the session logic from a
+   * constant, and would pass with it deleted.
+   */
+  config: Pick<
+    DayConfig,
+    'graceSeconds' | 'maxRolloverDeferralSeconds' | 'sessionTimeoutSeconds'
+  > = DAY_CONFIG,
 ): { readonly defer: boolean; readonly untilMs: number } {
-  const ceiling = localMidnightMs + DAY_CONFIG.maxRolloverDeferralSeconds * 1000;
-  const graceEnd = localMidnightMs + DAY_CONFIG.graceSeconds * 1000;
-  const staleness = (DAY_CONFIG.graceSeconds + DAY_CONFIG.sessionTimeoutSeconds) * 1000;
+  const ceiling = localMidnightMs + config.maxRolloverDeferralSeconds * 1000;
+  const graceEnd = localMidnightMs + config.graceSeconds * 1000;
+  const staleness = (config.graceSeconds + config.sessionTimeoutSeconds) * 1000;
   const sessionEnd =
     ctx.sessionInProgress && ctx.lastCheckpointMs !== null
       ? ctx.lastCheckpointMs + staleness

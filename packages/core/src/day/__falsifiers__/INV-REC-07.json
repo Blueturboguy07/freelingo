@@ -1,7 +1,7 @@
 {
   "id": "INV-REC-07",
   "falsifier": "a restore that vaults the number past a milestone without landing on it, or repaints a frozen date",
-  "source": "EC-FRZ-19: previous_streak 22, broken_on grey, two frozen dates snowflaked",
+  "source": "EC-FRZ-19: previous_streak 22, broken_on grey, two frozen dates snowflaked. The `frozenInUncovered` block attacks the repaint guard directly: freeze-covered days never reach `uncoveredDays` through the walk, so the guard is only reachable from a hand-built record -- which is precisely the state a future schema migration or a hand-written fixture can produce.",
   "input": {
     "lastDay": "2026-09-22",
     "streak": 22,
@@ -10,7 +10,17 @@
     "returnedOn": "2026-09-26",
     "brokenOn": "2026-09-25",
     "frozenDays": ["2026-09-23", "2026-09-24"],
-    "uncoveredDays": ["2026-09-25"]
+    "uncoveredDays": ["2026-09-25"],
+    "frozenInUncovered": {
+      "completedDays": ["2026-09-20", "2026-09-21", "2026-09-22"],
+      "frozenDay": "2026-09-23",
+      "missedDay": "2026-09-24",
+      "previousStreak": 3,
+      "today": "2026-09-25",
+      "uncoveredDays": ["2026-09-23", "2026-09-24"],
+      "expectedRepainted": ["2026-09-24"],
+      "expectedStreakAfter": 4
+    }
   },
   "mustNotBe": "a `recovered` glyph on a frozen date, or more than one milestone screen",
   "usedBy": ["day/recovery.test.ts"]

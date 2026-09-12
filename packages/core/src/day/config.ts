@@ -52,6 +52,13 @@ export interface DayConfig {
   /** Freezes a new account holds, pre-equipped. Observed live 2026-09-10: "2 / 2 EQUIPPED". */
   readonly freezeCapBase: number;
   /**
+   * The `timed_refill` channel's period, in civil days — the number behind S121's
+   * `Refills in {{n}} day(s)`. DERIVED: the copy slot is observed, the interval is not
+   * published anywhere in the corpus. Named here so the screen has a source instead of a
+   * literal, and so changing it is one line.
+   */
+  readonly freezeRefillIntervalDays: number;
+  /**
    * Streak Society tiers and the freeze cap each one steps to (`deep/04` §7, DERIVED:
    * Ember 60 · Blaze 180 · Phoenix 365, cap 2 → 3 → 4 → 5). Tier entry GRANTS the
    * freezes as well as raising the cap (EC-FRZ-07), idempotent on
@@ -70,6 +77,15 @@ export interface DayConfig {
   readonly recoveryChallengeWindowLocalDays: number;
   /** Lessons the recovery challenge asks for (EC-FRZ-08/09). INV-REC-02. */
   readonly recoveryChallengeLessons: number;
+  /**
+   * How many local days after the last required lesson landed the challenge may still be
+   * cashed in. DERIVED, and set to 1 for the same reason the grace window is one midnight
+   * wide: INV-REC-05 says eligibility is decided at session START, so a lesson begun at
+   * 23:5x on the last day of the window must still commit after midnight — but nothing in
+   * the corpus lets a challenge earned in September be cashed in December. One midnight,
+   * the same bound, named rather than inlined. INV-REC-04/05.
+   */
+  readonly challengeCommitGraceLocalDays: number;
   /**
    * The cap on UNCOVERED missed days for the challenge to arm. Freeze-covered days never
    * count toward it, because the streak never broke on them (EC-FRZ-18). Set to
@@ -94,6 +110,7 @@ export const DAY_CONFIG: DayConfig = {
   sessionTimeoutSeconds: 600,
   buildLocalDay: '2026-09-11',
   freezeCapBase: 2,
+  freezeRefillIntervalDays: 7,
   societyTiers: [
     { tier: 'ember', streak: 60, cap: 3 },
     { tier: 'blaze', streak: 180, cap: 4 },
@@ -101,6 +118,7 @@ export const DAY_CONFIG: DayConfig = {
   ],
   recoveryChallengeWindowLocalDays: 2,
   recoveryChallengeLessons: 3,
+  challengeCommitGraceLocalDays: 1,
   recoveryChallengeUncoveredDayCap: 30,
   streakRepairsPerMonth: 1,
   repairMaxUncoveredDays: 2,

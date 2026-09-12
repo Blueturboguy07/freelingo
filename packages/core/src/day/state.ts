@@ -70,8 +70,29 @@ export interface RecoveryChallenge {
   readonly lessonsRequired: number;
   /** Partial progress, persisted like any other session (EC-FRZ-10, INV-REC-03). */
   readonly lessonsDone: number;
-  readonly uncoveredDays: readonly LocalDay[];
+  /**
+   * The local day the LAST required lesson landed on, written once when `lessonsDone`
+   * reaches `lessonsRequired` and null before that.
+   *
+   * INV-REC-05 deliberately lets a session STARTED inside the window finish late, so an
+   * earned challenge has to outlive `expiresAfterDay`. Recording the day it was earned is
+   * what keeps that from being unbounded: the row says when the learner actually did the
+   * work, so a challenge earned in September cannot be cashed in December.
+   */
+  readonly earnedOnDay: LocalDay | null;
 }
+
+/**
+ * NOTE — there is deliberately **no** `uncoveredDays` on the challenge row.
+ *
+ * It used to carry a copy taken at `armChallenge` time, and that copy went stale the
+ * moment the learner missed another day inside the window: `rolloverTo` kept appending to
+ * `BreakRecord.uncoveredDays` while the challenge still held the day-one snapshot, so a
+ * completed challenge repainted only the first missed date, left the second one `missed`,
+ * computed a streak of 1 instead of `previous_streak + 1`, and then cleared `brk` — losing
+ * the streak AND the recovery offer while reporting success. The break record is the one
+ * live copy; `completeChallenge` reads it at completion time.
+ */
 
 export interface DayEngineState {
   /** The last civil date whose disposition is decided. The rollover walk's marker. */
@@ -79,6 +100,22 @@ export interface DayEngineState {
   /** The clock-tamper sentinel: the furthest civil date ever observed (EC-STK-12). */
   readonly maxLocalDaySeen: LocalDay | null;
   readonly dispositions: ReadonlyMap<LocalDay, DayDisposition>;
+  /**
+   * The civil dates whose `completed` disposition came from the midnight grace window
+   * rather than from a session that finished inside the day (INV-DAY-08). Kept beside
+   * the dispositions rather than inside them so the streak walk stays a three-way rule,
+   * while S127 can still draw the `half-flame` cell that EC-STK-13 requires.
+   */
+  readonly graceCreditedDays: ReadonlySet<LocalDay>;
+  /**
+   * The best streak ever DECIDED by the rollover walk (S126 "Longest Streak").
+   *
+   * EC-FRZ-19: "Longest streak stays 22 until a lived day passes it." A restore repaints
+   * history but does not move this number, because the walk only ever raises it on a day
+   * it has decided — and `today`, the day a restore satisfies, is never decided until the
+   * next rollover.
+   */
+  readonly longestStreak: number;
   readonly ledger: FreezeLedger;
   readonly brk: BreakRecord | null;
   readonly challenge: RecoveryChallenge | null;
@@ -103,13 +140,14 @@ export function newDayEngineState(options?: {
     lastProcessedDay: null,
     maxLocalDaySeen: null,
     dispositions: new Map(),
+    graceCreditedDays: new Set(),
+    longestStreak: 0,
     ledger:
       ownedFrom === undefined
         ? {
             cap: options?.cap ?? DAY_CONFIG.freezeCapBase,
             grants: [],
             consumptions: [],
-            societyTierKeys: [],
           }
         : newFreezeLedger(ownedFrom, options?.cap ?? DAY_CONFIG.freezeCapBase),
     brk: null,

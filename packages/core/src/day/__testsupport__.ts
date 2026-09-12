@@ -77,7 +77,6 @@ export function ledgerWith(
             },
           ],
     consumptions: [],
-    societyTierKeys: [],
   };
 }
 

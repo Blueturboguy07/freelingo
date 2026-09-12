@@ -8,10 +8,21 @@
  * additionally iterate only the LIVED local days, so a week whose Sunday the clock jumped
  * over is skipped rather than reset (INV-DAY-13).
  */
-import { addCivilDays, localMidnightUtcMs, weekKeyOf, weekdayOf, type LocalDay } from './civil.js';
-import type { DayLedger } from './dispositions.js';
-import { livedDays } from './dispositions.js';
+import {
+  addCivilDays,
+  civilDaysBetween,
+  localMidnightUtcMs,
+  weekKeyOf,
+  weekdayOf,
+  type LocalDay,
+} from './civil.js';
+import { DAY_CONFIG } from './config.js';
+import type { DayCell, DayLedger } from './dispositions.js';
+import { DAY_CELL_PROVENANCE, dayCellOf, livedDays } from './dispositions.js';
+import { freezesHeld, type FreezeLedger } from './freeze.js';
 import type { SessionRow } from './session.js';
+import type { DayEngineState } from './state.js';
+import { STREAK_MILESTONES } from '../streak/milestones.js';
 import { localDayOfStamp, type ZoneStamp } from './zone.js';
 
 /** The wall-clock fields the row itself recorded. Nothing here reads a current zone. */
@@ -130,4 +141,97 @@ export function questProgressXp(rows: Iterable<SessionRow>, day: LocalDay): numb
   let xp = 0;
   for (const row of rows) if (row.rewardLocalDay === day) xp += row.earnedXp;
   return xp;
+}
+
+/* ------------------------------------------------------- the screens these facts feed */
+
+/**
+ * S127, the streak calendar: one cell per civil date in `[from, to]`.
+ *
+ * The whole point of routing this through the engine is that the six product-map cell
+ * states are decided here, from recorded facts, and the view only draws them. In
+ * particular `half-flame` comes from `state.graceCreditedDays`, which is why the grace
+ * window has to survive rollover rather than dying on the session row.
+ */
+export function calendarCells(
+  state: Pick<DayEngineState, 'dispositions' | 'graceCreditedDays'>,
+  from: LocalDay,
+  to: LocalDay,
+): { readonly day: LocalDay; readonly cell: DayCell; readonly provenance: string | null }[] {
+  const cells: { day: LocalDay; cell: DayCell; provenance: string | null }[] = [];
+  let cursor = from;
+  while (cursor <= to) {
+    const cell = dayCellOf(state.dispositions.get(cursor), state.graceCreditedDays.has(cursor));
+    cells.push({ day: cursor, cell, provenance: DAY_CELL_PROVENANCE[cell] });
+    cursor = addCivilDays(cursor, 1);
+  }
+  return cells;
+}
+
+/**
+ * S143 / S127: `Streak frozen yesterday. Extend your streak now!`
+ *
+ * A day-scoped query rather than a scan of the rollover event log, because the notice
+ * fires on a morning that may be several foregrounds after the walk that spent the
+ * freeze. The copy must not congratulate: the learner did not earn that day.
+ */
+export function wasFrozenOn(
+  state: Pick<DayEngineState, 'dispositions'>,
+  day: LocalDay,
+): boolean {
+  return state.dispositions.get(day) === 'frozen';
+}
+
+export function frozenYesterday(
+  state: Pick<DayEngineState, 'dispositions'>,
+  today: LocalDay,
+): boolean {
+  return wasFrozenOn(state, addCivilDays(today, -1));
+}
+
+/**
+ * S126 "Longest Streak", and the S127 banner `You've earned your longest streak ever!`.
+ *
+ * EC-FRZ-19 rules that the longest streak "stays 22 until a lived day passes it", so a
+ * restore never moves it: `state.longestStreak` is only ever raised by the rollover walk,
+ * on a day it has decided.
+ */
+export function longestStreak(state: Pick<DayEngineState, 'longestStreak'>): number {
+  return state.longestStreak;
+}
+
+export function hasEarnedLongestStreakEver(
+  state: Pick<DayEngineState, 'longestStreak'>,
+  currentStreak: number,
+): boolean {
+  return currentStreak > 0 && currentStreak >= state.longestStreak;
+}
+
+/** S127: `You'll reach your next streak milestone on {{date}}!` — null past the last one. */
+export function nextMilestoneDay(currentStreak: number, today: LocalDay): LocalDay | null {
+  const next = STREAK_MILESTONES.find((m) => m > currentStreak);
+  return next === undefined ? null : addCivilDays(today, next - currentStreak);
+}
+
+/**
+ * S121: `Refills in {{n}} day(s)`.
+ *
+ * Null at a full balance — there is nothing to refill and the card shows the count
+ * instead. Otherwise the civil days until the `timed_refill` channel's next tick, counted
+ * from the most recent timed refill (or, on a fresh account that has never had one, from
+ * the first grant the ledger holds).
+ */
+export function daysUntilFreezeRefill(ledger: FreezeLedger, today: LocalDay): number | null {
+  if (freezesHeld(ledger) >= ledger.cap) return null;
+  const period = DAY_CONFIG.freezeRefillIntervalDays;
+  const timed = ledger.grants
+    .filter((g) => g.channel === 'timed_refill')
+    .map((g) => g.ownedFromDay)
+    .sort();
+  const anchor = timed.at(-1) ?? [...ledger.grants].map((g) => g.ownedFromDay).sort()[0];
+  if (anchor === undefined) return period;
+  const elapsed = civilDaysBetween(anchor, today);
+  if (elapsed < 0) return period;
+  const remaining = period - (elapsed % period);
+  return remaining === 0 ? period : remaining;
 }

@@ -143,6 +143,15 @@ export function commitSession(
           ? completedLocalDay
           : startedLocalDay;
     } else if (
+      // DEVIATION, recorded deliberately. INV-DAY-04 reads "when they differ, the credited
+      // day is the one not already satisfied, preferring the start day" without qualifying
+      // it; this implementation applies that rule only when the ZONE changed, and falls
+      // back to the grace rule otherwise. EC-STK-12 is why: a four-hour session begun at
+      // 21:00 and finished at 01:00 in one zone must credit the day it finished on, not
+      // the one it began on, or a learner could hold a streak forever by starting a
+      // session each evening. The registry's rule is about the zone-change case it was
+      // written for (EC-STK-05, the only case it covers); the same-zone case is the grace
+      // window's, and is bounded to `graceSeconds` past ONE midnight.
       startedLocalDay < completedLocalDay &&
       !ctx.satisfiedDays.has(startedLocalDay) &&
       secondsPastLocalMidnight(

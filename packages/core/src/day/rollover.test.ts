@@ -18,12 +18,15 @@ import {
   type LocalDay,
 } from './civil.js';
 import { DAY_CONFIG } from './config.js';
-import { streakFromDispositions, type DayDisposition } from './dispositions.js';
+import { dayCellOf, streakFromDispositions, type DayDisposition } from './dispositions.js';
+import { frozenYesterday, wasFrozenOn } from './predicates.js';
 import { freezesConsumed, freezesHeld } from './freeze.js';
 import { rolloverDeferral, rolloverTo, type RolloverResult } from './rollover.js';
 import { streakFromDays } from './streak.js';
 import { newDayEngineState, type DayEngineState } from './state.js';
 import { recoveryOffer } from './recovery.js';
+import { unlivedDaysFromTransitions, type ZoneTransition } from './unlived.js';
+import { resolveZone } from './zone.js';
 import { distinctMonthsBetween, ledgerWith, stateWithStreak } from './__testsupport__.js';
 
 /**
@@ -204,6 +207,16 @@ describe('rollover', () => {
     // EC-FRZ-12: the streak never broke, so no challenge is offered.
     expect(after.brk).toBeNull();
     expect(recoveryOffer(after, openedOn).challengeArmed).toBe(false);
+    // S127 / S143. The frozen date's cell is a snowflake, and the morning notice is a
+    // day-scoped query rather than a scan of a rollover event log that may be several
+    // foregrounds old. The copy must not congratulate: the learner did not earn that day.
+    const frozenDay = toLocalDay(input.frozenDay);
+    expect(dayCellOf(after.dispositions.get(frozenDay))).toBe('snowflake');
+    expect(wasFrozenOn(after, frozenDay)).toBe(true);
+    expect(frozenYesterday(after, addCivilDays(frozenDay, 1))).toBe(true);
+    expect(frozenYesterday(after, addCivilDays(frozenDay, 2))).toBe(false);
+    // A frozen day is never grace-credited, and never renders as any kind of flame.
+    expect(after.graceCreditedDays.has(frozenDay)).toBe(false);
   });
 
   it('[INV-DAY-06] a break is a recorded fact: winding the clock back never un-breaks it', () => {
@@ -328,6 +341,7 @@ describe('rollover', () => {
       localMidnightUtc: string;
       lastCheckpointUtc: string;
       killedHoursAgo: number;
+      raisedCeilingSeconds: number;
     };
     const midnight = new Date(input.localMidnightUtc).getTime();
     const checkpoint = new Date(input.lastCheckpointUtc).getTime();
@@ -349,6 +363,47 @@ describe('rollover', () => {
     });
     expect(killed.defer).toBe(false);
     expect(killed.untilMs).toBeLessThanOrEqual(midnight + cap);
+
+    // The shipped `graceSeconds` and `maxRolloverDeferralSeconds` are BOTH 300, so the
+    // ceiling always binds and the session-staleness term is arithmetically invisible:
+    // every assertion above passes with the session logic deleted. Raise the ceiling —
+    // the one number EC-STK-14 says would start to matter if it moved — and the two
+    // halves separate: a LIVE session extends the deferral past the grace end, a session
+    // killed hours ago does not, and the cap still binds above both.
+    const raised = {
+      graceSeconds: DAY_CONFIG.graceSeconds,
+      sessionTimeoutSeconds: DAY_CONFIG.sessionTimeoutSeconds,
+      maxRolloverDeferralSeconds: input.raisedCeilingSeconds,
+    };
+    const graceEnd = midnight + DAY_CONFIG.graceSeconds * 1000;
+    const liveAtRaisedCeiling = rolloverDeferral(
+      midnight,
+      midnight,
+      { sessionInProgress: true, lastCheckpointMs: checkpoint },
+      raised,
+    );
+    const killedAtRaisedCeiling = rolloverDeferral(
+      midnight,
+      midnight,
+      {
+        sessionInProgress: true,
+        lastCheckpointMs: midnight - input.killedHoursAgo * 3_600_000,
+      },
+      raised,
+    );
+    const noSessionAtRaisedCeiling = rolloverDeferral(
+      midnight,
+      midnight,
+      { sessionInProgress: false, lastCheckpointMs: checkpoint },
+      raised,
+    );
+    expect(liveAtRaisedCeiling.untilMs).toBeGreaterThan(graceEnd);
+    expect(killedAtRaisedCeiling.untilMs).toBe(graceEnd);
+    expect(noSessionAtRaisedCeiling.untilMs).toBe(graceEnd);
+    // …and the ceiling still binds, whatever the session claims.
+    expect(liveAtRaisedCeiling.untilMs).toBeLessThanOrEqual(
+      midnight + input.raisedCeilingSeconds * 1000,
+    );
 
     fc.assert(
       fc.property(
@@ -446,27 +501,68 @@ describe('rollover', () => {
   });
 
   it('[INV-DAY-16] falsifier: a date-line hop over the 1st neither skips nor doubles a settlement', () => {
+    interface Hop {
+      atUtc: string;
+      fromTz: string;
+      toTz: string;
+      expectedUnlived: string[];
+      landedOn: string;
+    }
     const input = falsifier('INV-DAY-16') as {
       lastDay: string;
       streak: number;
-      landedOn: string;
-      unlived: string[];
+      unlivedTransition: Hop;
+      livedControlTransition: Hop;
     };
+
+    // The `unlived` set is DERIVED from the stamps, never hand-written. The fixture used
+    // to hard-code `['2026-10-01']` and inject it, which asserted a state its own source
+    // case could not produce: LA -> Sydney advances the civil date by exactly one, so
+    // under the corrected INV-DAY-03 nothing is unlived there. Deriving it is the only
+    // way the fixture cannot drift away from the engine.
+    const derive = (hop: Hop): Set<LocalDay> => {
+      const at = new Date(hop.atUtc);
+      const transition: ZoneTransition = {
+        atUtcMs: at.getTime(),
+        from: resolveZone(at, hop.fromTz),
+        to: resolveZone(at, hop.toTz),
+      };
+      return unlivedDaysFromTransitions([transition]);
+    };
+
+    const control = derive(input.livedControlTransition);
+    expect([...control]).toEqual(input.livedControlTransition.expectedUnlived);
+    expect(control.size).toBe(0);
+
+    const hop = input.unlivedTransition;
+    const unlived = derive(hop);
+    expect([...unlived].sort()).toEqual(hop.expectedUnlived.map(toLocalDay));
+
     const state = stateWithStreak({ lastDay: input.lastDay, streak: input.streak, freezes: 2 });
-    const unlived = new Set(input.unlived.map(toLocalDay));
-    const result = rolloverTo(state, toLocalDay(input.landedOn), {
+    const result = rolloverTo(state, toLocalDay(hop.landedOn), {
       completedDays: new Set<LocalDay>(),
       unlivedDays: unlived,
     });
     // 2026-10-01 was never lived, and September still settles — at the first processed day
     // of October, which is the 2nd (EC-STK-25).
     const months = result.state.settlements.map((s) => s.month);
-    expect(months).toContain(monthKeyOf(toLocalDay(input.landedOn)));
+    expect(months).toContain(monthKeyOf(toLocalDay(hop.landedOn)));
     expect(new Set(months).size).toBe(months.length);
-    for (const day of input.unlived) {
+    for (const day of hop.expectedUnlived) {
       expect(result.state.dispositions.get(toLocalDay(day))).toBe('unlived');
     }
     // An unlived date consumes no freeze (EC-STK-04).
     expect(result.freezesConsumed).toBe(0);
+
+    // The control hop, run through the SAME walk: 2026-10-01 is lived and missed, so it
+    // costs a freeze and September still settles exactly once.
+    const lived = rolloverTo(state, toLocalDay(input.livedControlTransition.landedOn), {
+      completedDays: new Set<LocalDay>(),
+      unlivedDays: control,
+    });
+    expect(lived.state.dispositions.get(toLocalDay('2026-10-01'))).toBe('frozen');
+    expect(lived.freezesConsumed).toBeGreaterThan(0);
+    const controlMonths = lived.state.settlements.map((s) => s.month);
+    expect(new Set(controlMonths).size).toBe(controlMonths.length);
   });
 });

@@ -3,9 +3,16 @@ import fc from 'fast-check';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ZONES, arbInstant, arbZoneId, PROPERTY_RUNS } from '@freelingo/testkit';
-import { addCivilDays, localDayOf, monthKeyOf, toLocalDay, type LocalDay } from './civil.js';
+import {
+  addCivilDays,
+  civilDaysBetween,
+  localDayOf,
+  monthKeyOf,
+  toLocalDay,
+  type LocalDay,
+} from './civil.js';
 import { DAY_CONFIG } from './config.js';
-import { streakFromDispositions } from './dispositions.js';
+import { streakFromDispositions, type DayDisposition } from './dispositions.js';
 import { newDayEngineState, type DayEngineState } from './state.js';
 import {
   armChallenge,
@@ -19,7 +26,13 @@ import {
 import { rolloverTo } from './rollover.js';
 import { STREAK_MILESTONES, milestonesCrossed } from '../streak/milestones.js';
 import { lifetimeTotals } from './totals.js';
-import { goalChestDays, questProgressXp } from './predicates.js';
+import {
+  goalChestDays,
+  hasEarnedLongestStreakEver,
+  longestStreak,
+  nextMilestoneDay,
+  questProgressXp,
+} from './predicates.js';
 import { ledgerWith, stateWithStreak } from './__testsupport__.js';
 
 const falsifier = (id: string): Record<string, unknown> => {
@@ -95,11 +108,16 @@ describe('recovery', () => {
   });
 
   it('[INV-REC-01] repairs are ≤ one per calendar month and never stack with a freeze', () => {
+    // The registry says "over any **400-day span**". A trace of a few dozen days barely
+    // leaves one calendar month, so it cannot exercise the thing the invariant is about:
+    // the runs below are generated until 400 civil days are consumed, which spans 13-14
+    // months and gives the monthly allowance somewhere to be wrong.
+    const SPAN_DAYS = 400;
     fc.assert(
       fc.property(
         arbInstant(),
         arbZoneId(ZONES),
-        fc.array(fc.integer({ min: 1, max: 20 }), { minLength: 1, maxLength: 6 }),
+        fc.array(fc.integer({ min: 1, max: 40 }), { minLength: 12, maxLength: 24 }),
         fc.integer({ min: 0, max: 2 }),
         (instant, zoneId, runs, freezes) => {
           const start = localDayOf(instant, zoneId);
@@ -110,6 +128,7 @@ describe('recovery', () => {
           const completed = new Set<LocalDay>();
           let cursor = start;
           for (const runLength of runs) {
+            if (civilDaysBetween(start, cursor) >= SPAN_DAYS) break;
             for (let i = 0; i < runLength; i += 1) {
               completed.add(cursor);
               cursor = addCivilDays(cursor, 1);
@@ -118,6 +137,11 @@ describe('recovery', () => {
             state = rolloverTo(state, cursor, { completedDays: completed }).state;
             state = repairStreak(state, cursor).state;
           }
+          // The span really was walked: a shrunk generator must not quietly shorten it.
+          expect(
+            civilDaysBetween(start, state.maxLocalDaySeen ?? start),
+          ).toBeGreaterThanOrEqual(Math.min(SPAN_DAYS, runs.reduce((a, b) => a + b + 1, 0)));
+          expect(new Set(state.settlements.map((s) => s.month)).size).toBeGreaterThanOrEqual(2);
           // Never more than the monthly allowance, in any month.
           const byMonth = new Map<string, number>();
           for (const repair of state.repairs) {
@@ -188,6 +212,81 @@ describe('recovery', () => {
     expect(done.state.brk).toBeNull();
   });
 
+  it('[INV-REC-02] falsifier: a break that GREW after the challenge was armed is restored whole', () => {
+    // REFUTATION of 2026-09-11. The challenge used to carry `uncoveredDays`, snapshotted
+    // at `armChallenge`. `rolloverTo` kept appending later missed days to the BREAK
+    // record, the two diverged, and a completed challenge repainted only the day-one
+    // snapshot: `restored: true`, streak 1 instead of 23, the second date still `missed`,
+    // and `brk` cleared — so the learner lost the streak AND the offer while the engine
+    // reported success. The challenge now holds no copy; the break record is read at
+    // completion time.
+    const g = (
+      falsifier('INV-REC-02') as {
+        growingBreak: {
+          lastDay: string;
+          streak: number;
+          freezes: number;
+          brokenOn: string;
+          armedOn: string;
+          lessonsBeforeTheSecondMiss: number;
+          completedOn: string;
+          expectedRepainted: string[];
+          expectedStreakAfter: number;
+        };
+      }
+    ).growingBreak;
+    const armedOn = toLocalDay(g.armedOn);
+    const completedOn = toLocalDay(g.completedOn);
+
+    const broken = brokenState({
+      lastDay: g.lastDay,
+      streak: g.streak,
+      freezes: g.freezes,
+      missedDays: 1,
+      returnedOn: g.armedOn,
+    });
+    expect(broken.brk?.brokenOn).toBe(toLocalDay(g.brokenOn));
+    expect(broken.brk?.uncoveredDays).toEqual([toLocalDay(g.brokenOn)]);
+
+    let state = armChallenge(broken, armedOn);
+    for (let i = 0; i < g.lessonsBeforeTheSecondMiss; i += 1) {
+      state = recordChallengeLesson(state, armedOn);
+    }
+    // …and then the learner misses the day they armed on. The break GROWS.
+    state = rolloverTo(state, completedOn, { completedDays: new Set<LocalDay>() }).state;
+    expect(state.brk?.uncoveredDays).toEqual(g.expectedRepainted.map(toLocalDay));
+    expect(state.challenge).not.toBeNull();
+    expect(state.dispositions.get(armedOn)).toBe('missed');
+
+    for (let i = g.lessonsBeforeTheSecondMiss; i < 3; i += 1) {
+      state = recordChallengeLesson(state, completedOn);
+    }
+    expect(state.challenge?.lessonsDone).toBe(3);
+
+    const done = completeChallenge(state, completedOn);
+    expect(done.restored).toBe(true);
+    expect(done.streakAfter).toBe(g.expectedStreakAfter);
+    expect(done.repaintedDays).toEqual(g.expectedRepainted.map(toLocalDay));
+    for (const day of g.expectedRepainted) {
+      expect(done.state.dispositions.get(toLocalDay(day))).toBe('recovered');
+    }
+    expect(done.state.dispositions.get(completedOn)).toBe('completed');
+
+    // And the negative control: a restore that CANNOT reach `previous_streak + 1` must
+    // refuse rather than report success — and must never clear `brk` on the way out,
+    // because that record is the only copy of `previous_streak` and of the second offer.
+    const stale: DayEngineState = {
+      ...state,
+      brk: { ...state.brk!, uncoveredDays: [toLocalDay(g.brokenOn)] },
+    };
+    const halfRestore = completeChallenge(stale, completedOn);
+    expect(halfRestore.restored).toBe(false);
+    expect(halfRestore.declinedBecause).toBe('restore-incomplete');
+    expect(halfRestore.state.brk).toEqual(stale.brk);
+    expect(halfRestore.state.challenge).toEqual(stale.challenge);
+    expect(halfRestore.state.dispositions.get(armedOn)).toBe('missed');
+  });
+
   it('[INV-REC-03] challenge progress survives an app kill exactly like an ordinary session', () => {
     const input = falsifier('INV-REC-03') as {
       lastDay: string;
@@ -238,8 +337,20 @@ describe('recovery', () => {
       addCivilDays(toLocalDay(input.brokenOn), DAY_CONFIG.recoveryChallengeWindowLocalDays),
     );
 
-    // Silence until past the window. The challenge row, its partial progress and the
-    // armed offer all go in one transaction; the streak stays broken.
+    // Silence until past the window. The expiry must happen through the ROLLOVER WALK —
+    // the one function that always runs on foreground — not only when a caller remembers
+    // to ask. `expireChallengeIfLapsed` used to be exported and called by nobody, so a
+    // lapsed challenge row survived every rollover.
+    const walkedPast = rolloverTo(state, toLocalDay(input.expiredOn), {
+      completedDays: new Set<LocalDay>(),
+    }).state;
+    expect(walkedPast.challenge).toBeNull();
+    expect(recoveryOffer(walkedPast, toLocalDay(input.expiredOn)).challengeArmed).toBe(false);
+    expect(completeChallenge(walkedPast, toLocalDay(input.expiredOn)).restored).toBe(false);
+
+    // …and the direct call is idempotent with it.
+    // The challenge row, its partial progress and the armed offer all go in one
+    // transaction; the streak stays broken.
     const expired = expireChallengeIfLapsed(state, toLocalDay(input.expiredOn));
     expect(expired.challenge).toBeNull();
     expect(recoveryOffer(expired, toLocalDay(input.expiredOn)).challengeArmed).toBe(false);
@@ -294,6 +405,8 @@ describe('recovery', () => {
       returnedOn: string;
       startedOn: string;
       finishedOn: string;
+      uncoveredWhenFinished: string[];
+      expectedStreakAfter: number;
     };
     const armed = armChallenge(brokenState(input), toLocalDay(input.returnedOn));
     const startedOn = toLocalDay(input.startedOn);
@@ -303,11 +416,37 @@ describe('recovery', () => {
     // Eligibility is a function of the session START time only (EC-FRZ-16).
     expect(challengeEligibleAtStart(armed, startedOn)).toBe(true);
     expect(challengeEligibleAtStart(armed, finishedOn)).toBe(false);
-    let state = armed;
+
+    // The learner is silent on the return day and opens again on the last day of the
+    // window: that rollover appends one more uncovered date to the break.
+    let state = rolloverTo(armed, startedOn, { completedDays: new Set<LocalDay>() }).state;
+    expect(state.brk?.uncoveredDays).toEqual(input.uncoveredWhenFinished.map(toLocalDay));
     for (let i = 0; i < 3; i += 1) state = recordChallengeLesson(state, startedOn);
     expect(state.challenge?.lessonsDone).toBe(3);
+
+    // The third lesson was begun at 23:5x and commits after local midnight. The rollover
+    // that crosses the window's end must NOT delete the challenge the learner has already
+    // earned — eligibility was settled at start time and cannot be revoked at commit.
+    state = rolloverTo(state, finishedOn, { completedDays: new Set([startedOn]) }).state;
+    expect(state.challenge?.lessonsDone).toBe(3);
+    expect(finishedOn > state.challenge!.expiresAfterDay).toBe(true);
+
     const done = completeChallenge(state, finishedOn);
     expect(done.restored).toBe(true);
+    expect(done.streakAfter).toBe(input.expectedStreakAfter);
+    for (const day of input.uncoveredWhenFinished) {
+      expect(done.state.dispositions.get(toLocalDay(day))).toBe('recovered');
+    }
+
+    // The bound on that latitude. A session begun inside the window may commit after one
+    // midnight; a challenge earned and then left uncashed for days is not still live, and
+    // the walk closes it.
+    expect(state.challenge?.earnedOnDay).toBe(startedOn);
+    const stale = rolloverTo(state, addCivilDays(startedOn, 4), {
+      completedDays: new Set([startedOn]),
+    }).state;
+    expect(stale.challenge).toBeNull();
+    expect(completeChallenge(stale, addCivilDays(startedOn, 4)).restored).toBe(false);
 
     // And the lesson's own XP and attempt rows commit identically whether the challenge
     // succeeds, lapses or is abandoned — the engine never touches them.
@@ -383,6 +522,16 @@ describe('recovery', () => {
       returnedOn: string;
       frozenDays: string[];
       uncoveredDays: string[];
+      frozenInUncovered: {
+        completedDays: string[];
+        frozenDay: string;
+        missedDay: string;
+        previousStreak: number;
+        today: string;
+        uncoveredDays: string[];
+        expectedRepainted: string[];
+        expectedStreakAfter: number;
+      };
     };
     const today = toLocalDay(input.returnedOn);
     const broken = brokenState(input);
@@ -404,6 +553,66 @@ describe('recovery', () => {
     }
     expect(done.streakAfter).toBe(input.streak + 1);
     expect(done.milestones.length).toBeLessThanOrEqual(1);
+
+    // The guard itself. `uncoveredDays` composed by the walk never contains a frozen
+    // date, so the `!== 'missed'` guard in `repaint` is unreachable from a walked state —
+    // which is exactly why a mutation that weakened it to `=== undefined` survived. Here
+    // the break record is hand-built with a frozen date inside `uncoveredDays`, the shape
+    // a migration or a hand-written fixture can produce, and the frozen day must keep its
+    // snowflake (EC-FRZ-19).
+    const f = input.frozenInUncovered;
+    const dispositions = new Map<LocalDay, DayDisposition>();
+    for (const day of f.completedDays) dispositions.set(toLocalDay(day), 'completed');
+    dispositions.set(toLocalDay(f.frozenDay), 'frozen');
+    dispositions.set(toLocalDay(f.missedDay), 'missed');
+    const handBuilt: DayEngineState = {
+      ...newDayEngineState(),
+      lastProcessedDay: toLocalDay(f.missedDay),
+      maxLocalDaySeen: toLocalDay(f.today),
+      dispositions,
+      brk: {
+        brokenOn: toLocalDay(f.missedDay),
+        previousStreak: f.previousStreak,
+        uncoveredDays: f.uncoveredDays.map(toLocalDay),
+      },
+      challenge: {
+        brokenOn: toLocalDay(f.missedDay),
+        previousStreak: f.previousStreak,
+        expiresAfterDay: addCivilDays(
+          toLocalDay(f.missedDay),
+          DAY_CONFIG.recoveryChallengeWindowLocalDays,
+        ),
+        lessonsRequired: DAY_CONFIG.recoveryChallengeLessons,
+        lessonsDone: DAY_CONFIG.recoveryChallengeLessons,
+        earnedOnDay: toLocalDay(f.today),
+      },
+    };
+    // S126 "Longest Streak", and EC-FRZ-19's half of the restore contract: "Longest
+    // streak stays 22 until a lived day passes it." The walk is the only thing that ever
+    // raises it, and `today` — the day a restore satisfies — is not decided until the
+    // NEXT rollover, so a restore cannot move the record on its own.
+    expect(longestStreak(broken)).toBe(input.streak);
+    expect(done.streakAfter).toBe(input.streak + 1);
+    expect(longestStreak(done.state)).toBe(input.streak);
+    expect(hasEarnedLongestStreakEver(done.state, done.streakAfter)).toBe(true);
+    const nextDay = addCivilDays(today, 1);
+    const lived = rolloverTo(done.state, nextDay, {
+      completedDays: new Set([...done.state.dispositions.keys()].filter(
+        (d) => done.state.dispositions.get(d) === 'completed',
+      )),
+    }).state;
+    expect(longestStreak(lived)).toBe(input.streak + 1);
+    // …and the next milestone is a date, not a count (S127 copy slot).
+    expect(nextMilestoneDay(done.streakAfter, today)).toBe(
+      addCivilDays(today, STREAK_MILESTONES.find((m) => m > done.streakAfter)! - done.streakAfter),
+    );
+
+    const guarded = completeChallenge(handBuilt, toLocalDay(f.today));
+    expect(guarded.restored).toBe(true);
+    expect(guarded.repaintedDays).toEqual(f.expectedRepainted.map(toLocalDay));
+    expect(guarded.state.dispositions.get(toLocalDay(f.frozenDay))).toBe('frozen');
+    expect(guarded.state.dispositions.get(toLocalDay(f.missedDay))).toBe('recovered');
+    expect(guarded.streakAfter).toBe(f.expectedStreakAfter);
   });
 
   it('[INV-REC-07] a restore never vaults the number past a milestone without landing on it', () => {
