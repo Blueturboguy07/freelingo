@@ -3,9 +3,14 @@ GATE: GREEN
 # P1 — engine: the integration report
 
 Repository: <https://github.com/Blueturboguy07/freelingo> (public, AGPL code / CC BY-NC-SA packs)
-Integrated sha: **`75d6242`** on `main` (the merge sha is `7d65b56`; the second CI round
-added one commit). Written 2026-09-11 at the P1 founder checkpoint (plan §The build
+Integrated at **`75d6242`** on `main` — the last sha that changes a line of code. The merge
+sha is `7d65b56`; `75d6242` is the second CI round's fixes; everything after it on this
+branch touches only this file. Written at the P1 founder checkpoint (plan §The build
 workflow, step 5 → 6).
+
+Every CI figure below therefore names `75d6242`, and that is deliberate: a docs commit
+re-runs the workflows over a byte-identical `packages/` tree, and quoting the newer run
+would be quoting a re-measurement of the same code with a different number on it.
 
 This page replaces the pre-merge version written by `p1/journey-and-gate`, which measured a
 scratch worktree and said so. That page is quoted rather than deleted wherever it was
