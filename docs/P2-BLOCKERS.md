@@ -522,3 +522,47 @@ defect behind all three — **a curriculum may declare a target lemma the pinned
 never produces for the forms the course intends to teach** — has no validator today and
 should get one at G3 whichever option is taken, because it is silent until the first time
 somebody tries to author against the window.
+
+---
+
+## B12 — `coursekit validate es --pack … --report …` — RESOLVED, docs only
+
+Same class as B4. The phase gate spells the validate step
+
+```
+uv run coursekit validate es --pack build/es/es.pack --report build/es/validator-report.json
+```
+
+and neither option exists: `coursekit validate` takes `{language}` and an optional
+`--only V1…F5`. The pack and the report are **derived** from the build root
+(`validators/report.py::report_path` is `<build root>/<lang>/validator-report.json`), which
+is the design — a validator report that could be pointed somewhere else is a report that
+can be pointed at a file nobody reads. `.github/workflows/pack-ci.yml` already runs the
+real spelling, `uv run coursekit validate es`. Nothing to fix in the tool; the gate text
+is what was wrong.
+
+## B13 — `build-es` synced no `align` group — RESOLVED
+
+`uv sync --locked --group nlp --group lm --group tts` and G7 needs `align`. It exits 3 by
+name and refuses to degrade, because a fallback aligner produces word-bank hints that are
+wrong in a way no row-level validator can see. Invisible until G5 passed, exactly like B8.
+Fixed in `pack-ci.yml`; `torch` is routed to the CPU index on Linux by the deps lane's
+explicit `[[tool.uv.index]]`, so it is CPU wheels. The job's timeout goes 60 → 90 minutes
+in the same change.
+
+## B14 — a starved slot crashes G7 instead of failing by name — OPEN, cosmetic
+
+Measured here: with `u1/l2/s0` left with no G6 survivor, G7 raises
+
+```
+KeyError: 'selected slot (1, 2, 0) is a gap and no accepted candidate exists for it.
+G5 over-generates and G6 rejects; a slot with no survivor is a content failure, not
+something G7 may fill.'
+```
+
+The sentence is right and the exception type is wrong: every other stage returns
+`StageResult(ok=False, …)` and the dispatcher exits 4, so this one prints a Python
+traceback where the others print one line. It does not change what is true about the pack
+and it is not what stopped this round, so it is recorded rather than fixed — the round's
+budget went to the content. Whoever fixes it should make it a `StageResult` and keep the
+message verbatim.
