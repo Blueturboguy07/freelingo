@@ -162,13 +162,14 @@ Whole suite: **7.6 s** at 10,000 runs per property per zone (2026-09-11), agains
 
 ### The CI reporter path
 
-`ci.yml` runs the suite with Vitest's `dot` reporter and wraps it in Bash `time`. This
-keeps the final test counts, failures and Vitest test-time while avoiding the default
-reporter's per-task terminal rendering, which correlated with B20's
-`Timeout calling "onTaskUpdate"` failures on the slowest hosted runners. The shell timing
-prints wall/user/sys time on every attempt, so a green fast run is not mistaken for proof
-that the slow-run failure mode is gone. `PROPERTY_RUNS` remains 10,000; reporter overhead
-is the lever, not invariant coverage.
+`ci.yml` runs the suite with Vitest's `dot` reporter, disables file parallelism, and wraps
+the command in Bash `time`. This keeps the final test counts, failures and Vitest
+test-time while avoiding the default reporter's per-task terminal rendering and the
+concurrent worker-update queue that produced B20's `Timeout calling "onTaskUpdate"` on
+the slowest hosted runners. The shell timing prints wall/user/sys time on every attempt,
+so the deliberately slower serial run proves the slow-run path instead of mistaking a
+green fast run for evidence. `PROPERTY_RUNS` remains 10,000; scheduling and reporter
+overhead are the levers, not invariant coverage.
 
 ## `native-e2e.yml`
 
