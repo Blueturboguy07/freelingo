@@ -1,11 +1,17 @@
 # `docs/`
 
-| File                    | What it is                                                                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `invariants.md`         | the invariant registry, a **verbatim** copy of the research corpus (`~/duolingo-research/deep/00-INVARIANTS.md`). The single source of ids. |
-| `invariants.sha256`     | the digest of that copy. `pnpm invariants:check` fails if `invariants.md` was hand-edited or the corpus has moved on.                       |
-| `invariants-owned.json` | the ids that must have an owning test **right now**. `pnpm test:coverage-map` fails on a miss. Each phase adds its ids.                     |
-| `ci.md`                 | what each workflow proves: the property floor, the Maestro flow guard, and how INV-PLAT-02 compares two prebuilds.                          |
+| File                                                                  | What it is                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invariants.md`                                                       | the invariant registry, a **verbatim** copy of the research corpus (`~/duolingo-research/deep/00-INVARIANTS.md`). The single source of ids.                                                                                                                                            |
+| `invariants.sha256`                                                   | the digest of that copy. `pnpm invariants:check` fails if `invariants.md` was hand-edited or the corpus has moved on.                                                                                                                                                                  |
+| `invariants-owned.json`                                               | the ids that must have an owning test **right now**. `pnpm test:coverage-map` fails on a miss. Each phase adds its ids.                                                                                                                                                                |
+| `ci.md`                                                               | what each workflow proves: the property floor, the Maestro flow guard, and how INV-PLAT-02 compares two prebuilds.                                                                                                                                                                     |
+| `RELEASE.md`                                                          | the release prerequisites: the paid native-speaker review first, then key custody, the manual D checklist, EAS Starter and store identities. Every row is a purchase, a person or a signature — nothing on that page is an agent task, which is why it is written at P2 and not at P8. |
+| `pack-provenance.md`                                                  | what a pack claims and who checked it: the four surfaces that render provenance (S001, S002, S137, S152), the honesty string, and the one claim nothing in the toolchain can contradict.                                                                                               |
+| `P2-BLOCKERS.md`                                                      | the **live** blocker list for the Spanish pack, with each founder ruling quoted and whether it has been built yet. `P2-REPORT.md` is the frozen phase report; this is the one that moves.                                                                                              |
+| `art-and-sound.md`                                                    | the parallel art and sound track, and what P3 cannot start without.                                                                                                                                                                                                                    |
+| `P0-REPORT.md`, `P1-REPORT.md`, `P2-REPORT.md`, `P2-REPORT-round1.md` | frozen phase reports, each at a named sha. They are history: they are not edited when the world moves, which is what `P2-BLOCKERS.md` is for.                                                                                                                                          |
+| `owned/`                                                              | one JSON per task: the invariant ids that task owns, its cross-lane contracts, and the hazards it filed rather than fixed.                                                                                                                                                             |
 
 ## Keeping the registry honest
 
@@ -65,3 +71,21 @@ run. Module docstrings and assertion messages are never read.
 Two conventions exist because two P2 lanes invented one each and both shipped real tests.
 Reading one and not the other un-owned half of P2 while looking exactly right, which is
 what the P2 integration found; see `docs/P2-REPORT.md` §3.
+
+### A lane that claims nothing
+
+`docs/owned/<task>.json` is where a task records the ids it owns, and an **empty** `owned`
+list is a legitimate and sometimes correct answer. Two lanes in P2 claim nothing, for two
+different reasons, and both said so in the file rather than padding the list:
+
+- `p2-validate-ci.json` — `scripts/coverage-map.ts` walks `packages`, `apps` and `e2e`
+  for owning tests and deliberately does not walk `tools/`, so a Python test cannot be an
+  owning test. Claiming an id there would be claiming one with no owner;
+- `p2r3-provenance-docs.json` — the lane writes prose, and prose cannot falsify an
+  invariant. It records the ids it _serves_ separately from the ids it _owns_, which is
+  zero.
+
+The failure this convention exists to prevent is the one plan rule 4 names: "an invariant
+with no owning test is worse than a failing one". A test that asserts a dictionary has a
+key, named after an invariant about a device refusing a pack, is that failure wearing a
+green tick. An empty `owned` list with a paragraph saying why is the honest version.

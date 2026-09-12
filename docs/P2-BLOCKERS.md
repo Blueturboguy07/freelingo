@@ -2,28 +2,45 @@
 
 What is stopping the Spanish pack, in one place, with the evidence each claim rests on.
 `docs/P2-REPORT.md` is the phase report at sha 78cfae3 and stays as written; this file is
-the live list, updated by the P2 fix round.
+the live list. Last rewritten **2026-09-12, P2 round 3**, against the founder rulings of
+the same date.
 
-Three of these (**B3**, **B5**, **B6**) are **founder decisions**. They are written here
-with the one question each needs answered and nothing else: they are not answered in this
-file, and an agent answering them would be inventing the decision rather than recording
-it.
+**The eight founder decisions were answered on 2026-09-12.** They are recorded verbatim
+at the foot of this file (§Founder rulings) and quoted in each body below. That changes
+what this file is for: no row now waits on a question, and the rows that used to be
+questions are rows that wait on **work**, which is a different kind of blocker and has an
+owner.
 
-| Id      | What                                                                                     | Kind                     | Status                              |
-| ------- | ---------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------- |
-| **B1**  | the candidate sentences do not exist                                                     | authoring                | **RESOLVED 2026-09-12** — 481/490   |
-| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                     | **RESOLVED** — p2fix/ledger-freeze  |
-| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision          | **RESOLVED** — fixture re-filed     |
-| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                     | **RESOLVED 2026-09-12** — deleted   |
-| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision**     | **OPEN**                            |
-| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                     | **RESOLVED 2026-09-12**             |
-| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision**     | **OPEN**                            |
-| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision**     | **OPEN**                            |
-| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing, non-gating | **OPEN, measured**                  |
-| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)                | **RESOLVED 2026-09-12** — sidecar   |
-| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision**     | **OPEN — the phase blocker**        |
-| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)            | content                  | **RESOLVED 2026-09-12** — rewritten |
-| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                     | **RESOLVED 2026-09-12**             |
+So the status column distinguishes three things, and the distinction is the point:
+
+- **RESOLVED** — this round measured it fixed. Nothing is marked RESOLVED on the strength
+  of a ruling; a decision is not a measurement.
+- **DECIDED** — the founder answered it. Followed by whether the answer has been **built**,
+  because a ruling with no code behind it blocks exactly as much as the open question did.
+- **OPEN / NON-GATING** — neither.
+
+| Id      | What                                                                                     | Kind                 | Status                                                             |
+| ------- | ---------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
+| **B1**  | the candidate sentences do not exist                                                     | authoring            | **RESOLVED 2026-09-12** — 9,687 rows, 481/490 slots                |
+| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                 | **RESOLVED** — p2fix/ledger-freeze                                 |
+| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision      | **DECIDED + BUILT** — course-global is canonical; fixture verified |
+| **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                 | **RESOLVED 2026-09-12** — deleted                                  |
+| **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision** | **DECIDED** — agent-scored gate; paid review → `docs/RELEASE.md`   |
+| **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                 | **RESOLVED 2026-09-12**                                            |
+| **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen             |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, PART-BUILT** — three of five parts outstanding          |
+| **B7**  | `mutation.yml` has never produced a score                                                | pre-existing         | **NON-GATING by ruling** — still no score, measured                |
+| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                  |
+| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision** | **DECIDED, NOT BUILT** — all three parts owed; the phase blocker   |
+| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)            | content              | **RESOLVED 2026-09-12** — rewritten                                |
+| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                 | **RESOLVED 2026-09-12**                                            |
+| **B12** | the gate's `coursekit validate es --pack … --report …` spelling does not exist           | docs                 | **RESOLVED 2026-09-12** — docs only                                |
+| **B13** | `build-es` synced no `align` group                                                       | code (CI)            | **RESOLVED 2026-09-12** — pack-ci.yml                              |
+| **B14** | a starved slot crashes G7 instead of failing by name                                     | code                 | **DECIDED, NOT BUILT** — still `raise KeyError`                    |
+| **B15** | G7 made word-bank tiles out of punctuation                                               | code                 | **RESOLVED 2026-09-12**                                            |
+| **B16** | G7 looks a distractor up by SURFACE, and an authored candidate has no analysis           | code                 | **DECIDED, PART-BUILT** — writer landed, reader outstanding        |
+| **B17** | V11 sees mean difficulty fall across 13 unit boundaries                                  | content + code       | **DECIDED, NOT BUILT** — V11 has no section awareness              |
+| **B18** | the accent dimension B6 made load-bearing has nothing to listen to                       | code                 | **OPEN, measured** — found 2026-09-12 by this round                |
 
 ---
 
@@ -126,7 +143,35 @@ fixing this would produce a second round of rows that G5 silently has no slot fo
 **Which numbering is correct is a decision, not a bug report.** Per-unit lesson numbers
 are what a human author can hold in their head; course-global ones are what G4 emits. One
 of the two has to move, and whichever moves, `content/es/candidates.jsonl` and the gap
-brief have to move with it. Neither file is in this lane.
+brief have to move with it. Neither file was in that lane.
+
+#### The ruling, and it matches what was shipped — DECIDED 2026-09-12
+
+> **B1b** → course-global lesson numbers are canonical.
+
+So G4 does not move and the authored rows do, which is what the round-2 re-filing had
+already done. **Verified on this tree rather than read off the report**: the five files
+under `content/es/candidates/` hold **9,687 rows**, and their `slot` keys number lessons
+across the course exactly as G4 emits them —
+
+```
+unit 1 lessons [1, 2, 3, 4, 5, 6]
+unit 2 lessons [7, 8, 9, 10, 11, 12]
+unit 3 lessons [13, 14, 15, 16, 17, 18]
+unit 4 lessons [19, 20, 21, 22, 23, 24]
+```
+
+— so the ruling canonises the numbering the committed fixture already uses, and there is
+no re-key owed for B1b. Note also that the single file this section was written against,
+`content/es/candidates.jsonl`, no longer exists: candidates are a **directory** of five
+shards, which is the same change B11 was about on the reading side.
+
+Two things the ruling does **not** do, and they should not be read into it. It does not
+make per-unit numbering wrong for a human — a gap brief may still present
+`u2/l1`, as long as it converts — and it does not retire the hazard: a key that does not
+join produced "160 rows covering 8 slots" where the join said two, and nothing in the
+pipeline flagged it. A `selected.jsonl`-vs-candidates join check would have, and there
+still isn't one.
 
 ---
 
@@ -156,7 +201,7 @@ Kokoro weights. `es-build-<sha>` (`path: build/es`) already carries `g8/bank/`,
 
 ---
 
-## B3 — the wrong-item rate is `None`, not 2% — FOUNDER DECISION
+## B3 — the wrong-item rate is `None`, not 2% — DECIDED 2026-09-12
 
 **The fact.** `content/es/review/scores.jsonl` is **0 bytes**, committed empty on
 purpose. `coursekit` treats absent and empty the same way: `wrong_item_rate` is `None`
@@ -182,13 +227,48 @@ spend that, and the phase's own Opus agent scoring its own output is not an inde
 measurement of it — it is the same model marking its own homework, which is why
 `REVIEWER_KIND_AGENT` exists as a separate constant from `REVIEWER_KIND_PAID_NATIVE`.
 
-**The question:** _Do you commission the paid native Spanish reviewer now (≈$300–800,
+**The question was:** _Do you commission the paid native Spanish reviewer now (≈$300–800,
 300 items, turnaround unknown), or does P3 start on a pack whose wrong-item rate is
 published as `None` with the PROVISIONAL string and re-gated later?_
 
-Note what rides on the answer: the plan's §Risks item 7 says a Spanish defect rate above
-2% discovered late would invalidate P3–P6, which is exactly why the sample was scheduled
-at the end of P2 rather than at P8.
+### The ruling
+
+> **B3** → P3 proceeds. The 300-item sample is scored by an Opus reviewer as
+> `REVIEWER_KIND_AGENT`; the manifest and S001 card carry
+> `PROVISIONAL (unreviewed by a paid native speaker)` verbatim; `gate_passed()`
+> accepts an agent-scored rate ≤ 2 % for
+> the automated run; the paid native review is a **release prerequisite** listed in
+> `docs/RELEASE.md`.
+
+So the second branch, with the paid pass moved to release rather than dropped. What rides
+on it is unchanged: plan §Risks 7 says a Spanish defect rate above 2% discovered late
+invalidates P3–P6, and moving the paid measurement to P8 is accepting exactly that
+exposure with the ruling's eyes open. `docs/RELEASE.md` lists it first for that reason.
+
+### What the ruling needs, and what it already has
+
+| Part                                                      | State                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| the PROVISIONAL string, verbatim, in the two doc carriers | **already true**, and asserted by `tests/test_sample.py`                      |
+| `gate_passed()` accepting an agent-scored rate            | **already true** — and read the paragraph below, because this needs no change |
+| the paid review listed as a release prerequisite          | **done this round** — `docs/RELEASE.md`, item 1                               |
+| the manifest and S001 card carrying the note              | **not built** — manifest `defectRate` is a bare value; S001 is P3             |
+| an actual agent-scored sheet                              | **not drawn** — no pack has ever been built (B9, B16)                         |
+
+**`gate_passed()` needed no change, and that is worth one paragraph rather than a tick.**
+It reads `rate is not None and rate <= MAX_DEFECT_RATE` and has never looked at
+`reviewer_kind` at all. So the ruling's gate clause was satisfied before it was written —
+and the consequence is that **nothing in code now distinguishes the automated pass from
+the release gate.** The distinction lives only in `docs/RELEASE.md`, which is prose. A
+release build could call `gate_passed()`, get `true` off an agent-scored sheet, and be
+correct by the code and wrong by the ruling.
+
+Two honest options for whoever owns `sample.py`: give `gate_passed()` a
+`require_paid: bool = False` parameter that the release path passes `True`, or leave it
+reviewer-blind and make the release checklist the only gate. The first is a few lines and
+turns a prose gate into a code one; the second is what exists. Either way it should be a
+decision rather than an accident of a function that predates the ruling. Recorded here
+rather than fixed: `sample.py` is not in this lane.
 
 ---
 
@@ -229,7 +309,7 @@ with the measurement attached, rather than `known`.
 
 ---
 
-## B5 — S152 has a validator and no screen — FOUNDER DECISION
+## B5 — S152 has a validator and no screen — DECIDED 2026-09-12
 
 **The fact.** INV-PACK-17 (`docs/invariants.md` line 645) reads:
 
@@ -258,16 +338,45 @@ sentence or does not build it, and either way something in the non-negotiables i
 true. The map also lives **outside the repo**, in the research corpus, which no phase
 agent may rewrite.
 
-**The question:** _Does S152 get a real row in `deep/00-PRODUCT-MAP.md` — states, copy
+**The question was:** _Does S152 get a real row in `deep/00-PRODUCT-MAP.md` — states, copy
 slots and its two entry points (S045, S137) — before P4 builds it; and if so, who writes
 that row, given the corpus is research and not a repo file?_
 
-Until it is answered, INV-PACK-17's **pack half** is enforced and its **screen half**
-(the `E` in its `C, E` kind column) has nowhere to be tested.
+### The ruling
+
+> **B5** → S152 now has a product-map row (Surface 16 in `deep/00-PRODUCT-MAP.md`):
+> states `list · filtered · sentence-detail · empty · pack-missing`, entry points S137 →
+> `Content credits` and S045 → `Credits for this sentence`. P4 builds it.
+
+**Verified, not taken on trust.** The row exists in the corpus as of 2026-09-12:
+`~/duolingo-research/deep/00-PRODUCT-MAP.md` line 378 opens "Surface 16 — Credits (S152)
+— added 2026-09-12 by founder ruling B5", the S152 row carries the five states above and
+eight copy slots, and the file's own count line now reads "**152 screens/state-groups**
+(`S001`–`S152`)" where it used to stop at S151. The string `S152`, which appeared zero
+times in the map when this blocker was filed, now appears in it.
+
+So plan §Non-negotiable 3 — "every product-map state has a defined render; an undefined
+state is a build bug" — is true again, and INV-PACK-17's screen half has somewhere to be
+tested at P4 rather than nowhere.
+
+The copy slots, verbatim from Surface 16, are mirrored in `docs/pack-provenance.md` so a
+P4 implementer does not have to read the corpus to build the screen. Two properties of
+the row are easy to lose in the build and are worth restating:
+
+- **it reads only the pack's `sentence` / `audio` / `meta` rows, with no network.** A
+  credits surface that needed a connection is a credit that vanishes offline, in an app
+  whose only network-dependent flow is the pack download;
+- **`pack-missing` is one of the five states.** Credits for a pack that is not installed
+  is a real state, not an error, and the map says so.
+
+**Still outstanding:** the screen itself (P4), and the invariant's `E` half. INV-PACK-17
+is claimed by nobody today; the pack half is enforced by validator F3 and by
+`test_g9_package.py::test_INV_PACK_17_fails_the_stage_and_writes_nothing`, and this
+documentation lane claims **no** invariant id because it writes no test.
 
 ---
 
-## B6 — Azure is dead; Spanish bakes on Kokoro — FOUNDER DECISION
+## B6 — Azure is dead; Spanish bakes on Kokoro — DECIDED 2026-09-12, PART-BUILT
 
 **What the plan says.** §Approval: "Approving this plan accepts the rulings tables, the
 phase order with a founder checkpoint between phases, **Azure as the voice vendor**, and
@@ -300,17 +409,91 @@ re-bake key (INV-AUD-08 puts the engine in the key, so a blend on a different en
 different clip) — but a blended voice is a founder-visible product choice, not an
 implementation detail: it is what a learner hears for half the cast.
 
-**The question:** _Do you accept Kokoro as the voice engine for es — and by extension
+**The question was:** _Do you accept Kokoro as the voice engine for es — and by extension
 fr/ja — with `locale: es-ES` demoted to a course claim checked only by the reviewer
 sample, and two of four cast roles as blends; or do you restore Azure and supply
 credentials?_
 
+### The ruling
+
+> **B6** → Kokoro is the voice engine for es/fr/ja (Piper build-time only for de).
+> Manifests replace `locale: es-ES` with `language: es` + `accent_claim: unverified`; the
+> reviewer rubric checks accent consistency; the two blended cast roles stay, declared in
+> `cast.yaml`.
+
+Accepted, and with one thing the question did not offer: the manifest **stops claiming
+the locale**. `es-ES` does not become a soft claim, it is replaced by a fact
+(`language: es`) plus an explicit absence of a claim (`accent_claim: unverified`). That is
+a better answer than the one asked for — an unfalsifiable claim removed beats an
+unfalsifiable claim footnoted — and it means the ruling has five parts, of which **two**
+are built.
+
+| Part of the ruling                                        | State          | Where / who                                                                           |
+| --------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------- |
+| Kokoro is the engine for es (fr/ja at P7)                 | **built**      | `content/es/cast.yaml` `D-CAST-ES-00`, `config/g8.py`                                 |
+| the two blended roles stay, declared in `cast.yaml`       | **built**      | `D-CAST-ES-02`: Rosa and Nico, with weights and rates                                 |
+| the reviewer rubric checks accent consistency             | **built here** | `content/es/review/RUBRIC.md` §`accent_consistency`                                   |
+| `accent_consistency` as a scoreable dimension in code     | **not built**  | `REVIEW_DIMENSIONS`, `config/sample.py` — the sample lane                             |
+| manifests carry `language` + `accent_claim`, not `locale` | **not built**  | `MANIFEST_EXTRA_FIELDS` has neither field; `cast.yaml` still declares `locale: es-ES` |
+
+Three notes on the unbuilt parts, because each fails in a way that is not obvious.
+
+**1. The rubric and the constant must agree on one string, or the sheet is worthless.**
+`sample.py::read_scores` raises `ScoreError` on any `dimensions` key outside
+`REVIEW_DIMENSIONS`, and the caller turns that into exit 4. So a rubric that says
+`accent_consistency` against a constant that says `accent` does not produce a slightly
+wrong rate — it produces **no rate at all**, for the whole file, including the five text
+dimensions that were scored correctly. The rubric names `accent_consistency` and says so
+explicitly; `config/sample.py` is the authority and is not in this lane. Until the
+constant carries it, `RUBRIC.md` §"If the constant does not carry it yet" tells a scorer
+to record the finding in `note` instead, so a sheet scored in the gap is still usable.
+
+**2. `cast.yaml` still says `locale: es-ES`.** The file is not in this lane and the
+ruling moves the claim off it, so the change belongs to whoever owns the bake:
+`locale: es-ES` → `language: es` plus `accent_claim: unverified`, with `D-CAST-ES-01`
+rewritten from "the declared locale is the course's claim" to "there is no declared
+accent". Note that `D-CAST-ES-01`'s current text is _more_ generous to the project than
+the ruling is, which is the direction of drift to watch: a file that keeps a claim the
+ruling withdrew.
+
+**3. Neither field is in the manifest schema.** `MANIFEST_EXTRA_FIELDS` in
+`config/g9.py` carries `lang` (which is the `language: es` half, under a different name)
+and no `accent_claim` and no `locale`. So today a shipped manifest makes **no** accent
+claim, which is accidentally compliant: the ruling wants the absence _declared_, not
+merely absent. An unstated claim and a claim stated as unverified read the same to a
+validator and differently to a learner on S137.
+
+**And the thing that makes all of this matter is B18**, below: even with the rubric, the
+constant and the manifest field all in place, the drawn sheet carries no clip reference
+and no voice role, so there is nothing for a reviewer to listen to. The accent claim's
+only falsifier does not currently reach the falsifier's hands.
+
 ---
 
-## B7 — `mutation.yml` has never produced a score
+## B7 — `mutation.yml` has never produced a score — NON-GATING by ruling, measurement kept
 
 Pre-existing, **non-gating**, and not caused by P2. Recorded here with the measurement so
 that no report has to quote a number that did not print.
+
+### The ruling
+
+> **B7** → stays non-gating; Stryker `coverageAnalysis: off` and tighter INV-DAT
+> generators as a P3 chore.
+
+So this is **explicitly not a P2 or P3 gate**, and the whole measurement below stays on
+the page anyway. Two reasons it is kept rather than collapsed to one line: the ruling
+picks `coverageAnalysis: off` specifically, and the measurement is what rules out the two
+fixes that look right and are not (raising `dryRunTimeoutMinutes`, lowering
+`PROPERTY_RUNS`) — a reader who has only the ruling would re-derive both. And the plan's
+P1 gate row does ask for a mutation score ("Stryker score ≥ threshold nightly"), so
+"non-gating" is a founder override of a plan line, not a restatement of it.
+
+`coverageAnalysis: off` is the right lever for the reason the numbers below give: the
+property is 4,350 ms un-instrumented and >300 s under `perTest`, so it is the
+instrumentation mode and not the property that is the problem. Turning coverage analysis
+off costs wall-clock on the nightly (every mutant runs the whole suite) and buys a score
+that exists. **Nothing about that is done**: no score exists for any sha, and the P3
+chore is still a chore.
 
 **What happens.** Stryker instruments **118 of 844 files** with **10,765 mutants**, starts
 the initial test run with `perTest` coverage analysis, and dies in the **dry run** on an
@@ -472,7 +655,7 @@ says so. That is a worse outcome than the block.
 
 ---
 
-## B9 — unit 1 lesson 1 cannot hold a sentence — FOUNDER DECISION, the phase blocker
+## B9 — unit 1 lesson 1 cannot hold a sentence — DECIDED 2026-09-12, NOT BUILT
 
 **This is the only thing between `coursekit build es` and G6.** 481 of 490 gap slots are
 filled. The nine that are not are `u1/l1/s0` … `u1/l1/s8`, and no amount of authoring
@@ -516,12 +699,52 @@ later and at a native speaker's expense.
 | **2. Declare the lemmas the model actually produces** — add `buen`/`buena` beside `bueno` in unit 1's target lexemes | `content/es/curriculum.yaml`                                                    | `index.known` gains an element from lesson 1 onward, so **every** slot's `ledger_digest` changes and all 9,682 authored rows go `stale_ledger` at once. Needs a full re-key, and the wider window may also un-gap slots that are currently authored, which G5 treats as a hard error (orphans). The most correct fix and by far the most expensive. |
 | **3. Let lesson 1 be phrases, not sentences** — a per-lesson `MIN_TOKENS` of 1 for a lesson whose window has no verb | `config/g0.py` / G5's length axis                                               | Cheapest, and it makes `Hola.` and `Buenas tardes.` shippable items, which is what lesson 1 of a real course is. It does not fix `buenos → buen`: `Buenos días.` stays out of vocabulary, so lesson 1 would teach `hola`, `día`, `tarde`, `noche` as bare words and `bueno` not at all.                                                             |
 
-**Nothing here is decided.** Option 2 is the one that makes the course right and is a
-re-key of every authored row; option 3 is a config constant and half a fix. The general
-defect behind all three — **a curriculum may declare a target lemma the pinned lemmatiser
-never produces for the forms the course intends to teach** — has no validator today and
-should get one at G3 whichever option is taken, because it is silent until the first time
-somebody tries to author against the window.
+### The ruling — none of the three options, and all three problems
+
+> **B9** → three changes together: (a) a G1 adapter lemma-normalisation table
+> (`buen/buena/buenos/buenas → bueno`, and any prenominal/apocopated form the curriculum
+> names) so the taught phrase is in vocabulary; (b) per-lesson `MIN_TOKENS = 1` for a
+> lesson whose window holds no verb — lesson 1 is words and fixed phrases, as the live
+> capture shows Duolingo's level-1 lessons are; (c) a G3 validator failing the build when
+> a declared target lemma is unreachable by the pinned lemmatiser for every form the
+> course teaches. Re-key only rows whose `ledger_digest` changes.
+
+Read against the three options costed above, this is **option 2's correctness at option
+3's price**, plus the validator. (a) fixes `buenos → buen` where it happens — in the
+adapter, not in the curriculum — so `index.known` does not gain an element and
+`ledger_digest` does not move for every slot in the course, which is what made option 2
+cost a full re-key of all 9,687 rows. (b) is option 3, scoped to the lessons that need it
+instead of applied globally. (c) is the general defect the last paragraph of this section
+asked for, adopted as part of the ruling rather than left as a suggestion.
+
+"Re-key only rows whose `ledger_digest` changes" is the clause that keeps the cost down
+and the clause most likely to be got wrong: (a) changes lemmatiser output, so any row
+whose analysis contained a normalised form has a different digest even though no
+curriculum line moved.
+
+### What is built: nothing
+
+Checked on this tree, 2026-09-12, rather than assumed:
+
+| Part                                                 | State         | Evidence                                                                                                                   |
+| ---------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| (a) G1 lemma-normalisation table                     | **not built** | `adapters/spacy_es.py` normalises to NFC and lowercase and nothing else — no form map anywhere, and none in `config/g1.py` |
+| (b) per-lesson `MIN_TOKENS = 1` for verbless windows | **not built** | `config/g0.py` and `config/g5.py` both carry a flat `MIN_TOKENS: Final[int] = 3`                                           |
+| (c) G3 validator for unreachable target lemmas       | **not built** | no such validator is registered                                                                                            |
+
+So **B9 is still the phase blocker it was**, with a decision attached. `u1/l1/s0 … s8`
+remain the nine unfilled slots of 490, `coursekit build es` still cannot pass G5 for
+unit 1, and none of that changes until (a) and (b) land. The difference the ruling makes
+is that the work is now specified, and that the eleven word-list strings this round
+refused to ship stay refused: (b) makes `Hola.` and `Buenas tardes.` legitimate one- and
+two-token **phrases**, which is not the same thing as padding a slot with
+`Hola, bueno, día.`
+
+The general defect behind all three — **a curriculum may declare a target lemma the
+pinned lemmatiser never produces for the forms the course intends to teach** — is exactly
+what (c) is, and it is worth naming why it must be a validator and not a fix to the one
+case: `bueno` was found by hand, by one lane, at one slot. Nothing would have found the
+second instance.
 
 ---
 
@@ -550,7 +773,7 @@ Fixed in `pack-ci.yml`; `torch` is routed to the CPU index on Linux by the deps 
 explicit `[[tool.uv.index]]`, so it is CPU wheels. The job's timeout goes 60 → 90 minutes
 in the same change.
 
-## B14 — a starved slot crashes G7 instead of failing by name — OPEN, cosmetic
+## B14 — a starved slot crashes G7 instead of failing by name — DECIDED 2026-09-12, NOT BUILT
 
 Measured here: with `u1/l2/s0` left with no G6 survivor, G7 raises
 
@@ -564,8 +787,22 @@ The sentence is right and the exception type is wrong: every other stage returns
 `StageResult(ok=False, …)` and the dispatcher exits 4, so this one prints a Python
 traceback where the others print one line. It does not change what is true about the pack
 and it is not what stopped this round, so it is recorded rather than fixed — the round's
-budget went to the content. Whoever fixes it should make it a `StageResult` and keep the
-message verbatim.
+budget went to the content.
+
+### The ruling
+
+> **B14** → `StageResult(ok=False)`, message verbatim.
+
+Which is what the paragraph above proposed, now decided: the shape changes, the sentence
+does not. Keeping the message verbatim matters more than it looks — it is the only place
+that explains why G7 is not allowed to fill a starved slot, and a rewrite during the
+refactor would lose the argument and keep the error.
+
+**Not built.** Checked on this tree, 2026-09-12: `stages/g7_expand.py:157` still reads
+`raise KeyError(` with that message, and the `_anchor_lemma` neighbourhood is unchanged.
+One line below it there is a second `raise KeyError` — "selected item names sentence
+{sid} which G0 never ingested" — which is the same defect on the corpus path, and whoever
+does the first should do the second in the same change.
 
 ## B15 — G7 made word-bank tiles out of punctuation — RESOLVED 2026-09-12
 
@@ -616,7 +853,17 @@ distractors for 'tardes' (POS , band unbanded) and the rule core found 0.
 `tardes` is a surface; `tarde` is the lemma. Every authored item whose gap lands on an
 inflected form is exposed, which over 490 authored items is most of them.
 
-Two possible fixes, and the choice is a design decision for the G7 lane rather than an
+### The ruling — DECIDED 2026-09-12
+
+> **B16** → option 2: carry G1's analysis across G5→G7 by extending the frozen
+> `CANDIDATE` contract (bump the digest; deps lane owns it).
+
+Option 2 of the two below, and the ruling settles the objection that made it hard: the
+frozen contract may be extended and the digest may move, and the deps lane owns doing it.
+It also implicitly rules out option 1's open question — what G7 does on a runner with
+`align` and not `nlp` — by never making G7 depend on `nlp` at all.
+
+Two possible fixes, and the choice was a design decision for the G7 lane rather than an
 integration patch:
 
 1. **Analyse authored candidates in G7 with the registered adapter.** It is the same
@@ -646,8 +893,10 @@ display_tokens}` — and `Token`/`Adapter` are now one shared object each rather
    only the two `stale_ledger` short-circuits above the adapter call carry `null`. Pinned
    by `test_an_emitted_candidate_carries_the_analysis_g7_will_read`, which re-derives the
    analysis from a second independent call to the registered adapter.
-3. **The reader — NOT DONE, and this is what keeps B16 open.** `grep -n analysis
-tools/coursekit/src/coursekit/stages/g7_expand.py` returns four comments and no code:
+3. **The reader — NOT DONE, and this is what keeps B16 open.** Re-checked on this tree,
+   2026-09-12: `grep -n analysis
+tools/coursekit/src/coursekit/stages/g7_expand.py` still returns the same four
+   comments (lines 195, 485, 494, 743) and no code:
    `_anchor_lemma` still casefolds the surface for an authored row. So `tardes` is still
    handed to the rule core where `tarde` belongs, and the failure in the block above is
    unchanged. The data G7 needs is now on the row; nothing reads it yet.
@@ -664,7 +913,7 @@ failures / exit 0 over three runs. Before the fix the same tree was 59 failures 
 collection errors, 148 of them the one message `candidate in candidates.jsonl line 1:
 <root>: 'analysis' is a required property`.
 
-## B17 — the course gets easier 13 times — OPEN, measured
+## B17 — the course gets easier 13 times — DECIDED 2026-09-12, NOT BUILT
 
 `coursekit validate es` ran here for the first time (diagnostic tree, so G7-dependent
 validators raised; V8, V11 and F5 are independent of G7 and did measure something). V11
@@ -682,13 +931,96 @@ shorter and plainer than a corpus sentence that happened to fit the same window,
 with many gaps reads _easier_ than the unit before it even though its vocabulary is
 strictly larger. Units 19, 23 and 16 are the gap-heavy ones.
 
-What to do with it is a content question this round did not have the budget to answer, and
-it needs the reviewer sample (B3) to say whether the learner experiences it as a
-regression. It is written down because the run measured it, not because it is decided.
+What to do with it was a content question this round did not have the budget to answer,
+and it needed the reviewer sample (B3) to say whether the learner experiences it as a
+regression.
+
+### The ruling
+
+> **B17** → V11 hard-fails only across section boundaries; within a section a fall is a
+> warning in the report.
+
+That is a change to what V11 **means**, not a waiver of the 13 findings. The reading is
+that difficulty is a **section**-level promise — a section is the CEFR-labelled unit of
+the course (S023/S024 render the band), and the ordering inside one is allowed to breathe
+around a gap-heavy unit. All 13 findings stay in the report; twelve of them stop blocking
+if they are inside a section, and any that crosses a section boundary still fails the
+build.
+
+Nobody has checked which of the 13 cross a boundary. `content/es/curriculum.yaml` has
+three sections over 30 units, so the boundaries are two; the largest fall, `u18→u19` at
+−3.222, is the one to look at first.
+
+**Not built.** V11 (`validators/pack.py::mean_difficulty_is_non_decreasing`, registered
+at line 381) walks unit indices and knows nothing about sections: the string `section`
+does not occur **anywhere in `validators/pack.py`**, and `config/validate.py` carries no
+section constant. So today every one of the 13 is a blocking finding, which is stricter
+than the ruling and would fail a build the ruling says should pass with warnings. The
+change needs the unit→section map, which is a curriculum output G3 already derives
+(`section_cefr` is computed from which grammar concepts a section contains), so the
+validator needs a way to read it rather than a new source of truth.
+
+## B18 — the accent dimension has nothing to listen to — OPEN, found this round
+
+**New, and created by a ruling rather than by a bug.** B6 makes the 300-item sample the
+only check on how a shipped bank sounds, and the drawn sheet does not carry the audio.
+
+`SampleItem` (`tools/coursekit/src/coursekit/sample.py`, the dataclass whose docstring is
+"One row a reviewer scores") carries exactly ten fields:
+
+```
+exercise_id  unit_index  lesson_index  exercise_type  provenance
+prompt  accepted_answers  distractors  source_text  source_translation
+```
+
+**No clip reference and no voice role.** So a reviewer handed
+`build/es/sample-300.jsonl` has nothing to play and no way to know which of the four cast
+roles a row would have been spoken by — which matters twice over, because `cast.yaml`'s
+`D-CAST-ES-02` caveat asks the reviewer a role-specific question ("whether Rosa reads as
+a different speaker from Plumas") that cannot be answered by someone who cannot tell
+Rosa's rows from Plumas's.
+
+Where that leaves the accent claim: `accent_claim: unverified` is falsifiable **in
+principle** by the reviewer rubric and **not in practice** by the sheet the rubric is
+scored against. `content/es/review/RUBRIC.md` says so at the point of use rather than
+letting a scorer discover it, and tells them to omit the dimension rather than write
+`"pass"` for a clip nobody played.
+
+### What it needs
+
+Two fields on `SampleItem` and its `to_json()`, plus the bank beside the sheet:
+
+- **`audio_clip`** — the content-addressed clip id or its path inside `g8/bank/`, for the
+  item's spoken text. G8 writes `g8/clips.jsonl`, so the join exists; the sheet does not
+  make it;
+- **`voice_role`** — which of `narrator` / `adult_male` / `adult_female` / `young` spoke
+  it, so a role-level finding ("every Rosa row") can be stated as one;
+- the **clips a sheet references** have to travel with the sheet. `build/` is gitignored
+  and `es-build-<sha>` has a 7-day retention, so "the reviewer downloads yesterday's CI
+  artefact" is the same failure mode that killed `pack-bake.yml` (B2). A reviewer package
+  — the sheet plus its ~300 clips — is the thing to produce, and nothing produces it.
+
+Also worth deciding at the same time, because it changes the draw rather than the row:
+`SAMPLE_STRATA` is `(unit_index, exercise_type, provenance)` and does **not** stratify
+over voice role. A 300-row sheet could legitimately contain almost no Rosa rows, which
+would answer the blend question with a sample of four. Adding role to the strata is a
+bigger change than adding two fields and should not be done by accident.
+
+**Owner:** whoever owns `tools/coursekit/src/coursekit/sample.py` and `config/sample.py`
+— the same lane that owns `REVIEW_DIMENSIONS`, so the constant and these two fields are
+one change. Neither file is in the documentation lane.
+
+**Not a gate on P3.** The text dimensions are scoreable today, so an agent-scored
+wrong-item rate can exist without this. It is a gate on the **release**, because item 1
+of `docs/RELEASE.md` is a paid reviewer pass and B6 put accent consistency on that
+reviewer's sheet.
 
 ---
 
 ## Founder rulings — 2026-09-12 (recorded by the orchestrator; source: ~/duolingo-research/DECISIONS-LOG.md)
+
+Verbatim, as recorded. Each is quoted again in its own section above with what it needs
+and what has been built; **only** the sections above say anything about build state.
 
 - **B3** → P3 proceeds. The 300-item sample is scored by an Opus reviewer as `REVIEWER_KIND_AGENT`; the manifest and S001 card carry `PROVISIONAL (unreviewed by a paid native speaker)` verbatim; `gate_passed()` accepts an agent-scored rate ≤ 2 % for the automated run; the paid native review is a **release prerequisite** listed in `docs/RELEASE.md`.
 - **B5** → S152 now has a product-map row (Surface 16 in `deep/00-PRODUCT-MAP.md`): states `list · filtered · sentence-detail · empty · pack-missing`, entry points S137 → `Content credits` and S045 → `Credits for this sentence`. P4 builds it.

@@ -22,9 +22,23 @@ The string lives in `tools/coursekit/src/coursekit/config/sample.py` as
 and asserts it appears verbatim in each, because a sentence that has to read identically
 in four places and is typed four times says something different in one of them.
 
+Founder ruling **B3** (2026-09-12) settled what that buys and what it does not:
+
+> P3 proceeds. The 300-item sample is scored by an Opus reviewer as
+> `REVIEWER_KIND_AGENT`; the manifest and S001 card carry
+> `PROVISIONAL (unreviewed by a paid native speaker)` verbatim; `gate_passed()`
+> accepts an agent-scored rate ≤ 2 % for
+> the automated run; the paid native review is a **release prerequisite** listed in
+> `docs/RELEASE.md`.
+
+So an agent-scored rate unblocks **P3** and does not unblock a **release**. The paid pass
+is item 1 of `docs/RELEASE.md`, ahead of everything else on that page, because it is the
+only prerequisite that can invalidate work already done (plan §Risks 7).
+
 Replacing the agent pass with a paid native pass is a change of **one field**:
 `reviewer_kind` becomes `paid-native-speaker` and the note becomes empty. Nothing else
-in the pipeline moves.
+in the pipeline moves. The draw is deterministic under its recorded seed, so the 300 rows
+a paid reviewer scores later are the same 300 rows the agent scored.
 
 ## How to draw the sheet
 
@@ -42,22 +56,154 @@ the per-stratum allocation.
 
 ## How to score one row
 
-Read the row's `prompt`, `accepted_answers`, `distractors` and `source_text`. Judge it as
-a **learner would meet it**, not as a corpus line: the question is whether an ordinary
-educated speaker of peninsular Spanish (the course locale is `es-ES`) would accept the
-exercise as correct and unremarkable.
+Read the row's `prompt`, `accepted_answers`, `distractors` and `source_text`, and — for
+the accent dimension below — listen to the row's clip. Judge it as a **learner would meet
+it**, not as a corpus line: the question is whether an ordinary educated speaker of the
+variety the course teaches would accept the exercise as correct and unremarkable.
 
-Score the five dimensions, then give one verdict.
+The course declares `language: es` with `accent_claim: unverified`, not `locale: es-ES`
+(founder ruling **B6**). The written variety this course teaches is still the peninsular
+one — `tú`/`vosotros`, `distinción` orthography, the accepted-answer sets — so judge the
+**text** as an educated peninsular speaker. Do not read the accent claim into the text
+dimensions or the text into the accent dimension; they are scored separately and for
+different reasons.
 
-| Dimension     | Ask                                                                                            |
-| ------------- | ---------------------------------------------------------------------------------------------- |
-| `meaning`     | Does the Spanish mean what the English says? Is any accepted answer a mistranslation?          |
-| `grammar`     | Agreement, mood, clitics, prepositions, ser/estar, por/para.                                   |
-| `naturalness` | Would a speaker say this, or is it grammatical and dead?                                       |
-| `register`    | Is it inside the unit's declared register? No `vosotros`/`ustedes` mixing inside one exercise. |
-| `answer_set`  | Is every listed accepted answer actually acceptable, and is an obvious correct answer missing? |
+Score the six dimensions, then give one verdict.
+
+| Dimension            | Ask                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `meaning`            | Does the Spanish mean what the English says? Is any accepted answer a mistranslation?          |
+| `grammar`            | Agreement, mood, clitics, prepositions, ser/estar, por/para.                                   |
+| `naturalness`        | Would a speaker say this, or is it grammatical and dead?                                       |
+| `register`           | Is it inside the unit's declared register? No `vosotros`/`ustedes` mixing inside one exercise. |
+| `answer_set`         | Is every listed accepted answer actually acceptable, and is an obvious correct answer missing? |
+| `accent_consistency` | Does the clip sound like one accent, the same cast, and the variety the course teaches?        |
 
 Each dimension is `pass` or `fail`.
+
+The six keys are declared in code, as `REVIEW_DIMENSIONS` in
+`tools/coursekit/src/coursekit/config/sample.py`, and the spelling is not free: a
+`dimensions` key that is not in that tuple makes `read_scores` raise `ScoreError` and
+the **whole scored sheet produces no rate at all** — not a lower rate, no rate. Read the
+constant before scoring a sheet, and see "If the constant does not carry it yet" below.
+
+## `accent_consistency` — the dimension that is the only check there is
+
+This dimension exists because of founder ruling **B6**, and it is load-bearing rather
+than thorough. Read this section before scoring it; it is the one dimension where a
+`pass` means something the rest of the toolchain cannot say.
+
+### Why it is here
+
+The approved plan named **Azure Neural** as the voice vendor, and Azure publishes a
+locale sub-tag per voice — so `es-ES` used to be a vendor-backed, machine-checkable fact.
+No cloud credential exists in this build environment, so Spanish is baked on **Kokoro**,
+whose three Spanish style vectors (`ef_dora`, `em_alex`, `em_santa`) are tagged `e`
+(Spanish) and **nothing finer**, and whose Spanish G2P path is generic espeak-ng. No
+peninsular phonology is asserted anywhere in the toolchain.
+
+Ruling B6 followed the fact rather than the plan:
+
+> Kokoro is the voice engine for es/fr/ja (Piper build-time only for de). Manifests
+> replace `locale: es-ES` with `language: es` + `accent_claim: unverified`; the reviewer
+> rubric checks accent consistency; the two blended cast roles stay, declared in
+> `cast.yaml`.
+
+`accent_claim: unverified` is honest about the vendor, and it is not a check. **Nothing
+in `coursekit` can falsify a Latin-American-sounding course.** V1–V12 and F1–F5 read
+text, licences, bands, difficulty and bytes; none of them listens. This 300-item sample
+is the last place it can be caught before a learner hears it, which is why the dimension
+is a scored column and not a paragraph of advice.
+
+### What to listen for
+
+Three questions, in this order. A `fail` on any of them is a `fail` on the dimension, and
+the `note` says which.
+
+1. **Is it one accent?** Play the row's clip against two or three others from a different
+   unit. The failure this catches is a bank that drifts — some rows seseo, others
+   distinción; some rows with a Latin-American intonation contour, others peninsular.
+   One consistent accent that is not the peninsular one is a **different finding** from a
+   bank that mixes, and both are failures, so say which in the note.
+2. **Is it the variety the course teaches?** The written course is peninsular. A clip
+   that is consistently and recognisably Latin American under a course whose text teaches
+   `vosotros` is the exact defect `accent_claim: unverified` admits the project cannot
+   see. If you cannot tell — Kokoro's Spanish is generic by construction, so "neutral,
+   unplaceable" is a real answer — score `pass` and write `unplaceable` in the note. A
+   dimension that punished honesty here would just get gamed.
+3. **Is it the same cast, row to row?** Each role is a fixed voice for the whole course
+   (`content/es/cast.yaml`). A character whose timbre changes between units is a bake
+   defect, not an accent one, and this is the only pass over the bank that would see it.
+
+### The two blended roles, and the specific question `cast.yaml` promises you
+
+Kokoro ships **three** Spanish voices and the cast wants **four**, with two female roles
+against one female vector. So two of the four roles are **deterministic weighted blends**
+of stock vectors, declared in `content/es/cast.yaml` as `D-CAST-ES-02`:
+
+| Role           | Voice            | Weights                          | Rate |
+| -------------- | ---------------- | -------------------------------- | ---- |
+| `narrator`     | Plumas — stock   | `ef_dora` 1.0                    | 1.00 |
+| `adult_male`   | Mateo — stock    | `em_alex` 1.0                    | 1.00 |
+| `adult_female` | Rosa — **blend** | `ef_dora` 0.70 + `em_santa` 0.30 | 0.98 |
+| `young`        | Nico — **blend** | `em_alex` 0.55 + `ef_dora` 0.45  | 1.08 |
+
+`cast.yaml`'s own caveat on Rosa names the question this sheet has to answer, so it is
+asked here explicitly:
+
+> The reviewer sample asks about this row specifically — whether Rosa reads as a
+> different speaker from Plumas. If she does not, the fix is a different blend or a
+> second vendor, never a silent swap.
+
+So on any row whose clip is **Rosa** or **Nico**, answer one extra question in the note:
+**does this read as a different person from the stock voice it is blended out of?** Rosa
+against Plumas (`ef_dora` is 70% of her), Nico against Mateo (`em_alex` is 55% of him).
+"Sounds like the same person, slightly slower" is a `fail` with `blend-indistinct` in the
+note. Blends are deterministic and reproducible to the bit, so a `fail` here is
+actionable: it is a weight change and a re-bake, not a mystery.
+
+### How the dimension is reported, and why it is not in the 2% gate
+
+An accent finding is **not** a wrong item. A learner meeting a clip in the wrong accent
+is not taught something false, so folding it into the wrong-item rate would make the 2%
+gate mean two things at once — the same reason `awkward` is published separately.
+
+- A row whose **only** failing dimension is `accent_consistency` takes the verdict
+  `awkward`, and the note must begin `accent:` so the two can be told apart in the
+  awkward count.
+- The dimension's own **pass rate over rows that have audio** is what the accent question
+  is answered from, and it is reported beside the wrong-item rate rather than inside it.
+- There is deliberately **no numeric accent threshold invented in this file.** A
+  threshold belongs in `config/sample.py` beside `MAX_DEFECT_RATE`, where the code can
+  enforce it; a number that lives only in prose is a number nothing checks. What this
+  rubric asserts instead is the qualitative rule that does not need a constant: **a
+  systematic finding falsifies the claim.** One odd row is a clip to re-bake. A whole
+  role, or a whole bank, reading off-claim means `accent_claim` cannot be raised above
+  `unverified` and the remedy is a different blend or a second vendor.
+
+### The sheet carries no audio today — this dimension is not yet scoreable
+
+Stated here rather than discovered by the first reviewer. `SampleItem`
+(`tools/coursekit/src/coursekit/sample.py`) carries `exercise_id`, `unit_index`,
+`lesson_index`, `exercise_type`, `provenance`, `prompt`, `accepted_answers`,
+`distractors`, `source_text` and `source_translation` — and **no clip reference and no
+voice role**. A reviewer handed `build/es/sample-300.jsonl` as it is drawn today has
+nothing to listen to and no way to know which role a row would have been spoken by.
+
+So the dimension is defined, and until the sheet gains those two fields it cannot be
+scored: it is `null` on every row, not `pass`. That gap is written up as **B18** in
+`docs/P2-BLOCKERS.md` with what it needs. The rest of this rubric is scoreable now.
+
+### If the constant does not carry it yet
+
+`read_scores` raises on a `dimensions` key outside `REVIEW_DIMENSIONS`, and the tuple in
+`config/sample.py` is owned by the validator/sample lane, not by this file. If you are
+scoring a sheet before that lane has added `accent_consistency`:
+
+**do not put the key in `dimensions`** — it would throw away the whole sheet's rate.
+Record the finding in `note`, prefixed `accent:`, and take the `awkward` verdict as
+above. The rate you publish is then a text-only rate, and the accent question is answered
+in prose until the constant catches up.
 
 ## The three verdicts
 
@@ -86,7 +232,10 @@ Score `wrong` when **any** of these is true:
   grace, so the enumerated set _is_ the whole tolerance budget);
 - a distractor is in fact a valid answer.
 
-Score `awkward` when only `naturalness` or `register` fails.
+Score `awkward` when only `naturalness`, `register` or `accent_consistency` fails. An
+`accent_consistency`-only failure takes a `note` beginning `accent:`, because it is a
+different problem with a different fix from a stilted sentence and the two would
+otherwise be one number.
 
 ## The row format
 
@@ -101,7 +250,8 @@ One JSON object per line in `scores.jsonl`:
     "grammar": "pass",
     "naturalness": "pass",
     "register": "pass",
-    "answer_set": "pass"
+    "answer_set": "pass",
+    "accent_consistency": "pass"
   },
   "reviewer": "opus-agent-reviewer",
   "reviewed_at": "2026-09-12",
@@ -109,8 +259,14 @@ One JSON object per line in `scores.jsonl`:
 }
 ```
 
-`exercise_id`, `verdict` and `reviewer` are required. `dimensions` keys must be the five
-above. `note` is free text and is what a maintainer reads when a rate moves.
+`exercise_id`, `verdict` and `reviewer` are required. `dimensions` keys must all be in
+`REVIEW_DIMENSIONS`; a key outside it is a hard error on the whole file, never a dropped
+row. `note` is free text and is what a maintainer reads when a rate moves.
+
+Omit `accent_consistency` entirely on a row you could not listen to — which today is
+every row, because the drawn sheet carries no clip reference (see above). An omitted
+dimension is unscored; `"pass"` on a clip nobody played would be the one lie this sheet
+exists to prevent.
 
 Score **every** row on the sheet. `coursekit`'s `unscored_items()` reports the ones you
 did not, and an unscored sample has a rate of `None` — which does not pass the gate.

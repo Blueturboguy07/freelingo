@@ -1,0 +1,158 @@
+{
+  "$comment": "Invariant ids owned by the P2 round-3 task `p2r3/provenance-docs`. The list is EMPTY and that is the whole truth about this lane: it writes prose and one rubric, and it writes no test. Prose cannot falsify an invariant. The brief named INV-PACK-17 as the id this lane serves — the credits surface S152 and its two entry points — and serving an id is not owning it: the pack half is already gated by validator F3 and by test_g9_package.py::test_INV_PACK_17_fails_the_stage_and_writes_nothing, and the screen half is P4's, because the screen does not exist. A test in this lane could only assert that a markdown file contains a string, and naming that after an invariant about attribution reachability is exactly the 'owning test that proves nothing' the plan's rule 4 is written against. So: no id claimed, and the reason is written here instead of padded into the list.",
+  "phase": "P2",
+  "round": 3,
+  "task": "p2r3-provenance-docs",
+  "module": "docs + content/es/review + tools/coursekit/README.md",
+  "branch": "p2r3/provenance-docs",
+  "owned": [],
+  "serves": {
+    "INV-PACK-17": "Every sentence, voice and derived list whose licence requires attribution is reachable from the rendered credits surface (S152), itself reachable from the report sheet (S045) and About (S137). This lane wrote down the surface: docs/pack-provenance.md now carries S152 in its surface table with the eight copy slots verbatim from the product map's Surface 16, its five states, both entry-point strings, and the no-network property. That is build material for P4, not coverage. The id stays unclaimed by anyone; when P4 builds the screen, the E half becomes testable and P4 claims it."
+  },
+  "deliverables": [
+    {
+      "file": "docs/RELEASE.md",
+      "state": "new",
+      "what": "Eight release prerequisites, with the paid native-speaker review of every shipped language first: 300 items, a wrong-item rate at or below 2%, $300-800 per language times four shipped languages. Then the things a release blocks on that this run cannot do: signing key custody exercised on a real manifest (the pack key exists from P0 and has never signed anything, because no pack has ever been built), the ten D-kind invariant ids plus the four unlabelled manual items, EAS Starter at $19/month, and the Apple/Play identities that do not exist at all. Then the three that are writing or work rather than money: the suite and e2e, the README honesty block, and the mutation score marked explicitly non-gating.",
+      "why": "Founder ruling B3 made the paid review a release prerequisite and named this file as where it is listed. Writing it at P2 rather than P8 is the point: four of the eight cost money or need a person, so they have lead times, and a lead time discovered at P8 is a blocker discovered too late."
+    },
+    {
+      "file": "content/es/review/RUBRIC.md",
+      "state": "amended",
+      "what": "A sixth scored dimension, `accent_consistency`, named, defined and scoreable: three ordered questions (is it one accent / is it the variety the course teaches / is it the same cast row to row), the two blended roles with their weights and the specific question content/es/cast.yaml promises the reviewer gets asked, the verdict mapping (accent-only failure is `awkward` with a note prefixed `accent:`, never folded into the wrong-item rate), and the reporting rule. Also: the B3 ruling quoted where 'who is scoring' is explained, the locale sentence corrected from `es-ES` to `language: es` + `accent_claim: unverified`, and the row-format example updated.",
+      "why": "B6 demoted the accent claim to something nothing in the toolchain can falsify. The 300-item sample is the last place a Latin-American-sounding peninsular course can be caught, so the clause is load-bearing rather than a nicety, and it has to be a scored column and not a paragraph of advice."
+    },
+    {
+      "file": "docs/pack-provenance.md",
+      "state": "amended",
+      "what": "The surface table goes from three screens to four (S152 added, with its states, its eight copy slots verbatim and both entry points, and the B5 ruling quoted). The claims table's `locale: es-ES` row becomes `accent_claim`. The section under it is rewritten as the post-B6 truth: the ruling quoted, five parts with which two are built, the three unbuilt parts each with the way it fails, the blended cast with real weights, and a three-row licence table separating the synthesiser's code licence, the model weights' licence and the pack's own licence. The honesty-string section gains the B3 ruling and an exact account of what the manifest carries today.",
+      "why": "The brief: the provisional-rate story and the S001/S002/S137/S152 copy slots live where a reader of the pack will find them, and the B6 override, the blends and the Kokoro licence chain are recorded rather than implied."
+    },
+    {
+      "file": "tools/coursekit/README.md",
+      "state": "amended",
+      "what": "Two new sections — 'Where these numbers are rendered' (the four surfaces, with what each reads, and S152 as the thing F3 and INV-PACK-17 enforce) and 'Voices' (the B6 override with both consequences, and the same three-licence table). The sample section gains the B3 ruling and the REVIEW_DIMENSIONS hazard.",
+      "why": "Same as above, for the reader who is holding the tool rather than the pack. The coursekit README is one of the two carriers tests/test_sample.py asserts, so it is the natural place for the vendor story too."
+    },
+    {
+      "file": "docs/P2-BLOCKERS.md",
+      "state": "rewritten",
+      "what": "The intro no longer says the founder decisions are unanswered, because they were answered. The status column now distinguishes RESOLVED (this round measured it), DECIDED (answered, plus whether it has been BUILT) and OPEN/NON-GATING. The table grew B12, B13, B14, B15, B16, B17 (which existed as bodies with no row) and B18 (new). Eight bodies gained a ruling block with the ruling quoted and the build state measured: B3, B5, B6, B9, B14, B16, B17, B1b. B7 is marked non-gating by ruling with its whole measurement kept.",
+      "why": "A file that reads 'FOUNDER DECISION — OPEN' next to a decision that was taken is worse than no file. And a ruling with no code behind it blocks exactly as much as the open question did, which is why DECIDED is split from BUILT rather than read as a resolution."
+    },
+    {
+      "file": "docs/README.md",
+      "state": "amended",
+      "what": "Seven rows added so the table covers the directory: RELEASE.md (the row the brief asked for), pack-provenance.md, P2-BLOCKERS.md, art-and-sound.md, the four frozen phase reports, and owned/. Plus a short section on why a lane may legitimately claim no invariant id.",
+      "why": "The table listed four of eleven entries, so a reader could not tell whether a missing file was undocumented or nonexistent. The new row for RELEASE.md is the one the brief names; the other six are the same defect in the same table."
+    }
+  ],
+  "measuredHere": [
+    {
+      "claim": "The committed candidates use course-global lesson numbering, which is what founder ruling B1b canonises.",
+      "how": "Read the `slot` key of all 9,687 rows across the five files in content/es/candidates/ and grouped lesson_index by unit_index: unit 1 -> lessons 1-6, unit 2 -> 7-12, unit 3 -> 13-18, unit 4 -> 19-24. So no re-key is owed for B1b. Also: content/es/candidates.jsonl, the single file the B1b section was written against, no longer exists — candidates are a directory of five shards."
+    },
+    {
+      "claim": "None of founder ruling B9's three parts is built.",
+      "how": "(a) adapters/spacy_es.py normalises to NFC and lowercase and holds no form map; no normalisation table exists in config/g1.py. (b) config/g0.py:299 and config/g5.py:148 both carry a flat `MIN_TOKENS: Final[int] = 3`. (c) no G3 validator for unreachable target lemmas is registered."
+    },
+    {
+      "claim": "Founder ruling B14 is not built.",
+      "how": "stages/g7_expand.py:157 still reads `raise KeyError(` with the starved-slot message. A second `raise KeyError` one line below it, for a sentence G0 never ingested, is the same defect on the corpus path."
+    },
+    {
+      "claim": "Founder ruling B17 is not built.",
+      "how": "The string `section` does not occur anywhere in validators/pack.py, whose V11 (`mean_difficulty_is_non_decreasing`, registered at line 381) walks unit indices only; config/validate.py carries no section constant. So all 13 findings block today, which is stricter than the ruling."
+    },
+    {
+      "claim": "Founder ruling B16's reader is still not built.",
+      "how": "`grep -n analysis tools/coursekit/src/coursekit/stages/g7_expand.py` returns comments at lines 195, 485, 494 and 743 and no code, unchanged from the round-3 merge note."
+    },
+    {
+      "claim": "B3's `gate_passed()` clause needed no code change, and that has a consequence.",
+      "how": "sample.py:416 reads `rate is not None and rate <= MAX_DEFECT_RATE` and has never looked at reviewer_kind. So the ruling's gate clause was already satisfied — and nothing in code now distinguishes the automated pass from the release gate. That distinction lives only in docs/RELEASE.md, which is prose."
+    },
+    {
+      "claim": "The product-map row founder ruling B5 promises exists.",
+      "how": "~/duolingo-research/deep/00-PRODUCT-MAP.md line 378 opens 'Surface 16 — Credits (S152) — added 2026-09-12 by founder ruling B5'; the S152 row carries the five states and eight copy slots; the count line now reads '152 screens/state-groups (S001-S152)'. The string S152 appeared zero times in the map when B5 was filed."
+    },
+    {
+      "claim": "B6 is two-fifths built.",
+      "how": "Built: the engine (cast.yaml D-CAST-ES-00, config/g8.py maps es/fr/ja to kokoro) and the two declared blends (D-CAST-ES-02, Rosa ef_dora 0.70 + em_santa 0.30 at rate 0.98, Nico em_alex 0.55 + ef_dora 0.45 at rate 1.08). Not built: `accent_consistency` in REVIEW_DIMENSIONS; cast.yaml still declares `locale: es-ES`; MANIFEST_EXTRA_FIELDS in config/g9.py contains neither `accent_claim` nor `locale`, so a shipped manifest makes no accent claim at all rather than declaring it unverified."
+    },
+    {
+      "claim": "The product map and the manifest constant disagree on the S001 CEFR string.",
+      "how": "The map's S001 row reads `A1 · CEFR-aligned`; CEFR_CLAIM_CHECKED in config/g9.py:169 is `A1 · CEFR-checked`, and that is also the plan's Q8 wording. Noted in docs/pack-provenance.md for whoever builds S001 at P3 rather than silently picking one."
+    }
+  ],
+  "crossLaneContracts": [
+    {
+      "artefact": "config/sample.py::REVIEW_DIMENSIONS",
+      "producedBy": "the validator/sample lane (p2r3/validators-ci-loader and its successors)",
+      "consumedBy": "content/es/review/RUBRIC.md, which names the dimension a reviewer scores",
+      "assertion": "the tuple contains the exact string `accent_consistency`",
+      "why": "THIS IS THE ONE CONTRACT IN THIS LANE THAT CAN BREAK SOMETHING. sample.py::read_scores raises ScoreError on any `dimensions` key outside REVIEW_DIMENSIONS and the caller turns that into exit 4 — so a rubric and a constant that disagree do not produce a slightly wrong rate, they produce NO rate for the whole file, including the five text dimensions that were scored correctly. The rubric could not add the key itself: config/sample.py is not in this lane's file list, and the brief said to coordinate on the name rather than invent one. No sibling lane was reachable to coordinate with (ListAgents showed no peer implementer for this round), so the name was chosen and written down here with its failure mode instead of guessed at silently.",
+      "whyThisSpelling": "`accent` was rejected deliberately. In a Spanish rubric `accent` reads first as the orthographic diacritic — the codebase is full of that sense already (INV-PACK-10's own test is named `a_candidate_one_accent_from_correct_is_discarded_not_corrected`) — so a dimension called `accent` in a file about Spanish text would be misread by the first reviewer who met it. `accent_consistency` matches the ruling's own wording ('the reviewer rubric checks accent consistency') and the two-word snake form is already precedented by `answer_set`.",
+      "ifTheSpellingDiffers": "Whoever lands the constant wins; the rubric moves to match, and it is a two-line edit in one table plus one JSON example. RUBRIC.md points at the constant as the authority in the sentence that introduces the table, so the direction of the fix is already written down. Until the constant carries any spelling at all, RUBRIC.md §'If the constant does not carry it yet' tells a scorer to put the finding in `note` prefixed `accent:` and not in `dimensions`, so a sheet scored in the gap still produces a rate."
+    },
+    {
+      "artefact": "docs/pack-provenance.md and tools/coursekit/README.md",
+      "producedBy": "this lane",
+      "consumedBy": "tools/coursekit/tests/test_sample.py::test_the_honesty_string_is_exactly_what_the_docs_promise and ::test_the_docs_do_not_claim_the_note_already_appears_where_it_cannot",
+      "assertion": "both files carry `PROVISIONAL (unreviewed by a paid native speaker)` byte-identically; pack-provenance.md contains the substrings `two places that exist today`, `S001` and `does not exist yet`, and does NOT contain `appears in exactly four places`",
+      "why": "Those two tests open these documents and read them. Every edit in this lane was made around them: the note string was never retyped (it is quoted, never paraphrased, and the surrounding prose changed while the block did not), the carrier table kept its four rows and its wording, and the manifest row's 'does not exist yet' was sharpened with a paragraph rather than replaced. The tests live in the sample lane's file, so a documentation lane that reworded them would have broken a test it could not fix."
+    },
+    {
+      "artefact": "~/duolingo-research/deep/00-PRODUCT-MAP.md Surface 16 (S152)",
+      "producedBy": "the founder, per ruling B5 — the corpus is research and no phase agent may rewrite it",
+      "consumedBy": "docs/pack-provenance.md and tools/coursekit/README.md, which quote its copy slots so a P4 implementer does not have to read the corpus",
+      "assertion": "the eight copy slots are quoted verbatim, including `Voices: Kokoro (Apache-2.0)` and `Frequency ordering derived from FrequencyWords (hermitdave), CC BY-SA 4.0`",
+      "why": "The map is the P3/P4 build contract and it lives outside the repository, so nothing in CI can hold a repo doc against it. A copy slot that drifted here would be a screen built wrong with a document saying it was right. Whoever builds S152 should diff these two tables against the corpus row rather than trusting either."
+    },
+    {
+      "artefact": "MANIFEST_EXTRA_FIELDS (config/g9.py) and the manifest built by packbuild/manifest.py",
+      "producedBy": "the G9 / expand-bake-package lane",
+      "consumedBy": "S137 About and S001's pack card, and the claim in docs/pack-provenance.md about which carriers hold the honesty note",
+      "assertion": "when the manifest gains a `review` block or a note beside `defectRate`, and when it gains `accent_claim`, the carrier table in docs/pack-provenance.md must move with it",
+      "why": "Today `\"defectRate\": inputs.defect_rate` is a bare value and `review` is not a manifest field, so the doc says the manifest carrier does not exist yet — and test_the_docs_do_not_claim_the_note_already_appears_where_it_cannot enforces that it keeps saying so. The day G9 adds the note, that test's expectations and this paragraph both need changing, in the same commit."
+    }
+  ],
+  "heldWithoutAnInvariantId": [
+    "docs/RELEASE.md has no test and cannot have one: every row is a purchase, a person or a signature. The closest thing to a gate is that the paid-review row and the PROVISIONAL string are the same fact from two directions, and the string is already tested.",
+    "The accent-consistency dimension is defined and NOT YET SCOREABLE, and the rubric says so at the point of use rather than letting the first reviewer discover it. SampleItem carries ten fields and none of them is a clip or a voice role, so there is nothing to listen to; written up as B18 with the two fields it needs, the reviewer-package problem (build/ is gitignored and es-build-<sha> retains for 7 days, which is the failure mode that killed pack-bake.yml), and the SAMPLE_STRATA question that rides along — the draw does not stratify over voice role, so a 300-row sheet could answer the blend question with four Rosa rows.",
+    "No status in docs/P2-BLOCKERS.md was moved to RESOLVED on the strength of a ruling. DECIDED and BUILT are separate words in that table for exactly that reason, and five rulings are recorded as decided-and-not-built: B6 (three of five parts), B9 (all three parts), B14, B16 (the reader), B17. A table that had read them as resolved would have turned eight answered questions into eight invisible pieces of outstanding work.",
+    "The B3 gate observation is the one finding in this lane that is a code hazard rather than a document: gate_passed() is reviewer-kind-blind, so a release build can call it, get true off an agent-scored sheet, and be correct by the code and wrong by the ruling. Two honest options are written into B3 (a `require_paid` parameter, or leaving the release checklist as the only gate); sample.py is not in this lane, so it is filed rather than fixed."
+  ],
+  "notDone": [
+    {
+      "what": "`accent_consistency` is not in REVIEW_DIMENSIONS",
+      "why": "tools/coursekit/src/coursekit/config/sample.py is not in this lane's file list, and the brief said to coordinate on the name rather than invent one. The contract above carries the exact spelling, the reason for it, and the note-only fallback a reviewer uses until it lands.",
+      "forWhom": "the validator/sample lane"
+    },
+    {
+      "what": "B18 — SampleItem carries no clip reference and no voice role, so the accent dimension cannot be scored",
+      "why": "sample.py is not in this lane. Written up in docs/P2-BLOCKERS.md B18 with the two fields, the reviewer-package problem and the strata question.",
+      "forWhom": "whoever owns tools/coursekit/src/coursekit/sample.py"
+    },
+    {
+      "what": "content/es/cast.yaml still declares `locale: es-ES`, which ruling B6 withdrew",
+      "why": "cast.yaml is not in this lane's file list. The change is `locale: es-ES` -> `language: es` plus `accent_claim: unverified`, with D-CAST-ES-01 rewritten from 'the declared locale is the course's claim' to 'there is no declared accent' — note that D-CAST-ES-01's current text is MORE generous to the project than the ruling is, which is the direction of drift to watch.",
+      "forWhom": "the G8 / bake lane"
+    },
+    {
+      "what": "The manifest carries neither `accent_claim` nor a note beside `defectRate`",
+      "why": "config/g9.py and packbuild/manifest.py are not in this lane. Recorded in docs/pack-provenance.md, which says the manifest carrier does not exist yet rather than implying it does. Today a manifest makes no accent claim at all, which is accidentally compliant: the ruling wants the absence declared, not merely absent.",
+      "forWhom": "the G9 / expand-bake-package lane"
+    },
+    {
+      "what": "The product map's `A1 · CEFR-aligned` and CEFR_CLAIM_CHECKED's `A1 · CEFR-checked` disagree",
+      "why": "The map is outside the repository and the constant is in the G9 lane. Flagged in docs/pack-provenance.md for whoever builds S001 at P3; the map's spelling is the one quoted, because the map is the build contract.",
+      "forWhom": "P3's S001 lane, or the founder for the corpus row"
+    },
+    {
+      "what": "docs/P2-REPORT.md §Blockers still carries the pre-ruling table",
+      "why": "It is the frozen phase report at its own sha and stays as written — the new docs/README.md row says so explicitly, and P2-BLOCKERS.md is the file that moves. Recorded so nobody 'fixes' the report later and loses the history.",
+      "forWhom": "nobody; deliberate"
+    }
+  ]
+}
