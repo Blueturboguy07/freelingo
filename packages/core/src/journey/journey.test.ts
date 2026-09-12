@@ -19,7 +19,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindEngine } from './bind.js';
 import { DEFAULT_SEED, runJourney, type JourneyLedger } from './driver.js';
-import { JOURNEY, JOURNEY_DAYS, PRIMARY_COURSE, SECOND_COURSE } from './script.js';
+import { JOURNEY, JOURNEY_DAYS, PRIMARY_COURSE, SECOND_COURSE, UNLIVED_DATE } from './script.js';
 
 /**
  * Skipped inside a Stryker worker: `stryker.config.json` does not mutate `journey/**`,
@@ -82,8 +82,8 @@ describe.skipIf(UNDER_STRYKER)('the 30-day two-course four-zone journey', () => 
   });
 
   it('[INV-DAY-03] the date-line crossing produced an unlived date, and it is not missed', () => {
-    expect(ledger.unlivedDays).toContain('2026-10-04');
-    expect(ledger.dispositions.get('2026-10-04')).not.toBe('missed');
+    expect(ledger.unlivedDays).toEqual([UNLIVED_DATE]);
+    expect(ledger.dispositions.get(UNLIVED_DATE)).not.toBe('missed');
   });
 
   it('[INV-REC-01] at most one Streak Repair per calendar month, and never on a frozen day', () => {

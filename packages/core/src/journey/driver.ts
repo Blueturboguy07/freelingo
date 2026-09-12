@@ -322,10 +322,18 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
 
     /* -- travel: a zone change may jump over a civil date (INV-DAY-03) ---------- */
     if (scripted.travelledFrom !== undefined && previousZone !== null) {
+      // The instant is declared by the trace, never guessed here: WHEN the zone changed
+      // decides which civil dates are skipped, and a default hour chosen by the driver
+      // would make the unlived date an accident of the driver rather than a property of
+      // the flight (see script.ts, "the arithmetic that fixed this trace once already").
+      const atUtcMs =
+        scripted.travelAtUtc === undefined
+          ? utcForLocal(engine, scripted.localDate, 2, zoneId)
+          : Date.parse(scripted.travelAtUtc);
       const transition = {
-        atUtcMs: utcForLocal(engine, scripted.localDate, 2, zoneId),
-        from: previousZone,
-        to: stamp,
+        atUtcMs,
+        from: day.resolveZone(new Date(atUtcMs), scripted.travelledFrom),
+        to: day.resolveZone(new Date(atUtcMs), zoneId),
       };
       for (const jumped of day.unlivedDaysFromTransitions([transition])) world.unlived.add(jumped);
     }

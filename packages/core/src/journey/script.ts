@@ -4,36 +4,48 @@
  * Plan §Phases, P4 gate: *"Headless 30-day journey in packages/core across two courses
  * and four zones"*, brought forward to the P1 gate because P1 is where the engine that
  * has to survive it is written. One learner, thirty simulated local days, two installed
- * courses and four IANA zones, driven on the testkit virtual clock.
+ * courses and the four-zone matrix, driven on the testkit virtual clock.
  *
  * The script is separated from the driver on purpose. A journey written as three hundred
  * lines of imperative test body is unreviewable — nobody can answer "does this actually
  * exercise a boost that expires past the grace window?" by reading it, and a driver bug
  * that silently skips a day looks exactly like a passing test. Here the trace is a value:
  * every day names its zone, its events, and the invariant ids each event is there to
- * exercise, so `journey.test.ts` can assert *about the script* (that every required
- * behaviour appears, that every zone is visited, that the events the task enumerates are
- * all present) before it asserts anything about the engine.
+ * exercise, so `script.test.ts` can assert *about the script* (that every required
+ * behaviour appears, that every zone is visited, that the clauses the P1 gate enumerates
+ * are all present) before anything is asserted about the engine.
  *
  * ## The calendar
  *
- * Day 1 is 2026-09-20 local. Thirty local days end on 2026-10-19, which puts a calendar
- * month boundary inside the trace (day 11 → day 12) — required, because the monthly
- * Streak Repair is idempotent on `(year, month)` (INV-REC-01) and a 30-day trace inside
- * one month can only ever prove half of that.
+ * Day 1 is 2026-09-20 local; day 30 is 2026-10-20. That is 31 calendar dates for 30 lived
+ * days, because **2026-10-05 is never lived** (below). The month boundary inside the trace
+ * is required: the monthly Streak Repair is idempotent on `(year, month)` (INV-REC-01) and
+ * a trace inside one month can only ever prove half of that.
  *
- * ## The zones
+ * ## The zones, and the arithmetic that fixed this trace once already
  *
- * The matrix is `packages/testkit/src/zones.ts` and the flights are chosen for what each
+ * The matrix is `packages/testkit/src/zones.ts`. The flights are chosen for what each
  * crossing does to the civil date, not for plausibility:
  *
  * | day | from → to | what it proves |
  * |---|---|---|
- * | 8 | Asia/Tokyo → America/Los_Angeles | −17 h: the local day goes BACKWARDS while UTC advances. Honoured, because the zone changed (INV-DAY-02). A pure clock change with no zone change must be refused. |
- * | 15 | America/Los_Angeles → Pacific/Kiritimati | +22 h across the date line: a civil date is jumped over and is `unlived` — not missed, consumes no freeze (INV-DAY-03). |
- * | 22 | Pacific/Kiritimati → Australia/Lord_Howe | −3 h into the only 30-minute DST zone on earth: day arithmetic that is not a whole number of hours (INV-DAY-05). |
+ * | 8 | Asia/Tokyo (+9) → America/Los_Angeles (−7) | −16 h: the local day goes BACKWARDS while UTC advances. Honoured, because the zone changed (INV-DAY-02); a clock change with no zone change must be refused. |
+ * | 15 | America/Los_Angeles (−7) → Pacific/Midway (−11) | −4 h. A stopover, and the only reason it exists is the next row. |
+ * | 16 | Pacific/Midway (−11) → Pacific/Kiritimati (+14) | **+25 h**: 2026-10-05 is deleted from the learner's life. `unlived` — not missed, consumes no freeze, is not a gap (INV-DAY-03). |
+ * | 22 | Pacific/Kiritimati (+14) → Australia/Lord_Howe (+11) | −3 h into the only 30-minute-offset zone on earth: day arithmetic that is not a whole number of hours (INV-DAY-05). |
  *
- * Tokyo is the fourth zone, held for days 1–7.
+ * **Why Midway is in a four-zone trace.** The first draft flew Los Angeles → Kiritimati
+ * and claimed it skipped a civil date. It does not, and the gate would have asserted a
+ * behaviour that cannot happen. Measured 2026-10 offsets: LA is −7, Kiritimati +14, so the
+ * jump is 21 hours — the local date advances by exactly one, whenever the flight departs.
+ * Deleting a whole civil date needs a forward jump of **more than 24 hours**, which in this
+ * matrix is only reachable by arriving in Kiritimati from a zone at −11 or further west.
+ * Hence the stopover. Verified: at `2026-10-05T10:00:00Z` Midway reads 2026-10-04 and
+ * Kiritimati reads 2026-10-06.
+ *
+ * A travel day therefore declares `travelAtUtc`: **when** the zone changed decides which
+ * dates are skipped, and an instant picked by the driver rather than the trace would make
+ * the unlived date an accident of the driver's default hour.
  */
 
 /** A journey day's index, 1-based. */
@@ -41,8 +53,8 @@ export type DayIndex = number;
 
 /**
  * What happens on a day. One kind per behaviour the P1 gate names; the driver has one
- * handler per kind and `journey.test.ts` asserts that every kind appears at least once,
- * so a kind that no longer has a handler cannot be quietly dropped.
+ * handler per kind and `script.test.ts` asserts that every kind is accounted for, so a
+ * kind that no longer has a handler cannot be quietly dropped.
  */
 export type EventKind =
   | 'install-course'
@@ -77,18 +89,21 @@ export interface JourneyEvent {
 
 export interface JourneyDay {
   readonly day: DayIndex;
-  /** The local civil date this day is expected to be, before any zone effect. */
+  /** The local civil date this day is. */
   readonly localDate: string;
   /** The zone in force for the whole of this local day. */
   readonly zone: string;
-  /** Set when the learner travels at the start of this day. */
+  /** Set when the learner travelled into this day's zone. */
   readonly travelledFrom?: string;
+  /** The UTC instant the zone changed. Declared, because it decides what is skipped. */
+  readonly travelAtUtc?: string;
   readonly events: readonly JourneyEvent[];
 }
 
 /* --------------------------------------------------------------- named config */
 
 export const JOURNEY_START_LOCAL_DATE = '2026-09-20';
+export const JOURNEY_END_LOCAL_DATE = '2026-10-20';
 export const JOURNEY_DAYS = 30;
 export const PRIMARY_COURSE = 'es';
 export const SECOND_COURSE = 'fr';
@@ -97,6 +112,22 @@ export const ZONE_TOKYO = 'Asia/Tokyo';
 export const ZONE_LOS_ANGELES = 'America/Los_Angeles';
 export const ZONE_KIRITIMATI = 'Pacific/Kiritimati';
 export const ZONE_LORD_HOWE = 'Australia/Lord_Howe';
+/**
+ * The stopover. NOT part of the four-zone property matrix — it is in this trace for one
+ * reason, stated in the header: no pair of matrix zones can delete a civil date.
+ */
+export const ZONE_MIDWAY = 'Pacific/Midway';
+
+/** The four zones every day/streak property runs in (plan §Verification). */
+export const MATRIX_ZONES: readonly string[] = [
+  ZONE_TOKYO,
+  ZONE_LOS_ANGELES,
+  ZONE_KIRITIMATI,
+  ZONE_LORD_HOWE,
+];
+
+/** The civil date the day-16 crossing deletes. */
+export const UNLIVED_DATE = '2026-10-05';
 
 /** The hour of the local day a lesson is normally taken. Far from both boundaries. */
 export const USUAL_LESSON_HOUR = 19;
@@ -108,15 +139,29 @@ function day(
   localDate: string,
   zone: string,
   events: readonly JourneyEvent[],
-  travelledFrom?: string,
+  travel?: { readonly from: string; readonly atUtc: string },
 ): JourneyDay {
-  return travelledFrom === undefined
+  return travel === undefined
     ? { day: index, localDate, zone, events }
-    : { day: index, localDate, zone, events, travelledFrom };
+    : {
+        day: index,
+        localDate,
+        zone,
+        events,
+        travelledFrom: travel.from,
+        travelAtUtc: travel.atUtc,
+      };
 }
 
 /**
- * The trace. Read it top to bottom: it is the thirty days of one learner's life.
+ * The trace. Read it top to bottom: it is thirty days of one learner's life.
+ *
+ * The freeze arithmetic, because it is what makes the two breaks happen at all: the
+ * account starts with 2 freezes owned from day 1 and the cap is 2. Day 3 spends one
+ * (held 1); day 5 buys one back (held 2); days 12 and 13 spend both (held 0); day 14 is
+ * therefore uncovered and BREAKS the streak, which arms the recovery challenge. Day 20 is
+ * missed with nothing left and breaks it a second time, which is what the monthly Streak
+ * Repair on day 21 is for.
  */
 export const JOURNEY: readonly JourneyDay[] = [
   day(1, '2026-09-20', ZONE_TOKYO, [
@@ -145,14 +190,14 @@ export const JOURNEY: readonly JourneyDay[] = [
     {
       kind: 'lesson',
       course: PRIMARY_COURSE,
-      what: 'two lessons: the goal is met and the goal chest is granted once',
+      what: 'the first of two lessons: the goal is met and the goal chest is granted once',
       invariants: ['INV-DAY-08', 'INV-ECO-01'],
       detail: { correct: 9, wrong: 1 },
     },
     {
       kind: 'lesson',
       course: PRIMARY_COURSE,
-      what: 'the second lesson of the day — the chest must not be granted twice',
+      what: 'the second lesson of the same day — the chest must not be granted twice',
       invariants: ['INV-DAY-08', 'INV-CER-02'],
       detail: { correct: 10, wrong: 0 },
     },
@@ -233,11 +278,11 @@ export const JOURNEY: readonly JourneyDay[] = [
       {
         kind: 'resume-parked',
         course: PRIMARY_COURSE,
-        what: 'flies Tokyo → Los Angeles and resumes the parked Spanish session',
+        what: 'flies Tokyo → Los Angeles (the local day goes backwards) and resumes the parked session',
         invariants: ['INV-DAY-02', 'INV-DAY-04', 'INV-SESS-01', 'INV-SESS-05', 'INV-SESS-08'],
       },
     ],
-    ZONE_TOKYO,
+    { from: ZONE_TOKYO, atUtc: '2026-09-27T06:00:00Z' },
   ),
   day(9, '2026-09-28', ZONE_LOS_ANGELES, [
     {
@@ -264,7 +309,7 @@ export const JOURNEY: readonly JourneyDay[] = [
     {
       kind: 'commit-after-boost-expiry',
       course: PRIMARY_COURSE,
-      what: 'leaves the lesson open past the boost expiry plus boostGraceSeconds: commits at 1x',
+      what: 'leaves the lesson parked past the boost expiry plus boostGraceSeconds: commits at 1x',
       invariants: ['INV-ECO-02', 'INV-DAY-15'],
       detail: { correct: 10, wrong: 0, expectMultiplier: 1 },
     },
@@ -279,66 +324,79 @@ export const JOURNEY: readonly JourneyDay[] = [
     {
       kind: 'lesson',
       course: PRIMARY_COURSE,
-      what: 'a second lesson under the raised goal',
-      invariants: ['INV-ECO-01'],
+      what: 'a second lesson under the raised goal, on the last day of September',
+      invariants: ['INV-ECO-01', 'INV-DAY-16'],
       detail: { correct: 10, wrong: 0 },
     },
   ]),
   day(12, '2026-10-01', ZONE_LOS_ANGELES, [
     {
       kind: 'idle',
-      what: 'a missed day with no freeze left: the month has also rolled over',
+      what: 'a missed day in a new month, covered by the first of the two held freezes',
       invariants: ['INV-DAY-16', 'INV-FRZ-01'],
-      detail: { expectFreezeConsumed: 0 },
+      detail: { expectFreezeConsumed: 1 },
     },
   ]),
   day(13, '2026-10-02', ZONE_LOS_ANGELES, [
     {
       kind: 'idle',
-      what: 'a second missed day: the streak breaks and the break is recorded as a fact',
-      invariants: ['INV-DAY-06', 'INV-REC-06'],
+      what: 'a second missed day, covered by the last freeze: the balance is now zero',
+      invariants: ['INV-FRZ-01', 'INV-FRZ-02'],
+      detail: { expectFreezeConsumed: 1 },
     },
   ]),
   day(14, '2026-10-03', ZONE_LOS_ANGELES, [
     {
-      kind: 'recovery-lesson',
-      course: PRIMARY_COURSE,
-      what: 'accepts the recovery challenge and completes 1 of 3 lessons',
-      invariants: ['INV-REC-04', 'INV-REC-05', 'INV-REC-06'],
-      detail: { lesson: 1, of: 3 },
+      kind: 'idle',
+      what: 'a third missed day with nothing left to cover it: the streak breaks, recorded as a fact',
+      invariants: ['INV-DAY-06', 'INV-REC-06'],
+      detail: { expectFreezeConsumed: 0 },
     },
   ]),
   day(
     15,
-    '2026-10-05',
-    ZONE_KIRITIMATI,
+    '2026-10-04',
+    ZONE_MIDWAY,
     [
       {
         kind: 'recovery-lesson',
         course: PRIMARY_COURSE,
-        what: 'flies Los Angeles → Kiritimati across the date line: 2026-10-04 is never lived',
-        invariants: ['INV-DAY-03', 'INV-REC-04'],
-        detail: { lesson: 2, of: 3, unlivedDate: '2026-10-04' },
+        what: 'flies to Midway and takes the first of three recovery lessons, inside the 2-day window',
+        invariants: ['INV-REC-04', 'INV-REC-05', 'INV-REC-06'],
+        detail: { lesson: 1, of: 3 },
       },
       {
         kind: 'recovery-lesson',
         course: PRIMARY_COURSE,
-        what: 'the third recovery lesson inside the window: the streak is restored and today is satisfied',
+        what: 'the second recovery lesson: partial progress is persisted like any other session',
+        invariants: ['INV-REC-03', 'INV-REC-05'],
+        detail: { lesson: 2, of: 3 },
+      },
+      {
+        kind: 'recovery-lesson',
+        course: PRIMARY_COURSE,
+        what: 'the third: the streak is restored and today is marked satisfied',
         invariants: ['INV-REC-02', 'INV-REC-07'],
         detail: { lesson: 3, of: 3 },
       },
     ],
-    ZONE_LOS_ANGELES,
+    { from: ZONE_LOS_ANGELES, atUtc: '2026-10-04T18:00:00Z' },
   ),
-  day(16, '2026-10-06', ZONE_KIRITIMATI, [
-    {
-      kind: 'lesson',
-      course: PRIMARY_COURSE,
-      what: 'an ordinary day on the far side of the date line',
-      invariants: ['INV-DAY-01'],
-      detail: { correct: 9, wrong: 1 },
-    },
-  ]),
+  day(
+    16,
+    '2026-10-06',
+    ZONE_KIRITIMATI,
+    [
+      {
+        kind: 'lesson',
+        course: PRIMARY_COURSE,
+        what: 'flies Midway → Kiritimati (+25 h): 2026-10-05 is deleted, and is unlived, not missed',
+        invariants: ['INV-DAY-03', 'INV-DAY-05'],
+        detail: { correct: 9, wrong: 1, unlivedDate: UNLIVED_DATE },
+      },
+    ],
+    { from: ZONE_MIDWAY, atUtc: '2026-10-05T10:00:00Z' },
+  ),
   day(17, '2026-10-07', ZONE_KIRITIMATI, [
     {
       kind: 'open-session-across-midnight',
@@ -362,13 +420,13 @@ export const JOURNEY: readonly JourneyDay[] = [
       kind: 'pack-major-bump',
       course: PRIMARY_COURSE,
       what: 'the Spanish pack updates across a major version: rows whose items are gone are quarantined',
-      invariants: ['INV-PACK-01', 'INV-SCH-01'],
+      invariants: ['INV-PACK-01', 'INV-PACK-35', 'INV-SCH-01'],
       detail: { from: '1.4.0', to: '2.0.0', quarantined: 3 },
     },
     {
       kind: 'lesson',
       course: PRIMARY_COURSE,
-      what: 'a lesson after the bump: quarantined rows are never scheduled',
+      what: 'a lesson after the bump: a quarantined row is never scheduled',
       invariants: ['INV-SCH-01'],
       detail: { correct: 10, wrong: 0 },
     },
@@ -376,14 +434,15 @@ export const JOURNEY: readonly JourneyDay[] = [
   day(20, '2026-10-10', ZONE_KIRITIMATI, [
     {
       kind: 'idle',
-      what: 'a missed day with no freezes: the streak breaks again, in October',
+      what: 'a missed day with no freezes left: the streak breaks a second time, in October',
       invariants: ['INV-DAY-06'],
+      detail: { expectFreezeConsumed: 0 },
     },
   ]),
   day(21, '2026-10-11', ZONE_KIRITIMATI, [
     {
       kind: 'streak-repair',
-      what: 'uses the monthly Streak Repair: streak = previous_streak, today still unsatisfied',
+      what: "uses October's Streak Repair: streak = previous_streak, today still unsatisfied",
       invariants: ['INV-REC-01'],
       detail: { month: '2026-10', expectGranted: true },
     },
@@ -407,7 +466,7 @@ export const JOURNEY: readonly JourneyDay[] = [
         detail: { correct: 10, wrong: 0 },
       },
     ],
-    ZONE_KIRITIMATI,
+    { from: ZONE_KIRITIMATI, atUtc: '2026-10-11T20:00:00Z' },
   ),
   day(23, '2026-10-13', ZONE_LORD_HOWE, [
     {
