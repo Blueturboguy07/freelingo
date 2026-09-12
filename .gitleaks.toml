@@ -28,6 +28,7 @@ tags = ["key", "azure", "tts"]
 description = "Paths with no secrets by construction"
 paths = [
   '''pnpm-lock\.yaml''',
+  '''docs/handoff/claude-run-journal-extract\.json''',  # redacted agent-report text; its "key" fields are task keys
   '''tools/coursekit/uv\.lock''',
   '''(^|/)LICENSE$''',
   '''^NOTICE$''',
