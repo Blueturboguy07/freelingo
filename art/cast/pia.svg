@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo cast — pia</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Speech-bubble avatar for S034 and tableau sprite for S020. Identity is carried by plate hue, silhouette and garment together, so losing any one channel still leaves two.</desc>
+
+  <circle cx="120" cy="120" r="116" fill="#CE82FF"/>
+  <path d="M54 116 C54 62 96 40 120 40 C144 40 186 62 186 116 L186 190 L156 190 L156 108 L84 108 L84 190 L54 190 Z" fill="#3C3C3C"/>
+  <path d="M120 150 C160 150 190 180 196 218 C176 232 150 240 120 240 C90 240 64 232 44 218 C50 180 80 150 120 150 Z" fill="#00CD9C"/>
+  <ellipse cx="120" cy="112" rx="54" ry="58" fill="#FFE0BD"/>
+  <path d="M66 104 C66 66 94 52 120 52 C146 52 174 66 174 104 C156 92 144 86 120 86 C96 86 84 92 66 104 Z" fill="#3C3C3C"/>
+  <circle cx="100" cy="110" r="9" fill="#3C3C3C"/>
+  <circle cx="140" cy="110" r="9" fill="#3C3C3C"/>
+  <path d="M104 140 C112 150 128 150 136 140" fill="none" stroke="#3C3C3C" stroke-width="8"/>
+</svg>

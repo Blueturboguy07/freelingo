@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo node — trophy, locked</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Flat plate with the measured 3D lip (deep/08 §2): the lip disc sits 16 units below the face disc, which is the 4 px lip at the 64 px node size. Product map: S013-S019.</desc>
+
+  <circle cx="120" cy="140" r="88" fill="#2A363D"/>
+  <circle cx="120" cy="124" r="88" fill="#37464F"/>
+
+  <ellipse cx="64" cy="100" rx="24" ry="28" fill="#6B7C87"/>
+  <ellipse cx="176" cy="100" rx="24" ry="28" fill="#6B7C87"/>
+  <ellipse cx="64" cy="100" rx="10" ry="13" fill="#37464F"/>
+  <ellipse cx="176" cy="100" rx="10" ry="13" fill="#37464F"/>
+  <path d="M76 62 L164 62 L164 106 C164 136 144 156 120 156 C96 156 76 136 76 106 Z" fill="#6B7C87"/>
+  <rect x="108" y="152" width="24" height="26" fill="#6B7C87"/>
+  <rect x="80" y="174" width="80" height="20" rx="8" fill="#6B7C87"/>
+</svg>

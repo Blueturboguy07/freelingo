@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 240" width="180" height="240">
+  <title>Freelingo story cover — locked</title>
+  <desc>Original work for Freelingo (AGPL-3.0). 3:4 card for the story list and the S101 node popup. gilded is the completed-story treatment, active the available one, locked the unavailable one.</desc>
+
+  <rect x="0" y="0" width="180" height="240" rx="16" fill="#37464F"/>
+  <path d="M0 168 C34 150 62 178 96 166 C126 156 154 170 180 160 L180 224 C180 233 173 240 164 240 L16 240 C7 240 0 233 0 224 Z" fill="#2A363D"/>
+  <circle cx="132" cy="52" r="26" fill="#2A363D"/>
+  <path d="M62 108 L62 96 C62 76 118 76 118 96 L118 108" fill="none" stroke="#6B7C87" stroke-width="14"/>
+  <rect x="50" y="106" width="80" height="62" rx="12" fill="#6B7C87"/>
+</svg>

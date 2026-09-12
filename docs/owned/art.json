@@ -1,0 +1,22 @@
+{
+  "$comment": "Invariant ids owned by the P1 art-and-sound lane. The list is EMPTY, and that is the correct state, not an oversight. This lane produces assets; it renders nothing. The ids that will govern these assets are §12 SND (cue classes, the sound-effects gate, haptics as a non-sole carrier) and §11 TYP/A11Y, and every one of them is a property of a *component* — which cue bus was active in a frame, what a screen reader announced, what the banner said with sound off. Those components land at P3, where the plan makes this lane an entry criterion rather than a dependency. Claiming an id here would mean writing a test that asserts a file exists and naming it INV-SND-01, which is exactly the 'owning test that proves nothing' the plan's rule 4 is written against.",
+  "phase": "P1",
+  "task": "p1-art-and-sound",
+  "owned": [],
+  "willBeOwnedAt": {
+    "P3": [
+      "INV-SND-01",
+      "INV-SND-02",
+      "INV-SND-03",
+      "INV-SND-04",
+      "INV-SND-05",
+      "INV-SND-06",
+      "INV-SND-07"
+    ]
+  },
+  "heldWithoutAnInvariantId": [
+    "art/**: every committed asset is re-rendered from its own SVG at 64 px and 240 px on every test run and held to a stated ink / colour-survival / region floor (packages/ui/src/mascot/legibility.test.ts), with a falsifier that fails if the floor is ever relaxed into decoration",
+    "art/sound/**: the bank is re-synthesised and compared byte for byte against art/sound/manifest.json (tools/soundbank/tests/test_soundbank.py), and the EC-COM-09 -6 dB shimmer relation is asserted on the measured loudness of the shipped files",
+    "EC-PLAT-09: no .riv file enters the repository; asserted over the art index"
+  ]
+}

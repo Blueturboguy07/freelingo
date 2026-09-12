@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo parrot — sad</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Crest folded back, brows down, one tear,
+  wings drooping. The mood lives in the crest angle and the brows, both of which are large
+  enough to survive at 64 px — a downturned beak alone would not.</desc>
+
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#00CD9C" transform="rotate(-38 120 188)"/>
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#CE82FF" transform="rotate(38 120 188)"/>
+  <ellipse cx="120" cy="218" rx="15" ry="29" fill="#49C0F8"/>
+
+  <!-- crest folded flat and back -->
+  <ellipse cx="76" cy="58" rx="10" ry="20" fill="#FFC700" transform="rotate(-74 90 64)"/>
+  <ellipse cx="80" cy="44" rx="10" ry="20" fill="#FFC700" transform="rotate(-58 94 58)"/>
+  <ellipse cx="106" cy="36" rx="11" ry="21" fill="#FFC700" transform="rotate(-34 112 52)"/>
+
+  <path d="M120 50 C166 50 194 86 194 126 C194 174 162 204 120 204 C78 204 46 174 46 126 C46 86 74 50 120 50 Z" fill="#58CC02"/>
+  <ellipse cx="120" cy="162" rx="42" ry="36" fill="#72D627"/>
+
+  <!-- wings drooping -->
+  <ellipse cx="54" cy="156" rx="18" ry="38" fill="#58A700" transform="rotate(10 54 130)"/>
+  <ellipse cx="186" cy="156" rx="18" ry="38" fill="#58A700" transform="rotate(-10 186 130)"/>
+
+  <rect x="86" y="202" width="28" height="17" rx="7" fill="#FFAB33"/>
+  <rect x="126" y="202" width="28" height="17" rx="7" fill="#FFAB33"/>
+
+  <!-- eyes: heavy upper lids plus angled brows -->
+  <circle cx="96" cy="102" r="23" fill="#FFFFFF"/>
+  <circle cx="144" cy="102" r="23" fill="#FFFFFF"/>
+  <circle cx="97" cy="110" r="11" fill="#3C3C3C"/>
+  <circle cx="143" cy="110" r="11" fill="#3C3C3C"/>
+  <path d="M73 102 L119 102 L119 82 L73 94 Z" fill="#58CC02"/>
+  <path d="M167 102 L121 102 L121 82 L167 94 Z" fill="#58CC02"/>
+  <path d="M70 88 L118 74 L118 62 L70 76 Z" fill="#3C3C3C"/>
+  <path d="M170 88 L122 74 L122 62 L170 76 Z" fill="#3C3C3C"/>
+
+  <!-- tear -->
+  <path d="M80 130 C88 142 92 150 92 157 C92 165 86 170 80 170 C74 170 68 165 68 157 C68 150 72 142 80 130 Z" fill="#49C0F8"/>
+
+  <!-- beak, closed and turned down -->
+  <path d="M101 128 L139 128 C139 150 131 162 120 162 C109 162 101 150 101 128 Z" fill="#FFAB33"/>
+  <path d="M107 152 C111 159 129 159 133 152 C133 168 127 178 120 178 C113 178 107 168 107 152 Z" fill="#E08A00"/>
+</svg>

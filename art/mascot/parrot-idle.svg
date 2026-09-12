@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>Freelingo parrot — idle</title>
+  <desc>Original work for Freelingo (AGPL-3.0). Flat vector, solid fills, no gradients
+  (deep/08 §10). Authored on a 240 unit grid; nothing load-bearing is thinner than 10
+  units, which is 2.7 px at the 64 px widget size.</desc>
+
+  <!-- tail: drawn first so the body sits over its roots -->
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#00CD9C" transform="rotate(-38 120 188)"/>
+  <ellipse cx="120" cy="216" rx="14" ry="28" fill="#CE82FF" transform="rotate(38 120 188)"/>
+  <ellipse cx="120" cy="218" rx="15" ry="29" fill="#49C0F8"/>
+
+  <!-- crest -->
+  <ellipse cx="96" cy="42" rx="11" ry="21" fill="#FFC700" transform="rotate(-24 96 58)"/>
+  <ellipse cx="144" cy="42" rx="11" ry="21" fill="#FFC700" transform="rotate(24 144 58)"/>
+  <ellipse cx="120" cy="34" rx="12" ry="22" fill="#FFC700"/>
+
+  <!-- body -->
+  <path d="M120 46 C166 46 194 84 194 124 C194 172 162 202 120 202 C78 202 46 172 46 124 C46 84 74 46 120 46 Z" fill="#58CC02"/>
+  <ellipse cx="120" cy="158" rx="42" ry="38" fill="#72D627"/>
+
+  <!-- wings -->
+  <ellipse cx="52" cy="142" rx="19" ry="40" fill="#58A700" transform="rotate(-10 52 118)"/>
+  <ellipse cx="188" cy="142" rx="19" ry="40" fill="#58A700" transform="rotate(10 188 118)"/>
+
+  <!-- feet -->
+  <rect x="86" y="200" width="28" height="17" rx="7" fill="#FFAB33"/>
+  <rect x="126" y="200" width="28" height="17" rx="7" fill="#FFAB33"/>
+
+  <!-- eyes -->
+  <circle cx="96" cy="98" r="24" fill="#FFFFFF"/>
+  <circle cx="144" cy="98" r="24" fill="#FFFFFF"/>
+  <circle cx="100" cy="102" r="11" fill="#3C3C3C"/>
+  <circle cx="140" cy="102" r="11" fill="#3C3C3C"/>
+  <circle cx="104" cy="97" r="4" fill="#FFFFFF"/>
+  <circle cx="144" cy="97" r="4" fill="#FFFFFF"/>
+
+  <!-- beak -->
+  <path d="M99 118 L141 118 C141 142 132 154 120 154 C108 154 99 142 99 118 Z" fill="#FFAB33"/>
+  <path d="M106 144 C110 152 130 152 134 144 C134 160 128 170 120 170 C112 170 106 160 106 144 Z" fill="#E08A00"/>
+</svg>
