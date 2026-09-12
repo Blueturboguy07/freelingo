@@ -454,7 +454,7 @@ today and should get one at G3 whichever option is chosen.
 
 ## Disk
 
-`df -h ~` at the end of the round: **69 GiB free of 460 GiB (84% used)**.
+`df -h ~` at the end of the round: **68 GiB free of 460 GiB (84% used)** — `df -g` says 67 GiB available, and the two disagree because `df -h` rounds.
 
 P0's target of ≥80 GB free is still unmet, and nothing in P2 needed it. This round added
 about 1.5 GB locally that is not in the repository and is not needed again: the `align`
