@@ -117,6 +117,17 @@ function list(namespace: Namespace, ...names: readonly string[]): readonly strin
   return null;
 }
 
+/** The first of `names` exported as a plain object, or null. */
+function obj(namespace: Namespace, ...names: readonly string[]): Record<string, unknown> | null {
+  for (const name of names) {
+    const value = namespace[name];
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
 /** Names a port needed and did not get, e.g. `day.rolloverTo`. */
 export interface BindReport {
   readonly engine: Engine;
@@ -227,23 +238,32 @@ export async function bindEngine(): Promise<BindReport> {
     '../index.js',
     '../grading/index.js',
     '../grading/grade.js',
-    '../grading/grading.js',
+    '../grading/packs/index.js',
   );
   const grading = required<GradingPort>(
     'grading',
-    { grade: fn(gradingNs, 'gradeAnswer', 'grade', 'gradeTyped') },
+    {
+      grade: fn(gradingNs, 'gradeTypedAnswer', 'gradeAnswer', 'grade'),
+      pack: obj(gradingNs, 'ES_PACK'),
+      unit: obj(gradingNs, 'ES_UNIT'),
+    },
     missing,
   );
 
   const schedulerNs = await load(
     '../index.js',
     '../scheduler/index.js',
+    '../scheduler/engine.js',
     '../scheduler/fsrs.js',
-    '../scheduler/review.js',
   );
   const scheduler = required<SchedulerPort>(
     'scheduler',
-    { review: fn(schedulerNs, 'reviewItem', 'applyReview', 'review', 'scheduleReview') },
+    {
+      emptyState: fn(schedulerNs, 'emptySchedulerState', 'emptyState'),
+      registerRows: fn(schedulerNs, 'registerRows'),
+      introduce: fn(schedulerNs, 'introduce'),
+      applyEncounter: fn(schedulerNs, 'applyEncounter'),
+    },
     missing,
   );
 

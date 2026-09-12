@@ -104,8 +104,10 @@ function refStreak(dispositions: ReadonlyMap<Day, Disposition>, today: Day): num
   let first = true;
   for (;;) {
     const disposition = dispositions.get(cursor);
-    if (disposition === 'completed' || disposition === 'recovered') count += 1;
-    else if (disposition === 'frozen' || disposition === 'unlived') {
+    // `recovered` PRESERVES and never increments — the day lane's ruling in
+    // dispositions.ts, not this fixture's opinion. See driver.ts `referenceStreak`.
+    if (disposition === 'completed') count += 1;
+    else if (disposition === 'frozen' || disposition === 'unlived' || disposition === 'recovered') {
       /* the chain holds */
     } else if (first && disposition === undefined) {
       /* today is not over */
@@ -388,13 +390,33 @@ function referenceEngine(mutants: Mutants = {}): Engine {
   };
 
   const gradingPort: GradingPort = {
-    grade: ({ answer, accepted }) => ({
-      verdict: accepted.includes(answer) ? 'correct' : 'wrong',
-    }),
+    grade: (request) => {
+      const item = request['item'] as { accepted: readonly { surface: string }[] };
+      const wrong = !item.accepted.some((f) => f.surface === request['answer']);
+      return {
+        tier: wrong ? 3 : 1,
+        verdictClass: wrong ? 'wrong' : 'exact',
+        wrong,
+        softCorrected: false,
+        heartCost: wrong ? 1 : 0,
+      };
+    },
+    pack: { packId: 'es' },
+    unit: { unitId: 'es-u1' },
   };
 
   const schedulerPort: SchedulerPort = {
-    review: ({ row }) => row,
+    emptyState: (timeZone) => ({ timeZone, attempts: new Set<string>() }),
+    registerRows: (state) => state,
+    introduce: (state) => state,
+    applyEncounter: (state, encounter) => {
+      const s = state as { timeZone: string; attempts: Set<string> };
+      const key = `${String(encounter['sessionId'])}#${String(encounter['exerciseIndex'])}`;
+      if (s.attempts.has(key)) return { state: s, wroteAttempt: false };
+      const attempts = new Set(s.attempts);
+      attempts.add(key);
+      return { state: { ...s, attempts }, wroteAttempt: true };
+    },
   };
 
   const economyPort: EconomyPort = {

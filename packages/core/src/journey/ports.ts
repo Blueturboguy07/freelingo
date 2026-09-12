@@ -233,18 +233,53 @@ export interface SessionPort {
 
 /* -------------------------------------------------------------- grading lane */
 
-/** Three tiers, the soft notes and the typo guards - §2 GRD. */
+export interface GradingVerdictPort {
+  /** 1 exact, 2 soft-corrected, 3 wrong. 0 is "CHECK was never armed". */
+  readonly tier: number;
+  readonly verdictClass: string;
+  readonly wrong: boolean;
+  readonly softCorrected: boolean;
+  readonly heartCost: number;
+}
+
+/**
+ * Three tiers, the soft notes and the typo guards - §2 GRD.
+ *
+ * The journey grades real Spanish through the lane's own `ES_PACK`/`ES_UNIT` fixtures
+ * rather than a made-up pack: the normalisation table, the equivalence classes and the
+ * word list are part of what a verdict means, and a pack invented here would grade
+ * against rules no course has.
+ */
 export interface GradingPort {
-  grade(input: { readonly answer: string; readonly accepted: readonly string[] }): {
-    readonly verdict: string;
-  };
+  grade(request: Readonly<Record<string, unknown>>): GradingVerdictPort;
+  readonly pack: unknown;
+  readonly unit: unknown;
 }
 
 /* ------------------------------------------------------------ scheduler lane */
 
-/** FSRS rows and the early-review guard - §5 SCH. */
+/**
+ * FSRS rows, the attempt ledger and the early-review guard - §5 SCH.
+ *
+ * The journey uses it for one thing the other lanes cannot show: INV-SCH-03, "a replayed
+ * commit is idempotent". Every answered exercise is applied once and then applied again
+ * with the same `(session_id, exercise_index)`, and the second call must write nothing.
+ */
 export interface SchedulerPort {
-  review(input: { readonly row: unknown; readonly rating: number; readonly atMs: number }): unknown;
+  emptyState(timeZone: string): unknown;
+  registerRows(
+    state: unknown,
+    specs: readonly {
+      readonly itemId: string;
+      readonly surface: string;
+      readonly kind: string;
+    }[],
+  ): unknown;
+  introduce(state: unknown, itemId: string, surface: string, at: Date): unknown;
+  applyEncounter(
+    state: unknown,
+    encounter: Readonly<Record<string, unknown>>,
+  ): { readonly state: unknown; readonly wroteAttempt: boolean };
 }
 
 /* -------------------------------------------------------------- economy lane */

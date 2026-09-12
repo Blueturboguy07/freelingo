@@ -69,8 +69,18 @@ export const DEFAULT_SEED = 0x5eed_1ec0;
 const CANDIDATE_POOL = 24;
 /** The one path node the trace's lessons come from. */
 const NODE_REF = 'node-1';
-/** The typed answer the grader must accept exactly. */
-const ACCEPTED_ANSWER = 'la respuesta';
+/** The typed answer the grader must accept exactly, in the lane's own Spanish pack. */
+const ACCEPTED_ANSWER = 'el gato';
+/** An answer with nothing in common with the target. Must be wrong at every tier. */
+const WRONG_ANSWER = 'zzzz';
+/** The item every graded answer in the trace is graded against. */
+const GRADED_ITEM = {
+  itemId: 'es-1',
+  family: 'typed-translate',
+  targetLexemeId: 'gato',
+  targetLexemeSurface: 'gato',
+  accepted: [{ surface: ACCEPTED_ANSWER, rank: 1, surfaceId: 's1' }],
+} as const;
 /**
  * INV-DAY-09's ceiling, as the JOURNEY states it.
  *
@@ -189,6 +199,8 @@ interface World {
   sessionsByDay: Map<Day, { count: number; xp: number }>;
   monotonicMs: number;
   sequence: number;
+  /** The FSRS/attempt state, one per account: the ledger is keyed by session id. */
+  schedulerState: unknown;
 }
 
 function newCourse(): CourseWorld {
@@ -237,6 +249,17 @@ function utcForLocal(engine: Engine, localDate: string, hour: number, tzId: stri
  * It is a cross-check and not a second implementation of the day engine: it knows nothing
  * about freezes, breaks, recovery or the tamper guard. What it catches is a disposition
  * ledger and a reported streak that do not describe the same thirty days.
+ *
+ * `recovered` PRESERVES and never increments, which is the day lane's ruling in
+ * `dispositions.ts` ("its own glyph, neither flame nor snowflake ... Preserves, never
+ * increments") and not this file's opinion. The first run of this journey against the
+ * real engine disagreed from day 15 onwards — 11 against 12 — because this reference
+ * counted a restored day as practised. The engine was right: INV-REC-02 restores
+ * `previous_streak` and marks TODAY satisfied, so the restore itself adds nothing and
+ * today's own lesson adds the one day INV-REC-07 allows. The reference was corrected;
+ * there is no defect in the day lane. It is recorded because a cross-check that is wrong
+ * in the same direction as the thing it checks is worth nothing, and this one was wrong
+ * in the other direction, which is how it got noticed.
  */
 function referenceStreak(dispositions: ReadonlyMap<Day, Disposition>, today: Day): number {
   const decided = [...dispositions.keys()].sort();
@@ -244,8 +267,9 @@ function referenceStreak(dispositions: ReadonlyMap<Day, Disposition>, today: Day
   let run = 0;
   for (let cursor = decided[0]!; cursor <= today; cursor = shiftDate(cursor, 1)) {
     const disposition = dispositions.get(cursor);
-    if (disposition === 'completed' || disposition === 'recovered') run += 1;
-    else if (disposition === 'frozen' || disposition === 'unlived') continue;
+    if (disposition === 'completed') run += 1;
+    else if (disposition === 'frozen' || disposition === 'unlived' || disposition === 'recovered')
+      continue;
     else if (cursor === today && disposition === undefined)
       continue; // today is not over
     else run = 0;
@@ -322,6 +346,7 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
     sessionsByDay: new Map(),
     monotonicMs: 1_000_000,
     sequence: 0,
+    schedulerState: null,
   };
   world.freezeLedger = (world.state as { ledger: unknown }).ledger;
   const freezesGrantedAtStart = engine.freeze?.held(world.freezeLedger) ?? 0;
@@ -525,6 +550,27 @@ function applyEvent(ctx: EventContext): number {
       world.courses[courseId] = newCourse();
       const course = world.courses[courseId]!;
       for (let i = 1; i <= CANDIDATE_POOL; i += 1) course.liveItemIds.add(`item-${i}`);
+      if (engine.scheduler !== null) {
+        if (world.schedulerState === null) {
+          world.schedulerState = engine.scheduler.emptyState(scripted.zone);
+        }
+        world.schedulerState = engine.scheduler.registerRows(
+          world.schedulerState,
+          [...course.liveItemIds].map((itemId) => ({
+            itemId,
+            surface: ACCEPTED_ANSWER,
+            kind: 'lexeme',
+          })),
+        );
+        for (const itemId of course.liveItemIds) {
+          world.schedulerState = engine.scheduler.introduce(
+            world.schedulerState,
+            itemId,
+            ACCEPTED_ANSWER,
+            new Date(utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone)),
+          );
+        }
+      }
       if (engine.packs === null) {
         ctx.cannot('packs', 'the installed-pack state of a freshly installed course');
       } else {
@@ -1016,30 +1062,63 @@ function startSession(
     );
   }
 
+  const wrong = Number(ctx.event.detail?.['wrong'] ?? 0);
   if (engine.grading === null) {
     ctx.cannot('grading', 'grading each answered item through the three-tier grader');
   } else {
-    const wrong = Number(ctx.event.detail?.['wrong'] ?? 0);
     for (let i = 0; i < answered; i += 1) {
-      const answer = i < wrong ? 'nope' : ACCEPTED_ANSWER;
-      const { verdict } = engine.grading.grade({ answer, accepted: [ACCEPTED_ANSWER] });
-      if (i >= wrong && verdict !== 'correct') {
+      const answer = i < wrong ? WRONG_ANSWER : ACCEPTED_ANSWER;
+      const verdict = engine.grading.grade({
+        pack: engine.grading.pack,
+        unit: engine.grading.unit,
+        item: GRADED_ITEM,
+        answer,
+        learner: { introducedSurfaceIds: new Set<string>() },
+      });
+      const shouldBeWrong = i < wrong;
+      if (verdict.wrong !== shouldBeWrong) {
         ctx.refutations.push(
-          `day ${scripted.day}: an exact-match answer graded "${verdict}" — ${PORT_OWNER.grading}`,
+          `day ${scripted.day}: ${JSON.stringify(answer)} against ` +
+            `${JSON.stringify(ACCEPTED_ANSWER)} graded wrong=${verdict.wrong} ` +
+            `(tier ${verdict.tier}, class ${verdict.verdictClass}) — ${PORT_OWNER.grading}`,
         );
       }
-      if (i < wrong && verdict === 'correct') {
+      // INV-GRD-06: a heart is charged exactly when the answer is wrong. Freelingo shows
+      // an infinite meter, but the cost is still what the ledger records.
+      if (verdict.heartCost > 0 !== verdict.wrong) {
         ctx.refutations.push(
-          `day ${scripted.day}: an answer with nothing in common graded correct — ${PORT_OWNER.grading}`,
+          `day ${scripted.day}: heartCost ${verdict.heartCost} on a wrong=${verdict.wrong} ` +
+            `verdict — ${PORT_OWNER.grading}`,
         );
       }
     }
   }
 
   if (engine.scheduler === null) {
-    ctx.cannot('scheduler', 'advancing the FSRS row of every answered item');
+    ctx.cannot('scheduler', 'the FSRS attempt ledger, and a replayed commit writing nothing');
   } else if (queue.length > 0) {
-    engine.scheduler.review({ row: queue[0], rating: 3, atMs: startedAtUtcMs });
+    // INV-SCH-03: applying the same `(session_id, exercise_index)` twice writes nothing.
+    // Only the journey sees this across a whole trace of real sessions.
+    for (let i = 0; i < Math.min(answered, queue.length); i += 1) {
+      const encounter = {
+        sessionId,
+        exerciseIndex: i,
+        itemId: queue[i]!.itemId,
+        surface: ACCEPTED_ANSWER,
+        role: 'production',
+        grade: i < wrong ? 1 : 3,
+        at: new Date(startedAtUtcMs + i * 1_000),
+      };
+      const first = engine.scheduler.applyEncounter(world.schedulerState, encounter);
+      const replay = engine.scheduler.applyEncounter(first.state, encounter);
+      if (replay.wroteAttempt) {
+        ctx.refutations.push(
+          `day ${scripted.day}: replaying (${sessionId}, ${i}) wrote a second attempt row ` +
+            `— ${PORT_OWNER.scheduler}`,
+        );
+      }
+      world.schedulerState = first.state;
+    }
   }
 
   return {
