@@ -10,6 +10,20 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { arbDayOffsets, ARBITRARY_HISTORY_PAST_DAYS } from './arbitraries.js';
+import {
+  arbAttemptHistory,
+  arbPackManifest,
+  arbSession,
+  arbSessionQueue,
+  twoCourseFixture,
+} from './engine-arbitraries.js';
+import { seededPrng } from './prng.js';
+import {
+  EXERCISE_TYPES,
+  NON_PUNITIVE_EXERCISE_TYPES,
+  SESSION_FLAVOURS,
+  SESSION_OUTCOMES,
+} from '../../core/src/types/index.js';
 
 /** Named config: how often a generated history must be able to falsify a streak rule. */
 const SAMPLES = 20_000;
@@ -53,5 +67,103 @@ describe('arbDayOffsets', () => {
         expect(offset).toBeGreaterThanOrEqual(-2 * ARBITRARY_HISTORY_PAST_DAYS);
       }
     }
+  });
+});
+
+/**
+ * Shape floors for the engine generators (P1).
+ *
+ * Same rule as above, applied to every new generator: a property is only as good as the
+ * share of its cases that could falsify the invariant. Each floor below is measured at
+ * SAMPLES and set well under the measurement so a fast-check seed change cannot flake it.
+ * A generator added without a floor here is a generator nobody has looked at.
+ */
+describe('engine arbitraries have shape floors', () => {
+  const share = <T>(items: readonly T[], predicate: (item: T) => boolean) =>
+    items.filter(predicate).length / items.length;
+
+  it('arbSessionQueue reaches the ordinary lesson length and the long-test length', () => {
+    const queues = fc.sample(arbSessionQueue(), SAMPLES);
+    expect(share(queues, (q) => q.length >= 9 && q.length <= 14)).toBeGreaterThan(0.35);
+    expect(share(queues, (q) => q.length >= 15)).toBeGreaterThan(0.1);
+    expect(share(queues, (q) => q.length <= 5)).toBeGreaterThan(0.1);
+  });
+
+  it('arbSessionQueue produces every exercise type, punitive and non-punitive alike', () => {
+    const seen = new Set<string>();
+    for (const queue of fc.sample(arbSessionQueue(), 2_000)) {
+      for (const exercise of queue) seen.add(exercise.exerciseType);
+    }
+    expect([...seen].sort()).toEqual([...EXERCISE_TYPES].sort());
+  });
+
+  it('arbSessionQueue reaches an all-non-punitive queue, which INV-ECO-33 is about', () => {
+    // A queue of nothing but speak/readRespond/character is where accuracy is undefined.
+    // It is rare by construction (3 of 11 types), so the floor is low and non-zero: at
+    // zero, the Sharpshooter property would never see the case it exists for.
+    const queues = fc.sample(arbSessionQueue(), SAMPLES);
+    const allNonPunitive = queues.filter(
+      (q) => q.length > 0 && q.every((e) => NON_PUNITIVE_EXERCISE_TYPES.includes(e.exerciseType)),
+    );
+    expect(allNonPunitive.length).toBeGreaterThan(0);
+  });
+
+  it('arbAttemptHistory is dense enough in first-try misses to move a mistake queue', () => {
+    const histories = fc.sample(arbAttemptHistory(), 5_000);
+    expect(
+      share(histories, (h) => h.some((a) => a.verdict === 'incorrect' && a.firstTry)),
+    ).toBeGreaterThan(0.5);
+    // ... and still produces the flawless session the perfect-lesson rules need.
+    expect(
+      share(histories, (h) => h.length > 0 && h.every((a) => a.verdict !== 'incorrect')),
+    ).toBeGreaterThan(0.002);
+  });
+
+  it('arbAttemptHistory keys every row (session_id, exercise_index) with no gaps', () => {
+    for (const history of fc.sample(arbAttemptHistory(), 1_000)) {
+      const ids = new Set(history.map((a) => a.sessionId));
+      expect(ids.size).toBeLessThanOrEqual(1);
+      history.forEach((attempt, index) => expect(attempt.exerciseIndex).toBe(index));
+    }
+  });
+
+  it('arbSession covers every flavour and every outcome', () => {
+    const sessions = fc.sample(arbSession(), SAMPLES);
+    expect(new Set(sessions.map((s) => s.flavour)).size).toBe(SESSION_FLAVOURS.length);
+    expect(new Set(sessions.map((s) => s.outcome)).size).toBe(SESSION_OUTCOMES.length);
+    // A combo high enough to reach the bonus cap (15 in a row) must be reachable.
+    expect(share(sessions, (s) => s.maxCombo >= 15)).toBeGreaterThan(0.1);
+  });
+
+  it('arbPackManifest reaches both sides of the 2% defect gate and both CEFR arms', () => {
+    const manifests = fc.sample(arbPackManifest(), SAMPLES);
+    expect(share(manifests, (m) => m.defectRate <= 0.02)).toBeGreaterThan(0.2);
+    expect(share(manifests, (m) => m.defectRate > 0.02)).toBeGreaterThan(0.2);
+    expect(share(manifests, (m) => m.cefrChecked)).toBeGreaterThan(0.3);
+  });
+
+  it('the two-course fixture shares ids between courses, so a SUM cannot pass for a UNION', () => {
+    const fixture = twoCourseFixture();
+    expect(fixture.courses).toHaveLength(2);
+    expect(fixture.sharedItemIds.length).toBeGreaterThan(0);
+    const rowSum = fixture.courses.reduce((n, c) => n + c.introducedItemIds.length, 0);
+    expect(rowSum).toBeGreaterThan(fixture.distinctIntroducedCount);
+  });
+});
+
+describe('seededPrng', () => {
+  it('is deterministic for a seed and different across seeds', () => {
+    const a = seededPrng('freelingo').shuffle([1, 2, 3, 4, 5, 6, 7, 8]);
+    const b = seededPrng('freelingo').shuffle([1, 2, 3, 4, 5, 6, 7, 8]);
+    const c = seededPrng('freelingo-2').shuffle([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(a).toEqual(b);
+    expect(a).not.toEqual(c);
+  });
+
+  it('covers its integer range end to end', () => {
+    const prng = seededPrng(7);
+    const seen = new Set<number>();
+    for (let i = 0; i < 5_000; i += 1) seen.add(prng.int(0, 9));
+    expect(seen.size).toBe(10);
   });
 });

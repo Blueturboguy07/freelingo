@@ -1,0 +1,6 @@
+{
+  "$comment": "Invariant ids owned by the P1 task `p1-foundation-economy-schema`, schema half: the two-region progress schema, the migration registry past user_version 1, the exclusive-transaction gate, per-course display preferences and the golden-DB corpus. Tests live under packages/schema/src/.",
+  "task": "p1-foundation-economy-schema",
+  "phase": "P1",
+  "owned": ["INV-ECO-04", "INV-PER-03", "INV-PER-07", "INV-PER-11", "INV-PACK-35"]
+}

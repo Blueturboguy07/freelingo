@@ -1,0 +1,167 @@
+/**
+ * The achievement grid's honesty gates: INV-ECO-25 (a counter that exists and a
+ * reachable event; no `crown`, no `skill`), INV-ECO-26 (no permanently unearnable row is
+ * rendered), INV-ECO-28 (non-empty ascending ladders, first tier reachable) and
+ * INV-ECO-33 (Sharpshooter needs a punitive item).
+ *
+ * The schema half of INV-ECO-25 — "a counter that exists in the schema" — is asserted in
+ * `packages/schema/src/achievement-columns.test.ts`, where the schema is.
+ */
+import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
+import { PROPERTY_RUNS } from '@freelingo/testkit';
+import { EXERCISE_TYPES, NON_PUNITIVE_EXERCISE_TYPES, isPunitive } from '../types/index.js';
+import {
+  ACHIEVEMENTS,
+  ACHIEVEMENT_CATEGORIES,
+  DEFAULT_INSTALLED_FEATURES,
+  ENABLED_SURFACES,
+  achievementCounterColumns,
+  hasReachableSurface,
+  hasValidTierLadder,
+  isRenderable,
+  renderedAchievements,
+  sharpshooterIncrements,
+} from './achievements.js';
+
+const RUNS = { numRuns: PROPERTY_RUNS } as const;
+
+describe('the achievement registry', () => {
+  it('[INV-ECO-25] every achievement is incremented by at least one reachable event', () => {
+    for (const achievement of renderedAchievements()) {
+      expect(
+        hasReachableSurface(achievement, DEFAULT_INSTALLED_FEATURES),
+        `${achievement.id} has no enabled incrementing surface`,
+      ).toBe(true);
+    }
+  });
+
+  it('[INV-ECO-25] falsifier: no achievement config mentions crowns or skills', () => {
+    // Freelingo's path has neither, so Regal (crowns) and Conqueror (every skill to
+    // level n) would render a row whose source column resolves to a mechanic that does
+    // not exist. Their replacements count nodes and Legendary trophies.
+    const blob = JSON.stringify(ACHIEVEMENTS).toLowerCase();
+    expect(blob).not.toContain('crown');
+    expect(blob).not.toContain('skill');
+    expect(ACHIEVEMENTS.some((a) => a.id === 'pathfinder')).toBe(true);
+    expect(ACHIEVEMENTS.some((a) => a.id === 'completionist')).toBe(true);
+  });
+
+  it('[INV-ECO-25] every achievement names exactly one counter column, and names are unique', () => {
+    const ids = ACHIEVEMENTS.map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const achievement of ACHIEVEMENTS) {
+      expect(achievement.counterColumn).toMatch(/^[a-z][a-z0-9_]*$/);
+      expect(achievement.surfaces.length).toBeGreaterThan(0);
+    }
+    expect(achievementCounterColumns().length).toBe(ACHIEVEMENTS.length);
+  });
+
+  it("[INV-ECO-25] the two category names are Duolingo's own: Awards and Personal Records", () => {
+    expect([...ACHIEVEMENT_CATEGORIES]).toEqual(['Awards', 'Personal Records']);
+  });
+
+  it('[INV-ECO-25] the social achievements cut by D-NOSOCIAL leave no hole in the grid', () => {
+    const cut = ['champion', 'winner', 'friendly', 'photogenic', 'challenger', 'unrivaled'];
+    for (const id of cut) expect(ACHIEVEMENTS.some((a) => a.id === id)).toBe(false);
+    // The grid is still a grid: at least ten rows render under the default install.
+    expect(renderedAchievements().length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('unearnable rows', () => {
+  it('[INV-ECO-26] falsifier: an achievement whose every surface is disabled is NOT rendered', () => {
+    const nothingEnabled = { enabledSurfaces: [], packFeatures: [] } as const;
+    expect(renderedAchievements(nothingEnabled)).toEqual([]);
+    for (const achievement of ACHIEVEMENTS) {
+      expect(isRenderable(achievement, nothingEnabled)).toBe(false);
+    }
+  });
+
+  it('[INV-ECO-26] a pack with no stories does not render Page Turner at 0/60', () => {
+    const noStories = { enabledSurfaces: ENABLED_SURFACES, packFeatures: [] } as const;
+    const rendered = renderedAchievements(noStories).map((a) => a.id);
+    expect(rendered).not.toContain('page-turner');
+    expect(rendered).toContain('wildfire');
+  });
+
+  it('[INV-ECO-26] rendering is monotone in the enabled surfaces: enabling never hides a row', () => {
+    fc.assert(
+      fc.property(
+        fc.uniqueArray(fc.constantFrom(...ENABLED_SURFACES), {
+          maxLength: ENABLED_SURFACES.length,
+        }),
+        fc.constantFrom(...ENABLED_SURFACES),
+        (subset, extra) => {
+          const before = new Set(
+            renderedAchievements({ enabledSurfaces: subset, packFeatures: ['stories'] }).map(
+              (a) => a.id,
+            ),
+          );
+          const after = new Set(
+            renderedAchievements({
+              enabledSurfaces: [...new Set([...subset, extra])],
+              packFeatures: ['stories'],
+            }).map((a) => a.id),
+          );
+          for (const id of before) expect(after.has(id)).toBe(true);
+        },
+      ),
+      RUNS,
+    );
+  });
+});
+
+describe('tier ladders', () => {
+  it('[INV-ECO-28] every rendered achievement has a non-empty, strictly ascending ladder', () => {
+    for (const achievement of renderedAchievements()) {
+      expect(hasValidTierLadder(achievement), `${achievement.id} ladder`).toBe(true);
+      expect(achievement.tiers.length).toBeGreaterThan(0);
+      expect(achievement.tiers[0]).toBeGreaterThan(0);
+    }
+  });
+
+  it('[INV-ECO-28] falsifier: a badge with a null denominator or a zero first tier is not renderable', () => {
+    const nullDenominator = { ...ACHIEVEMENTS[0]!, tiers: [] as readonly number[] };
+    expect(hasValidTierLadder(nullDenominator)).toBe(false);
+    expect(isRenderable(nullDenominator)).toBe(false);
+
+    const zeroFirstTier = { ...ACHIEVEMENTS[0]!, tiers: [0, 5, 10] };
+    expect(hasValidTierLadder(zeroFirstTier)).toBe(false);
+
+    const nonAscending = { ...ACHIEVEMENTS[0]!, tiers: [5, 5, 10] };
+    expect(hasValidTierLadder(nonAscending)).toBe(false);
+  });
+
+  it('[INV-ECO-28] the first tier of every rendered achievement is reachable under the installed packs', () => {
+    for (const achievement of renderedAchievements()) {
+      if (achievement.requiresPackFeature !== null) {
+        expect(DEFAULT_INSTALLED_FEATURES.packFeatures).toContain(achievement.requiresPackFeature);
+      }
+      expect(hasReachableSurface(achievement, DEFAULT_INSTALLED_FEATURES)).toBe(true);
+    }
+  });
+});
+
+describe('Sharpshooter', () => {
+  it('[INV-ECO-33] falsifier: 100 runs of an all-tracing node never increment it', () => {
+    const kanaLesson = [...NON_PUNITIVE_EXERCISE_TYPES];
+    for (let run = 0; run < 100; run += 1) {
+      expect(sharpshooterIncrements(kanaLesson, 0)).toBe(false);
+    }
+  });
+
+  it('[INV-ECO-33] increments exactly when the scorable set is non-empty and the session was clean', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.constantFrom(...EXERCISE_TYPES), { maxLength: 20 }),
+        fc.integer({ min: 0, max: 5 }),
+        (types, mistakes) => {
+          const punitive = types.filter(isPunitive).length;
+          expect(sharpshooterIncrements(types, mistakes)).toBe(punitive > 0 && mistakes === 0);
+        },
+      ),
+      RUNS,
+    );
+  });
+});
