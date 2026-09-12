@@ -24,19 +24,40 @@ from typing import Any
 
 import pytest
 
-from coursekit.artifacts import ARTIFACT_SCHEMA_VERSION, validate_record
+from coursekit.artifacts import (
+    ARTIFACT_SCHEMA_VERSION,
+    read_records,
+    validate_record,
+    write_records,
+)
 from coursekit.config.g3 import LESSONS_PER_LEVEL
 from coursekit.config.g4 import (
     CANDIDATE_TOKENS_MAX,
+    CANDIDATE_TOKENS_MIN,
+    CROSS_UNIT_REPEAT_CEILING,
     LEDGER_EXCLUDED_POS,
+    MAX_GAP_FRACTION,
     MAX_NEW_LEMMAS_PER_EXERCISE,
     MAX_NEW_LEMMAS_PER_LESSON,
     MAX_USES_PER_SENTENCE_PER_COURSE,
+    PREDICTED_YIELD_MAX,
+    PREDICTED_YIELD_MIN,
     SLOTS_PER_LESSON,
 )
-from coursekit.stages import STAGES
+from coursekit.runlog import RunLog
+from coursekit.stages import STAGES, StageContext, StageResult
 from coursekit.stages.g3_solve import load_curriculum, solve
-from coursekit.stages.g4_select import Candidate, build_candidates, select
+from coursekit.stages.g4_select import (
+    Candidate,
+    SelectReport,
+    build_candidates,
+    main,
+    measure_candidate_yield,
+    read_tatoeba,
+    select,
+    short_candidates,
+    stage_verdict,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "es-mini"
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -357,3 +378,248 @@ def test_g4_is_registered() -> None:
     assert stage is not None
     assert stage.writes == ("selected_item",)
     assert "unit_assignment" in stage.reads
+
+
+# ---------------------------------------------------------------------------
+# The stage, run as a stage
+# ---------------------------------------------------------------------------
+#
+# Everything above calls `select()`. Nothing above ever reached `select_items()`, which
+# means the two ceilings in `stage_verdict` — the ONLY things standing between a thin
+# corpus and a course handed to G5 — had never been executed by any test, in either
+# direction. The refuter found that by re-running the pipeline: es-mini gaps 87% of its
+# slots and `run()` refuses it, while the test suite reported the same ledger as clean.
+
+
+def run_g4_over_es_mini() -> tuple[StageResult, list[dict[str, Any]]]:
+    """Run the REAL g3 and g4 stages over the fixture, and return g4's verdict.
+
+    `conftest.isolated_build_root` has already pointed `COURSEKIT_BUILD_ROOT` at a
+    tmp_path, so this writes nowhere near the repository's `build/`. G0, G1 and G2 belong
+    to other lanes, so their outputs are written straight from the fixture under their own
+    runlog entries — which is also what makes `require_successful` a real check here
+    rather than a line nothing exercises.
+    """
+    runlog = RunLog("es")
+    upstream = {
+        "g0": ("ingested_sentence", ingested_rows()),
+        "g1": ("analysed_sentence", list(analyse_es_mini())),
+        "g2": ("banded_lemma", banded_rows()),
+    }
+    for stage_id, (kind, rows) in upstream.items():
+        with runlog.stage(stage_id, tool="test", tool_version="0") as entry:
+            entry.written = write_records(kind, rows, lang="es")
+            entry.record_output(kind)
+
+    for stage_id in ("g3", "g4"):
+        stage = REGISTERED_AT_IMPORT[stage_id]
+        with runlog.stage(stage_id, tool="test", tool_version="0") as entry:
+            result = stage.run(StageContext(lang="es", runlog=runlog, entry=entry))
+            if not result.ok:
+                entry.status = "failed"
+
+    return result, list(read_records("selected_item", lang="es"))
+
+
+def test_the_stage_refuses_the_es_mini_pack_and_names_the_ceiling() -> None:
+    """G4's own gate REJECTS the pack this lane's fixture produces, and that is correct.
+
+    Measured 2026-09-12 at this commit: 756 slots, 98 filled, 658 gaps, gap_fraction
+    0.8704, against `MAX_GAP_FRACTION` 0.60. The fixture is 200 sentences and the
+    curriculum is 30 units; no arrangement of 200 sentences fills 756 slots.
+
+    The point of asserting it is that the previous version of this suite never did.
+    `INV-PACK-06`'s pack half called `select()` directly, so the ledger it certified as
+    clean was one the pipeline refuses to hand to G5 — the validators were right and the
+    claim around them was too broad. The honest statement of what es-mini proves is in
+    `test_validators_ledger.py`'s module docstring.
+    """
+    verdict, items = run_g4_over_es_mini()
+    assert verdict.ok is False
+    assert "over the 60% ceiling" in verdict.message
+    assert verdict.detail["slots"] == len(items)
+    assert verdict.detail["gap_fraction"] > MAX_GAP_FRACTION
+    #: and the rejected run still WROTE every row, gaps included: a stage that fails its
+    #: gate must leave the evidence behind, not delete it.
+    assert [item for item in items if item["gap"]]
+
+
+def test_the_stage_verdict_is_the_one_the_stage_returns() -> None:
+    """`select_items` returns exactly `stage_verdict(report)`, so the tests below are
+    tests OF the gate rather than of a parallel copy of it."""
+    verdict, _ = run_g4_over_es_mini()
+    _, g4, _ = es_mini_run()
+    assert verdict == stage_verdict(g4.report)
+
+
+def _report(*, slots: int, gaps: int, repeats: int = 0, yield_: float = 0.10) -> SelectReport:
+    """A finished report with the two ratios set exactly, and nothing else pretended."""
+    report = SelectReport(census={"candidates": 1000})
+    report.slots = slots
+    report.gaps = gaps
+    report.filled = slots - gaps
+    report.cross_unit_repeats = repeats
+    report.ledger_yield = yield_
+    report.within_prediction = PREDICTED_YIELD_MIN <= yield_ <= PREDICTED_YIELD_MAX
+    return report
+
+
+@pytest.mark.parametrize(
+    ("gaps", "ok"),
+    [(61, False), (60, True)],
+    ids=["just over the gap ceiling", "exactly at the gap ceiling"],
+)
+def test_the_gap_ceiling_decides_the_stage_in_both_directions(gaps: int, ok: bool) -> None:
+    """60 gaps in 100 slots passes; 61 does not. The comparison is `>`, not `>=`.
+
+    `MAX_GAP_FRACTION` is the gate that stops a thin corpus from being laundered into a
+    $100 authoring bill at G5, and until this test it had never returned False anywhere
+    except in production.
+    """
+    assert MAX_GAP_FRACTION == 0.60
+    verdict = stage_verdict(_report(slots=100, gaps=gaps))
+    assert verdict.ok is ok
+    if not ok:
+        assert "G5 is an authoring stage with a budget" in verdict.message
+
+
+@pytest.mark.parametrize(
+    ("repeats", "ok"),
+    [(6, False), (5, True)],
+    ids=["just over the repeat ceiling", "exactly at the repeat ceiling"],
+)
+def test_the_cross_unit_repeat_ceiling_decides_the_stage_in_both_directions(
+    repeats: int, ok: bool
+) -> None:
+    """V9's second half as a STAGE gate: 5 repeats in 100 filled slots passes, 6 does not.
+
+    Some repetition is recycling working as designed; a lot of it is a corpus that ran
+    out and a selector that hid it.
+    """
+    assert CROSS_UNIT_REPEAT_CEILING == 0.05
+    verdict = stage_verdict(_report(slots=100, gaps=0, repeats=repeats))
+    assert verdict.ok is ok
+    if not ok:
+        assert "reuse a sentence from an earlier unit" in verdict.message
+
+
+def test_the_gap_ceiling_is_checked_before_the_repeat_ceiling() -> None:
+    """Both breached: the reader is told about the gaps, which is the bigger fact."""
+    verdict = stage_verdict(_report(slots=100, gaps=99, repeats=1))
+    assert verdict.ok is False
+    assert "are gaps" in verdict.message
+
+
+@pytest.mark.parametrize(
+    ("yield_", "flagged"),
+    [(0.10, False), (0.1606, True), (0.01, True)],
+    ids=["inside the predicted band", "above it", "below it"],
+)
+def test_a_yield_outside_the_predicted_band_is_stated_in_the_verdict(
+    yield_: float, flagged: bool
+) -> None:
+    """`PREDICTED_YIELD_MIN/MAX` exist to make a prediction failure VISIBLE.
+
+    Before this, `within_prediction` was computed, written to the runlog and read by
+    nobody — so the 16.06% measured against real Tatoeba, which is above the framework's
+    15% ceiling, was a prediction failure that nothing in the tool would ever mention.
+    """
+    verdict = stage_verdict(_report(slots=100, gaps=0, yield_=yield_))
+    assert verdict.ok is True
+    assert ("OUTSIDE the predicted" in verdict.message) is flagged
+
+
+# ---------------------------------------------------------------------------
+# deep/10 Open Question 1 — the committed measurement
+# ---------------------------------------------------------------------------
+
+
+def _stub_analyser(analyses: Mapping[str, Sequence[tuple[str, str]]]) -> Any:
+    """Turn a `{text: [(lemma, pos), ...]}` table into an `Analyser`."""
+
+    def analyse(texts: Sequence[str]) -> Any:
+        for text in texts:
+            yield [
+                {"lemma": lemma, "pos": pos, "morph": ""} for lemma, pos in analyses[text]
+            ]
+
+    return analyse
+
+
+def test_the_yield_measurement_counts_what_open_question_1_asked_for() -> None:
+    """Admitted = every content lemma is in the ledger. Exhibiting = and it shows a concept.
+
+    Five sentences: one too short and one too long (dropped before anything else), one
+    whose lemmas are all in the curriculum and which exhibits a concept, one admitted but
+    exhibiting nothing, and one carrying a lemma the curriculum never teaches.
+    """
+    curriculum = load_curriculum("es", path=ES_CURRICULUM)
+    ledger = {lx for _, unit in curriculum.units() for lx in unit.target_lexemes}
+    taught = sorted(ledger)[0]
+    texts = {
+        "too short": [("x", "NOUN")],
+        "a b c d e f g h i j k l m": [("x", "NOUN")],
+        "admitted and exhibiting": [(taught, "NOUN"), ("ser", "AUX"), (".", "PUNCT")],
+        "admitted only here": [(taught, "NOUN")],
+        "carries an untaught word": [(taught, "NOUN"), ("zzzuntaught", "NOUN")],
+    }
+    measurement = measure_candidate_yield(
+        list(texts),
+        curriculum,
+        _stub_analyser(texts),
+        sample=0,
+        corpus="unit-test",
+    )
+    assert measurement.total == 5
+    assert measurement.sample == measurement.short == 3
+    assert measurement.admitted == 2  # the untaught-word sentence is not one of them
+    assert 1 <= measurement.exhibiting <= measurement.admitted
+    assert measurement.ledger_lexemes == len(ledger)
+    assert measurement.admitted_fraction == pytest.approx(2 / 3)
+    assert measurement.within_prediction is False
+
+
+def test_the_yield_measurement_uses_the_length_window_from_config() -> None:
+    """The denominator of the headline number is `CANDIDATE_TOKENS_MIN..MAX`, not a
+    number retyped into a script that can drift from the stage."""
+    texts = ["w " * n for n in range(1, 20)]
+    kept = short_candidates(text.strip() for text in texts)
+    assert {len(text.split()) for text in kept} == set(
+        range(CANDIDATE_TOKENS_MIN, CANDIDATE_TOKENS_MAX + 1)
+    )
+
+
+def test_the_yield_command_reads_a_tatoeba_export_and_prints_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`python -m coursekit.stages.g4_select --corpus <tsv>` — the re-runnable command.
+
+    The 16.06% figure in `docs/owned/p2-g3-g4.json` was first measured by a script in a
+    scratchpad that no longer exists, which makes a load-bearing number unre-runnable by
+    the integrator or the founder. This is that script, committed inside the stage whose
+    admission predicate it borrows, and this test runs its whole path: the export reader,
+    the length window, the ledger test and the JSON it prints. Only the lemmatiser is
+    stubbed, because a 40,000-sentence spaCy run is not a unit test.
+    """
+    export = tmp_path / "spa_sentences.tsv"
+    curriculum = load_curriculum("es", path=ES_CURRICULUM)
+    taught = sorted({lx for _, u in curriculum.units() for lx in u.target_lexemes})[0]
+    rows = {"uno dos tres": [(taught, "NOUN")], "x": [("x", "NOUN")]}
+    export.write_text(
+        "".join(f"{i}\tspa\t{text}\n" for i, text in enumerate(rows, start=1))
+        + "9\tspa\n",  # a malformed row: skipped, never guessed at
+        encoding="utf-8",
+    )
+    assert read_tatoeba(export) == list(rows)
+
+    assert main(
+        ["--corpus", str(export), "--lang", "es", "--sample", "0"],
+        analyse=_stub_analyser(rows),
+    ) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["sentences"] == 2
+    assert printed[f"short_{CANDIDATE_TOKENS_MIN}_to_{CANDIDATE_TOKENS_MAX}_tokens"] == 1
+    assert printed["admitted_by_the_ledger"] == 1
+    assert printed["ledger_yield"] == 1.0
+    assert printed["predicted_range"] == [PREDICTED_YIELD_MIN, PREDICTED_YIELD_MAX]
+    assert printed["within_prediction"] is False

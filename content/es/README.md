@@ -66,6 +66,39 @@ Only **seven** `cefr_level_prose` values ship — `very early A1`, `early A1`, `
 rather than inventing a string. This course stops at `high A1` and never reaches it — the
 rule is enforced anyway, because the fr/de/ja kits and Sections 4–8 will.
 
+## How much of a real corpus this ledger admits — 16.06%
+
+`deep/10` Open Question 1 calls the ledger's admission rate "the most load-bearing
+untested assumption in the content plan": the framework guessed 5–15% of short candidates
+and nobody had measured it. Measured against the real Tatoeba Spanish export on
+2026-09-12, over a 40,000-sentence sample of the 387,599 sentences that are 3–12 tokens
+(87.72% of 441,881), lemmatised with the pinned `es_core_news_md` 3.8.0:
+
+|                                                       |                    |
+| ----------------------------------------------------- | ------------------ |
+| whole content-lemma set inside these 990 lexemes      | **6,423 — 16.06%** |
+| …and exhibits at least one of the 30 grammar concepts | 6,387 — 15.97%     |
+
+Two things follow. The **Tatoeba-only posture holds for Spanish**: extrapolated over the
+short pool that is ~62,000 usable A1 sentences against the ~1,200 a course needs, two
+orders of magnitude of headroom. And the **grammar-concept filter costs almost nothing**
+(0.09 pp), because thirty A1 concepts between them cover ordinary A1 sentences — the
+constraint that looked most likely to starve selection does not.
+
+16.06% is **above** the framework's predicted ceiling of 15%, so it is recorded as a
+prediction failure rather than tidied into the band; `PREDICTED_YIELD_MIN/MAX` in
+`config/g4.py` exist to make exactly that visible, and G4 now says so in its stage
+message. Re-run it — the measurement is committed code, not a script somebody once had:
+
+```sh
+curl -sSLO https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2
+cd tools/coursekit && uv run python -m coursekit.stages.g4_select \
+    --corpus ../../spa_sentences.tsv.bz2 --lang es --sample 40000
+```
+
+It lives inside `stages/g4_select.py` rather than beside it so it cannot drift from the
+admission predicate the stage actually uses.
+
 ## Editing it
 
 Change a title or a lexeme list, then re-run `coursekit build es --only g3 --only g4`.

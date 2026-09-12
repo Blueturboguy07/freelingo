@@ -17,10 +17,15 @@ lane that produces it rather than by a validator lane that would have to guess a
 V1's parenthesis is the whole rule. A surface-token ledger passes on Spanish by accident
 and breaks silently on every inflected and agglutinative language: `hablo` and `hablas`
 are one lemma and two surfaces, and a ledger that counts surfaces has already taught a
-word it thinks it has not. So these checks read `analysed_sentence.lemmas` — which for
-Japanese is SudachiPy Mode A, so a compound cannot smuggle unseen morphemes past V1 —
-and fall back to `item_tags.lemmas` only for an exercise with no corpus sentence behind
-it (a G5-authored item before G6 has analysed it).
+word it thinks it has not. So these checks read `analysed_sentence.lemmas`, and fall back
+to `item_tags.lemmas` only for an exercise with no corpus sentence behind it (a
+G5-authored item before G6 has analysed it).
+
+INV-PACK-06's second clause — "Japanese runs the ledger on Mode-A segmentation" — is
+ENFORCED by `_check_segmentation` rather than assumed. Under SudachiPy Mode C a compound
+is one token, so V1 and V2 pass *vacuously* while several unseen morphemes reach the
+learner (EC-PACK-07). A ledger on the wrong mode is blocking, with no gap-aware softening:
+it is not an unfinished pack, it is a pack whose validation means nothing.
 
 ### Why some findings are warnings before G5 has run
 
@@ -49,6 +54,7 @@ from ..config.g3 import RECYCLE_MIN_OCCURRENCES, RECYCLE_WINDOW_LESSONS
 from ..config.g4 import (
     CROSS_UNIT_REPEAT_CEILING,
     LEDGER_EXCLUDED_POS,
+    LEDGER_SPLIT_MODE,
     MAX_NEW_INFLECTIONS_PER_EXERCISE,
     MAX_NEW_LEMMAS_PER_EXERCISE,
     MAX_NEW_LEMMAS_PER_LESSON,
@@ -95,6 +101,10 @@ class Ledger:
     lemmas_of: dict[str, frozenset[str]]
     #: sentence id -> (lemma, morph) pairs, for V2's inflection half.
     forms_of: dict[str, frozenset[tuple[str, str]]] = field(default_factory=dict)
+    #: The segmentation modes the analysed rows were produced with (EC-PACK-07). A set
+    #: rather than one value: a ledger assembled from two runs of different adapters is
+    #: exactly the mixture V2 must refuse, and a single field would hide it.
+    split_modes: frozenset[str | None] = frozenset()
 
     def content_lemmas(self, exercise: Mapping[str, Any]) -> frozenset[str]:
         """What is really in an exercise.
@@ -154,8 +164,11 @@ def build_ledger(
 
     lemmas_of: dict[str, frozenset[str]] = {}
     forms_of: dict[str, frozenset[tuple[str, str]]] = {}
+    split_modes: set[str | None] = set()
     for row in analysed:
         sentence_id = str(row["sentence_id"])
+        mode = row.get("adapter", {}).get("split_mode")
+        split_modes.add(str(mode) if mode is not None else None)
         # Punctuation is not a ledger item. Counting it makes every sentence carry a
         # lemma no curriculum introduces, which reads as a V1 failure on every row.
         items = [
@@ -181,6 +194,7 @@ def build_ledger(
         gaps=gaps,
         lemmas_of=lemmas_of,
         forms_of=forms_of,
+        split_modes=frozenset(split_modes),
     )
 
 
@@ -254,6 +268,45 @@ def check_v1(ledger: Ledger) -> list[Finding]:
 # ---------------------------------------------------------------------------
 
 
+def _check_segmentation(ledger: Ledger) -> list[Finding]:
+    """EC-PACK-07: the ledger must be built on the segmentation its language requires.
+
+    This is the second clause of INV-PACK-06 — "Japanese runs the ledger on Mode-A
+    segmentation" — and it is a *precondition* of V2 rather than an extra rule. Under
+    SudachiPy Mode C, `外国人観光客` is one token, so V2 counts one new item and passes
+    while three unseen morphemes go in front of the learner. The failure leaves no trace
+    in any count: every number V2 prints is smaller and every one of them is green.
+
+    So the mode is checked positively, per language, and a violation is BLOCKING with no
+    gap-aware softening: a pack built on the wrong segmentation is not an unfinished pack,
+    it is a pack whose validation means nothing. A language with no entry in
+    `LEDGER_SPLIT_MODE` has no modes and is expected to carry `split_mode: null`.
+    """
+    required = LEDGER_SPLIT_MODE.get(ledger.lang)
+    if not ledger.split_modes:
+        return []  # nothing analysed; V4 and the stage gates own the empty-pack case
+    wrong = sorted(
+        str(mode) for mode in ledger.split_modes if (mode or None) != required
+    )
+    if not wrong:
+        return []
+    return [
+        Finding(
+            validator_id="V2",
+            severity="blocking",
+            message=(
+                f"the {ledger.lang} ledger was built on segmentation "
+                f"{', '.join(wrong)} but requires "
+                f"{required or 'none (this adapter has no modes)'} (EC-PACK-07). "
+                f"On the wrong mode a compound counts as one new item while several "
+                f"morphemes are introduced, so V1 and V2 pass VACUOUSLY."
+            ),
+            subject=ledger.lang,
+            detail={"required": required, "found": wrong},
+        )
+    ]
+
+
 def check_v2(ledger: Ledger) -> list[Finding]:
     """At most one new lemma-or-inflection per exercise; at most K new lemmas per lesson.
 
@@ -266,8 +319,10 @@ def check_v2(ledger: Ledger) -> list[Finding]:
     clause the rule is unsatisfiable from a corpus at all: at the start of a course nothing
     has been carried yet, every sentence looks like five new items at once, and the only
     ledger that passes is the empty one.
+
+    It also refuses to run at all on the wrong segmentation — see `_check_segmentation`.
     """
-    findings: list[Finding] = []
+    findings: list[Finding] = _check_segmentation(ledger)
     seen_lemmas: set[str] = set()
     seen_forms: set[tuple[str, str]] = set()
     per_lesson: dict[tuple[int, int], set[str]] = {}

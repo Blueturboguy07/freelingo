@@ -17,7 +17,11 @@ Three rules make this stage more than a filter:
 - **The yield is measured.** `deep/10` Open Question 1 calls the ledger's admission rate
   "the most load-bearing untested assumption in the content plan" — the framework
   estimates 5-15% of short candidates and nobody had measured it. This stage measures it
-  and writes it to the runlog; P2 is where it stops being untested.
+  over its own corpus and writes it to the runlog, and `python -m
+  coursekit.stages.g4_select --corpus <tatoeba.tsv.bz2>` re-runs the same measurement
+  over a real export (see "Open Question 1, as a re-runnable command" at the bottom).
+  P2 is where it stops being untested. A run whose yield falls outside the predicted band
+  says so in the stage message: the constants exist to make a prediction failure visible.
 
 ### Why the admissibility index looks the way it does
 
@@ -30,9 +34,13 @@ Total work is proportional to the corpus, not to the corpus times the course.
 
 from __future__ import annotations
 
+import bz2
+import json
 import math
-from collections.abc import Iterable, Mapping, Sequence
+import sys
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ..artifacts import read_records, write_records
@@ -66,8 +74,16 @@ __all__ = [
     "Candidate",
     "SelectReport",
     "SelectResult",
+    "YieldMeasurement",
     "build_candidates",
+    "main",
+    "measure_candidate_yield",
+    "read_tatoeba",
     "select",
+    "select_items",
+    "short_candidates",
+    "spacy_analyser",
+    "stage_verdict",
 ]
 
 
@@ -516,6 +532,65 @@ def _measure_yield(
 
 
 # ---------------------------------------------------------------------------
+# The two ceilings — the whole gate, in one pure function
+# ---------------------------------------------------------------------------
+
+
+def stage_verdict(report: SelectReport) -> StageResult:
+    """Turn a finished `SelectReport` into the stage's pass/fail verdict.
+
+    This is a separate, pure function and not three `return`s inside `select_items`
+    because these two ceilings are *the only things standing between a thin corpus and a
+    course handed to G5*, and while they lived inside the stage body no test had ever
+    executed either of them — the tests called `select()` and never reached `run()`. A
+    gate whose red path has never run is a gate nobody has checked.
+
+    `select_items` returns exactly this, so the ceiling tests are tests of the stage's
+    verdict and not of a parallel copy of it.
+    """
+    if report.gap_fraction > MAX_GAP_FRACTION:
+        return StageResult(
+            ok=False,
+            message=(
+                f"{report.gaps}/{report.slots} slots ({report.gap_fraction:.0%}) are gaps, "
+                f"over the {MAX_GAP_FRACTION:.0%} ceiling. G5 is an authoring stage with a "
+                f"budget, not a way to make a thin corpus look full."
+            ),
+            detail=report.as_notes(),
+        )
+    if report.cross_unit_repeat_fraction > CROSS_UNIT_REPEAT_CEILING:
+        return StageResult(
+            ok=False,
+            message=(
+                f"{report.cross_unit_repeat_fraction:.1%} of filled slots reuse a sentence "
+                f"from an earlier unit, over the {CROSS_UNIT_REPEAT_CEILING:.0%} ceiling (V9)."
+            ),
+            detail=report.as_notes(),
+        )
+    #: A run inside the ceilings still says so when the yield is outside what the
+    #: framework predicted. `PREDICTED_YIELD_MIN/MAX` exist to make a prediction failure
+    #: visible, and until this line nothing surfaced one: `within_prediction` was computed,
+    #: written to the runlog, and read by nobody.
+    prediction = (
+        ""
+        if report.within_prediction
+        else (
+            f" — OUTSIDE the predicted {PREDICTED_YIELD_MIN:.0%}-{PREDICTED_YIELD_MAX:.0%} "
+            f"band (deep/10 Open Question 1); the prediction was wrong, not the run"
+        )
+    )
+    return StageResult(
+        ok=True,
+        message=(
+            f"{report.filled} filled, {report.gaps} gaps, ledger yield "
+            f"{report.ledger_yield:.1%} of "
+            f"{report.census.get('candidates', 0)} short candidates{prediction}"
+        ),
+        detail=report.as_notes(),
+    )
+
+
+# ---------------------------------------------------------------------------
 # The stage
 # ---------------------------------------------------------------------------
 
@@ -546,32 +621,207 @@ def select_items(ctx: StageContext) -> StageResult:
         curriculum=str(curriculum_path(ctx.lang).name),
         **result.report.as_notes(),
     )
+    return stage_verdict(result.report)
 
-    report = result.report
-    if report.gap_fraction > MAX_GAP_FRACTION:
-        return StageResult(
-            ok=False,
-            message=(
-                f"{report.gaps}/{report.slots} slots ({report.gap_fraction:.0%}) are gaps, "
-                f"over the {MAX_GAP_FRACTION:.0%} ceiling. G5 is an authoring stage with a "
-                f"budget, not a way to make a thin corpus look full."
-            ),
-            detail=report.as_notes(),
-        )
-    if report.cross_unit_repeat_fraction > CROSS_UNIT_REPEAT_CEILING:
-        return StageResult(
-            ok=False,
-            message=(
-                f"{report.cross_unit_repeat_fraction:.1%} of filled slots reuse a sentence "
-                f"from an earlier unit, over the {CROSS_UNIT_REPEAT_CEILING:.0%} ceiling (V9)."
-            ),
-            detail=report.as_notes(),
-        )
-    return StageResult(
-        ok=True,
-        message=(
-            f"{report.filled} filled, {report.gaps} gaps, ledger yield "
-            f"{report.ledger_yield:.1%} of {census['candidates']} short candidates"
-        ),
-        detail=report.as_notes(),
+
+# ---------------------------------------------------------------------------
+# deep/10 Open Question 1, as a re-runnable command
+# ---------------------------------------------------------------------------
+#
+# "The framework estimates the ledger admits 5-15% of short candidates … it is unmeasured,
+# and it is now the most load-bearing untested assumption in the content plan."
+#
+# The measurement lives HERE, in the stage, rather than in a script beside it, for one
+# reason: the number is only worth anything if it was produced by the same admission
+# predicate the stage uses. A separate script can drift from `_Admissible` in a single
+# commit and nobody would see it. It is also why this is committed at all — the first
+# version of this figure was measured in a scratchpad file that no longer exists, which
+# makes a load-bearing number unre-runnable by the integrator or the founder.
+#
+#     uv run python -m coursekit.stages.g4_select \
+#         --corpus ~/spa_sentences.tsv.bz2 --lang es --sample 40000
+#
+# G0 (ingest) is another lane's stage, so this reads a raw Tatoeba export directly rather
+# than the `ingested_sentence` artefact; the length window and the excluded-POS set come
+# from `config/g4.py`, so those two cannot drift even though the reader does.
+
+
+@dataclass(frozen=True, slots=True)
+class YieldMeasurement:
+    """What a yield run measured, and what the framework predicted it would measure."""
+
+    corpus: str
+    lang: str
+    total: int
+    short: int
+    sample: int
+    ledger_lexemes: int
+    admitted: int
+    exhibiting: int
+
+    @property
+    def short_fraction(self) -> float:
+        return self.short / self.total if self.total else 0.0
+
+    @property
+    def admitted_fraction(self) -> float:
+        return self.admitted / self.sample if self.sample else 0.0
+
+    @property
+    def exhibiting_fraction(self) -> float:
+        return self.exhibiting / self.sample if self.sample else 0.0
+
+    @property
+    def within_prediction(self) -> bool:
+        return PREDICTED_YIELD_MIN <= self.admitted_fraction <= PREDICTED_YIELD_MAX
+
+    def as_notes(self) -> dict[str, Any]:
+        return {
+            "corpus": self.corpus,
+            "lang": self.lang,
+            "sentences": self.total,
+            f"short_{CANDIDATE_TOKENS_MIN}_to_{CANDIDATE_TOKENS_MAX}_tokens": self.short,
+            "short_fraction": round(self.short_fraction, 4),
+            "sample": self.sample,
+            "ledger_lexemes": self.ledger_lexemes,
+            "admitted_by_the_ledger": self.admitted,
+            "admitted_and_exhibiting_a_concept": self.exhibiting,
+            YIELD_NOTE_KEY: round(self.admitted_fraction, 4),
+            "exhibiting_yield": round(self.exhibiting_fraction, 4),
+            "predicted_range": [PREDICTED_YIELD_MIN, PREDICTED_YIELD_MAX],
+            "within_prediction": self.within_prediction,
+        }
+
+
+#: A callable that turns raw sentence strings into G1-shaped token dicts, one list per
+#: sentence. Injected so the measurement is testable without loading a 40 MB model, and
+#: so a future language can hand it SudachiPy instead of spaCy.
+Analyser = Any
+
+
+def short_candidates(texts: Iterable[str]) -> list[str]:
+    """The A1 length window G0 applies, from `config/g4.py` and not retyped here."""
+    return [
+        text
+        for text in texts
+        if CANDIDATE_TOKENS_MIN <= len(text.split()) <= CANDIDATE_TOKENS_MAX
+    ]
+
+
+def measure_candidate_yield(
+    texts: Sequence[str],
+    curriculum: Any,
+    analyse: Analyser,
+    *,
+    sample: int,
+    corpus: str,
+    lang: str = "es",
+) -> YieldMeasurement:
+    """What fraction of short candidates does this curriculum's ledger admit?
+
+    "Admitted" is exactly `_Admissible`'s test at the END of the course — every content
+    lemma of the sentence is somewhere in the curriculum's target lexemes. That is an
+    upper bound on what any lesson could use and is the number `deep/10` asked for.
+    "Exhibiting" additionally requires the sentence to demonstrate at least one authored
+    grammar concept, which is the number that actually governs whether a slot can be
+    filled.
+    """
+    ledger = {lexeme for _, unit in curriculum.units() for lexeme in unit.target_lexemes}
+    probes = [concept.probe for concept in curriculum.concepts.values()]
+    short = short_candidates(texts)
+    chosen = short[:sample] if sample > 0 else short
+
+    admitted = 0
+    exhibiting = 0
+    for tokens in analyse(chosen):
+        content = [
+            token for token in tokens if str(token["pos"]) not in LEDGER_EXCLUDED_POS
+        ]
+        if not content:
+            continue
+        if {str(token["lemma"]) for token in content} <= ledger:
+            admitted += 1
+            if any(probe.matches_sentence(content) for probe in probes):
+                exhibiting += 1
+
+    return YieldMeasurement(
+        corpus=corpus,
+        lang=lang,
+        total=len(texts),
+        short=len(short),
+        sample=len(chosen),
+        ledger_lexemes=len(ledger),
+        admitted=admitted,
+        exhibiting=exhibiting,
     )
+
+
+def read_tatoeba(path: Path) -> list[str]:
+    """The text column of a Tatoeba per-language export, `.tsv` or `.tsv.bz2`.
+
+    Three tab-separated columns: id, iso639-3, text. A row with any other shape is
+    skipped rather than guessed at — a misparsed corpus would move the headline number.
+    """
+    opener = bz2.open if path.suffix == ".bz2" else open
+    texts: list[str] = []
+    with opener(path, "rt", encoding="utf-8") as handle:  # type: ignore[operator]
+        for line in handle:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) == 3 and parts[2]:
+                texts.append(parts[2])
+    return texts
+
+
+def spacy_analyser(model: str) -> Analyser:  # pragma: no cover - needs the pinned wheel
+    """The real pinned lemmatiser, batched. Imported lazily: `nlp` is an extra group."""
+    import spacy
+
+    nlp = spacy.load(model, disable=["ner", "parser"])
+
+    def analyse(texts: Sequence[str]) -> Iterator[list[dict[str, Any]]]:
+        for doc in nlp.pipe(texts, batch_size=256):
+            yield [
+                {"lemma": token.lemma_.lower(), "pos": token.pos_, "morph": str(token.morph)}
+                for token in doc
+            ]
+
+    return analyse
+
+
+def main(argv: Sequence[str] | None = None, *, analyse: Analyser | None = None) -> int:
+    """`python -m coursekit.stages.g4_select` — print the yield measurement as JSON."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m coursekit.stages.g4_select",
+        description="Measure the ledger's admission rate (deep/10 Open Question 1).",
+    )
+    parser.add_argument("--corpus", required=True, type=Path, help="a Tatoeba .tsv/.tsv.bz2")
+    parser.add_argument("--lang", default="es")
+    parser.add_argument("--sample", type=int, default=40000, help="0 = every short sentence")
+    parser.add_argument("--model", default="es_core_news_md")
+    parser.add_argument("--curriculum", type=Path, default=None)
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    curriculum = load_curriculum(args.lang, path=args.curriculum)
+    measurement = measure_candidate_yield(
+        read_tatoeba(args.corpus),
+        curriculum,
+        analyse or spacy_analyser(args.model),
+        sample=args.sample,
+        corpus=args.corpus.name,
+        lang=args.lang,
+    )
+    print(json.dumps(measurement.as_notes(), indent=2, sort_keys=True))
+    if not measurement.within_prediction:
+        print(
+            f"NOTE: {measurement.admitted_fraction:.2%} is outside the predicted "
+            f"{PREDICTED_YIELD_MIN:.0%}-{PREDICTED_YIELD_MAX:.0%} band. That is a "
+            f"prediction failure to record, not a run to discard.",
+            file=sys.stderr,
+        )
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - the command's own entry point
+    raise SystemExit(main())

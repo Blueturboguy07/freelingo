@@ -74,6 +74,16 @@ MIN_TARGET_LEMMAS_PER_UNIT: Final[int] = 1
 #: V3: every introduced lemma re-appears at least N times within K lessons of its
 #: introduction. This is the property LibreLingo's randomisation cannot guarantee
 #: (`scope2/00` §2.4, `01` F14) — the difference between a course and a shuffled deck.
+#:
+#: **FOUNDER-LEVEL CHOICE, NOT A MEASURED NUMBER.** `scope2/00` line 127 states the rule
+#: as ">=N times within K lessons" and stops there; no row anywhere in the research
+#: corpus fixes either value, and the reference product's real spacing was never
+#: observed. 3-within-12 is this lane's judgement — roughly "three more times inside the
+#: next two units" at `LESSONS_PER_LEVEL` × the usual level count — chosen so the window
+#: is shorter than `RECYCLE_WINDOW_UNITS` can reach back. It is flagged here rather than
+#: silently shipped because V3 is the strictest thing in the pipeline: raising N or
+#: lowering K makes packs fail, and a number nobody chose on purpose is the wrong reason
+#: for that. Revisit with the reviewer sample at the end of P2.
 RECYCLE_MIN_OCCURRENCES: Final[int] = 3
 RECYCLE_WINDOW_LESSONS: Final[int] = 12
 

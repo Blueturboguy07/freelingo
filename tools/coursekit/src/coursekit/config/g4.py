@@ -64,6 +64,22 @@ SHIPPABLE_VERDICT: Final[str] = "shippable"
 #: a disagreement about punctuation from reading as an empty corpus.
 LEDGER_EXCLUDED_POS: Final[tuple[str, ...]] = ("PUNCT", "SYM", "SPACE", "X")
 
+#: The segmentation the LEDGER must be run on, per language (EC-PACK-07, and the second
+#: clause of INV-PACK-06: "Japanese runs the ledger on Mode-A segmentation").
+#:
+#: SudachiPy's Mode C glues a compound into one token, so `外国人観光客` is ONE "new item"
+#: while three morphemes are being introduced — V2 counts 1, passes, and the learner meets
+#: three unseen words in one exercise. Mode A splits it. The edge case's ruling is "Mode A
+#: for the ledger, Mode C for display and audio; store both", so this is a constraint on
+#: what the validators read, not a ban on Mode C anywhere in the pack.
+#:
+#: A language absent from this mapping has no segmentation modes (spaCy does not have
+#: them) and its rows carry `split_mode: null`. The check is therefore a positive
+#: requirement per language, never "whatever the adapter happened to say" — a ledger built
+#: on the wrong segmentation passes V1 and V2 *vacuously*, which is the one failure mode
+#: no amount of green makes visible.
+LEDGER_SPLIT_MODE: Final[dict[str, str]] = {"ja": "A"}
+
 #: "Short candidates" for the A1 length filter and for the yield measurement. `scope2/00`
 #: §2.3 G0 puts A1 at 3-12 tokens; the same window defines the denominator of the yield
 #: number, so "the ledger admits X% of short candidates" means X% of exactly these.
