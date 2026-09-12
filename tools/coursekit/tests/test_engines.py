@@ -43,7 +43,7 @@ from coursekit.engines.languagetool import build as build_languagetool
 from coursekit.engines.mock_lt import MockLanguageTool, mock_languagetool_server
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-REAL_CANDIDATES = REPO_ROOT / "content" / "es" / "candidates.jsonl"
+REAL_CANDIDATES = REPO_ROOT / "content" / "es" / "authoring" / "axis-fixture.jsonl"
 
 TOKEN = re.compile(r"[^\W\d_]+", re.UNICODE)
 

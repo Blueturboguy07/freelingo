@@ -77,10 +77,44 @@ OPUS_PAIR_RULE: Final[str] = (
 #: de-en while the real archives are 30.1 GB and 21.2 GB.
 OPUS_STALE_SIZE_SOURCES: Final[tuple[str, ...]] = ("nllb",)
 
-#: The cap, in aligned pairs, on any OPUS pull. `en-es` alone is 40,327,884,789 bytes
-#: (verified live 2026-09-12), so "download the corpus" is not an option the pipeline
-#: has. Two million pairs is ~8x the ~250k raw candidates the ledger needs.
-MAX_PAIRS_DEFAULT: Final[int] = 2_000_000
+#: The cap, in aligned pairs, on any OPUS pull, PER SOURCE. `en-es` alone is
+#: 40,327,884,789 bytes (verified live 2026-09-12), so "download the corpus" is not an
+#: option the pipeline has.
+#:
+#: THIS IS THE ONLY PLACE THE CAP IS WRITTEN. It used to be written twice: 2,000,000 here
+#: (the plan's figure, never run) and 200,000 in `pack-ci.yml` as `--set max_pairs=...`
+#: (run on every push). The number the pipeline shipped with had never been exercised and
+#: the number that had been exercised was in a workflow file. `pack-ci.yml` now runs
+#: `coursekit build es` with no `--set`, so CI exercises this constant.
+#:
+#: MEASURED, 2026-09-12, three full G0-G4 runs on the real corpora (this Mac; CI's own
+#: G0-G4 at 200,000 was 787 s in run 34684986287, so local is the pessimistic side):
+#:
+#:   cap      pairs read  kept     shippable  gaps/1584   G0-G4 wall
+#:   2,000        3,998    2,823      1,823   1,339 (85%)      63 s   <- G4 REFUSES: over
+#:                                                                       the 60% ceiling
+#:   200,000    399,896  276,203    180,862     490 (31%)     849 s
+#:   600,000    861,215  483,025    234,519     427 (27%)   1,223 s
+#:
+#: Read it as marginal cost per gap removed. 2,000 -> 200,000 removes 849 gaps for +13
+#: minutes. 200,000 -> 600,000 removes 63 more for another +6, and 3x the cap is +44%
+#: wall clock for -13% gaps. The knee is well below 200,000 and the reason is structural:
+#: only Tatoeba is `shippable`, and it grew 180,862 -> 234,519 (+30%) between those two
+#: runs while NLLB — `oracle_only`, which G4 rejects by verdict and can never fill a slot
+#: — grew 95,341 -> 248,506 (+161%). G1 lemmatises both. Above the cap Tatoeba exhausts
+#: at, every extra pair is G1 time spent on text no lesson can contain.
+#:
+#: 200,000 rather than 600,000, and the reason is the half of the build nobody has run:
+#: `build-es` has 60 minutes for G0-G9 and only G0-G4 has ever executed. 200,000 is the
+#: one cap with a real CI measurement (13.1 min, leaving 46.9); 600,000 is extrapolated at
+#: ~18.9, leaving 41.1 for five unmeasured stages including a Kokoro CPU bake of every
+#: shipped sentence. RAISE IT TO 600,000 the day one full G0-G9 build exists and G8's cost
+#: is known — it is worth 63 slots, which is 1,260 sentences nobody has to write.
+#:
+#: The better lever is not this number at all: a PER-CORPUS cap would take Tatoeba to
+#: exhaustion without paying G1 for a quarter-million NLLB rows. That is a G0 signature
+#: change and is recorded in `docs/owned/p2fix-ledger-freeze.json`, not smuggled in here.
+MAX_PAIRS_DEFAULT: Final[int] = 200_000
 
 #: A second, independent cap, in COMPRESSED bytes off the wire, applied per streamed file
 #: by `sources/tatoeba.py`. `max_pairs` alone does not bound a stream whose rows are

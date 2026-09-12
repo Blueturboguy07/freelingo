@@ -1,6 +1,6 @@
 """`coursekit` CLI.
 
-Seven verbs, and not one of them knows what a stage does. Every command in
+Eight verbs, and not one of them knows what a stage does. Every command in
 `coursekit.commands` looks its work up in the stage or validator registry
 (`coursekit.stages`, `coursekit.validators`), so a lane lands a stage by adding a module
 to `coursekit/stages/` and this file does not change. P2 runs as two waves over eight
@@ -21,6 +21,10 @@ Exit codes are a contract other lanes and `pack-ci.yml` depend on, named in
 2, with a full one `build` exits 0, and pulling one stage back out returns it to 2 — so
 the exit-2 path cannot rot into something that is true only because nothing is
 registered yet.
+
+`gaps` is the one verb that runs no stage and writes no artefact: it joins G3's units to
+G4's gap list and prints the authoring brief. It is a reader, so it can run over a build
+whose G4 FAILED its gap ceiling — which is precisely when somebody needs to see the list.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ import typer
 from .commands import bake as bake_command
 from .commands import build as build_command
 from .commands import doctor as doctor_command
+from .commands import gaps as gaps_command
 from .commands import pack as pack_command
 from .commands import sample as sample_command
 from .commands import sign as sign_command
@@ -43,7 +48,7 @@ __all__ = ["app", "main"]
 
 app = typer.Typer(
     name="coursekit",
-    help="Freelingo content pipeline: build, validate, bake, pack, sample, sign.",
+    help="Freelingo content pipeline: build, gaps, validate, bake, pack, sample, sign.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -125,6 +130,21 @@ def sample(language: LanguageArg, set_: SetOpt = None) -> None:
 def sign(language: LanguageArg, set_: SetOpt = None) -> None:
     """Sign the manifest with the ed25519 release key (INV-PACK-18)."""
     sign_command.sign(language, options=_options(set_))
+
+
+@app.command()
+def gaps(
+    language: LanguageArg,
+    write: Annotated[
+        bool,
+        typer.Option(
+            "--write/--no-write",
+            help="Write content/<lang>/authoring/gap-brief.jsonl (default) or print it.",
+        ),
+    ] = True,
+) -> None:
+    """The authoring brief: one JSON line per gap slot G4 could not fill from the corpus."""
+    gaps_command.gaps(language, write=write)
 
 
 @app.command()

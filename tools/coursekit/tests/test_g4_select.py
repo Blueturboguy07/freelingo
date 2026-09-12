@@ -130,18 +130,51 @@ def project_exercises(
     items: Sequence[Mapping[str, Any]],
     candidates: Iterable[Candidate],
 ) -> list[dict[str, Any]]:
-    """Turn G4's filled slots into `exercise` records, the way G7 will.
+    """Turn G4's slots into `exercise` records, the way G7 will.
 
     G7 belongs to another lane, so this is the minimum honest projection: one translate
-    exercise per filled slot, tagged with the lemmas the sentence actually contains and
-    with its unit's grammar concept. It is deliberately a FAITHFUL tagger — a projection
-    that mis-tagged would make V4 red for a reason that has nothing to do with the ledger.
+    exercise per slot, tagged with the lemmas it puts in front of the learner and with its
+    unit's grammar concept. It is deliberately a FAITHFUL tagger — a projection that
+    mis-tagged would make V4 red for a reason that has nothing to do with the ledger.
     Every record is validated against the frozen contract before it is used.
+
+    A GAP IS PROJECTED TOO, and it has to be. G4 reserves a gap slot to teach one named
+    lemma and records that lemma as shown, because G5 fills the slot with a sentence that
+    introduces it. Dropping gaps from this projection models a course in which that
+    promise is broken — the reserved word is never introduced by anything — and V2 then
+    reports the NEXT exercise using it as carrying two new lemmas. Measured on es-mini
+    the moment G4 started reserving: seven blocking V2 findings, all of that shape, none
+    of them a ledger defect. So a gap projects as an exercise whose only lemma tag is the
+    one the slot reserves. It is the narrowest claim the reservation actually makes; it
+    invents no sentence and no vocabulary G5 has not been told to use.
     """
     by_id = {candidate.sentence_id: candidate for candidate in candidates}
     exercises: list[dict[str, Any]] = []
     for index, item in enumerate(items):
         if item["gap"]:
+            if not item["new_lemmas"]:
+                continue
+            gap_record = {
+                "schema_version": ARTIFACT_SCHEMA_VERSION,
+                "lang": item["lang"],
+                "exercise_id": f"{index:016x}",
+                "unit_index": item["unit_index"],
+                "lesson_index": item["lesson_index"],
+                "type": "translate",
+                "prompt": "Translate this sentence.",
+                "accepted_answers": ["G5 authors this slot"],
+                "distractors": [],
+                "alignment": [],
+                "item_tags": {
+                    "lemmas": sorted(item["new_lemmas"]),
+                    "grammar_concepts": [item["grammar_concept"]],
+                },
+                "audio_ref": None,
+                "register": "n/a",
+                "source_sentence_id": None,
+            }
+            validate_record("exercise", gap_record)
+            exercises.append(gap_record)
             continue
         candidate = by_id[str(item["sentence_id"])]
         record = {
@@ -623,3 +656,81 @@ def test_the_yield_command_reads_a_tatoeba_export_and_prints_json(
     assert printed["ledger_yield"] == 1.0
     assert printed["predicted_range"] == [PREDICTED_YIELD_MIN, PREDICTED_YIELD_MAX]
     assert printed["within_prediction"] is False
+
+
+# ---------------------------------------------------------------------------
+# INV-PACK-06 — a gap carries the ledger it is authored against
+# ---------------------------------------------------------------------------
+
+
+def test_INV_PACK_06_a_gap_carries_a_non_empty_ledger() -> None:
+    """[INV-PACK-06] THE FALSIFIER, and it shipped: a gap used to carry no ledger at all.
+
+    G4 emitted every gap with `new_lemmas: []` and `known_lemmas: []`. G5's permitted
+    vocabulary is `known | new`, so every reserved slot permitted the EMPTY SET, and no
+    sentence in any language is inside the empty set. The 918-slot gap list of run
+    34684986287 was therefore unfillable by construction — V4's coverage clause could
+    never reach 100% because the slots reserved to fix coverage could never be filled.
+
+    A gap whose ledger is empty is not a gap, it is a slot nobody can author.
+    """
+    _, g4, _ = es_mini_run()
+    gaps = [item for item in g4.items if item["gap"]]
+    assert gaps, "the fixture must produce gaps or this proves nothing"
+    empty = [item for item in gaps if not (item["known_lemmas"] or item["new_lemmas"])]
+    assert empty == [], f"{len(empty)} gap(s) carry an empty ledger; nothing can fill them"
+
+
+def test_INV_PACK_06_a_gaps_ledger_never_contains_a_lemma_from_a_later_unit() -> None:
+    """[INV-PACK-06] V1's rule, applied to the window G5 authors inside.
+
+    V1 is "no lemma appears before its introduction unit". The gap's ledger is what an
+    authored sentence is allowed to use, so a ledger holding a lemma introduced later
+    would let G5 write a V1 failure that passes every axis on the way in.
+    """
+    g3, g4, _ = es_mini_run()
+    introduction = {
+        lemma: unit["unit_index"] for unit in g3.units for lemma in unit["target_lemmas"]
+    }
+    for item in g4.items:
+        if not item["gap"]:
+            continue
+        for lemma in (*item["known_lemmas"], *item["new_lemmas"]):
+            assert introduction.get(lemma, 0) <= item["unit_index"], (lemma, item)
+
+
+def test_INV_PACK_06_a_gap_reserves_at_most_one_new_item_and_never_one_it_knows() -> None:
+    """[INV-PACK-06] V2's per-exercise budget holds for reserved slots too.
+
+    A gap that reserved two new lemmas would ask the author for a sentence V2 rejects,
+    and `known` and `new` overlapping would make the budget uncountable.
+    """
+    _, g4, _ = es_mini_run()
+    for item in g4.items:
+        if not item["gap"]:
+            continue
+        assert len(item["new_lemmas"]) <= MAX_NEW_LEMMAS_PER_EXERCISE
+        assert not (set(item["new_lemmas"]) & set(item["known_lemmas"]))
+
+
+def test_INV_PACK_06_two_gap_slots_in_one_lesson_reserve_different_words() -> None:
+    """[INV-PACK-06] V4 coverage: nine gaps in a lesson must not all teach one word.
+
+    A reserved slot teaches its lemma as surely as a filled one does, so the stage has to
+    record it as shown. Without that, `pending` never shrinks and every gap in the lesson
+    names the same next word — nine slots, one new item, and the unit's other target
+    lexemes never reserved at all, which is a V4 coverage failure with no gap against it.
+    """
+    _, g4, _ = es_mini_run()
+    by_lesson: dict[tuple[int, int], list[str]] = {}
+    for item in g4.items:
+        if not item["gap"] or not item["new_lemmas"]:
+            continue
+        by_lesson.setdefault((item["unit_index"], item["lesson_index"]), []).extend(
+            item["new_lemmas"]
+        )
+        assert MAX_NEW_LEMMAS_PER_LESSON >= 1
+    multi = {key: value for key, value in by_lesson.items() if len(value) > 1}
+    assert multi, "no lesson in the fixture has two reserving gaps; this proves nothing"
+    for key, reserved in multi.items():
+        assert len(reserved) == len(set(reserved)), (key, reserved)

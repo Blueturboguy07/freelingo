@@ -48,6 +48,39 @@ CONTENT_ROOT_ENV_VAR: Final[str] = "COURSEKIT_CONTENT_ROOT"
 
 AUTHORED_CANDIDATES_FILENAME: Final[str] = "candidates.jsonl"
 
+#: The SHARD directory beside it: `content/<lang>/candidates/*.jsonl`, read in sorted
+#: filename order after the legacy single file.
+#:
+#: Four authoring lanes run in parallel over one course. One file means four lanes
+#: appending to one 18,000-line JSONL and four rebases over it, which is a merge
+#: conflict per lane per push and, worse, a conflict resolution nobody can review: two
+#: identical-looking 20-row blocks whose only difference is the slot they name.
+#: One file per lane is a diff that reads.
+#:
+#: The legacy path is still read, and not only for compatibility: a one-language course
+#: written by one person has no reason to shard, and a rule that FORBADE the single file
+#: would make the smallest case the special case.
+AUTHORED_CANDIDATES_DIRNAME: Final[str] = "candidates"
+
+#: Shards are `.jsonl`, so a README, a `.gitkeep` or an editor backup in the shard
+#: directory is not read as content. The suffix is matched, never the whole name: a lane
+#: names its own shard and nothing here has to know the names in advance.
+AUTHORED_SHARD_SUFFIX: Final[str] = ".jsonl"
+
+#: Where `coursekit gaps <lang>` writes the authoring brief, and the one thing that file
+#: must say about itself. It is a DERIVED SNAPSHOT of one build: G5 never reads it, and
+#: `tests/test_gaps_command.py` asserts that no stage imports it. The enforcer is the
+#: `stale_ledger` axis against the ledger G4 actually emitted; a brief that could also
+#: enforce would be the second source of truth INV-PACK-40 exists about.
+GAP_BRIEF_DIRNAME: Final[str] = "authoring"
+GAP_BRIEF_FILENAME: Final[str] = "gap-brief.jsonl"
+GAP_BRIEF_KIND: Final[str] = "derived-snapshot"
+
+#: The brief's own schema number, on its header line. A brief written by an older
+#: coursekit is still readable and is not the same document, and an author should be told
+#: which one they are holding rather than discovering it from a missing field.
+GAP_BRIEF_SCHEMA: Final[int] = 1
+
 #: The back-translation rubric G6 scores against, and the file that has to say in
 #: writing that the score is agent-authored rather than a model round-trip.
 GAPFILL_RUBRIC_FILENAME: Final[str] = "gapfill-rubric.md"
@@ -83,6 +116,15 @@ REJECT_AXES: Final[tuple[str, ...]] = (
     # V1: a lemma the learner has not met. The ledger is lemma-level, never surface.
     "out_of_vocabulary",
     # V2: more than one new lemma-or-inflection in one item.
+    #
+    # HONEST NOTE, 2026-09-12: while G4 reserves AT MOST ONE new lemma per gap — which
+    # it does, because one new item per exercise is V2's own rule — this axis cannot
+    # fire. `introduced` is the candidate's lemmas intersected with the gap's
+    # `new_lemmas`, so its size is bounded by that set's. The axis is kept rather than
+    # deleted because it is V2's enforcement point and the bound it depends on lives in
+    # another stage's config (`config/g4.py MAX_NEW_LEMMAS_PER_EXERCISE`); removing it
+    # would mean the day that number changes, nothing here notices. It is recorded as
+    # currently-unreachable rather than quietly counted as coverage.
     "new_lemma_budget",
     # G0's length filter, applied to an authored sentence exactly as to a corpus one.
     "length",
@@ -111,3 +153,22 @@ MAX_NEW_LEMMAS_PER_ITEM: Final[int] = 1
 
 #: What `provenance` every authored row carries, and the only value G5 emits.
 AUTHORED_PROVENANCE: Final[str] = "llm"
+
+# ---------------------------------------------------------------------------
+# The ledger digest
+# ---------------------------------------------------------------------------
+
+#: How many hex characters of the ledger digest an authored row carries.
+#:
+#: `stale_ledger` used to be "the authored row's `allowed_lemmas` list, as a set, equals
+#: the gap's `known | new`". That is the right CHECK and the wrong CARRIER. The allowed
+#: set at a late unit is the whole course-so-far vocabulary — hundreds of lemmas — and
+#: the check demanded that all 20 candidates for all 490 slots each spell it out, which
+#: is the same list written 9,800 times and a candidates file measured in tens of MB.
+#: Worse, it is a list a hurried author edits to make a row pass.
+#:
+#: A digest of the sorted set carries the same claim in 16 characters and cannot be
+#: edited into agreement. 16 hex characters is 64 bits over a per-slot namespace of one:
+#: there is exactly one right answer per slot, so this is an equality check with a short
+#: witness, not a collision-resistance argument about an adversary.
+LEDGER_DIGEST_CHARS: Final[int] = 16
