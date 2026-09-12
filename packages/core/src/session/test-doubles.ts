@@ -22,22 +22,39 @@ import type {
 } from './ports.js';
 import type { ItemFamily, MistakeRow, QueuedItem, Verdict, VerdictKind } from './types.js';
 
-/** A grader driven by a script: `verdicts[itemId]`, defaulting to `correct`. */
+/**
+ * A grader driven by a script: `verdicts[itemId]`, defaulting to `correct`.
+ *
+ * `setVerdict` takes a whole `Verdict`, notes included, because the tier-2 note is part
+ * of what the real grader returns (six soft notes, `deep/01` §Rules) and INV-COM-09 is
+ * about what the runtime does with it. A double that could only produce a bare kind made
+ * that invariant untestable, which is how the note came to be silently dropped.
+ */
 export class ScriptedGrading implements GradingPort {
-  #verdicts: Map<string, VerdictKind>;
-  #fallback: VerdictKind;
+  #verdicts: Map<string, Verdict>;
+  #fallback: Verdict;
 
   constructor(verdicts: Record<string, VerdictKind> = {}, fallback: VerdictKind = 'correct') {
-    this.#verdicts = new Map(Object.entries(verdicts));
-    this.#fallback = fallback;
+    this.#verdicts = new Map(
+      Object.entries(verdicts).map(([id, kind]) => [id, { kind }] as const),
+    );
+    this.#fallback = { kind: fallback };
   }
 
   set(itemId: string, verdict: VerdictKind): void {
+    this.#verdicts.set(itemId, { kind: verdict });
+  }
+
+  setVerdict(itemId: string, verdict: Verdict): void {
     this.#verdicts.set(itemId, verdict);
   }
 
+  setFallback(verdict: Verdict): void {
+    this.#fallback = verdict;
+  }
+
   grade(request: GradeRequest): Verdict {
-    return { kind: this.#verdicts.get(request.item.itemId) ?? this.#fallback };
+    return this.#verdicts.get(request.item.itemId) ?? this.#fallback;
   }
 }
 

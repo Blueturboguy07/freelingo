@@ -105,9 +105,15 @@ export interface EmitRequest {
   readonly stepUpTripped: boolean;
   /** A step-up already fired this session (INV-COM-12: at most one). */
   readonly stepUpAlreadyFired: boolean;
-  /** The main queue drained with this many mistakes pending. */
+  /** How many mistakes are awaiting a replay — S049's copy is plural-aware on this. */
   readonly mistakesPending: number;
-  readonly mainQueueDrained: boolean;
+  /**
+   * A replay is about to be served AND this review block has not announced itself yet.
+   * The machine decides: the block may be MID-LESSON (a single miss coming back two
+   * exercises later) or the end-of-queue drain. The producer does not need to know which,
+   * only that a `Let's review the exercise(s) you missed!` screen is owed.
+   */
+  readonly mistakeReviewDue: boolean;
 }
 
 /**
@@ -157,7 +163,10 @@ export function emitInterstitials(request: EmitRequest): readonly Interstitial[]
   }
 
   // --- mistake review --------------------------------------------------------
-  if (request.mainQueueDrained && request.mistakesPending > 0) {
+  // INV-COM-08: it emits into THE SAME queue as the other two and sorts last. The machine
+  // renders it as the `mistakeReview` shell state (S029 declares one) carrying this
+  // copyKey, rather than as a second `interstitial` screen — see machine.ts §route.
+  if (request.mistakeReviewDue && request.mistakesPending > 0) {
     const copyKey =
       request.mistakesPending === 1 ? MISTAKE_REVIEW_COPY_ONE : MISTAKE_REVIEW_COPY_MANY;
     out.push({

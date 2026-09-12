@@ -10,18 +10,25 @@
 /* ===================================================== 1. the shell state machine */
 
 /**
- * The DECLARED shell states (S029 + the `tips` state EC-SES-27 adds).
+ * The DECLARED shell states. THIRTEEN, and the arithmetic is worth writing down because a
+ * bare `toHaveLength(13)` says nothing about which thirteen:
+ *
+ * - **twelve** from the S029 shell-state table (`deep/01` §S0). The table has ten ROWS,
+ *   but its `banner.correct / .softCorrect / .wrong` row is three states, so
+ *   10 − 1 + 3 = 12. `outOfHearts` is one of those rows; §S17 details its modal.
+ * - **one** more, `tips`, which EC-SES-27 adds ("X from the tips state persists a
+ *   `session_state` row" is its falsifier, so the state has to exist to be left).
  *
  * INV-SESS-22: *every* transition out of the path lands in one of these. There is no
- * "other" and no implicit null state — `step()` returns one of these or throws, and the
- * property test enumerates the set from here rather than from a literal in the test.
+ * "other" and no implicit null state — `step()` returns one of these, and the property
+ * test enumerates the set from here rather than from a literal in the test.
  *
  * `banner.*` is a first-class state, not a rendering of `grading` (INV-SESS-04): a kill
  * between the verdict and CONTINUE restores the banner with CONTINUE armed.
  */
 export const SHELL_STATES = [
+  // --- the twelve from the S029 table -----------------------------------------
   'loading',
-  'tips',
   'challenge.idle',
   'challenge.armed',
   'grading',
@@ -33,7 +40,25 @@ export const SHELL_STATES = [
   'outOfHearts',
   'mistakeReview',
   'complete',
+  // --- and the one EC-SES-27 adds ---------------------------------------------
+  'tips',
 ] as const;
+
+/** The S029 table's own twelve. `SHELL_STATES` is these plus `tips` (EC-SES-27). */
+export const S029_SHELL_STATES: readonly ShellState[] = [
+  'loading',
+  'challenge.idle',
+  'challenge.armed',
+  'grading',
+  'banner.correct',
+  'banner.softCorrect',
+  'banner.wrong',
+  'interstitial',
+  'quitDialog',
+  'outOfHearts',
+  'mistakeReview',
+  'complete',
+];
 
 export type ShellState = (typeof SHELL_STATES)[number];
 
@@ -145,6 +170,20 @@ export interface Verdict {
   readonly note?: string;
 }
 
+/**
+ * The verdict the CURRENT banner is rendering — a PERSISTED field (INV-SESS-04).
+ *
+ * EC-COM-12: "the tier-2 note **wins the banner headline** — it is corrective
+ * information — and the milestone is not lost". A restored `banner.softCorrect` with no
+ * note is a green banner with an empty headline, so the note rides the row, not the
+ * in-memory `Verdict` the grader returned and the machine threw away.
+ */
+export interface LastVerdict {
+  readonly kind: VerdictKind;
+  /** `null` when the verdict carried no note; never `undefined` (it must survive JSON). */
+  readonly note: string | null;
+}
+
 /** A recorded answer. One per answered exercise index (INV-SCH-03 keys on the index). */
 export interface Answer {
   readonly exerciseIndex: number;
@@ -163,6 +202,8 @@ export interface Answer {
   readonly scorable: boolean;
   /** Which queue served it. Mid/end replays never consume a progress segment. */
   readonly queue: 'main' | 'mistakes';
+  /** The tier-2 note this answer was graded with, if any (INV-COM-09). */
+  readonly note: string | null;
 }
 
 /**
@@ -220,6 +261,12 @@ export interface QueuedMistake {
   readonly servesRemaining: number;
   /** How many of the two scheduled recycles have been served. */
   readonly recyclesServed: number;
+  /**
+   * Main-queue answers recorded at the moment of the miss. The mid-lesson recycle becomes
+   * due `config.midLessonRecycleGap` main answers later — a POSITION, not just a format
+   * (S049, INV-MIS-01).
+   */
+  readonly queuedAtMainAnswers: number;
 }
 
 /** A durable mistake row, the thing the Practice Hub counts (INV-MIS-04/05). */

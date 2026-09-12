@@ -7,12 +7,14 @@ import { PROPERTY_RUNS } from '@freelingo/testkit';
 import {
   DEFAULT_FLAVOUR_MATRIX,
   MAX_COMBO_INTERSTITIALS_PER_SESSION,
+  MID_LESSON_RECYCLE_GAP,
   MIN_SESSION_LENGTH,
   TEST_FLAVOURS,
   baseSessionXp,
   defaultFlavourMatrixPort,
 } from './flavours.js';
 import { SESSION_FLAVOURS } from './types.js';
+import { STEP_UP_COPY, emitInterstitials } from './interstitials.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 
@@ -108,10 +110,70 @@ describe('the ten flavours are a config table, not ten code paths (S057-S066)', 
     }
   });
 
-  it('[INV-COM-12] a flavour declares at most one step-up kind, and the audio copy is never a path flavour', () => {
+  it('[INV-COM-12] the step-up copy is READ FROM the flavour config, so the less-sound copy cannot appear outside an audio flavour', () => {
+    // A refuter called the previous form of this vacuous, and it was: it asserted
+    // `stepUp === null || stepUp === 'production'` over the ten shipped rows, which cannot
+    // fail while no row declares `audio` — `STEP_UP_COPY.audio` was dead code and the id
+    // was "owned" by an assertion with no failure mode.
+    //
+    // The claim that matters is about the CODE, so it is driven over BOTH kinds with a
+    // synthetic config: the copy key is a function of `config.stepUp`, therefore the
+    // audio copy is reachable ONLY from an audio config. Replacing that read with a
+    // literal fails this at once.
+    for (const kind of ['production', 'audio'] as const) {
+      const screens = emitInterstitials({
+        config: { ...DEFAULT_FLAVOUR_MATRIX.lesson, stepUp: kind },
+        combo: 0,
+        motivationalMessages: true,
+        usedInterstitialKeys: [],
+        stepUpTripped: true,
+        stepUpAlreadyFired: false,
+        mistakesPending: 0,
+        mistakeReviewDue: false,
+      });
+      const card = screens.filter((s) => s.producer === 'stepUp');
+      expect(card).toHaveLength(1);
+      expect(card[0]!.copyKey).toBe(STEP_UP_COPY[kind]);
+      expect(card[0]!.stepUp).toBe(kind);
+    }
+    // …and no CONFIG that is not `audio` can produce the audio copy.
+    for (const kind of [null, 'production'] as const) {
+      const screens = emitInterstitials({
+        config: { ...DEFAULT_FLAVOUR_MATRIX.lesson, stepUp: kind },
+        combo: 0,
+        motivationalMessages: true,
+        usedInterstitialKeys: [],
+        stepUpTripped: true,
+        stepUpAlreadyFired: false,
+        mistakesPending: 0,
+        mistakeReviewDue: false,
+      });
+      for (const s of screens) expect(s.copyKey).not.toBe(STEP_UP_COPY.audio);
+    }
+
+    // Every shipped flavour declares at most one kind, and — recorded, not asserted away —
+    // none of the ten declares `audio` yet: the audio-only hub flavours are P4. That is a
+    // FACT ABOUT TODAY'S TABLE, which is why it is not the thing carrying this id.
     for (const flavour of SESSION_FLAVOURS) {
       const stepUp = DEFAULT_FLAVOUR_MATRIX[flavour].stepUp;
-      expect(stepUp === null || stepUp === 'production').toBe(true);
+      expect(stepUp === null || stepUp === 'production' || stepUp === 'audio').toBe(true);
+    }
+    expect(
+      SESSION_FLAVOURS.filter((f) => DEFAULT_FLAVOUR_MATRIX[f].stepUp === 'audio'),
+    ).toEqual([]);
+  });
+
+  it('[INV-MIS-01] every flavour that recycles declares a mid-lesson gap that leaves room in its own queue', () => {
+    // A gap larger than the queue would push every "mid-lesson" recycle past the end —
+    // the exact bug, reintroduced by configuration instead of by code.
+    for (const flavour of SESSION_FLAVOURS) {
+      const config = DEFAULT_FLAVOUR_MATRIX[flavour];
+      expect(config.midLessonRecycleGap).toBe(MID_LESSON_RECYCLE_GAP);
+      expect(config.midLessonRecycleGap).toBeGreaterThan(0);
+      if (config.recyclesMistakes) {
+        expect(config.midLessonRecycleGap).toBeLessThan(config.minLength);
+        expect(config.midLessonRecycleGap).toBeLessThan(config.targetLength);
+      }
     }
   });
 

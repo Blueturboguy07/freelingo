@@ -26,7 +26,7 @@ function base(over: Partial<Parameters<typeof emitInterstitials>[0]> = {}) {
     stepUpTripped: false,
     stepUpAlreadyFired: false,
     mistakesPending: 0,
-    mainQueueDrained: false,
+    mistakeReviewDue: false,
     ...over,
   };
 }
@@ -53,6 +53,7 @@ function runComboSession(verdicts: readonly ('correct' | 'wrong')[]): {
       skipped: false,
       scorable: true,
       queue: 'main',
+      note: null,
     };
     combo = comboAfter(combo, answer);
     combos.push(combo);
@@ -170,7 +171,7 @@ describe('mid-lesson interstitials (S047, S049)', () => {
               stepUpTripped,
               stepUpAlreadyFired,
               mistakesPending,
-              mainQueueDrained: drained,
+              mistakeReviewDue: drained,
             }),
           );
           expect(isCanonicalInterstitialOrder(screens)).toBe(true);
@@ -184,18 +185,26 @@ describe('mid-lesson interstitials (S047, S049)', () => {
 
   it('[INV-COM-08] falsifier: one answer that drains the main queue, trips the step-up AND reaches combo 5 renders three screens in order, never mistake-review first', () => {
     const screens = emitInterstitials(
-      base({ combo: 5, stepUpTripped: true, mistakesPending: 2, mainQueueDrained: true }),
+      base({ combo: 5, stepUpTripped: true, mistakesPending: 2, mistakeReviewDue: true }),
     );
     expect(screens.map((s) => s.producer)).toEqual(['combo', 'stepUp', 'mistakeReview']);
     expect(screens[2]!.copyKey).toBe(MISTAKE_REVIEW_COPY_MANY);
   });
 
   it('[INV-COM-09] a soft-correct that crosses a milestone still emits exactly one milestone interstitial', () => {
-    // The tier-2 note wins the BANNER headline (machine.ts sets `banner.softCorrect`);
-    // the milestone is not lost — it fires as the separate interstitial after CONTINUE.
+    // This is the PRODUCER half only. The other half — "renders the tier-2 note as the
+    // banner headline" — is behaviour of the runtime, not of this module, and lives in
+    // `machine.test.ts` ('[INV-COM-09] a soft-correct crossing a milestone renders the
+    // tier-2 note as the banner headline AND still emits exactly one milestone
+    // interstitial') plus `__falsifiers__/INV-COM-09.json`. A refuter found that BOTH
+    // tests claiming this id used to exercise only the combo half while `grade()` threw
+    // `verdict.note` away, so the split is now written down.
     const screens = emitInterstitials(base({ combo: 10 }));
     expect(screens.filter((s) => s.producer === 'combo')).toHaveLength(1);
     expect(screens[0]!.comboValue).toBe(10);
+    // EC-COM-12's order: green banner note → CONTINUE → the 10-in-a-row screen. The
+    // milestone copy is the pinned one, so a soft-correct can never re-roll it.
+    expect(screens[0]!.copyKey).toBe('combo.10_in_a_row');
   });
 
   it('[INV-COM-12] at most one step-up escalation per session, and the less-sound copy never appears in a path flavour', () => {
@@ -210,7 +219,7 @@ describe('mid-lesson interstitials (S047, S049)', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 60 }), fc.boolean(), (combo, drained) => {
         const screens = emitInterstitials(
-          base({ combo, stepUpTripped: true, mainQueueDrained: drained, mistakesPending: 1 }),
+          base({ combo, stepUpTripped: true, mistakeReviewDue: drained, mistakesPending: 1 }),
         );
         const stepUps = screens.filter((s) => s.producer === 'stepUp');
         expect(stepUps.length).toBeLessThanOrEqual(1);
@@ -221,9 +230,9 @@ describe('mid-lesson interstitials (S047, S049)', () => {
   });
 
   it('[INV-MIS-01] the mistake-review interstitial is plural-aware', () => {
-    const one = emitInterstitials(base({ mistakesPending: 1, mainQueueDrained: true }));
+    const one = emitInterstitials(base({ mistakesPending: 1, mistakeReviewDue: true }));
     expect(one[0]!.copyKey).toBe(MISTAKE_REVIEW_COPY_ONE);
-    const many = emitInterstitials(base({ mistakesPending: 3, mainQueueDrained: true }));
+    const many = emitInterstitials(base({ mistakesPending: 3, mistakeReviewDue: true }));
     expect(many[0]!.copyKey).toBe(MISTAKE_REVIEW_COPY_MANY);
   });
 });

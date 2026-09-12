@@ -4,7 +4,8 @@ import { PROPERTY_RUNS } from '@freelingo/testkit';
 import {
   RESUME_FIELDS,
   RESUME_OFFER_AGE_MS,
-  canonicalJson,
+  SESSION_ROW_FIELDS,
+  toSessionRow,
   checkpoint,
   coldStartRoute,
   deserialiseSession,
@@ -21,6 +22,7 @@ import { step } from './machine.js';
 import type { RuntimeState, SessionEvent, StepDeps } from './machine.js';
 import { DEFAULT_FLAVOUR_MATRIX } from './flavours.js';
 import { SESSION_FLAVOURS } from './types.js';
+import type { VerdictKind } from './types.js';
 
 function deps(over: Partial<StepDeps> = {}): StepDeps {
   return {
@@ -81,20 +83,108 @@ describe('resume (S051)', () => {
     }
   });
 
-  it('[INV-SESS-01] for any kill point, relaunch restores the nine fields byte-identical', () => {
+  it('[INV-SESS-01] a session killed at any point RESUMES where it left off: the restored run and the un-killed run end byte-identical', () => {
+    // The previous form of this property was a tautology and a refuter said so: it drove
+    // to a kill point and asserted `serialise(deserialise(bytes)) === bytes`, which holds
+    // for ANY JSON value, then compared `canonicalJson(restored.core)` with
+    // `canonicalJson(killed.core)` — the same object, sorted the same way. It proved
+    // `JSON.parse ∘ stringify = id`, not that a restored session resumes.
+    //
+    // This is the RESUMPTION-EQUIVALENCE form. Drive n steps, kill, restore from the
+    // BYTES of the DECLARED row, then run the SAME remaining script from the restored
+    // state and from the un-killed state. If any field the machine reads stops being
+    // checkpointed — `currentReplay`, `mistakeRows`, `lastVerdict`, `endReviewIntroShown`
+    // — the two runs diverge and this fails. The clock is constant so the only thing
+    // that can differ is state the kill dropped.
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 18 }), (killAfter) => {
-        const states = drive(freshSession({ queue: items(6) }), killAfter);
-        const killed = states[states.length - 1]!;
-        const bytes = serialiseSession(killed);
-        const restored = deserialiseSession(bytes);
-        // BYTES, not deep-equal: a key-order change is exactly the failure a `toEqual`
-        // would miss and a real SQLite round trip would not.
-        expect(serialiseSession(restored)).toBe(bytes);
-        expect(canonicalJson(restored.core)).toBe(canonicalJson(killed.core));
-      }),
+      fc.property(
+        fc.integer({ min: 0, max: 26 }),
+        fc.integer({ min: 1, max: 20 }),
+        fc.constantFrom<VerdictKind>('correct', 'wrong', 'softCorrect'),
+        (killAfter, thenRun, verdict) => {
+          const build = (): StepDeps =>
+            deps({
+              grading: new ScriptedGrading({ 'item-2': verdict }),
+              clock: { nowMs: () => 7_777 },
+            });
+
+          let live = freshSession({ queue: items(6) });
+          for (let i = 0; i < killAfter; i += 1) {
+            live = step(live, EVENT_SCRIPT[i % EVENT_SCRIPT.length]!, build()).state;
+          }
+
+          const bytes = serialiseSession(live);
+          const restored = deserialiseSession(bytes);
+          // The row is closed under serialisation: a writer round-trip is the identity…
+          expect(serialiseSession(restored)).toBe(bytes);
+
+          // …and, the part that can actually fail, the two runs stay in lockstep.
+          let fromKill = restored;
+          let uninterrupted = live;
+          for (let i = 0; i < thenRun; i += 1) {
+            const event = EVENT_SCRIPT[(killAfter + i) % EVENT_SCRIPT.length]!;
+            fromKill = step(fromKill, event, build()).state;
+            uninterrupted = step(uninterrupted, event, build()).state;
+          }
+          expect(serialiseSession(fromKill)).toBe(serialiseSession(uninterrupted));
+        },
+      ),
       { numRuns: PROPERTY_RUNS },
     );
+  });
+
+  it('[INV-SESS-01] the serialiser projects through the DECLARED row, so a runtime-only field cannot hide', () => {
+    // The gap a refuter found: `currentReplay`, `mistakeRows`, `weakItemRows`,
+    // `inputModeExplicit` and `packNonLatinScript` lived on a runtime object the row type
+    // did not mention, and the tests serialised the runtime object. There is now one type
+    // and one declared list, and `toSessionRow` is the only way into the serialiser.
+    const d = deps({ grading: new ScriptedGrading({ 'item-1': 'wrong' }) });
+    let state = freshSession({ queue: items(6) });
+    state = step(state, { type: 'rendered' }, d).state;
+    state = step(
+      state,
+      { type: 'input', text: 'x', caret: 1, partialState: {}, gradeable: true },
+      d,
+    ).state;
+    state = step(state, { type: 'check' }, d).state;
+    state = step(state, { type: 'graded' }, d).state;
+    // A durable mistake row and a banner verdict both exist now…
+    expect(state.mistakeRows).toHaveLength(1);
+    expect(state.lastVerdict).not.toBeNull();
+
+    // …and both survive the DECLARED row, because the declared row contains them.
+    const restored = deserialiseSession(serialiseSession(state));
+    expect(restored.mistakeRows).toHaveLength(1);
+    expect(restored.lastVerdict).toEqual(state.lastVerdict);
+
+    // Every key of the runtime state is a declared field, and vice versa.
+    expect(Object.keys(toSessionRow(state)).sort()).toEqual([...SESSION_ROW_FIELDS].sort());
+    expect(Object.keys(state).sort()).toEqual([...SESSION_ROW_FIELDS].sort());
+  });
+
+  it('[INV-SESS-01] an in-flight REPLAY is checkpointed: a kill during the replay restores the replay, not the main item', () => {
+    // `currentReplay` used only to be documented as persisted. Now it is in the row, and
+    // this is the behaviour that proves it: kill mid-replay and the restored session is
+    // still showing the replay's item id, not `queue[index]`.
+    const d = deps({ grading: new ScriptedGrading({ 'item-1': 'wrong' }) });
+    let state = freshSession({ queue: items(6) });
+    state = step(state, { type: 'rendered' }, d).state;
+    let guard = 0;
+    while (state.currentReplay === null && guard < 60) {
+      state = step(
+        state,
+        { type: 'input', text: 'x', caret: 1, partialState: {}, gradeable: true },
+        d,
+      ).state;
+      state = step(state, { type: 'check' }, d).state;
+      state = step(state, { type: 'graded' }, d).state;
+      state = step(state, { type: 'continue' }, d).state;
+      guard += 1;
+    }
+    expect(state.currentReplay).not.toBeNull();
+    const restored = deserialiseSession(serialiseSession(state));
+    expect(restored.currentReplay?.item.itemId).toBe('item-1');
+    expect(restored.currentReplay?.phase).toBe('midLesson');
   });
 
   it('[INV-SESS-01] the checkpoint is never older than one challenge boundary', () => {

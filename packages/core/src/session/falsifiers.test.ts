@@ -26,7 +26,11 @@ import {
 } from './test-doubles.js';
 import { COURSE_A, freshSession, item, items } from './session-fixture.js';
 import { barIsGold, comboAfter, comboLabelVisible } from './combo.js';
-import { emitInterstitials } from './interstitials.js';
+import {
+  STEP_UP_COPY,
+  emitInterstitials,
+  isCanonicalInterstitialOrder,
+} from './interstitials.js';
 import { advanceProgress, consumeFinalSegment, initialProgress } from './progress.js';
 import {
   afterMistakeReplay,
@@ -42,6 +46,7 @@ import {
 import {
   RESUME_FIELDS,
   canonicalJson,
+  keyOf,
   checkpoint,
   coldStartRoute,
   deserialiseSession,
@@ -59,6 +64,7 @@ import {
 import { completionCommit, quitCommit, quitDecision } from './quit.js';
 import { effectiveInputMode, step } from './machine.js';
 import type { RuntimeState, StepDeps } from './machine.js';
+import type { GradingPort } from './ports.js';
 import { runForegroundBoot } from './boot.js';
 import type { BootPort } from './ports.js';
 import { EXERCISE_REGISTRY, NEVER_A_RECYCLE_TARGET, emittableExerciseTypes } from './registry.js';
@@ -126,6 +132,7 @@ function answer(
     skipped,
     scorable: !skipped,
     queue: 'main',
+    note: null,
   };
 }
 
@@ -138,10 +145,20 @@ function mistakeOf(id: string): QueuedMistake {
     originalType: 'meaningSelect',
     servesRemaining: MAX_SERVES_PER_MISTAKE,
     recyclesServed: 0,
+    queuedAtMainAnswers: 0,
   };
 }
 
 /** Drive a whole session to `complete` with a scripted grader. */
+/** Is a challenge on screen, i.e. can the answer script proceed? */
+function isAnswerable(state: RuntimeState): boolean {
+  return (
+    state.shellState === 'challenge.idle' ||
+    state.shellState === 'challenge.armed' ||
+    state.shellState === 'complete'
+  );
+}
+
 function runToComplete(start: RuntimeState, d: StepDeps): RuntimeState {
   let state = step(start, { type: 'rendered' }, d).state;
   for (let guard = 0; guard < 400 && state.shellState !== 'complete'; guard += 1) {
@@ -244,6 +261,7 @@ const HANDLERS: Record<string, Handler> = {
       combo = comboAfter(combo, {
         ...answer(0, VERDICT[input.thenReplay as string]!),
         queue: 'mistakes',
+        note: null,
       });
     }
     return { combo, gold: barIsGold(combo), label: comboLabelVisible(combo) };
@@ -267,7 +285,7 @@ const HANDLERS: Record<string, Handler> = {
         stepUpTripped: stepUpAt !== undefined && combo === stepUpAt,
         stepUpAlreadyFired: stepUpFired,
         mistakesPending: 0,
-        mainQueueDrained: false,
+        mistakeReviewDue: false,
       });
       for (const screen of screens) {
         used = [...used, screen.key];
@@ -296,9 +314,68 @@ const HANDLERS: Record<string, Handler> = {
       stepUpTripped: (input.stepUpTripped as boolean) ?? false,
       stepUpAlreadyFired: (input.stepUpAlreadyFired as boolean) ?? false,
       mistakesPending: (input.mistakesPending as number) ?? 0,
-      mainQueueDrained: (input.mainQueueDrained as boolean) ?? false,
+      mistakeReviewDue: (input.mistakeReviewDue as boolean) ?? false,
     });
-    return { producers: screens.map((s) => s.producer) };
+    return {
+      producers: screens.map((s) => s.producer),
+      canonicalOrder: isCanonicalInterstitialOrder(screens),
+      copyKeys: screens.map((s) => s.copyKey),
+    };
+  },
+
+  /**
+   * INV-COM-12. The old shape of this falsifier asserted `stepUp === null ||
+   * 'production'` over the ten shipped rows, which cannot fail while no row declares
+   * `audio` — a refuter called it vacuous and was right. This drives BOTH kinds through
+   * `emitInterstitials` with a synthetic config, so "the less-sound copy never appears
+   * outside an audio flavour" is a statement about the CODE (the copy key is read from
+   * `config.stepUp`), not about which rows happen to ship today.
+   */
+  stepUpCopy(input: Record<string, unknown>) {
+    const base = {
+      combo: input.combo as number,
+      motivationalMessages: true,
+      usedInterstitialKeys: [] as string[],
+      stepUpTripped: input.stepUpTripped as boolean,
+      mistakesPending: 0,
+      mistakeReviewDue: false,
+    };
+    const alreadyFired = emitInterstitials({
+      ...base,
+      config: DEFAULT_FLAVOUR_MATRIX.lesson,
+      stepUpAlreadyFired: input.stepUpAlreadyFired as boolean,
+    });
+    const firstTrip = emitInterstitials({
+      ...base,
+      config: DEFAULT_FLAVOUR_MATRIX.lesson,
+      stepUpAlreadyFired: false,
+    });
+    const copyKeyPerStepUpKind: Record<string, string> = {};
+    let audioCopyFromANonAudioConfig = 0;
+    for (const kind of ['production', 'audio'] as const) {
+      const screens = emitInterstitials({
+        ...base,
+        config: { ...DEFAULT_FLAVOUR_MATRIX.lesson, stepUp: kind },
+        stepUpAlreadyFired: false,
+      });
+      const card = screens.find((s) => s.producer === 'stepUp')!;
+      copyKeyPerStepUpKind[kind] = card.copyKey;
+      if (kind !== 'audio' && card.copyKey === STEP_UP_COPY.audio) {
+        audioCopyFromANonAudioConfig += 1;
+      }
+    }
+    return {
+      producersWhenAlreadyFired: alreadyFired.map((s) => s.producer),
+      stepUpsWhenAlreadyFired: alreadyFired.filter((s) => s.producer === 'stepUp').length,
+      stepUpsOnFirstTrip: firstTrip.filter((s) => s.producer === 'stepUp').length,
+      copyKeyPerStepUpKind,
+      // Recorded, not asserted-away: the audio-only hub flavours are P4, so no shipped
+      // row declares `audio` yet. The two lines above are what keep the id honest.
+      shippedFlavoursDeclaringAudio: Object.values(DEFAULT_FLAVOUR_MATRIX).filter(
+        (c) => c.stepUp === 'audio',
+      ).length,
+      audioCopyFromANonAudioConfig,
+    };
   },
 
   progress(input: Record<string, unknown>) {
@@ -342,26 +419,27 @@ const HANDLERS: Record<string, Handler> = {
     let queue: readonly QueuedMistake[] = Array.from({ length: input.count as number }, (_, i) =>
       mistakeOf(`m${i}`),
     );
-    const phases: string[] = [];
     let serves = 0;
     let measure = pendingServes(queue);
     let decreasing = true;
     while (hasPendingMistake(queue)) {
       const served = serveNextMistake(queue)!;
-      phases.push(served.served.recyclesServed === 0 ? 'midLesson' : 'end');
       queue = afterMistakeReplay(served.served, served.rest, verdicts[serves % verdicts.length]!);
       serves += 1;
       const next = pendingServes(queue);
       if (next >= measure) decreasing = false;
       measure = next;
     }
-    const out: Record<string, unknown> = {
+    // NOTE: this handler is the TERMINATION measure only (INV-MIS-02). It deliberately
+    // reports no `phases`: a phase is a POSITION in the session, and this harness has no
+    // session — naming one here is how the previous cut came to record
+    // `["midLesson","midLesson","end","end"]` for four serves that all ran after the main
+    // queue had drained. INV-MIS-01's falsifier is `serveTrace`, driven through `step()`.
+    return {
       serves,
       pendingAtEnd: hasPendingMistake(queue),
       measureStrictlyDecreasing: decreasing,
     };
-    if (verdicts.every(Boolean)) out.phases = phases;
-    return out;
   },
 
   queueMistake(input: Record<string, unknown>) {
@@ -373,6 +451,7 @@ const HANDLERS: Record<string, Handler> = {
           config: DEFAULT_FLAVOUR_MATRIX[flavour],
           item: item(1, { type: input.type as ExerciseType }),
           queue,
+          mainAnswersAtMiss: i + 1,
         });
       }
       return queue.length;
@@ -411,7 +490,7 @@ const HANDLERS: Record<string, Handler> = {
     const queued = queueMistake({
       config: DEFAULT_FLAVOUR_MATRIX.lesson,
       item: trace,
-      queue: [],
+      queue: [], mainAnswersAtMiss: 1,
     });
     return { weakItem: weak !== null, mistakeQueued: queued.length };
   },
@@ -573,19 +652,73 @@ const HANDLERS: Record<string, Handler> = {
     };
   },
 
+  /**
+   * INV-SESS-09 / INV-SESS-17: opening a session while another GRADED one is in flight.
+   * Every deep link goes through `requestStart`; a collision opens the guard sheet and
+   * creates nothing. Parked rows for other surfaces (story, radio) never collide.
+   */
   store(input: Record<string, unknown>) {
     const store = new InMemorySessionStore();
-    let refusals = 0;
+    let guardSheets = 0;
+    let activationRefusals = 0;
     for (const [courseId, kind, nodeRef] of input.rows as [string, SessionKind, string][]) {
-      try {
-        store.put(freshSession({ courseId, sessionKind: kind, nodeRef }));
-      } catch {
-        refusals += 1;
-        // The guard sheet is the only legal response to a collision.
-        expect(requestStart(store, { courseId, kind, nodeRef }).kind).toBe('guardSheet');
+      const state = freshSession({ courseId, sessionKind: kind, nodeRef });
+      if (requestStart(store, { courseId, kind, nodeRef }).kind === 'guardSheet') {
+        guardSheets += 1;
+        // The guard sheet is the only legal response: nothing is stored, nothing evicted.
+        try {
+          store.activate(state);
+        } catch {
+          activationRefusals += 1;
+        }
+        continue;
       }
+      store.put(state);
+      if (kind === 'graded') store.activate(state);
     }
-    return { rows: store.all().length, refusals };
+    return {
+      rows: store.all().length,
+      guardSheets,
+      activeGradedKeys: store.activeGraded() === null ? 0 : 1,
+      activationRefusals,
+    };
+  },
+
+  /**
+   * INV-SESS-07 with its own falsifier's case, at last.
+   *
+   * EC-SES-07 "two courses each hold a suspended session" and EC-SES-10 "the other
+   * course's session is PARKED, not discarded" are both about LESSONS, so the rows here
+   * are `graded`. The previous committed input used `story` rows — a scenario its own
+   * `case` string deliberately avoided, because with graded rows the store threw.
+   */
+  parkedCourses(input: Record<string, unknown>) {
+    const store = new InMemorySessionStore();
+    const rows = input.rows as [string, SessionKind, string][];
+    const keysEverStored = new Set<string>();
+    for (const [courseId, kind, nodeRef] of rows) {
+      const state = freshSession({ courseId, sessionKind: kind, nodeRef });
+      store.put(state);
+      keysEverStored.add(keyOf(state));
+    }
+    // The course switch: park the live one, activate the other. Neither row moves.
+    const [switchCourse, switchKind, switchNode] = input.thenActivate as [
+      string,
+      SessionKind,
+      string,
+    ];
+    store.park();
+    store.activate(store.get(switchCourse, switchKind, switchNode)!);
+    const present = new Set(store.all().map(keyOf));
+    return {
+      rows: store.all().length,
+      gradedRows: store.all().filter((r) => r.sessionKind === 'graded').length,
+      rowsForCourseA: store.forCourse(rows[0]![0]).length,
+      rowsForCourseB: store.forCourse(rows[1]![0]).length,
+      deletedRows: [...keysEverStored].filter((k) => !present.has(k)).length,
+      activeGradedAfterSwitch: decodeURIComponent(keyOf(store.activeGraded()!)),
+      courseAStillParked: store.get(rows[0]![0], rows[0]![1], rows[0]![2]) !== null,
+    };
   },
 
   startOver(input: Record<string, unknown>) {
@@ -752,6 +885,151 @@ const HANDLERS: Record<string, Handler> = {
       },
     };
     return { port, log, snapshots, nudges } as unknown as Record<string, unknown>;
+  },
+
+  /**
+   * INV-MIS-01, driven through `step()` — the falsifier a refuter's probe wrote.
+   *
+   * It records the ORDER items were served in, not just how many times each was
+   * recycled, because the bug it exists to catch was invisible to a count: every replay
+   * used to be served after the whole main queue had drained while the code still
+   * labelled the first one `midLesson`. `firstReplayAnswerPosition <
+   * lastMainAnswerPosition` is the line that fails if that regresses.
+   */
+  serveTrace(input: Record<string, unknown>) {
+    const wrongAt = new Set((input.wrongAt as number[]).map((n) => `item-${n}`));
+    const grading: GradingPort = {
+      // Wrong on the FIRST encounter only: the replays are answered correctly, so each
+      // mistake takes exactly its two scheduled recycles.
+      grade: ({ item: served }) => ({
+        kind: wrongAt.has(served.itemId) && wrongAt.delete(served.itemId) ? 'wrong' : 'correct',
+      }),
+    };
+    const d = deps({ grading });
+    const queue = items(input.queueLength as number);
+    let state: RuntimeState = freshSession({ queue });
+
+    const trace: string[] = [];
+    const phases: string[] = [];
+    const replayTypes: Record<string, string[]> = {};
+    let served = state.currentReplay;
+    state = step(state, { type: 'rendered' }, d).state;
+    for (let guard = 0; guard < 400 && state.shellState !== 'complete'; guard += 1) {
+      // What is on screen right now?
+      served = state.currentReplay;
+      const onScreen =
+        served !== null ? served.item : (state.core.queue[state.core.index] ?? null);
+      if (onScreen !== null && state.shellState === 'challenge.idle') {
+        trace.push(`${served !== null ? 'REPLAY' : 'MAIN'}(${onScreen.itemId})`);
+        if (served !== null) {
+          phases.push(served.phase);
+          (replayTypes[onScreen.itemId] ??= []).push(onScreen.type);
+        }
+      }
+      state = step(
+        state,
+        { type: 'input', text: 'x', caret: 1, partialState: {}, gradeable: true },
+        d,
+      ).state;
+      state = step(state, { type: 'check' }, d).state;
+      state = step(state, { type: 'graded' }, d).state;
+      state = step(state, { type: 'continue' }, d).state;
+      // Dismiss any interstitial / mistake-review screen standing in the way.
+      for (let i = 0; i < 4 && !isAnswerable(state); i += 1) {
+        state = step(state, { type: 'continue' }, d).state;
+      }
+    }
+
+    const answers = state.core.answers;
+    const firstReplay = answers.findIndex((a) => a.queue === 'mistakes');
+    let lastMain = -1;
+    answers.forEach((a, i) => {
+      if (a.queue === 'main') lastMain = i;
+    });
+    const missed = (input.wrongAt as number[]).map((n) => `item-${n}`);
+    const originalType = (id: string) => queue.find((q) => q.itemId === id)!.type;
+    return {
+      serveTrace: trace,
+      recyclesPerMistake: missed.map(
+        (id) => answers.filter((a) => a.queue === 'mistakes' && a.itemId === id).length,
+      ),
+      phases,
+      firstReplayAnswerPosition: firstReplay,
+      lastMainAnswerPosition: lastMain,
+      // S049: mid-lesson in a DIFFERENT format (best-effort), end in the ORIGINAL.
+      midLessonFormatDiffers: missed.every((id) => replayTypes[id]![0] !== originalType(id)),
+      endFormatIsOriginal: missed.every((id) => replayTypes[id]![1] === originalType(id)),
+      pendingAtComplete: hasPendingMistake(state.mistakes),
+      reachedComplete: state.shellState === 'complete',
+    };
+  },
+
+  /**
+   * INV-COM-09 / EC-COM-12: "the tier-2 note WINS THE BANNER HEADLINE — it is corrective
+   * information — and the milestone is not lost: it fires as the separate interstitial
+   * after CONTINUE."
+   *
+   * Both halves. The previous committed input asserted only `{combo, gold, label}`, so
+   * the headline half was never checked and `grade()` was quietly discarding
+   * `verdict.note`.
+   */
+  softCorrectMilestone(input: Record<string, unknown>) {
+    const note = input.note as string;
+    const n = input.correctBefore as number;
+    const grading = new ScriptedGrading();
+    grading.setVerdict(`item-${n + 1}`, { kind: 'softCorrect', note });
+    const d = deps({ grading });
+    let state: RuntimeState = freshSession({ queue: items(n + 4) });
+    state = step(state, { type: 'rendered' }, d).state;
+
+    let bannerShell = '';
+    let headline: string | null = null;
+    let headlineAfterKill: string | null = null;
+    const milestoneKeys: string[] = [];
+    const allMilestoneKeys: string[] = [];
+    for (let i = 0; i < n + 1; i += 1) {
+      state = step(
+        state,
+        { type: 'input', text: 'x', caret: 1, partialState: {}, gradeable: true },
+        d,
+      ).state;
+      state = step(state, { type: 'check' }, d).state;
+      state = step(state, { type: 'graded' }, d).state;
+      if (i === n) {
+        bannerShell = state.shellState;
+        headline = state.lastVerdict?.note ?? null;
+        // …and it is on the ROW, so a kill between the verdict and CONTINUE restores the
+        // banner WITH its headline (INV-SESS-04).
+        headlineAfterKill =
+          deserialiseSession(serialiseSession(state)).lastVerdict?.note ?? null;
+      }
+      state = step(state, { type: 'continue' }, d).state;
+      if (state.shellState === 'interstitial') {
+        // Only the screens emitted at the CROSSING count for this invariant: "…and still
+        // emits EXACTLY ONE milestone interstitial". Combo 5 fires earlier in the run and
+        // is not what is being counted.
+        if (i === n) milestoneKeys.push(...state.pendingInterstitialKeys);
+        allMilestoneKeys.push(...state.pendingInterstitialKeys);
+        state = step(state, { type: 'continue' }, d).state;
+      }
+    }
+    return {
+      combo: state.core.combo,
+      gold: barIsGold(state.core.combo),
+      label: comboLabelVisible(state.core.combo),
+      shellStateAtBanner: bannerShell,
+      bannerHeadline: headline,
+      headlineSurvivesKill: headlineAfterKill,
+      milestoneInterstitials: milestoneKeys.filter((k) => k.startsWith('combo.')).length,
+      milestoneCopyKey: milestoneKeys.find((k) => k.startsWith('combo.')) ?? null,
+      // The whole run, so "the milestone is not lost" is a count, not an absence: 5 and
+      // 10 both fired, with distinct copy (INV-COM-03).
+      milestonesInWholeRun: allMilestoneKeys.filter((k) => k.startsWith('combo.')).length,
+      distinctCopyInWholeRun: new Set(allMilestoneKeys.filter((k) => k.startsWith('combo.')))
+        .size,
+      // A soft-correct never breaks the combo.
+      comboBroken: state.core.combo !== (input.correctBefore as number) + 1,
+    };
   },
 
   registry(_input: Record<string, unknown>) {

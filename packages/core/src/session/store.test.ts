@@ -25,24 +25,76 @@ function answered(n: number): Answer[] {
     skipped: false,
     scorable: true,
     queue: 'main' as const,
+    note: null,
   }));
 }
 
 describe('session_state store (S052)', () => {
-  it('[INV-SESS-07] at most one row per course key, and switching courses never deletes a row', () => {
+  it('[INV-SESS-07] two courses each hold a parked GRADED session, an upsert replaces, and a course switch parks rather than deletes', () => {
+    // The registry's cases for this id are EC-SES-07 ("two courses each hold a suspended
+    // session") and EC-SES-10 ("the other course's session is PARKED, not discarded") —
+    // both about LESSONS. A refuter caught the previous version of this test building
+    // both rows with `sessionKind: 'story'`, which the invariant is not about, because
+    // the store then threw on the second graded row. EC-SES-22's widening (recorded in
+    // docs/owned/session.json) resolves it: many graded rows may be STORED, at most one
+    // is IN FLIGHT. So this test uses graded rows, which is what it is about.
     const store = new InMemorySessionStore();
-    // Two courses is the default fixture, not the exceptional one.
-    const a = freshSession({ courseId: COURSE_A, nodeRef: 'node-1', sessionKind: 'story' });
-    const b = freshSession({ courseId: COURSE_B, nodeRef: 'node-1', sessionKind: 'story' });
+    const a = freshSession({ courseId: COURSE_A, nodeRef: 'node-1', sessionKind: 'graded' });
+    const b = freshSession({ courseId: COURSE_B, nodeRef: 'node-1', sessionKind: 'graded' });
     store.put(a);
     store.put(b);
     expect(store.all()).toHaveLength(2);
+    expect(store.all().filter((r) => r.sessionKind === 'graded')).toHaveLength(2);
     // An upsert on the same key replaces rather than adding.
     store.put({ ...a, core: { ...a.core, index: 4 } });
     expect(store.forCourse(COURSE_A)).toHaveLength(1);
-    expect(store.get(COURSE_A, 'story', 'node-1')!.core.index).toBe(4);
+    expect(store.get(COURSE_A, 'graded', 'node-1')!.core.index).toBe(4);
     // The other course's parked row is untouched — a course switch parks, never discards.
-    expect(store.get(COURSE_B, 'story', 'node-1')).not.toBeNull();
+    expect(store.get(COURSE_B, 'graded', 'node-1')).not.toBeNull();
+
+    // And the switch itself: park A, activate B. Both rows survive; exactly one is live.
+    expect(store.activeGraded()!.courseId).toBe(COURSE_A);
+    store.park();
+    store.activate(b);
+    expect(store.activeGraded()!.courseId).toBe(COURSE_B);
+    expect(store.get(COURSE_A, 'graded', 'node-1')).not.toBeNull();
+    expect(store.all()).toHaveLength(2);
+  });
+
+  it('[INV-SESS-07] for any interleaving of two courses, every course keeps at most one row per key and no put ever deletes another course\u2019s row', () => {
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.tuple(
+            fc.constantFrom(COURSE_A, COURSE_B),
+            fc.constantFrom<SessionKind>('graded', 'story', 'radio'),
+            fc.constantFrom('n1', 'n2'),
+          ),
+          { minLength: 1, maxLength: 8 },
+        ),
+        (rows) => {
+          const store = new InMemorySessionStore();
+          const expected = new Set<string>();
+          for (const [courseId, sessionKind, nodeRef] of rows) {
+            const state = freshSession({ courseId, sessionKind, nodeRef });
+            const before = new Set(store.all().map(keyOf));
+            store.put(state);
+            expected.add(keyOf(state));
+            // Nothing already stored was evicted: a put only ever ADDS or REPLACES ITSELF.
+            for (const key of before) {
+              expect(store.all().map(keyOf)).toContain(key);
+            }
+          }
+          expect(new Set(store.all().map(keyOf))).toEqual(expected);
+          // ≤1 row per key, for every course, for every kind.
+          expect(new Set(store.all().map(keyOf)).size).toBe(store.all().length);
+          // …and never more than one graded session IN FLIGHT, however many are parked.
+          const active = store.activeGraded();
+          if (active !== null) expect(active.sessionKind).toBe('graded');
+        },
+      ),
+      { numRuns: PROPERTY_RUNS },
+    );
   });
 
   it('[INV-SESS-17] session_state is keyed (course_id, session_kind, node_ref) with ≤1 row per key, and story/radio live in their own rows', () => {
@@ -61,15 +113,22 @@ describe('session_state store (S052)', () => {
     expect(new Set(store.all().map(keyOf)).size).toBe(3);
   });
 
-  it('[INV-SESS-09] at most one graded session is in flight globally, across courses', () => {
+  it('[INV-SESS-09] at most one graded session is IN FLIGHT globally, across courses', () => {
     const store = new InMemorySessionStore();
-    store.put(freshSession({ courseId: COURSE_A, sessionKind: 'graded', nodeRef: 'node-1' }));
-    expect(() =>
-      store.put(freshSession({ courseId: COURSE_B, sessionKind: 'graded', nodeRef: 'node-1' })),
-    ).toThrow(SessionStoreError);
-    // …while non-graded rows in both courses are always allowed.
+    const a = freshSession({ courseId: COURSE_A, sessionKind: 'graded', nodeRef: 'node-1' });
+    const b = freshSession({ courseId: COURSE_B, sessionKind: 'graded', nodeRef: 'node-1' });
+    store.put(a);
+    store.put(b);
+    // STORING both is parking, and parking is required (EC-SES-10). ACTIVATING the second
+    // while the first is live is the thing that cannot happen.
+    expect(store.activeGraded()!.courseId).toBe(COURSE_A);
+    expect(() => store.activate(b)).toThrow(SessionStoreError);
+    // The refusal changed nothing: both rows stand, the first is still the live one.
+    expect(store.all()).toHaveLength(2);
+    expect(store.activeGraded()!.courseId).toBe(COURSE_A);
+    // …and non-graded rows are never in flight at all, so they never collide.
     store.put(freshSession({ courseId: COURSE_B, sessionKind: 'story', nodeRef: 's1' }));
-    expect(store.all().filter((r) => r.sessionKind === 'graded')).toHaveLength(1);
+    expect(store.activeGraded()!.sessionKind).toBe('graded');
   });
 
   it('[INV-SESS-09] requesting a second graded session opens the guard sheet naming the live one, and never creates a row', () => {
@@ -81,6 +140,7 @@ describe('session_state store (S052)', () => {
       queue: items(12),
     });
     store.put({ ...live, core: { ...live.core, index: 7 } });
+    store.activate({ ...live, core: { ...live.core, index: 7 } });
     const outcome = requestStart(store, { courseId: COURSE_B, kind: 'graded', nodeRef: 'node-9' });
     expect(outcome.kind).toBe('guardSheet');
     if (outcome.kind !== 'guardSheet') throw new Error('unreachable');
@@ -112,21 +172,23 @@ describe('session_state store (S052)', () => {
         ),
         (rows) => {
           const store = new InMemorySessionStore();
-          let gradedPut = 0;
           for (const [courseId, sessionKind, nodeRef] of rows) {
             const state = freshSession({ courseId, sessionKind, nodeRef });
-            try {
-              store.put(state);
-              if (sessionKind === 'graded') gradedPut += 1;
-            } catch {
-              // The store refused a second graded row — which is the invariant.
+            const outcome = requestStart(store, { courseId, kind: sessionKind, nodeRef });
+            if (outcome.kind === 'guardSheet') {
+              // A collision NEVER creates or clobbers a row on its own: the guard sheet
+              // is the only legal response, and it names the live session.
               expect(sessionKind).toBe('graded');
-              expect(gradedPut).toBe(1);
+              expect(outcome.live.sessionKind).toBe('graded');
+              expect(keyOf(outcome.live)).not.toBe(keyOf(state));
+              continue;
             }
+            store.put(state);
+            if (sessionKind === 'graded') store.activate(state);
           }
-          expect(store.all().filter((r) => r.sessionKind === 'graded').length).toBeLessThanOrEqual(
-            1,
-          );
+          // At most one graded session IN FLIGHT, however many are parked.
+          const active = store.activeGraded();
+          expect(active === null || active.sessionKind === 'graded').toBe(true);
           expect(new Set(store.all().map(keyOf)).size).toBe(store.all().length);
         },
       ),
@@ -146,6 +208,7 @@ describe('session_state store (S052)', () => {
           originalType: 'meaningSelect' as const,
           servesRemaining: 4,
           recyclesServed: 0,
+          queuedAtMainAnswers: 0,
         },
       ],
     };

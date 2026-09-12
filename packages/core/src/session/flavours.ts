@@ -50,6 +50,17 @@ export interface SessionFlavourConfig {
   readonly advancesNodeRing: boolean;
   /** INV-COM-03 pool cap, per flavour so a Daily Refresh block cannot outrun it. */
   readonly maxComboInterstitials: number;
+  /**
+   * How many further MAIN-queue answers must pass after a miss before its FIRST recycle
+   * is served MID-LESSON (S049, `deep/01` §S16: "recycled twice — mid-lesson in a
+   * different format, at the end in the original").
+   *
+   * The corpus publishes no number, so this is a named constant, not a magic literal:
+   * 0 would replay the item on the very next screen (an echo, not recall) and a large
+   * value would push every recycle past the end of the queue, which is the bug a refuter
+   * already caught. Irrelevant when `recyclesMistakes` is false (INV-MIS-03).
+   */
+  readonly midLessonRecycleGap: number;
 }
 
 export type FlavourMatrix = Readonly<Record<SessionFlavour, SessionFlavourConfig>>;
@@ -66,6 +77,16 @@ export const MIN_SESSION_LENGTH = 6;
 
 /** EC-COM-03: `maxComboInterstitialsPerSession = 7`, the pool size. */
 export const MAX_COMBO_INTERSTITIALS_PER_SESSION = 7;
+
+/**
+ * S049 / INV-MIS-01: the mid-lesson replay lands two main exercises after the miss —
+ * far enough that answering it is recall rather than echo, near enough that it is still
+ * "mid-lesson" on a 12-item queue. When fewer than this many main items remain, there is
+ * no mid-lesson slot and BOTH recycles are served at the end in the original format; the
+ * product map calls the different-format mid-lesson replay "best-effort" for exactly this
+ * case. The COUNT is always two.
+ */
+export const MID_LESSON_RECYCLE_GAP = 2;
 
 /** S057: ~9-14 exercises including replays; the main queue before replays is 12. */
 export const LESSON_TARGET_LENGTH = 12;
@@ -131,6 +152,7 @@ function row(
     baseXp,
     advancesNodeRing,
     maxComboInterstitials: MAX_COMBO_INTERSTITIALS_PER_SESSION,
+    midLessonRecycleGap: MID_LESSON_RECYCLE_GAP,
   };
 }
 

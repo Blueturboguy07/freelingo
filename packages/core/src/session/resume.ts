@@ -12,12 +12,16 @@ import type {
   Answer,
   InFlightInput,
   InputMode,
+  LastVerdict,
+  MistakeRow,
   QueuedItem,
   QueuedMistake,
   SessionFlavour,
   SessionKind,
   ShellState,
+  WeakItemRow,
 } from './types.js';
+import type { RecyclePhase } from './mistakes.js';
 import { EMPTY_IN_FLIGHT } from './types.js';
 import type { ProgressState } from './progress.js';
 
@@ -54,10 +58,26 @@ export interface ResumeCore {
   readonly optionSeeds: Readonly<Record<string, number>>;
 }
 
+/** The replay currently on screen. Persisted: a kill mid-replay restores the REPLAY. */
+export interface ReplayInFlight {
+  readonly item: QueuedItem;
+  readonly phase: RecyclePhase;
+}
+
 /**
- * The whole persisted row. `core` is the nine; everything beside it is session
- * bookkeeping, plus the TENTH field EC-SES-20 demands: ungraded in-flight input and an
- * opaque per-challenge `partial_state` (INV-SESS-15).
+ * The whole persisted row — and the ONLY state the runtime has.
+ *
+ * `core` is the nine INV-SESS-01 names; everything beside it is session bookkeeping,
+ * plus the TENTH field EC-SES-20 demands: ungraded in-flight input and an opaque
+ * per-challenge `partial_state` (INV-SESS-15).
+ *
+ * A refuter caught the earlier shape: the machine kept `currentReplay`, `mistakeRows`,
+ * `weakItemRows`, `inputModeExplicit` and `packNonLatinScript` on a *separate*
+ * `RuntimeState`, so a writer that serialised the DECLARED row would have dropped the
+ * in-flight replay and every durable mistake accrued in the session — while the tests,
+ * which serialised the runtime object, saw nothing. There is now exactly one type, one
+ * declared field list (`SESSION_ROW_FIELDS`) and a compile-time proof that the list
+ * covers it.
  */
 export interface SessionState {
   readonly sessionId: string;
@@ -78,6 +98,74 @@ export interface SessionState {
   readonly pendingInterstitialKeys: readonly string[];
   readonly stepUpFired: boolean;
   readonly motivationalMessages: boolean;
+  /** S049's plural-aware copy slot for the shell's `mistakeReview` state. */
+  readonly mistakeReviewCopyKey: string | null;
+  /** The end-of-queue review block has already announced itself once. */
+  readonly endReviewIntroShown: boolean;
+  /** INV-COM-09 / INV-SESS-04: what the restored banner renders as its headline. */
+  readonly lastVerdict: LastVerdict | null;
+  /** The replay on screen, if any (INV-SESS-01: a kill mid-replay restores it). */
+  readonly currentReplay: ReplayInFlight | null;
+  /** The learner tapped `Use keyboard` / `Use word bank` in this session (EC-SES-25). */
+  readonly inputModeExplicit: boolean;
+  /** Durable rows accrued this session, committed on quit or completion. */
+  readonly mistakeRows: readonly MistakeRow[];
+  readonly weakItemRows: readonly WeakItemRow[];
+  /** The pack declares a non-Latin script: hard mode never changes the input default. */
+  readonly packNonLatinScript: boolean;
+  /** Did the whole session end? `null` while it is live. */
+  readonly exited: 'quit' | 'complete' | null;
+}
+
+/* ================================================= 1b. the declared field list */
+
+/**
+ * Every field a writer persists. The serialiser projects THROUGH this list, so a field
+ * added to `SessionState` and forgotten here is dropped at the boundary — and the
+ * resumption-equivalence property in `resume.test.ts` then fails, because the restored
+ * session diverges from the un-killed one.
+ */
+export const SESSION_ROW_FIELDS = [
+  'sessionId',
+  'courseId',
+  'sessionKind',
+  'nodeRef',
+  'flavour',
+  'core',
+  'shellState',
+  'inFlight',
+  'mistakes',
+  'progress',
+  'checkpointMonotonicMs',
+  'startedMonotonicMs',
+  'pendingInterstitialKeys',
+  'stepUpFired',
+  'motivationalMessages',
+  'mistakeReviewCopyKey',
+  'endReviewIntroShown',
+  'lastVerdict',
+  'currentReplay',
+  'inputModeExplicit',
+  'mistakeRows',
+  'weakItemRows',
+  'packNonLatinScript',
+  'exited',
+] as const satisfies readonly (keyof SessionState)[];
+
+/**
+ * The compile-time half: `Uncovered` is `never` only when every key of `SessionState`
+ * appears above. Adding a field without listing it makes this line a type error, which is
+ * a cheaper place to find out than a learner's restored lesson.
+ */
+type Uncovered = Exclude<keyof SessionState, (typeof SESSION_ROW_FIELDS)[number]>;
+const _everyFieldIsDeclared: Uncovered extends never ? true : never = true;
+void _everyFieldIsDeclared;
+
+/** Project a runtime state onto the declared row. The ONLY input to the serialiser. */
+export function toSessionRow(state: SessionState): SessionState {
+  const out: Record<string, unknown> = {};
+  for (const field of SESSION_ROW_FIELDS) out[field] = state[field];
+  return out as unknown as SessionState;
 }
 
 /** `(course_id, session_kind, node_ref)` — INV-SESS-17. */
@@ -118,8 +206,13 @@ function sortDeep(value: unknown): unknown {
   return out;
 }
 
+/**
+ * What a writer stores. Note the projection: serialising the runtime object directly is
+ * precisely the mistake that hid the missing fields last time, so it is not possible
+ * here — `toSessionRow` is the only path in.
+ */
 export function serialiseSession(state: SessionState): string {
-  return canonicalJson(state);
+  return canonicalJson(toSessionRow(state));
 }
 
 export function deserialiseSession(raw: string): SessionState {

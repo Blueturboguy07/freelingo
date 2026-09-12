@@ -1,15 +1,33 @@
 {
   "id": "INV-MIS-01",
-  "case": "EC-MIS-01: two mistakes in one lesson",
-  "kind": "mistakeDrain",
+  "case": "EC-MIS-01: two mistakes in one eight-item lesson — each recycled EXACTLY TWICE, the first replay served MID-LESSON with main-queue items still to come, the second at the end in the original format",
+  "kind": "serveTrace",
   "input": {
-    "count": 2,
-    "verdicts": [true]
+    "queueLength": 8,
+    "wrongAt": [1, 3]
   },
   "expect": {
-    "serves": 4,
+    "serveTrace": [
+      "MAIN(item-1)",
+      "MAIN(item-2)",
+      "MAIN(item-3)",
+      "REPLAY(item-1)",
+      "MAIN(item-4)",
+      "MAIN(item-5)",
+      "REPLAY(item-3)",
+      "MAIN(item-6)",
+      "MAIN(item-7)",
+      "MAIN(item-8)",
+      "REPLAY(item-1)",
+      "REPLAY(item-3)"
+    ],
+    "recyclesPerMistake": [2, 2],
     "phases": ["midLesson", "midLesson", "end", "end"],
-    "pendingAtEnd": false,
-    "measureStrictlyDecreasing": true
+    "firstReplayAnswerPosition": 3,
+    "lastMainAnswerPosition": 9,
+    "midLessonFormatDiffers": true,
+    "endFormatIsOriginal": true,
+    "pendingAtComplete": false,
+    "reachedComplete": true
   }
 }

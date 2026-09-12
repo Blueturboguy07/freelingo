@@ -39,6 +39,8 @@ export interface QueueMistakeRequest {
   readonly config: SessionFlavourConfig;
   readonly item: QueuedItem;
   readonly queue: readonly QueuedMistake[];
+  /** Main-queue answers recorded INCLUDING this miss — the mid-lesson gap counts from it. */
+  readonly mainAnswersAtMiss: number;
 }
 
 /**
@@ -63,8 +65,39 @@ export function queueMistake(request: QueueMistakeRequest): readonly QueuedMista
       originalType: item.type,
       servesRemaining: MAX_SERVES_PER_MISTAKE,
       recyclesServed: 0,
+      queuedAtMainAnswers: request.mainAnswersAtMiss,
     },
   ];
+}
+
+/* ================================================ 2b. WHEN the mid-lesson recycle runs */
+
+/**
+ * The mistake whose MID-LESSON recycle is due, or `null`.
+ *
+ * This is the half a refuter proved missing: a `phase` computed as
+ * `recyclesServed === 0 ? 'midLesson' : 'end'` names a FORMAT, not a POSITION, and every
+ * replay was in fact served after the whole main queue had drained. Position is now a
+ * predicate over the main-answer counter: the first recycle of a miss becomes due once
+ * `gap` further MAIN-queue answers have been recorded, and the machine serves it right
+ * there, with main-queue items still to come.
+ *
+ * `deep/01` §S16 / product-map S049: "recycled twice — mid-lesson in a different format
+ * (best-effort), end-of-lesson in the original".
+ */
+export function midLessonRecycleDue(
+  queue: readonly QueuedMistake[],
+  mainAnswers: number,
+  gap: number,
+): QueuedMistake | null {
+  return (
+    queue.find(
+      (m) =>
+        m.recyclesServed === 0 &&
+        m.servesRemaining > 0 &&
+        mainAnswers - m.queuedAtMainAnswers >= gap,
+    ) ?? null
+  );
 }
 
 /* ======================================================== 3. the recycle ladder */
@@ -111,12 +144,26 @@ export interface ServeResult {
   readonly rest: readonly QueuedMistake[];
 }
 
-/** Take the head of the FIFO and spend one serve. `null` when nothing is pending. */
-export function serveNextMistake(queue: readonly QueuedMistake[]): ServeResult | null {
-  const head = queue.find((m) => m.servesRemaining > 0);
+/**
+ * Take the first queued mistake matching `pick` and spend one serve.
+ *
+ * The measure Σ `servesRemaining` strictly decreases here whatever `pick` selects, which
+ * is what keeps INV-MIS-02's termination proof independent of the serving ORDER — the
+ * mid-lesson serve jumps the FIFO by design.
+ */
+export function serveMistake(
+  queue: readonly QueuedMistake[],
+  pick: (m: QueuedMistake) => boolean = () => true,
+): ServeResult | null {
+  const head = queue.find((m) => m.servesRemaining > 0 && pick(m));
   if (head === undefined) return null;
   const rest = queue.filter((m) => m !== head);
   return { served: { ...head, servesRemaining: head.servesRemaining - 1 }, rest };
+}
+
+/** Take the head of the FIFO and spend one serve. `null` when nothing is pending. */
+export function serveNextMistake(queue: readonly QueuedMistake[]): ServeResult | null {
+  return serveMistake(queue);
 }
 
 /**

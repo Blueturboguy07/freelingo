@@ -27,6 +27,7 @@ function answer(
     skipped,
     scorable: true,
     queue,
+    note: null,
   };
 }
 
@@ -130,15 +131,32 @@ describe('the progress bar (S031)', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 20 }),
+        fc.integer({ min: 0, max: 3 }),
         fc.array(answerArb, { maxLength: 30 }),
-        (length, answers) => {
+        (length, reserve, answers) => {
           let state = initialProgress(length);
-          for (const a of answers) state = advanceProgress(state, a, 0);
+          for (const a of answers) state = advanceProgress(state, a, reserve);
+
+          // THE HALF THAT WAS NEVER ASSERTED. A refuter pointed out that the previous
+          // version captured the numerator only AFTER `consumeFinalSegment` had pinned it
+          // to `length`, and then asserted `expected >= 0` — a line that cannot fail, and
+          // that stayed green with `numeratorFromAnswers` deleted entirely. The numerator
+          // is captured BEFORE completion and compared against the definition.
+          const numeratorBefore = state.numerator;
+          const cap = Math.max(0, length - (reserve > 0 ? 1 : 0));
+          expect(numeratorBefore).toBe(Math.min(numeratorFromAnswers(answers), cap));
+
+          // …and the denominator half: it never moves, before or after.
+          expect(state.denominator).toBe(length);
           state = consumeFinalSegment(state);
           expect(state.denominator).toBe(length);
-          // Before the final segment, the numerator tracks correct main-queue answers.
-          const expected = Math.min(numeratorFromAnswers(answers), length);
-          expect(expected).toBeGreaterThanOrEqual(0);
+
+          // No skip ever wrote a mistake row: `advanceProgress` produces none at all, and
+          // a skipped answer is a no-op on the bar.
+          const skipsOnly = answers.filter((a) => a.skipped);
+          let skipped = initialProgress(length);
+          for (const a of skipsOnly) skipped = advanceProgress(skipped, a, reserve);
+          expect(skipped).toEqual(initialProgress(length));
         },
       ),
       { numRuns: PROPERTY_RUNS },

@@ -8,7 +8,7 @@
  * Kept in `src/` (not a test folder) so falsifier inputs under `__falsifiers__/` can be
  * replayed by anything, including a debug build of the app.
  */
-import type { RuntimeState } from './machine.js';
+import type { SessionState } from './resume.js';
 import type { SessionFlavour, ItemFamily, QueuedItem, SessionKind } from './types.js';
 import { EMPTY_IN_FLIGHT } from './types.js';
 import { initialProgress } from './progress.js';
@@ -58,7 +58,7 @@ export interface FixtureOptions {
 }
 
 /** A fresh session at its very first exercise: index 0, combo 0, hardMode false. */
-export function freshSession(options: FixtureOptions = {}): RuntimeState {
+export function freshSession(options: FixtureOptions = {}): SessionState {
   const flavour = options.flavour ?? 'lesson';
   const config = DEFAULT_FLAVOUR_MATRIX[flavour];
   const queue = options.queue ?? items(config.targetLength);
@@ -95,6 +95,9 @@ export function freshSession(options: FixtureOptions = {}): RuntimeState {
     pendingInterstitialKeys: [],
     stepUpFired: false,
     motivationalMessages: options.motivationalMessages ?? true,
+    mistakeReviewCopyKey: null,
+    endReviewIntroShown: false,
+    lastVerdict: null,
     currentReplay: null,
     inputModeExplicit: false,
     mistakeRows: [],

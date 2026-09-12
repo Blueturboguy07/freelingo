@@ -35,6 +35,7 @@ function mistake(id: string, type: ExerciseType = 'meaningSelect'): QueuedMistak
     originalType: type,
     servesRemaining: MAX_SERVES_PER_MISTAKE,
     recyclesServed: 0,
+    queuedAtMainAnswers: 0,
   };
 }
 
@@ -126,12 +127,12 @@ describe('mistake recycling (S049)', () => {
   it('[INV-MIS-03] the three test flavours produce zero recycles and zero mistake-queue entries', () => {
     for (const flavour of TEST_FLAVOURS) {
       const config = DEFAULT_FLAVOUR_MATRIX[flavour];
-      const queue = queueMistake({ config, item: item(1), queue: [] });
+      const queue = queueMistake({ config, item: item(1), queue: [], mainAnswersAtMiss: 1 });
       expect(queue, `${flavour} queued a mistake`).toEqual([]);
       expect(hasPendingMistake(queue)).toBe(false);
     }
     // And the lesson flavour does queue, so the test is not passing vacuously.
-    expect(queueMistake({ config: LESSON, item: item(1), queue: [] })).toHaveLength(1);
+    expect(queueMistake({ config: LESSON, item: item(1), queue: [], mainAnswersAtMiss: 1 })).toHaveLength(1);
   });
 
   it('[INV-MIS-04] a mistake retires only after two correct encounters in sessions OTHER than the one that created it', () => {
@@ -196,7 +197,7 @@ describe('mistake recycling (S049)', () => {
           let queue: readonly QueuedMistake[] = [];
           const missed = item(1, { type });
           for (let i = 0; i < times; i += 1) {
-            queue = queueMistake({ config: LESSON, item: missed, queue });
+            queue = queueMistake({ config: LESSON, item: missed, queue, mainAnswersAtMiss: i + 1 });
           }
           const punitive = EXERCISE_REGISTRY[type].punitive;
           // Never three rows for one miss — the falsifier is a Japanese miss inflating the
@@ -257,7 +258,7 @@ describe('mistake recycling (S049)', () => {
     expect(weak).not.toBeNull();
     expect(weak!.itemId).toBe(trace.itemId);
     // …and NOT a mistake row: a non-punitive type never enters the queue.
-    expect(queueMistake({ config: LESSON, item: trace, queue: [] })).toEqual([]);
+    expect(queueMistake({ config: LESSON, item: trace, queue: [], mainAnswersAtMiss: 1 })).toEqual([]);
     // The hub serves it as recognition, never as the trace it failed at.
     expect(WEAK_ITEM_HUB_TYPE).toBe('characterSelect');
     expect(EXERCISE_REGISTRY[WEAK_ITEM_HUB_TYPE].family).toBe('character');

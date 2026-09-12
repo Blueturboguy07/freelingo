@@ -40,6 +40,7 @@ const answerArb = fc
     skipped,
     scorable: true,
     queue,
+    note: null,
   }));
 
 describe('combo and the gold bar (S030, S031)', () => {
@@ -74,6 +75,7 @@ describe('combo and the gold bar (S030, S031)', () => {
       skipped: false,
       scorable: true,
       queue: 'main',
+      note: null,
     };
     expect(comboAfter(2, match)).toBe(3);
     // The per-stroke variant: eight strokes of one character are ONE exercise.
@@ -142,6 +144,7 @@ describe('combo and the gold bar (S030, S031)', () => {
       skipped: false,
       scorable: true,
       queue: 'main',
+      note: null,
     };
     // combo.ts has no interstitial input at all — the only way it could be affected is a
     // caller skipping the increment, which the sequence below pins.
@@ -163,6 +166,7 @@ describe('combo and the gold bar (S030, S031)', () => {
       skipped: false,
       scorable: true,
       queue: 'main',
+      note: null,
     };
     const soft: Answer = { ...base, verdict: 'softCorrect', softCorrected: true };
     const nine = Array.from({ length: 9 }, () => base);
@@ -184,6 +188,7 @@ describe('combo and the gold bar (S030, S031)', () => {
           skipped: true,
           scorable: false,
           queue: 'main',
+          note: null,
         };
         expect(comboAfter(combo, skip)).toBe(combo);
       }),

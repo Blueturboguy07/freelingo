@@ -42,6 +42,7 @@ function answer(
     skipped,
     scorable: !skipped,
     queue: 'main',
+    note: null,
   };
 }
 

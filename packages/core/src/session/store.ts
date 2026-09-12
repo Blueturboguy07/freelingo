@@ -14,44 +14,90 @@ import type { MistakeRow, QueuedItem, SessionKind } from './types.js';
 import type { SessionState } from './resume.js';
 import { keyOf, sessionStateKey } from './resume.js';
 
+/**
+ * PARKED vs IN FLIGHT — the distinction a refuter forced into the open.
+ *
+ * The registry's INV-SESS-07 says "≤1 `session_state` row per course, and switching
+ * courses never deletes a row", with EC-SES-07 ("two courses each hold a suspended
+ * session") and EC-SES-10 ("the other course's session is **parked**, not discarded") as
+ * its cases. EC-SES-22 then WIDENS the key to `(course_id, session_kind, node_ref)` and
+ * adds "only one *graded* session is ever **in flight**" — INV-SESS-17.
+ *
+ * The earlier cut read "in flight" as "stored", so `put` THREW on a second graded row and
+ * EC-SES-10's parked lesson was unreachable; its own committed falsifier dodged the
+ * problem by using `story` rows, which the invariant is not about. The resolution, also
+ * recorded in `docs/owned/session.json`:
+ *
+ * - any number of graded rows may be STORED (one per key) — that is what parking is;
+ * - at most ONE of them is ACTIVE at a time, and that is what "in flight" means;
+ * - a course switch `park()`s, it never deletes.
+ */
 export interface SessionStore {
   get(courseId: string, kind: SessionKind, nodeRef: string): SessionState | null;
-  /** Upsert on the key. NEVER two rows for one key (INV-SESS-17). */
+  /** Upsert on the key. NEVER two rows for one key (INV-SESS-17). Never evicts another. */
   put(state: SessionState): void;
   delete(courseId: string, kind: SessionKind, nodeRef: string): void;
   all(): readonly SessionState[];
   /** Every row for a course, all kinds — a course switch parks, never deletes. */
   forCourse(courseId: string): readonly SessionState[];
+  /** The one graded session in flight, or `null` when every graded row is parked. */
+  activeGraded(): SessionState | null;
+  /** Make this graded row the in-flight one. Throws if a DIFFERENT one is active. */
+  activate(state: SessionState): void;
+  /** Park the active graded row. The row stands; only the in-flight mark is cleared. */
+  park(): void;
 }
 
 export class SessionStoreError extends Error {}
 
 export class InMemorySessionStore implements SessionStore {
   #rows = new Map<string, SessionState>();
+  #activeGradedKey: string | null = null;
 
   get(courseId: string, kind: SessionKind, nodeRef: string): SessionState | null {
     return this.#rows.get(sessionStateKey(courseId, kind, nodeRef)) ?? null;
   }
 
+  /**
+   * Storing a row NEVER evicts another and never refuses: "neither is silently
+   * discarded" (EC-SES-07) and "parked, not discarded" (EC-SES-10) are both about rows
+   * that must survive. A graded row that is the first one seen becomes the in-flight one;
+   * a second graded row is stored PARKED, and `requestStart` is what opens the guard
+   * sheet rather than the store throwing under the caller.
+   */
   put(state: SessionState): void {
-    // INV-SESS-09/17: at most one GRADED session in flight globally. Story and radio
-    // positions are their own rows and never collide with it — "opening a lesson evicts a
-    // parked story" is the falsifier, so the guard is scoped to `graded` only.
-    if (state.sessionKind === 'graded') {
-      const other = [...this.#rows.values()].find(
-        (row) => row.sessionKind === 'graded' && keyOf(row) !== keyOf(state),
-      );
-      if (other !== undefined) {
-        throw new SessionStoreError(
-          `one graded session in flight: ${keyOf(other)} is live, refusing ${keyOf(state)}`,
-        );
-      }
-    }
     this.#rows.set(keyOf(state), state);
+    if (state.sessionKind === 'graded' && this.#activeGradedKey === null) {
+      this.#activeGradedKey = keyOf(state);
+    }
+  }
+
+  activeGraded(): SessionState | null {
+    if (this.#activeGradedKey === null) return null;
+    return this.#rows.get(this.#activeGradedKey) ?? null;
+  }
+
+  /** INV-SESS-09/17: at most one graded session IN FLIGHT, globally, across courses. */
+  activate(state: SessionState): void {
+    if (state.sessionKind !== 'graded') return;
+    const key = keyOf(state);
+    if (this.#activeGradedKey !== null && this.#activeGradedKey !== key) {
+      throw new SessionStoreError(
+        `one graded session in flight: ${this.#activeGradedKey} is live, refusing ${key}`,
+      );
+    }
+    this.#rows.set(key, state);
+    this.#activeGradedKey = key;
+  }
+
+  park(): void {
+    this.#activeGradedKey = null;
   }
 
   delete(courseId: string, kind: SessionKind, nodeRef: string): void {
-    this.#rows.delete(sessionStateKey(courseId, kind, nodeRef));
+    const key = sessionStateKey(courseId, kind, nodeRef);
+    this.#rows.delete(key);
+    if (this.#activeGradedKey === key) this.#activeGradedKey = null;
   }
 
   all(): readonly SessionState[] {
@@ -90,8 +136,8 @@ export function requestStart(
   request: { courseId: string; kind: SessionKind; nodeRef: string },
 ): StartRequestOutcome {
   if (request.kind !== 'graded') return { kind: 'start' };
-  const live = store.all().find((row) => row.sessionKind === 'graded');
-  if (live === undefined) return { kind: 'start' };
+  const live = store.activeGraded();
+  if (live === null) return { kind: 'start' };
   if (keyOf(live) === sessionStateKey(request.courseId, request.kind, request.nodeRef)) {
     return { kind: 'start' };
   }
