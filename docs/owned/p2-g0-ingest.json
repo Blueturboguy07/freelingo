@@ -1,0 +1,60 @@
+{
+  "$comment": "P2 task `p2-g0-ingest` (G0 ingest + G0b licensing gate). `owned` is DELIBERATELY EMPTY and the two ids this lane turns green sit in `ownedPendingGateSupport` instead — see `blockedOn`. Only the `owned` key is read by packages/core/src/journey/ownership.ts (`ownershipFiles()` reads `.owned ?? []`), by phase-roster.test.ts and by falsifier-corpus.test.ts; claiming a PACK id there while the roster is still P1-derived and the owning-test scanner is still TypeScript-only turns four deterministic assertions red for a claim no gate can verify. The claim is recorded here in full so the integrate task can move the ids back with one edit the moment the roster and the scanner land.",
+  "phase": "P2",
+  "task": "p2-g0-ingest",
+  "module": "tools/coursekit (stages/g0_ingest.py, sources/{licences,opus,tatoeba}.py, config/g0.py)",
+  "screens": ["S137", "S152"],
+  "owned": [],
+  "ownedPendingGateSupport": ["INV-PACK-12", "INV-PACK-13"],
+  "owningTests": {
+    "INV-PACK-12": [
+      "tools/coursekit/tests/test_sources_tatoeba.py::test_INV_PACK_12_a_missing_export_names_itself_and_no_near_miss_is_requested",
+      "tools/coursekit/tests/test_sources_tatoeba.py::test_INV_PACK_12_a_differently_shaped_file_is_never_accepted_as_a_substitute",
+      "tools/coursekit/tests/test_sources_tatoeba.py::test_INV_PACK_12_a_missing_version_header_stops_the_build",
+      "tools/coursekit/tests/test_sources_tatoeba.py::test_INV_PACK_12_the_frequency_list_for_japanese_refuses_before_a_url_exists",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_12_a_missing_per_language_input_stops_the_stage_by_name",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_12_a_corpus_with_no_reader_is_a_failure_not_a_skip",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_12_a_language_with_no_configured_corpora_names_the_table"
+    ],
+    "INV-PACK-13": [
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_the_ingest_allow_list_decides_every_case",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_refused_corpus_makes_zero_network_calls",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_every_configured_corpus_is_on_the_allow_list",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_the_allow_list_carries_no_nc_and_no_nd_licence",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_an_unclassified_licence_fails_rather_than_defaults",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_corpus_with_no_licence_page_resolves_to_unresolved",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_permit_cannot_be_constructed_outside_the_gate",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_fetcher_handed_something_that_is_not_a_permit_refuses",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_permit_is_re_gated_on_every_request",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_permit_may_not_reach_another_host",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_redirect_to_an_unclassified_host_is_refused",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_redirect_inside_the_allow_list_is_re_gated_then_followed",
+      "tools/coursekit/tests/test_licences.py::test_INV_PACK_13_a_streamed_redirect_is_gated_the_same_way",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_13_the_stage_refuses_a_forbidden_corpus_before_any_request",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_13_every_emitted_row_carries_a_resolved_licence_and_an_owner",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_13_the_runlog_carries_one_licence_row_per_corpus_read",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_13_the_runlog_records_the_page_each_licence_was_read_from",
+      "tools/coursekit/tests/test_g0_ingest.py::test_INV_PACK_13_a_failed_stage_still_records_which_corpora_it_touched"
+    ]
+  },
+  "falsifiers": [
+    "tools/coursekit/tests/falsifiers/INV-PACK-13.json — eleven cases (TED2020 on two languages, JParaCrawl, OpenSubtitles, CCMatrix, CEFRLex, an unregistered corpus, Tatoeba, NLLB, the CC0 subset refused for es and permitted for fr). Every `refused` case is asserted against a transport that must have recorded ZERO requests; the `permitted` cases exist because a gate that refuses everything passes every refusal test there is.",
+    "tools/coursekit/tests/falsifiers/INV-PACK-12.json — seven cases, each naming both the file the error must NAME and the near-miss files that must never be requested.",
+    "Both corpora live in tools/coursekit/tests/falsifiers/ rather than packages/core/src/<module>/__falsifiers__/, because the tests that execute them are Python and the P1 corpus format (packages/core/src/journey/README.md) is a TypeScript module loader. The falsifier gate therefore cannot see them either; same fix, same owner, see `blockedOn`."
+  ],
+  "blockedOn": [
+    "OWNING-TEST SCANNER. scripts/coverage-map.ts and packages/core/src/journey/ownership.ts scan TEST_ROOTS ['packages','apps','e2e'] with TEST_FILE_PATTERN /\\.(test|spec)\\.(ts|tsx)$|\\.ya?ml$/ and match the bracketed id inside an `it(...)`/`test(...)` name. They cannot see a Python owning test. Both files are outside this lane. Until one of them also walks tools/coursekit/tests for `test_*.py` and matches the bracketed id in the module or function docstring, these two ids read as UNOWNED to `pnpm test:coverage-map` — which is the plan's rule 4 failure, recorded here rather than hidden.",
+    "P2 ROSTER. packages/core/src/journey/ownership.ts derives the roster from P1_FAMILIES, so any PACK id claimed in an `owned` array is UNDECLARED and turns phase-roster.test.ts red on three assertions plus falsifier-corpus.test.ts on a fourth. P2 needs its own roster (PACK/AUD, plus the ids docs/owned/journey.json parked as `engineParts`) before any P2 ownership file can carry ids. Proved by A/B in review: with the ids present, `vitest run --project core src/journey/phase-roster.test.ts src/journey/falsifier-corpus.test.ts` = 4 failed / 26 passed; with them absent, 30 passed.",
+    "SCHEMA REQUEST to p2-deps-scaffold (owner of artifacts.py and runlog.py). The page a licence string was read from is recorded PER RUN, in the G0 stage's runlog `notes.licence_pages` ({source_id: url}), because artifacts.INGESTED_SENTENCE is `additionalProperties: false` with no `licence_page` property and runlog.LicenceRow has five fixed fields. Per-sentence recording needs either a `licence_page` property on INGESTED_SENTENCE or a sixth field on LicenceRow; both files are outside this lane. Until then no comment, docstring or report in this lane claims a per-sentence page — the three that did were corrected."
+  ],
+  "heldWithoutAnInvariantId": [
+    "The licence gate is a CAPABILITY, not a check. `IngestPermit.__init__` demands a module-private token, so a permit can only come from `sources.licences.permit()`; every fetcher takes one; `licences.open_transport(permit, …)` is the only way to obtain something a fetcher can call `get`/`stream` on; and `require()` re-derives the verdict from config.SOURCES before EVERY request rather than once per run. An `is_allowed(source) -> bool` helper would satisfy the invariant's wording and be defeated by the next lane simply not calling it.",
+    "Redirects are followed BY THE GATE, not by httpx. `HttpTransport` sets `follow_redirects=False` and raises `Redirected(location)`; `GatedTransport` catches it, re-runs the host check and the licence check on the new URL, and only then makes the next hop (bounded by MAX_REDIRECT_HOPS). Before this, a 302 from a permitted host to an unclassified one was followed inside httpx under a permit granted for the first — the class docstring claimed otherwise and the code did not enforce it.",
+    "The OPUS reader is a RANGED reader, not a streaming one, and that is a correctness property rather than an optimisation: a moses archive holds one member per side and the second begins after the first ends, so sequential streaming of `en-es` (measured live 2026-09-12 at 40,327,884,789 bytes) would have to read 40 GB to reach the Spanish side. It reads the central directory from the tail (zip64 included — every archive worth capping is over 4 GB) and then the front of each member in 8 MB slices, stopping at --max-pairs. Peak memory is one slice.",
+    "The Tatoeba read is capped on ALL THREE files, not only the target side. The links file stops at `max_pairs`; the English side stops as soon as every linked English id has text (it is a lookup table, not a corpus, and reading past the last wanted id is 100+ MB of pure waste); the target side stops at `max_pairs`. Every one of the three also carries a compressed-byte ceiling (MAX_STREAM_BYTES_DEFAULT) so a pathological export cannot fill the build machine's disk.",
+    "Live re-verification on 2026-09-12 of the four facts this lane is built on, all confirmed to the byte: spa_sentences_CC0.tsv.bz2 = 2,266 bytes (R4); lowercase sentences_cc0.tar.bz2 -> 404 and uppercase sentences_CC0.tar.bz2 -> 200, 7,958,579 bytes (R3); en-de.txt.zip -> 404 and de-en.txt.zip -> 200, 21,180,847,796 bytes (the direction rule); the OPUS API's NLLB row for en-es reporting `size: 1` against a 40.3 GB archive (R2).",
+    "Two bugs the tests caught before the code left the lane: a STORED zip member with no length bound ran off the end of its own data and decoded the NEXT member's local file header as sentences; and an OPUS API 404 raised by the transport bypassed the branch that names the alphabetical pair rule, so the operator who typed `en-de` would have got a bare 404.",
+    "The register filter rejects markup, crawl artefacts, untranslated identical pairs and an explicitly short profanity list. Short on purpose: this is an A1 lesson-content filter, not a moderation system, and a long deny list quietly deletes ordinary vocabulary. G6 and the paid reviewer sample are the real quality gates.",
+    "Normalisation folds only what is invisible — NFC, zero-width joiners, BOMs, soft hyphens, repeated whitespace — and never diacritics. `año` is not `ano`: folding them would merge two lemmas and V1 would then pass over a ledger that means nothing."
+  ]
+}
