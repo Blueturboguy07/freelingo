@@ -89,6 +89,34 @@ function num(namespace: Namespace, ...paths: readonly string[]): number | null {
   return null;
 }
 
+/** The first of `names` exported as a constructible class, or null. */
+function ctor(
+  namespace: Namespace,
+  ...names: readonly string[]
+): (new (...a: never[]) => unknown) | null {
+  for (const name of names) {
+    const value = namespace[name];
+    if (
+      typeof value === 'function' &&
+      typeof (value as { prototype?: unknown }).prototype === 'object'
+    ) {
+      return value as new (...a: never[]) => unknown;
+    }
+  }
+  return null;
+}
+
+/** The first of `names` exported as an array of strings, or null. */
+function list(namespace: Namespace, ...names: readonly string[]): readonly string[] | null {
+  for (const name of names) {
+    const value = namespace[name];
+    if (Array.isArray(value) && value.every((entry) => typeof entry === 'string')) {
+      return value as readonly string[];
+    }
+  }
+  return null;
+}
+
 /** Names a port needed and did not get, e.g. `day.rolloverTo`. */
 export interface BindReport {
   readonly engine: Engine;
@@ -141,7 +169,7 @@ export async function bindEngine(): Promise<BindReport> {
     missing,
   );
 
-  const freezeNs = await load('../index.js', '../day/freeze.js');
+  const freezeNs = await load('../index.js', '../day/index.js', '../day/freeze.js');
   const freeze = required<FreezePort>(
     'freeze',
     {
@@ -151,17 +179,15 @@ export async function bindEngine(): Promise<BindReport> {
     missing,
   );
 
-  const recoveryNs = await load(
-    '../index.js',
-    '../day/recovery.js',
-    '../day/repair.js',
-    '../day/rollover.js',
-  );
+  const recoveryNs = await load('../index.js', '../day/index.js', '../day/recovery.js');
   const recovery = required<RecoveryPort>(
     'recovery',
     {
-      completeLesson: fn(recoveryNs, 'completeRecoveryLesson', 'recordRecoveryLesson'),
-      repair: fn(recoveryNs, 'streakRepair', 'repairStreak', 'applyStreakRepair'),
+      offer: fn(recoveryNs, 'recoveryOffer', 'offer'),
+      arm: fn(recoveryNs, 'armChallenge', 'arm'),
+      recordLesson: fn(recoveryNs, 'recordChallengeLesson', 'recordLesson'),
+      completeChallenge: fn(recoveryNs, 'completeChallenge'),
+      repair: fn(recoveryNs, 'repairStreak', 'streakRepair', 'applyStreakRepair'),
     },
     missing,
   );
@@ -171,22 +197,41 @@ export async function bindEngine(): Promise<BindReport> {
     '../session/index.js',
     '../session/generate.js',
     '../session/resume.js',
-    '../session/machine.js',
+    '../session/session-fixture.js',
+    '../session/test-doubles.js',
   );
+  const doubleParts = {
+    audio: ctor(sessionNs, 'FixedAudio'),
+    pack: ctor(sessionNs, 'FixedPack'),
+    modality: ctor(sessionNs, 'FixedModality'),
+    scheduler: ctor(sessionNs, 'RecordingScheduler'),
+  };
+  for (const [name, value] of Object.entries(doubleParts)) {
+    if (value === null) missing.push(`session.doubles.${name}`);
+  }
   const session = required<SessionPort>(
     'session',
     {
-      generate: fn(sessionNs, 'generateSession', 'generateQueue', 'generate'),
-      checkpoint: fn(sessionNs, 'checkpointSession', 'toSessionRow', 'checkpoint'),
-      restore: fn(sessionNs, 'restoreSession', 'fromSessionRow', 'restore'),
+      generate: fn(sessionNs, 'generateSession', 'generate'),
+      items: fn(sessionNs, 'items'),
+      checkpoint: fn(sessionNs, 'checkpoint', 'checkpointSession'),
+      serialise: fn(sessionNs, 'serialiseSession', 'serialise'),
+      deserialise: fn(sessionNs, 'deserialiseSession', 'deserialise'),
+      freshSession: fn(sessionNs, 'freshSession'),
+      doubles: Object.values(doubleParts).every((value) => value !== null) ? doubleParts : null,
     },
     missing,
   );
 
-  const gradingNs = await load('../index.js', '../grading/index.js', '../grading/grade.js');
+  const gradingNs = await load(
+    '../index.js',
+    '../grading/index.js',
+    '../grading/grade.js',
+    '../grading/grading.js',
+  );
   const grading = required<GradingPort>(
     'grading',
-    { grade: fn(gradingNs, 'gradeAnswer', 'grade') },
+    { grade: fn(gradingNs, 'gradeAnswer', 'grade', 'gradeTyped') },
     missing,
   );
 
@@ -194,14 +239,11 @@ export async function bindEngine(): Promise<BindReport> {
     '../index.js',
     '../scheduler/index.js',
     '../scheduler/fsrs.js',
-    '../scheduler/quarantine.js',
+    '../scheduler/review.js',
   );
   const scheduler = required<SchedulerPort>(
     'scheduler',
-    {
-      review: fn(schedulerNs, 'reviewItem', 'applyReview', 'review'),
-      quarantine: fn(schedulerNs, 'quarantineRows', 'quarantine'),
-    },
+    { review: fn(schedulerNs, 'reviewItem', 'applyReview', 'review', 'scheduleReview') },
     missing,
   );
 
@@ -231,13 +273,13 @@ export async function bindEngine(): Promise<BindReport> {
     '../index.js',
     '../packs/index.js',
     '../packs/state.js',
-    '../packs/install.js',
+    '../packs/items.js',
   );
   const packs = required<PacksPort>(
     'packs',
     {
-      stateOf: fn(packsNs, 'packState', 'stateOf', 'resolvePackState'),
-      isMajorBump: fn(packsNs, 'isMajorBump', 'isMajorVersionBump'),
+      resolveState: fn(packsNs, 'resolvePackState', 'packState', 'stateOf'),
+      applyPackUpdate: fn(packsNs, 'applyPackUpdate'),
     },
     missing,
   );
@@ -245,14 +287,14 @@ export async function bindEngine(): Promise<BindReport> {
   const dataNs = await load(
     '../index.js',
     '../data/index.js',
+    '../data/import.js',
     '../data/export.js',
-    '../packs/export.js',
   );
   const data = required<DataPort>(
     'data',
     {
-      exportProgress: fn(dataNs, 'exportProgress', 'buildExport'),
-      importProgress: fn(dataNs, 'importProgress', 'applyImport'),
+      applyImport: fn(dataNs, 'applyImport'),
+      economyConfigFields: list(dataNs, 'ECONOMY_CONFIG_FIELDS'),
     },
     missing,
   );

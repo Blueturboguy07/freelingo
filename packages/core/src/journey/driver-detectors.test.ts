@@ -25,6 +25,7 @@ import { runJourney } from './driver.js';
 import type {
   DataPort,
   Day,
+  QueuedItemPort,
   DayPort,
   DayStatePort,
   Disposition,
@@ -139,9 +140,9 @@ interface Mutants {
   readonly boostNeverLapses?: boolean;
   /** A second Streak Repair in the same month is granted. */
   readonly repairEveryTime?: boolean;
-  /** Quarantined rows are handed back as live. */
+  /** A major bump retires nothing: rows whose items vanished stay live. */
   readonly quarantineForgets?: boolean;
-  /** The import does not round-trip the export. */
+  /** The import does not carry lifetime XP across. */
   readonly importLosesData?: boolean;
   /** A lane changed a signature under the port: the call throws. */
   readonly signatureMoved?: boolean;
@@ -283,56 +284,107 @@ function referenceEngine(mutants: Mutants = {}): Engine {
   const freezePort: FreezePort = {
     grant: (ledger, request) => {
       const l = ledger as RefLedger;
-      const granted = Math.max(0, Math.min(request.count, l.cap - l.held));
-      return { ledger: { ...l, held: l.held + granted }, granted };
+      const applied = Math.max(0, Math.min(request.amount, l.cap - l.held));
+      return { ledger: { ...l, held: l.held + applied }, applied, ceremony: applied > 0 };
     },
     held: (ledger) => (ledger as RefLedger).held,
   };
 
   const recoveryPort: RecoveryPort = {
-    completeLesson: (state, onDay) => {
-      const s = state as RefState;
+    offer: (_state, _today) => ({
+      challengeArmed: broken !== null,
+      repairArmed: broken !== null,
+      brokenOn: broken?.brokenOn ?? null,
+      uncoveredDays: broken?.uncoveredDays ?? [],
+    }),
+    arm: (state) => state,
+    recordLesson: (state) => {
       challengeLessons += 1;
-      if (challengeLessons < 3 || broken === null) return s;
+      return state;
+    },
+    completeChallenge: (state, today) => {
+      const s = state as RefState;
+      if (challengeLessons < 3 || broken === null) {
+        return { state: s, restored: false, streakAfter: refStreak(s.dispositions, today) };
+      }
       const dispositions = new Map(s.dispositions);
       for (const d of broken.uncoveredDays) dispositions.set(d, 'recovered');
-      dispositions.set(onDay, 'completed');
+      dispositions.set(today, 'completed');
       broken = null;
       challengeLessons = 0;
-      return { ...s, dispositions, brk: null, challenge: null };
+      const next = { ...s, dispositions, brk: null, challenge: null };
+      return { state: next, restored: true, streakAfter: refStreak(dispositions, today) };
     },
-    repair: (state, onDay) => {
+    repair: (state, today) => {
       const s = state as RefState;
-      const monthKey = onDay.slice(0, 7);
+      const monthKey = today.slice(0, 7);
       const spent = s.repairs.some((r) => r.monthKey === monthKey);
-      if ((spent && mutants.repairEveryTime !== true) || broken === null) {
-        return { state: s, granted: false };
+      if (broken === null) return { state: s, restored: false, declinedBecause: 'no-break' };
+      if (spent && mutants.repairEveryTime !== true) {
+        return { state: s, restored: false, declinedBecause: 'month-already-repaired' };
       }
       const dispositions = new Map(s.dispositions);
       for (const d of broken.uncoveredDays) dispositions.set(d, 'recovered');
       const record: RepairRecordPort = {
         monthKey,
-        onDay,
+        onDay: today,
         restoredStreak: broken.previousStreak,
       };
       broken = null;
       return {
         state: { ...s, dispositions, repairs: [...s.repairs, record], brk: null },
-        granted: true,
+        restored: true,
+        declinedBecause: null,
       };
     },
   };
 
+  class FixedAudio {}
+  class FixedPack {
+    readonly unresolved: ReadonlySet<string>;
+    constructor(options: Readonly<Record<string, unknown>> = {}) {
+      this.unresolved = new Set((options['unresolved'] as readonly string[] | undefined) ?? []);
+    }
+  }
+  class FixedModality {}
+  class RecordingScheduler {}
+
   const sessionPort: SessionPort = {
-    generate: ({ target, duePool, newPool }) => {
-      if (mutants.signatureMoved === true)
+    generate: (request) => {
+      if (mutants.signatureMoved === true) {
         throw new TypeError('request.modality is not a function');
+      }
+      const candidates = request['candidates'] as readonly QueuedItemPort[];
+      const pack = request['pack'] as FixedPack;
+      const queue = candidates.filter((c) => !pack.unresolved.has(c.itemId)).slice(0, 12);
+      const optionSeeds: Record<string, number> = {};
+      for (const q of queue) optionSeeds[q.id] = 1;
       return {
-        items: [...duePool, ...newPool].slice(0, target).map((itemId) => ({ itemId })),
+        offered: queue.length > 0,
+        reason: queue.length > 0 ? 'ok' : 'nothingDue',
+        queue,
+        optionSeeds,
       };
     },
-    checkpoint: (session) => JSON.parse(JSON.stringify(session)) as unknown,
-    restore: (row) => JSON.parse(JSON.stringify(row)) as unknown,
+    items: (count, options = {}) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `slot-${i + 1}`,
+        itemId: `item-${i + 1}`,
+        nodeRef: String(options['nodeRef'] ?? 'node-1'),
+      })),
+    checkpoint: (state, monotonicMs) => ({
+      ...(state as Record<string, unknown>),
+      lastCheckpointMonotonicMs: monotonicMs,
+    }),
+    serialise: (state) => JSON.stringify(state),
+    deserialise: (raw) => JSON.parse(raw) as unknown,
+    freshSession: (options) => ({ ...options, index: 0, combo: 0, hardMode: false }),
+    doubles: {
+      audio: FixedAudio,
+      pack: FixedPack,
+      modality: FixedModality,
+      scheduler: RecordingScheduler,
+    },
   };
 
   const gradingPort: GradingPort = {
@@ -343,11 +395,6 @@ function referenceEngine(mutants: Mutants = {}): Engine {
 
   const schedulerPort: SchedulerPort = {
     review: ({ row }) => row,
-    quarantine: (rows, liveItemIds) => {
-      const isLive = (row: unknown): boolean => liveItemIds.has((row as { id: string }).id);
-      if (mutants.quarantineForgets === true) return { kept: rows, quarantined: [] };
-      return { kept: rows.filter(isLive), quarantined: rows.filter((row) => !isLive(row)) };
-    },
   };
 
   const economyPort: EconomyPort = {
@@ -365,22 +412,48 @@ function referenceEngine(mutants: Mutants = {}): Engine {
         recordedMultiplier: recorded,
         multiplierApplied: applied,
         awardedXp: 10 * applied,
-        explanation: lapsed ? 'the boost ran out while this was parked' : '',
+        explanation: applied < recorded ? 'the boost ran out while this was parked' : '',
       };
     },
     boostGraceSeconds: 120,
   };
 
   const packsPort: PacksPort = {
-    stateOf: ({ installedVersion, signatureValid }) =>
-      !signatureValid ? 'unverified' : installedVersion === null ? 'not-downloaded' : 'installed',
-    isMajorBump: (from, to) => from.split('.')[0] !== to.split('.')[0],
+    resolveState: (facts) => {
+      if (facts.catalogue === 'withdrawn') return 'withdrawn';
+      if (facts.signature === 'invalid') return 'unverified';
+      if (!facts.dbPresent) return 'not-downloaded';
+      if (facts.integrity === 'failed') return 'corrupt';
+      if (facts.signature === 'unchecked') return 'unverified';
+      if (facts.audioBytesPresent < facts.audioBytesExpected) return 'partial';
+      return 'installed';
+    },
+    applyPackUpdate: (rows, change) => {
+      if (mutants.quarantineForgets === true) return { rows, retired: 0, restored: 0 };
+      let retired = 0;
+      const next = rows.map((row) => {
+        if (!change.itemIds.has(row.itemId) && !row.quarantined) {
+          retired += 1;
+          return { ...row, quarantined: true };
+        }
+        return row;
+      });
+      return { rows: next, retired, restored: 0 };
+    },
   };
 
   const dataPort: DataPort = {
-    exportProgress: (db) => JSON.parse(JSON.stringify(db)) as unknown,
-    importProgress: (_db, dump) =>
-      mutants.importLosesData === true ? {} : (JSON.parse(JSON.stringify(dump)) as unknown),
+    applyImport: (archive) => ({
+      streak: Number(archive['streak']),
+      lifetimeXp: mutants.importLosesData === true ? 0 : Number(archive['lifetimeXp']),
+      freezes: Number(archive['freezes']),
+      restampedDays: [],
+      missedDays: [],
+      unlivedDays: [],
+      writtenFields: ['streak', 'lifetimeXp', 'freezes'],
+      provenance: 'imported',
+    }),
+    economyConfigFields: ['freezeCap', 'boostGraceSeconds'],
   };
 
   return {
@@ -456,19 +529,19 @@ describe('the journey driver detects what it claims to detect', () => {
 
   it('a second Streak Repair in the same calendar month is caught', () => {
     const broken = runJourney({ engine: referenceEngine({ repairEveryTime: true }) });
-    expect(broken.refutations.some((line) => line.includes('Streak Repair granted=true'))).toBe(
+    expect(broken.refutations.some((line) => line.includes('Streak Repair restored=true'))).toBe(
       true,
     );
   });
 
-  it('a quarantine that hands vanished rows back as live is caught', () => {
+  it('a major bump that retires nothing is caught', () => {
     const broken = runJourney({ engine: referenceEngine({ quarantineForgets: true }) });
-    expect(broken.refutations.some((line) => line.includes('rows quarantined'))).toBe(true);
+    expect(broken.refutations.some((line) => line.includes('rows retired'))).toBe(true);
   });
 
-  it('an import that does not round-trip the export is caught', () => {
+  it('an import that loses lifetime XP is caught', () => {
     const broken = runJourney({ engine: referenceEngine({ importLosesData: true }) });
-    expect(broken.refutations.some((line) => line.includes('did not round-trip'))).toBe(true);
+    expect(broken.refutations.some((line) => line.includes('moved lifetime XP'))).toBe(true);
   });
 
   it('a lane that moved a signature is one named finding per day, not a dead gate', () => {

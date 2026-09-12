@@ -40,6 +40,7 @@
 import type {
   Day,
   DayStatePort,
+  ScheduledItemPort,
   Disposition,
   Engine,
   RepairRecordPort,
@@ -64,6 +65,20 @@ const LESSON_ITEMS = 10;
 const LESSON_MINUTES = 7;
 /** The seed for every pseudo-random choice, so a failure is reproducible verbatim. */
 export const DEFAULT_SEED = 0x5eed_1ec0;
+/** Authored candidates offered to the generator per session. Comfortably over target. */
+const CANDIDATE_POOL = 24;
+/** The one path node the trace's lessons come from. */
+const NODE_REF = 'node-1';
+/** The typed answer the grader must accept exactly. */
+const ACCEPTED_ANSWER = 'la respuesta';
+/**
+ * INV-DAY-09's ceiling, as the JOURNEY states it.
+ *
+ * Deliberately a literal here and not read from the day lane's config: this is the
+ * number the plan's EC-STK-14 ruling names (`maxRolloverDeferralSeconds = 300`), and a
+ * gate that reads the bound from the thing it is bounding cannot catch the bound moving.
+ */
+const MAX_ROLLOVER_DEFERRAL_SECONDS = 300;
 
 /* ------------------------------------------------------------------ the ledger */
 
@@ -141,7 +156,8 @@ interface ParkedSession {
   readonly startedAtUtcMs: number;
   readonly startedAtMonotonicMs: number;
   readonly startZone: ZoneStampPort;
-  readonly checkpoint: unknown;
+  /** The lane's canonical serialisation of the resume row, for the round trip. */
+  readonly checkpoint: string;
   readonly boostAtStart: ActiveBoostLike | null;
   readonly answeredIndex: number;
 }
@@ -507,14 +523,25 @@ function applyEvent(ctx: EventContext): number {
   switch (event.kind) {
     case 'install-course': {
       world.courses[courseId] = newCourse();
-      for (let i = 0; i < 60; i += 1) world.courses[courseId]!.liveItemIds.add(`${courseId}-${i}`);
+      const course = world.courses[courseId]!;
+      for (let i = 1; i <= CANDIDATE_POOL; i += 1) course.liveItemIds.add(`item-${i}`);
       if (engine.packs === null) {
         ctx.cannot('packs', 'the installed-pack state of a freshly installed course');
       } else {
-        const state = engine.packs.stateOf({ installedVersion: '1.4.0', signatureValid: true });
+        // The six-state enum is total over FACTS, not over a version string: a verified,
+        // present, intact pack with all its audio is the only combination that installs.
+        const state = engine.packs.resolveState({
+          catalogue: 'available',
+          dbPresent: true,
+          signature: 'valid',
+          integrity: 'ok',
+          audioBytesPresent: 1,
+          audioBytesExpected: 1,
+        });
         if (state !== 'installed') {
           ctx.refutations.push(
-            `day ${scripted.day}: a verified pack installs as "${state}", not "installed" — ${PORT_OWNER.packs}`,
+            `day ${scripted.day}: a verified, intact, fully downloaded pack resolves to ` +
+              `"${state}", not "installed" — ${PORT_OWNER.packs}`,
           );
         }
       }
@@ -530,8 +557,8 @@ function applyEvent(ctx: EventContext): number {
       }
       world.goalTier = tier;
       world.goalXp = engine.economy.goalXp(tier);
-      // The goal in force on a day is captured the moment it changes, so a mid-day
-      // change cannot retroactively un-meet a goal already met (EC-ECO-01).
+      // The goal in force on a day is the LOWER of the two when it changes mid-day: a
+      // goal already met cannot be un-met by raising the bar afterwards (EC-ECO-01).
       const already = world.goalByDay.get(scripted.localDate);
       world.goalByDay.set(scripted.localDate, Math.min(already ?? world.goalXp, world.goalXp));
       return 0;
@@ -544,18 +571,26 @@ function applyEvent(ctx: EventContext): number {
       }
       const before = engine.freeze.held(world.freezeLedger);
       const outcome = engine.freeze.grant(world.freezeLedger, {
-        channel: 'reward_chest',
-        count: 1,
         grantKey: `purchase-${scripted.localDate}`,
-        onDay: scripted.localDate,
+        channel: 'reward_chest',
+        ownedFromDay: scripted.localDate,
+        amount: 1,
       });
       world.freezeLedger = outcome.ledger;
       world.state = { ...world.state, ledger: outcome.ledger } as DayStatePort;
-      world.freezesGranted += outcome.granted;
+      world.freezesGranted += outcome.applied;
       const after = engine.freeze.held(world.freezeLedger);
-      if (after < before) {
+      if (after - before !== outcome.applied) {
         ctx.refutations.push(
-          `day ${scripted.day}: granting a freeze lowered the balance ${before} -> ${after} — ${PORT_OWNER.freeze}`,
+          `day ${scripted.day}: the grant reported ${outcome.applied} applied but the balance ` +
+            `moved ${before} -> ${after} — ${PORT_OWNER.freeze}`,
+        );
+      }
+      // INV-FRZ-06: a zero-effect grant earns no ceremony screen.
+      if (outcome.applied === 0 && outcome.ceremony) {
+        ctx.refutations.push(
+          `day ${scripted.day}: a grant that changed nothing still asked for a ceremony ` +
+            `screen — ${PORT_OWNER.freeze}`,
         );
       }
       return 0;
@@ -613,22 +648,12 @@ function applyEvent(ctx: EventContext): number {
         ctx.cannot('session', 'resuming a session parked on another course, after travel');
         return 0;
       }
-      if (engine.session !== null) {
-        const restored = engine.session.restore(parked.checkpoint);
-        if (JSON.stringify(restored) !== JSON.stringify(parked.checkpoint)) {
-          ctx.refutations.push(
-            `day ${scripted.day}: the resumed session is not byte-identical to its checkpoint ` +
-              `(all nine fields, INV-SESS-01) — ${PORT_OWNER.session}`,
-          );
-        }
-      } else {
-        ctx.cannot('session', 'the nine-field resume row surviving a park and a zone change');
-      }
+      checkResumeRoundTrip(ctx, parked, 'a park, a course switch and a zone change');
       course.parked = null;
-      // The session was parked yesterday and is finished TODAY: the monotonic elapsed is
-      // a day, not seven minutes. Holding it for the default would credit the day it was
-      // started, leave today with no completed session, and silently break the streak on
-      // a day the trace says the learner practised.
+      // The session was parked yesterday and is finished TODAY: the monotonic elapsed is a
+      // day, not seven minutes. Holding it for the default would credit the day it was
+      // started, leave today with no completed session, and silently break the streak on a
+      // day the trace says the learner practised.
       const resumeAtMs = utcForLocal(engine, scripted.localDate, USUAL_LESSON_HOUR, scripted.zone);
       return completeSession(ctx, courseId, parked, {
         holdMs: Math.max(60_000, resumeAtMs - parked.startedAtUtcMs),
@@ -639,16 +664,7 @@ function applyEvent(ctx: EventContext): number {
       const killAt = 1 + Math.floor(ctx.random() * (LESSON_ITEMS - 1));
       const parked = startSession(ctx, courseId, killAt);
       if (parked === null) return 0;
-      if (engine.session !== null) {
-        const restored = engine.session.restore(parked.checkpoint);
-        if (JSON.stringify(restored) !== JSON.stringify(parked.checkpoint)) {
-          ctx.refutations.push(
-            `day ${scripted.day}: kill at item ${killAt} did not restore byte-identically — ${PORT_OWNER.session}`,
-          );
-        }
-      } else {
-        ctx.cannot('session', 'a kill at a pseudo-random instant inside a lesson');
-      }
+      checkResumeRoundTrip(ctx, parked, `a kill at item ${killAt}`);
       return completeSession(ctx, courseId, parked);
     }
 
@@ -688,7 +704,7 @@ function applyEvent(ctx: EventContext): number {
         lastCheckpointMs: nowMs - 60_000,
       });
       // INV-DAY-09: the deferral is bounded whatever the session does.
-      const ceilingMs = midnightMs + 300 * 1000;
+      const ceilingMs = midnightMs + MAX_ROLLOVER_DEFERRAL_SECONDS * 1000;
       if (deferral.untilMs > ceilingMs) {
         ctx.refutations.push(
           `day ${scripted.day}: rollover deferred to ${new Date(deferral.untilMs).toISOString()}, ` +
@@ -701,15 +717,37 @@ function applyEvent(ctx: EventContext): number {
     }
 
     case 'recovery-lesson': {
+      const lesson = Number(event.detail?.['lesson'] ?? 1);
+      const of = Number(event.detail?.['of'] ?? 3);
       if (engine.recovery === null) {
         ctx.cannot('recovery', 'the 3-lesson recovery challenge inside its 2-local-day window');
-        // The lesson itself still pays full XP (INV-REC-02), so run it as a lesson.
         const parked = startSession(ctx, courseId, LESSON_ITEMS);
         return parked === null ? 0 : completeSession(ctx, courseId, parked);
       }
+      if (lesson === 1) {
+        const offer = engine.recovery.offer(world.state, scripted.localDate);
+        if (!offer.challengeArmed) {
+          ctx.refutations.push(
+            `day ${scripted.day}: the recovery challenge is not armed after an uncovered break ` +
+              `(broken on ${offer.brokenOn ?? 'nothing'}) — ${PORT_OWNER.recovery}`,
+          );
+        }
+        world.state = engine.recovery.arm(world.state, scripted.localDate);
+      }
+      // The lesson pays full XP whatever happens to the challenge (INV-REC-05).
       const parked = startSession(ctx, courseId, LESSON_ITEMS);
       const committed = parked === null ? 0 : completeSession(ctx, courseId, parked);
-      world.state = engine.recovery.completeLesson(world.state, scripted.localDate);
+      world.state = engine.recovery.recordLesson(world.state, scripted.localDate);
+      if (lesson === of) {
+        const restore = engine.recovery.completeChallenge(world.state, scripted.localDate);
+        world.state = restore.state;
+        if (!restore.restored) {
+          ctx.refutations.push(
+            `day ${scripted.day}: ${of} recovery lessons inside the window did not restore the ` +
+              `streak — ${PORT_OWNER.recovery}`,
+          );
+        }
+      }
       return committed;
     }
 
@@ -721,10 +759,22 @@ function applyEvent(ctx: EventContext): number {
       const expected = event.detail?.['expectGranted'] === true;
       const outcome = engine.recovery.repair(world.state, scripted.localDate);
       world.state = outcome.state;
-      if (outcome.granted !== expected) {
+      if (outcome.restored !== expected) {
         ctx.refutations.push(
-          `day ${scripted.day}: Streak Repair granted=${outcome.granted}, the trace expects ` +
-            `${expected} (one per calendar month, INV-REC-01) — ${PORT_OWNER.recovery}`,
+          `day ${scripted.day}: Streak Repair restored=${outcome.restored}` +
+            `${outcome.declinedBecause === null ? '' : ` (${outcome.declinedBecause})`}, the ` +
+            `trace expects ${expected} (one per calendar month, INV-REC-01) — ${PORT_OWNER.recovery}`,
+        );
+      }
+      // A refusal must be refused for the RIGHT REASON. "No repair happened" is satisfied
+      // just as well by there being no break to repair, and a trace that accepted that
+      // would prove nothing about the monthly cap it claims to be testing.
+      const because = event.detail?.['expectDeclinedBecause'];
+      if (typeof because === 'string' && outcome.declinedBecause !== because) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the repair was declined because ` +
+            `"${outcome.declinedBecause ?? 'nothing'}", the trace expects "${because}" — ` +
+            `${PORT_OWNER.recovery}`,
         );
       }
       return 0;
@@ -733,34 +783,40 @@ function applyEvent(ctx: EventContext): number {
     case 'pack-major-bump': {
       const course = world.courses[courseId];
       if (course === undefined) return 0;
-      const from = String(event.detail?.['from'] ?? '1.4.0');
-      const to = String(event.detail?.['to'] ?? '2.0.0');
+      const retiring = Number(event.detail?.['quarantined'] ?? 3);
       if (engine.packs === null) {
-        ctx.cannot('packs', 'a pack major bump being a migration rather than a download');
-      } else if (!engine.packs.isMajorBump(from, to)) {
-        ctx.refutations.push(
-          `day ${scripted.day}: ${from} -> ${to} is not reported as a major bump — ${PORT_OWNER.packs}`,
-        );
+        ctx.cannot('packs', 'a pack major bump quarantining the rows whose items vanished');
+        return 0;
       }
-      // Three items vanish in the bump. Their scheduler rows must be quarantined.
-      const vanished = [...course.liveItemIds].slice(0, Number(event.detail?.['quarantined'] ?? 3));
+      // Three items vanish in the bump. Their scheduler rows must be quarantined, not
+      // deleted: a learner's history is not the pack's to throw away.
+      const vanished = [...course.liveItemIds].slice(0, retiring);
       for (const id of vanished) {
         course.liveItemIds.delete(id);
         course.quarantinedItemIds.add(id);
       }
-      course.packVersion = to;
-      if (engine.scheduler === null) {
-        ctx.cannot('scheduler', 'quarantining FSRS rows whose items vanished in a major bump');
-      } else {
-        const rows = [...course.quarantinedItemIds, ...course.liveItemIds].map((id) => ({ id }));
-        const split = engine.scheduler.quarantine(rows, course.liveItemIds);
-        if (split.quarantined.length !== course.quarantinedItemIds.size) {
-          ctx.refutations.push(
-            `day ${scripted.day}: ${split.quarantined.length} rows quarantined, ` +
-              `${course.quarantinedItemIds.size} items vanished — ${PORT_OWNER.scheduler}`,
-          );
-        }
+      const rows: ScheduledItemPort[] = [
+        ...vanished.map((itemId) => ({ itemId, quarantined: false })),
+        ...[...course.liveItemIds].map((itemId) => ({ itemId, quarantined: false })),
+      ];
+      const update = engine.packs.applyPackUpdate(rows, {
+        fromMajor: 1,
+        toMajor: 2,
+        itemIds: course.liveItemIds,
+      });
+      if (update.retired !== retiring) {
+        ctx.refutations.push(
+          `day ${scripted.day}: ${update.retired} rows retired, ${retiring} items vanished — ` +
+            `${PORT_OWNER.packs}`,
+        );
       }
+      if (update.rows.length !== rows.length) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the update returned ${update.rows.length} rows for ` +
+            `${rows.length} — a quarantined row is kept, never dropped — ${PORT_OWNER.packs}`,
+        );
+      }
+      course.packVersion = String(event.detail?.['to'] ?? '2.0.0');
       return 0;
     }
 
@@ -769,12 +825,94 @@ function applyEvent(ctx: EventContext): number {
         ctx.cannot('data', 'the export -> wipe -> import round trip');
         return 0;
       }
-      const before = snapshotForRoundTrip(world);
-      const dump = engine.data.exportProgress(before);
-      const restored = engine.data.importProgress({}, dump);
-      if (JSON.stringify(restored) !== JSON.stringify(before)) {
+      const streakBefore = engine.day!.streakFromDispositions(
+        world.state.dispositions,
+        scripted.localDate,
+      );
+      const lifetimeBefore = world.lifetimeXp;
+      const freezesBefore = engine.freeze?.held(world.freezeLedger) ?? 0;
+      const sessionsBefore = Object.values(world.courses).reduce((n, c) => n + c.sessions, 0);
+
+      const archive = {
+        streak: streakBefore,
+        gems: 0,
+        lifetimeXp: lifetimeBefore,
+        freezes: freezesBefore,
+        counters: {
+          sessionsCompleted: sessionsBefore,
+          lessonsCompleted: sessionsBefore,
+          perfectLessons: 0,
+          daysGoalMet: world.goalByDay.size,
+          wordsLearned: 0,
+        },
+        achievements: {},
+        historicalDays: [...world.state.dispositions.keys()],
+      };
+      const confirm = {
+        archiveLastDay: scripted.localDate,
+        deviceLastDay: scripted.localDate,
+        archiveSessionsSinceInstall: sessionsBefore,
+        deviceSessionsSinceInstall: 0,
+        producerId: 'journey',
+        producerAppVersion: '0.0.0',
+        replaceOnly: true as const,
+        undoWindowHours: 24,
+        gapDays: 0,
+        gapDayClassification: 'missed' as const,
+        freezeCost: 0,
+        streakWillBreak: false,
+        archiveMaxLocalDaySeen: scripted.localDate,
+        clampedMaxLocalDaySeen: scripted.localDate,
+        unresolvablePackIds: [],
+      };
+      const device = {
+        schemaVersion: 2,
+        manifestVersion: 1,
+        appVersion: '0.0.0',
+        today: scripted.localDate,
+        lastDay: null,
+        maxLocalDaySeen: scripted.localDate,
+        sessionsSinceInstall: 0,
+        freezesOwned: 0,
+        installedPackIds: Object.keys(world.courses),
+        freezeCap: 2,
+        freeBytes: 1_000_000_000,
+      };
+
+      const applied = engine.data.applyImport(archive, confirm, device);
+      if (applied.lifetimeXp !== lifetimeBefore) {
         ctx.refutations.push(
-          `day ${scripted.day}: export -> import did not round-trip the progress ledger — ${PORT_OWNER.data}`,
+          `day ${scripted.day}: export -> wipe -> import moved lifetime XP ` +
+            `${lifetimeBefore} -> ${applied.lifetimeXp} — ${PORT_OWNER.data}`,
+        );
+      }
+      if (applied.streak !== streakBefore) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the import moved the streak ${streakBefore} -> ${applied.streak} ` +
+            `with no gap to explain it — ${PORT_OWNER.data}`,
+        );
+      }
+      // INV-DAT-04: imported gap days are MISSED, never `unlived`, and no day is restamped.
+      if (applied.unlivedDays.length !== 0 || applied.restampedDays.length !== 0) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the import produced ${applied.unlivedDays.length} unlived and ` +
+            `${applied.restampedDays.length} restamped days; both must be empty — ${PORT_OWNER.data}`,
+        );
+      }
+      // INV-SEC-02 / EC-PER-22: an archive never writes this build's economy constants.
+      const forbidden = applied.writtenFields.filter((field) =>
+        engine.data!.economyConfigFields.includes(field),
+      );
+      if (forbidden.length > 0) {
+        ctx.refutations.push(
+          `day ${scripted.day}: the import wrote economy config fields ${forbidden.join(', ')} ` +
+            `— ${PORT_OWNER.data}`,
+        );
+      }
+      if (applied.provenance !== 'imported') {
+        ctx.refutations.push(
+          `day ${scripted.day}: the imported account region is stamped ` +
+            `"${applied.provenance}", not "imported" — ${PORT_OWNER.data}`,
         );
       }
       return 0;
@@ -785,23 +923,37 @@ function applyEvent(ctx: EventContext): number {
   }
 }
 
-/** The subset of the world an export must carry back verbatim. */
-function snapshotForRoundTrip(world: World): unknown {
-  return {
-    lifetimeXp: world.lifetimeXp,
-    goalXp: world.goalXp,
-    dispositions: [...world.state.dispositions.entries()].sort(),
-    courses: Object.fromEntries(
-      Object.entries(world.courses).map(([id, c]) => [id, { xp: c.xp, sessions: c.sessions }]),
-    ),
-  };
+/**
+ * The nine-field resume round trip: checkpoint, serialise, deserialise, compare.
+ *
+ * Compared as the lane's own canonical serialisation rather than field by field, because
+ * the nine fields are that lane's list and a comparison written here would go stale the
+ * moment it grew a tenth (INV-SESS-01, INV-SESS-06).
+ */
+function checkResumeRoundTrip(ctx: EventContext, parked: ParkedSession, what: string): void {
+  const { engine, scripted } = ctx;
+  if (engine.session === null) {
+    ctx.cannot('session', `the nine-field resume row surviving ${what}`);
+    return;
+  }
+  const restored = engine.session.deserialise(parked.checkpoint);
+  const again = engine.session.serialise(restored);
+  if (again !== parked.checkpoint) {
+    ctx.refutations.push(
+      `day ${scripted.day}: the session restored after ${what} is not byte-identical to its ` +
+        `checkpoint (INV-SESS-01) — ${PORT_OWNER.session}`,
+    );
+  }
 }
 
 /**
- * Start a session: generate the queue, grade `answered` items, and checkpoint.
+ * Start a session: generate the queue through the real generator, grade `answered` items,
+ * and checkpoint.
  *
- * Returns the parked row. Every session in the journey goes through this, so a lane that
- * has not landed is reported once per clause rather than once per day.
+ * The generator needs a whole `GenerationRequest` — authored candidates plus an audio,
+ * pack, modality and scheduler port. Those come from the session lane's own fixture
+ * builders and test doubles: `modality/` is P3 and does not exist, and a double that lane
+ * wrote is its answer to "what does absent look like" rather than this file's guess.
  */
 function startSession(
   ctx: EventContext,
@@ -824,25 +976,44 @@ function startSession(
   world.monotonicMs += 60_000;
   const startedAtMonotonicMs = world.monotonicMs;
 
-  let queue: readonly { readonly itemId: string }[] = [];
+  let queue: readonly { readonly id: string; readonly itemId: string }[] = [];
+  let checkpoint = '';
   if (engine.session === null) {
-    ctx.cannot('session', 'generating a session queue from the due and new pools');
+    ctx.cannot('session', 'generating a session queue from the authored candidates');
   } else {
+    const doubles = engine.session.doubles;
     const generated = engine.session.generate({
+      sessionId,
       courseId,
+      nodeRef: NODE_REF,
+      flavour: 'lesson',
+      candidates: engine.session.items(CANDIDATE_POOL, { nodeRef: NODE_REF }),
+      audio: new doubles.audio(),
+      // A quarantined item does not resolve any more: the pack double is where that fact
+      // enters the generator, and the assertion below is that none of them is scheduled.
+      pack: new doubles.pack({ nodeRef: NODE_REF, unresolved: [...course.quarantinedItemIds] }),
+      modality: new doubles.modality(),
+      scheduler: new doubles.scheduler(),
       seed: Math.floor(ctx.random() * 2 ** 31),
-      target: LESSON_ITEMS,
-      duePool: [...course.liveItemIds].slice(0, 20),
-      newPool: [...course.liveItemIds].slice(20),
     });
-    queue = generated.items;
+    if (!generated.offered) {
+      ctx.refutations.push(
+        `day ${scripted.day}: the generator offered no session (${generated.reason}) from ` +
+          `${CANDIDATE_POOL} candidates — ${PORT_OWNER.session}`,
+      );
+    }
+    queue = generated.queue;
     for (const item of queue) {
       if (course.quarantinedItemIds.has(item.itemId)) {
         ctx.refutations.push(
-          `day ${scripted.day}: a quarantined item (${item.itemId}) was scheduled — ${PORT_OWNER.scheduler}`,
+          `day ${scripted.day}: a quarantined item (${item.itemId}) was scheduled — ${PORT_OWNER.packs}`,
         );
       }
     }
+    const fresh = engine.session.freshSession({ sessionId, courseId, queue });
+    checkpoint = engine.session.serialise(
+      engine.session.checkpoint(fresh, startedAtMonotonicMs + answered * 1_000),
+    );
   }
 
   if (engine.grading === null) {
@@ -850,22 +1021,26 @@ function startSession(
   } else {
     const wrong = Number(ctx.event.detail?.['wrong'] ?? 0);
     for (let i = 0; i < answered; i += 1) {
-      const accepted = ['la respuesta'];
-      const answer = i < wrong ? 'nope' : 'la respuesta';
-      const { verdict } = engine.grading.grade({ answer, accepted });
-      const shouldBeCorrect = i >= wrong;
-      if (shouldBeCorrect && verdict !== 'correct') {
+      const answer = i < wrong ? 'nope' : ACCEPTED_ANSWER;
+      const { verdict } = engine.grading.grade({ answer, accepted: [ACCEPTED_ANSWER] });
+      if (i >= wrong && verdict !== 'correct') {
         ctx.refutations.push(
           `day ${scripted.day}: an exact-match answer graded "${verdict}" — ${PORT_OWNER.grading}`,
+        );
+      }
+      if (i < wrong && verdict === 'correct') {
+        ctx.refutations.push(
+          `day ${scripted.day}: an answer with nothing in common graded correct — ${PORT_OWNER.grading}`,
         );
       }
     }
   }
 
-  const checkpoint =
-    engine.session === null
-      ? { sessionId, index: answered }
-      : engine.session.checkpoint({ sessionId, courseId, index: answered, queue });
+  if (engine.scheduler === null) {
+    ctx.cannot('scheduler', 'advancing the FSRS row of every answered item');
+  } else if (queue.length > 0) {
+    engine.scheduler.review({ row: queue[0], rating: 3, atMs: startedAtUtcMs });
+  }
 
   return {
     sessionId,
@@ -916,15 +1091,24 @@ function completeSession(
           `x${options.expectMultiplier} (boost expiry + boostGraceSeconds, EC-ECO-02) — ${PORT_OWNER.economy}`,
       );
     }
+    // INV-ECO-30: the explanation exists exactly when the applied number is the smaller one.
+    if (award.explanation.length > 0 !== award.multiplierApplied < award.recordedMultiplier) {
+      ctx.refutations.push(
+        `day ${scripted.day}: recorded x${award.recordedMultiplier}, applied ` +
+          `x${award.multiplierApplied}, explanation ${JSON.stringify(award.explanation)} — the ` +
+          `explanation must appear exactly when the learner is paid less than promised — ${PORT_OWNER.economy}`,
+      );
+    }
   }
 
+  const start = {
+    sessionId: parked.sessionId,
+    startedAtUtcMs: parked.startedAtUtcMs,
+    startedAtMonotonicMs: parked.startedAtMonotonicMs,
+    startZone: parked.startZone,
+  };
   const row = engine.day!.commitSession(
-    {
-      sessionId: parked.sessionId,
-      startedAtUtcMs: parked.startedAtUtcMs,
-      startedAtMonotonicMs: parked.startedAtMonotonicMs,
-      startZone: parked.startZone,
-    },
+    start,
     {
       completedAtUtcMs,
       completedAtMonotonicMs: world.monotonicMs,
@@ -935,15 +1119,11 @@ function completeSession(
     { satisfiedDays: world.completedDays, committed: world.committed },
   );
 
-  // INV-CER-01 / INV-DAY-15: replaying the commit writes nothing and reproduces the row.
+  // INV-CER-01 / INV-DAY-15: replaying the commit writes nothing and reproduces the row,
+  // even with a wall clock that has moved on since.
   world.committed.set(row.sessionId, row);
   const replayed = engine.day!.commitSession(
-    {
-      sessionId: parked.sessionId,
-      startedAtUtcMs: parked.startedAtUtcMs,
-      startedAtMonotonicMs: parked.startedAtMonotonicMs,
-      startZone: parked.startZone,
-    },
+    start,
     {
       completedAtUtcMs: completedAtUtcMs + 5_000,
       completedAtMonotonicMs: world.monotonicMs + 5_000,

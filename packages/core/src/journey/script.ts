@@ -456,7 +456,16 @@ export const JOURNEY: readonly JourneyDay[] = [
         kind: 'streak-repair',
         what: 'flies to Lord Howe and tries a second repair in the same calendar month: refused',
         invariants: ['INV-REC-01'],
-        detail: { month: '2026-10', expectGranted: false },
+        // There IS a break to repair on this day: day 21's repair left today unsatisfied
+        // (that is the whole difference between the repair and the challenge), so 10-11
+        // rolls over missed and breaks the streak again. Without a live break the refusal
+        // would be "no-break" and the trace would prove nothing about the monthly cap —
+        // hence `expectDeclinedBecause`.
+        detail: {
+          month: '2026-10',
+          expectGranted: false,
+          expectDeclinedBecause: 'month-already-repaired',
+        },
       },
       {
         kind: 'lesson',

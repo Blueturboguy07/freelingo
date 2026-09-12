@@ -138,54 +138,102 @@ export interface DayPort {
   ): ReadonlySet<Day>;
 }
 
-/** Freeze grants and the freeze economy — §7 FRZ, day lane. */
+/**
+ * Freeze grants — §7 FRZ, day lane.
+ *
+ * `applied` rather than `granted`: the grant is clamped to `cap - held` and a replay on
+ * the same `grantKey` applies nothing, so "how many the request asked for" and "how many
+ * the balance actually gained" are different numbers and the port uses the second.
+ */
 export interface FreezePort {
   grant(
     ledger: unknown,
     request: {
-      readonly channel: string;
-      readonly count: number;
       readonly grantKey: string;
-      readonly onDay: Day;
+      readonly channel: string;
+      readonly ownedFromDay: Day;
+      readonly amount: number;
     },
-  ): { readonly ledger: unknown; readonly granted: number };
+  ): { readonly ledger: unknown; readonly applied: number; readonly ceremony: boolean };
   held(ledger: unknown): number;
 }
 
 /** Recovery challenge and the monthly Streak Repair — §7 REC, day lane. */
 export interface RecoveryPort {
-  /** Record one completed recovery lesson; returns the new day state. */
-  completeLesson(state: DayStatePort, onDay: Day): DayStatePort;
-  /** Attempt the monthly Streak Repair; `granted: false` when the month is spent. */
+  offer(
+    state: DayStatePort,
+    today: Day,
+  ): {
+    readonly challengeArmed: boolean;
+    readonly repairArmed: boolean;
+    readonly brokenOn: Day | null;
+    readonly uncoveredDays: readonly Day[];
+  };
+  /** Arm the 3-lesson challenge from the recorded break. Idempotent. */
+  arm(state: DayStatePort, today: Day): DayStatePort;
+  /** One completed recovery lesson, keyed to the day the SESSION STARTED (INV-REC-05). */
+  recordLesson(state: DayStatePort, startedOnDay: Day): DayStatePort;
+  /** The third lesson: streak = previous_streak AND today satisfied (INV-REC-02). */
+  completeChallenge(
+    state: DayStatePort,
+    today: Day,
+  ): { readonly state: DayStatePort; readonly restored: boolean; readonly streakAfter: number };
+  /** The monthly repair: streak = previous_streak, today left unsatisfied (INV-REC-01). */
   repair(
     state: DayStatePort,
-    onDay: Day,
-  ): { readonly state: DayStatePort; readonly granted: boolean };
+    today: Day,
+  ): {
+    readonly state: DayStatePort;
+    readonly restored: boolean;
+    readonly declinedBecause: string | null;
+  };
 }
 
 /* -------------------------------------------------------------- session lane */
 
-export interface SessionQueueItemPort {
+export interface QueuedItemPort {
+  readonly id: string;
   readonly itemId: string;
 }
 
-/** Session generation, the nine-field resume row and the in-flight guard — §1 SESS. */
+export interface GeneratedSessionPort {
+  readonly offered: boolean;
+  readonly reason: string;
+  readonly queue: readonly QueuedItemPort[];
+  readonly optionSeeds: Readonly<Record<string, number>>;
+}
+
+/**
+ * Session generation, the nine-field resume row and the in-flight guard - §1 SESS.
+ *
+ * `generate` needs a whole `GenerationRequest`: authored candidates plus an audio, pack,
+ * modality and scheduler port. The journey builds one from the lane's own fixture
+ * builders and test doubles rather than inventing them - `modality/` is P3 and does not
+ * exist yet, and a double the lane wrote is that lane's answer to "what does absent look
+ * like", not the journey's guess at it.
+ */
 export interface SessionPort {
-  generate(input: {
-    readonly courseId: string;
-    readonly seed: number;
-    readonly target: number;
-    readonly duePool: readonly string[];
-    readonly newPool: readonly string[];
-  }): { readonly items: readonly SessionQueueItemPort[] };
-  /** Serialise the resume row; the journey kills and restores through this. */
-  checkpoint(session: unknown): unknown;
-  restore(row: unknown): unknown;
+  generate(request: Readonly<Record<string, unknown>>): GeneratedSessionPort;
+  /** `items(count, options)` in the lane's fixture module: authored candidates. */
+  items(count: number, options?: Readonly<Record<string, unknown>>): readonly QueuedItemPort[];
+  /** Write the resume checkpoint at a monotonic instant. */
+  checkpoint(state: unknown, monotonicMs: number): unknown;
+  serialise(state: unknown): string;
+  deserialise(raw: string): unknown;
+  /** A fresh runtime state for the resume round trip. */
+  freshSession(options: Readonly<Record<string, unknown>>): unknown;
+  /** The lane's own test doubles for the ports the journey has no engine for yet. */
+  readonly doubles: {
+    readonly audio: new (unavailable?: readonly string[]) => unknown;
+    readonly pack: new (options?: Readonly<Record<string, unknown>>) => unknown;
+    readonly modality: new (gated?: readonly string[]) => unknown;
+    readonly scheduler: new () => unknown;
+  };
 }
 
 /* -------------------------------------------------------------- grading lane */
 
-/** Three tiers, the soft notes and the typo guards — §2 GRD. */
+/** Three tiers, the soft notes and the typo guards - §2 GRD. */
 export interface GradingPort {
   grade(input: { readonly answer: string; readonly accepted: readonly string[] }): {
     readonly verdict: string;
@@ -194,17 +242,9 @@ export interface GradingPort {
 
 /* ------------------------------------------------------------ scheduler lane */
 
-/** FSRS rows, the early-review guard and quarantine — §5 SCH. */
+/** FSRS rows and the early-review guard - §5 SCH. */
 export interface SchedulerPort {
   review(input: { readonly row: unknown; readonly rating: number; readonly atMs: number }): unknown;
-  /** Rows whose items vanished in a pack major bump are quarantined, never scheduled. */
-  quarantine(
-    rows: readonly unknown[],
-    liveItemIds: ReadonlySet<string>,
-  ): {
-    readonly kept: readonly unknown[];
-    readonly quarantined: readonly unknown[];
-  };
 }
 
 /* -------------------------------------------------------------- economy lane */
@@ -229,7 +269,7 @@ export interface SessionAwardPort {
   readonly explanation: string;
 }
 
-/** The one config table, the boost grace window and the XP award — §8 ECO. */
+/** The one config table, the boost grace window and the XP award - §8 ECO. */
 export interface EconomyPort {
   /** The named goal tiers: 10/20/30/50 XP for Casual/Regular/Serious/Intense (EC-ECO-01). */
   goalXp(tier: string): number;
@@ -246,20 +286,60 @@ export interface EconomyPort {
 
 /* ---------------------------------------------------------- packs/data lanes */
 
-/** Pack state and the major-bump quarantine — §14 PACK. */
-export interface PacksPort {
-  /** The six-value enum's state for a pack the journey installs. */
-  stateOf(input: {
-    readonly installedVersion: string | null;
-    readonly signatureValid: boolean;
-  }): string;
-  isMajorBump(from: string, to: string): boolean;
+export interface ScheduledItemPort {
+  readonly itemId: string;
+  readonly quarantined: boolean;
 }
 
-/** Export, wipe and import — §13 DAT. */
+/** Pack state and the major-bump quarantine - §14 PACK. */
+export interface PacksPort {
+  /** Facts -> one of the six states. Total: every combination resolves. */
+  resolveState(facts: {
+    readonly catalogue: string;
+    readonly dbPresent: boolean;
+    readonly signature: string;
+    readonly integrity: string;
+    readonly audioBytesPresent: number;
+    readonly audioBytesExpected: number;
+  }): string;
+  /** Across a major bump, rows whose items vanished are quarantined, never deleted. */
+  applyPackUpdate(
+    rows: readonly ScheduledItemPort[],
+    change: {
+      readonly fromMajor: number;
+      readonly toMajor: number;
+      readonly itemIds: ReadonlySet<string>;
+    },
+  ): {
+    readonly rows: readonly ScheduledItemPort[];
+    readonly retired: number;
+    readonly restored: number;
+  };
+}
+
+export interface AppliedImportPort {
+  readonly streak: number;
+  readonly lifetimeXp: number;
+  readonly freezes: number;
+  /** Days that were re-stamped. Always empty (INV-DAT-04). */
+  readonly restampedDays: readonly string[];
+  /** Gap days, all classified `missed`. */
+  readonly missedDays: readonly string[];
+  /** Never `unlived`. Always empty (the EC-PER-08 ruling). */
+  readonly unlivedDays: readonly string[];
+  readonly writtenFields: readonly string[];
+  readonly provenance: string;
+}
+
+/** Export, wipe and import - §13 DAT. */
 export interface DataPort {
-  exportProgress(db: unknown): unknown;
-  importProgress(db: unknown, dump: unknown): unknown;
+  applyImport(
+    archive: Readonly<Record<string, unknown>>,
+    confirm: Readonly<Record<string, unknown>>,
+    device: Readonly<Record<string, unknown>>,
+  ): AppliedImportPort;
+  /** Fields no import may ever write. The gate is the list, not a reviewer's memory. */
+  readonly economyConfigFields: readonly string[];
 }
 
 /* ------------------------------------------------------------------- bundle */
