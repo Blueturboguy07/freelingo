@@ -1,0 +1,16 @@
+{
+  "attribution_owner": "Freelingo contributors",
+  "corpus": "freelingo-es-mini",
+  "corpus_version": "2026-09-12",
+  "fixture": "es-mini",
+  "l1": "en",
+  "lang": "es",
+  "lemmas": 348,
+  "lemmatiser": "es_core_news_md-3.8.0 (spaCy 3.8, pinned by wheel URL)",
+  "licences": {
+    "CC-BY-4.0": 40,
+    "CC0-1.0": 160
+  },
+  "sentences": 200,
+  "surface_forms": 407
+}

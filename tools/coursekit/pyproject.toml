@@ -6,13 +6,37 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "AGPL-3.0-only" }
 authors = [{ name = "Freelingo contributors" }]
-dependencies = ["typer>=0.20.0"]
+dependencies = [
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "pynacl>=1.6.2",
+    "pyyaml>=6.0.3",
+    "regex>=2026.9.10",
+    "typer>=0.20.0",
+]
 
 [project.scripts]
 coursekit = "coursekit.cli:app"
 
 [dependency-groups]
+align = [
+    "simalign>=0.4",
+    "torch>=2.14.0",
+    "transformers>=5.17.0",
+]
 dev = ["pytest>=8.4.0", "ruff>=0.14.0"]
+lm = [
+    "kenlm",
+]
+nlp = [
+    "es-core-news-md",
+    "spacy>=3.8.0,<3.9.0",
+]
+tts = [
+    "kokoro-onnx>=0.6.1",
+    "numpy>=2.5.3",
+    "soundfile>=0.14.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
@@ -28,3 +52,30 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+# ---------------------------------------------------------------------------
+# Which groups CI syncs, and why the other two are opt-in.
+#
+# `pack-ci.yml` runs `uv sync --locked` in a 20-minute ubuntu job. These groups are
+# what that command installs. `align` (torch + transformers + simalign) and `tts`
+# (kokoro-onnx + onnxruntime) are gigabytes of wheels and model downloads, so they are
+# NOT here: they are installed on demand with `uv sync --group align` / `--group tts`.
+#
+# The consequence is a rule, not a preference: a stage that needs an absent group must
+# fail loudly (`coursekit.inputs.require_group`, exit 3), never degrade to a worse
+# aligner or a system voice. See docs/pipeline.md.
+[tool.uv]
+default-groups = ["dev", "nlp", "lm"]
+
+# torch from PyPI is the CPU build on macOS and a CUDA build on Linux. The pipeline
+# never touches a GPU, so Linux resolves against PyTorch's CPU index instead of
+# downloading ~2.5 GB of CUDA wheels nobody runs.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+es-core-news-md = { url = "https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl" }
+kenlm = { url = "https://github.com/kpu/kenlm/archive/4cb443e60b7bf2c0ddf3c745378f76cb59e254e5.zip" }
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
