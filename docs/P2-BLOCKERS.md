@@ -585,7 +585,7 @@ fallback strips edge punctuation and drops what is left empty, which is the shap
 `test_INV_PACK_40_an_authored_candidates_tiles_carry_no_punctuation` pins it. This would
 have stopped the build on ordinary authored sentences, not only on the diagnostic ones.
 
-## B16 — G7 looks a distractor up by SURFACE, and an authored candidate has no analysis — OPEN
+## B16 — G7 looks a distractor up by SURFACE, and an authored candidate has no analysis — OPEN (writer landed, reader outstanding)
 
 Found immediately after B15, by the same run. With the tiles clean, G7 stops one line
 later:
@@ -632,6 +632,37 @@ integration patch:
 Until it is fixed, **G7 has never completed a run over authored content**, so G8, G9,
 `coursekit validate`, `coursekit sample` and `coursekit sign` are still unproven on a real
 course — the same list as round 1, now for a different and much narrower reason.
+
+### B16 status after the round-3 merge (2026-09-12, `61bc272`) — the WRITER is done, the READER is not
+
+Option 2 was taken, and two of its three parts have landed:
+
+1. **The contract** (`p2r3/deps-contract`, merged as `d73d295`). `CANDIDATE` carries
+   `analysis` — required, nullable, in G1's shape `{analyser, tokens, lemmas,
+display_tokens}` — and `Token`/`Adapter` are now one shared object each rather than
+   two copies, so `analysed_sentence` and `candidate.analysis` cannot drift. The contract
+   digest moved off `3e2f6a68…` for this and nothing else.
+2. **The writer** (`61bc272`). G5 puts its own adapter pass on every row it analysed;
+   only the two `stale_ledger` short-circuits above the adapter call carry `null`. Pinned
+   by `test_an_emitted_candidate_carries_the_analysis_g7_will_read`, which re-derives the
+   analysis from a second independent call to the registered adapter.
+3. **The reader — NOT DONE, and this is what keeps B16 open.** `grep -n analysis
+tools/coursekit/src/coursekit/stages/g7_expand.py` returns four comments and no code:
+   `_anchor_lemma` still casefolds the surface for an authored row. So `tardes` is still
+   handed to the rule core where `tarde` belongs, and the failure in the block above is
+   unchanged. The data G7 needs is now on the row; nothing reads it yet.
+
+The coded rule the contract's docstring promises is also still owed: an authored row that
+G7 is asked to expand and whose `analysis` is `null` must stop the stage **naming the
+candidate_id**, never fall back to the surface — which is the bug the field exists to
+delete. A schema keyword cannot express "non-null exactly when G7 will read it", so that
+check belongs in the expand lane and has no owning test today.
+
+Evidence for the two parts that did land: `coursekit lint + tests` green in CI on
+`61bc272` (pack-ci run 34695857430), and locally `uv run pytest` 837 collected / 0
+failures / exit 0 over three runs. Before the fix the same tree was 59 failures and 15
+collection errors, 148 of them the one message `candidate in candidates.jsonl line 1:
+<root>: 'analysis' is a required property`.
 
 ## B17 — the course gets easier 13 times — OPEN, measured
 
