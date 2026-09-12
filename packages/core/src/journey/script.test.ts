@@ -211,6 +211,34 @@ describe('the 30-day journey script', () => {
     expect(uncovered[1]!.day).toBeLessThan(firstRepair.day);
   });
 
+  it('every day either practises, is declared idle, or declares why it ends unsatisfied', () => {
+    // The assertion that would have caught the trace's own defect. Day 26 spent the whole
+    // day exporting and importing and took no lesson, so 2026-10-16 rolled over MISSED and
+    // broke a streak nobody had declared broken — a third uncovered day in a trace whose
+    // header says there are two. A day with no session is now either an `idle` day or one
+    // that says, in its own detail, that it ends unsatisfied on purpose.
+    const COMMITS_A_SESSION: readonly EventKind[] = [
+      'lesson',
+      'resume-parked',
+      'kill-and-resume',
+      'commit-after-boost-expiry',
+      'open-session-across-midnight',
+      'recovery-lesson',
+    ];
+    const undeclared = JOURNEY.filter(
+      (d) =>
+        !d.events.some((e) => COMMITS_A_SESSION.includes(e.kind)) &&
+        !d.events.some((e) => e.kind === 'idle') &&
+        !d.events.some((e) => e.detail?.['leavesTodayUnsatisfied'] === true),
+    ).map((d) => `day ${d.day} (${d.localDate}): ${d.events.map((e) => e.kind).join(', ')}`);
+    expect(undeclared).toEqual([]);
+
+    // And exactly one day in the trace is allowed to end unsatisfied on purpose.
+    expect(
+      JOURNEY.filter((d) => d.events.some((e) => e.detail?.['leavesTodayUnsatisfied'] === true)),
+    ).toHaveLength(1);
+  });
+
   it('names an invariant id for every event, and only well-formed ids', () => {
     const withoutIds = JOURNEY.flatMap((d) =>
       d.events.filter((e) => e.invariants.length === 0).map((e) => `day ${d.day}: ${e.kind}`),

@@ -444,7 +444,10 @@ export const JOURNEY: readonly JourneyDay[] = [
       kind: 'streak-repair',
       what: "uses October's Streak Repair: streak = previous_streak, today still unsatisfied",
       invariants: ['INV-REC-01'],
-      detail: { month: '2026-10', expectGranted: true },
+      // The ONE day of the trace that ends unsatisfied on purpose. That is the whole
+      // difference between the repair and the challenge (EC-FRZ-13), and it is what gives
+      // day 22 a live break to refuse a second repair against.
+      detail: { month: '2026-10', expectGranted: true, leavesTodayUnsatisfied: true },
     },
   ]),
   day(
@@ -508,6 +511,13 @@ export const JOURNEY: readonly JourneyDay[] = [
       kind: 'export-wipe-import',
       what: 'exports progress, wipes the device and imports it back: the ledger must survive verbatim',
       invariants: ['INV-DAT-01', 'INV-DAT-04', 'INV-PER-03'],
+    },
+    {
+      kind: 'lesson',
+      course: PRIMARY_COURSE,
+      what: 'and then practises: a day spent moving data is still a day the learner showed up',
+      invariants: ['INV-DAT-01'],
+      detail: { correct: 10, wrong: 0 },
     },
   ]),
   day(27, '2026-10-17', ZONE_LORD_HOWE, [

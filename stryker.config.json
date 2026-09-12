@@ -40,6 +40,11 @@
   "timeout_comment": "A mutant that loops forever must be reported as a timeout rather than hanging the job. The engine's slowest unit tests are the four-zone properties at 10,000 cases per zone (~3.5 s locally, ~2.5x that on ubuntu-latest), so the factor is generous on purpose: a timeout counted as 'killed' is free score.",
   "timeoutMS": 120000,
   "timeoutFactor": 3,
+  "dryRunTimeoutMinutes_comment": "Stryker's default is 5 minutes and the P1 engine blows straight through it. The suite is 27 s on its own, but the dry run collects PER-TEST coverage over 1,125 tests, 222 of which are fast-check properties at 10,000 cases (the four-zone ones at 40,000). Measured 2026-09-11 on the merged P1 engine: the dry run was still going at 5:03 and Stryker aborted with `Initial test run timed out!` and no score. 30 minutes is the headroom that buys, and it is the DRY RUN only — a mutant that hangs is still caught by timeoutMS.",
+  "dryRunTimeoutMinutes": 30,
+  "incremental_comment": "Nightly, over 9,802 mutants, a cold run is hours. Incremental mode re-tests only the mutants whose file or covering tests changed since the last report, and .github/workflows/mutation.yml caches that report between runs. The first run after a cache miss is still a cold run, which is why the job's timeout is generous.",
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true,
   "ignorePatterns": [

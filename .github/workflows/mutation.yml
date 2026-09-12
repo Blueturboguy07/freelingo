@@ -25,7 +25,11 @@ jobs:
   stryker:
     name: stryker (packages/core)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # A cold run over 9,802 mutants is hours, and the dry run alone is minutes because it
+    # collects per-test coverage over 222 fast-check properties. The incremental cache
+    # below makes the steady state small; this timeout is sized for the cold run that
+    # follows a cache miss, not for the steady state.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v5
 
@@ -38,6 +42,17 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      # Incremental mode re-tests only the mutants whose file or covering tests changed.
+      # `restore-keys` is what makes it work at all: the exact key carries the sha, so it
+      # never hits, and the prefix match picks up the previous night's report.
+      - name: Restore the incremental report
+        uses: actions/cache@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.sha }}
+          restore-keys: |
+            stryker-incremental-
 
       # A mutate glob that matches nothing produces a 100% score and a green tick, which
       # is the most expensive way this workflow could lie. Counted before Stryker runs.
@@ -98,6 +113,13 @@ jobs:
             ].join("\n"));
             console.log(`mutation score ${score.toFixed(2)}% (covered ${covered.toFixed(2)}%, threshold ${config.thresholds.break}%)`);
           '
+
+      - name: Save the incremental report
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.sha }}
 
       - name: Upload the mutation report
         if: always()
