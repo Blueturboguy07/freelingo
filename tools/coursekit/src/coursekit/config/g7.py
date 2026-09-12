@@ -96,6 +96,19 @@ class ExerciseShape:
     needs_audio: bool
     #: Exactly how many distractors the builder must produce. 0 = a typed/open shape.
     distractor_count: int
+    #: Is the option list (or the typed answer) rendered in ENGLISH rather than in the
+    #: course language? It decides two things that both shipped wrong once:
+    #:
+    #: * where a decoy comes from — `L1DecoyPool` and not the course-language rule core
+    #:   (`["aprendo", "está", "conocerte"]` under `Write this in English`);
+    #: * whether V5's POS clause applies at all. The clause compares UD tags from the
+    #:   course-language ledger, and an English tile has no honest entry in it. It used
+    #:   to be skipped because the lookup missed; that stopped being true the moment the
+    #:   oracle included attested SURFACES, because a Spanish corpus contains stray
+    #:   English words and spaCy tags them PROPN — measured: 84 blocking findings on
+    #:   tiles like `the`, `not`, `hello` and `henderson` against Spanish answers. A
+    #:   missing lookup is not a declaration; this column is.
+    options_in_l1: bool
     #: Does the builder need a word alignment (for tiles, hints, or a gap)?
     needs_alignment: bool
     #: The phase this shape may first be emitted in. `select_the_character` is P7's.
@@ -105,6 +118,28 @@ class ExerciseShape:
 #: Every shape Freelingo ships, in product-map order. S042 is declared so the eight
 #: coarse types are all covered, and gated to P7 with the Japanese characters stage.
 SHAPES: Final[tuple[ExerciseShape, ...]] = (
+    # S032 IS DECLARED AND UNREACHABLE AT P2, AND THE REASON IS AN ASSET, NOT AN OMISSION.
+    # `deep/01` §S1: "2-3 illustrated cards (illustration + target label + tap-to-hear)",
+    # and the prompt quotes the target word. The picture is not decoration on this shape:
+    # it is the whole of the question. With no illustration the cards can only carry the
+    # target labels, one of which is the string the prompt already quotes, so the item is
+    # answerable by reading the prompt — the same "answerable by copying" defect
+    # `L1_DECOY_SOURCE` below exists to stop in the word bank, one rung worse because it
+    # is the ANSWER rather than a decoy.
+    #
+    # Nothing can supply that illustration today. `art/README.md`'s v1 inventory names the
+    # S034 cast avatars and NO per-lexeme illustration; `docs/art-and-sound.md`'s
+    # outstanding table does not list one either. And the frozen `exercise` contract has no
+    # field for one, so `packbuild/sqlite.py` writes `illustration_ref` from
+    # `exercise.get("illustration_ref")` — a key the contract does not define — and every
+    # row of the pack would carry NULL there. A pack shipping S032 today is a pack shipping
+    # a null asset reference.
+    #
+    # So the row stays (the table mirrors the product map, and `match` keeps three shapes),
+    # `available_from` moves to P3 where the art track's assets are a phase-entry criterion,
+    # and `route()` refuses it BY NAME (`ShapeNotAvailable`) rather than the stage quietly
+    # not emitting it. The deviation and the two requests it needs — the art asset and the
+    # contract field — are recorded in `docs/owned/p2r3-expand-bake-package.json`.
     ExerciseShape(
         id="picture_select",
         screen="S032",
@@ -118,8 +153,9 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=True,
         needs_audio=False,
         distractor_count=2,
+        options_in_l1=False,
         needs_alignment=False,
-        available_from="P2",
+        available_from="P3",
     ),
     ExerciseShape(
         id="match_pairs",
@@ -134,6 +170,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=0,
+        options_in_l1=True,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -150,6 +187,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=True,
         needs_audio=False,
         distractor_count=2,
+        options_in_l1=True,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -166,6 +204,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=3,
+        options_in_l1=False,
         needs_alignment=True,
         available_from="P2",
     ),
@@ -182,6 +221,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=3,
+        options_in_l1=True,
         needs_alignment=True,
         available_from="P2",
     ),
@@ -198,6 +238,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -214,6 +255,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=0,
+        options_in_l1=True,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -230,6 +272,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=True,
         distractor_count=1,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -246,6 +289,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=True,
         distractor_count=3,
+        options_in_l1=False,
         needs_alignment=True,
         available_from="P2",
     ),
@@ -262,6 +306,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=True,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -278,6 +323,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=True,
         distractor_count=2,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -294,6 +340,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=2,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -310,6 +357,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=True,
         available_from="P2",
     ),
@@ -326,6 +374,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -342,6 +391,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -358,6 +408,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=True,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -374,6 +425,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=True,
         distractor_count=0,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P2",
     ),
@@ -390,6 +442,7 @@ SHAPES: Final[tuple[ExerciseShape, ...]] = (
         new_word_eligible=False,
         needs_audio=False,
         distractor_count=2,
+        options_in_l1=False,
         needs_alignment=False,
         available_from="P7",
     ),
@@ -748,9 +801,53 @@ SENTENCE_FORM_PLAN: Final[tuple[tuple[str, ...], ...]] = (
     ("complete_the_chat", "word_bank_forward", "typed_translate_forward"),
 )
 
-#: A newly introduced lexeme gets both recognition shapes. `deep/01` §S20: recognition
-#: before production, and the observed level-1 shape is picture-selects then a match.
-LEXEME_FORM_PLAN: Final[tuple[str, ...]] = ("picture_select", "meaning_select")
+#: A newly introduced lexeme gets the recognition shapes that can ship. `deep/01` §S20:
+#: recognition before production, and the observed level-1 shape is picture-selects then a
+#: match — which is why this row USED to read `("picture_select", "meaning_select")` and
+#: why it no longer can: S032 needs an illustration that does not exist (see the SHAPES
+#: comment above) and its `available_from` is P3.
+#:
+#: That leaves ONE punitive shape in the plan row, so INV-PACK-07 is no longer discharged
+#: by the row alone. It is discharged by the row PLUS `LEXEME_MATCH_SHAPE`, and the stage
+#: is what makes that a construction rather than a hope: a lexeme is introduced only when
+#: a match can also be built over it (`stages/g7_expand.py::_lexeme_pass`), so every
+#: lexeme item carries `{meaning_select, match_pairs}` and a lexeme that cannot reach both
+#: is not introduced as a lexeme item at all — it is still taught inside the sentence
+#: exercises, which is exactly what already happens to a lemma with no gloss.
+LEXEME_FORM_PLAN: Final[tuple[str, ...]] = ("meaning_select",)
+
+#: The second punitive form of every lexeme item, and the reason a lexeme item may exist.
+#: Named here rather than spelled in the stage so `LEXEME_FORM_PLAN + (LEXEME_MATCH_SHAPE,)`
+#: is the pair INV-PACK-07's plan test reads — one source, checked against the SHAPES table
+#: for punitiveness and focus, never a second hand-written list.
+LEXEME_MATCH_SHAPE: Final[str] = "match_pairs"
+
+#: Which lemmas a match may draw its five rows from: the UNIT, not the lesson.
+#:
+#: `MATCH_PAIRS_PER_EXERCISE` is 5 and a real lesson introduces one to three lemmas, so a
+#: lesson-scoped match ships almost nowhere — measured: the fixture lesson is the only
+#: place it fired at all. A unit-scoped match is also what `deep/01` §S20 describes (the
+#: observed level-1 order is picture-selects, then a 5-pair match, then select-meaning
+#: recalls: the match draws on what the learner has met, not on one lesson's new words),
+#: and it is what makes the INV-PACK-07 construction above reachable for every introduced
+#: lexeme rather than for the rare lesson that introduces five at once. A match is filed
+#: in the lesson where its fifth row is introduced, so it never precedes a row it tests.
+MATCH_LEMMA_SCOPE: Final[str] = "unit"
+
+#: Ruling B9(b): "per-lesson `MIN_TOKENS` = 1 for a lesson whose window holds no verb —
+#: lesson 1 is words and fixed phrases, as the live capture shows Duolingo's level-1
+#: lessons are." An item of this many display tokens or fewer is a WORD or a FIXED PHRASE
+#: and is expanded as a lexeme-focus item, never as a sentence one.
+#:
+#: The sentence shapes are degenerate on one or two tokens and they degenerate silently:
+#: `word_bank_forward` over one token is a bank whose answer is one tile among four,
+#: `fill_in_the_blank` blanks the only word there is (`____` with the answer nowhere on
+#: screen), `complete_the_translation` renders the English and then a bare gap, and
+#: `tap_what_you_hear` is a four-tile grid for a one-tile answer. None of those is caught
+#: by a record-level validator: every one is a well-formed record of a worthless exercise.
+#: So the length decides the FOCUS, and the focus decides the shapes — which by the SHAPES
+#: table means S032/S033/S034 and nothing else (`exercises/shapes.py::focus_for_item`).
+LEXEME_FOCUS_MAX_DISPLAY_TOKENS: Final[int] = 2
 
 #: A grammar concept is drilled, never quoted. Both shapes are punitive and neither is
 #: lexeme-quoting, which is INV-PACK-50 and INV-PACK-07 satisfied in one row.

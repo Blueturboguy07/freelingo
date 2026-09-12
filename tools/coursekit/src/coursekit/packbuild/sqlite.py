@@ -50,6 +50,7 @@ from ..config.g9 import (
     PACK_TABLES_EMPTY_AT_V0,
     PROVENANCE_BY_ARTEFACT,
 )
+from ..config.validate import RTL_LANGUAGES, RTL_META_ROW_ID
 from . import register_writer
 
 __all__ = [
@@ -347,6 +348,15 @@ def meta_rows(inputs: PackInputs) -> list[dict[str, Any]]:
         {"key": "defect_rate", "value": f"{inputs.defect_rate or 0.0:.4f}"},
         {"key": "cefr_claim", "value": cefr_claim(inputs.lang)},
         {"key": "cefr_checked", "value": "1" if cefr_checked(inputs.lang) else "0"},
+        # The direction flag, DECIDED rather than absent. V12: "an absent direction flag
+        # is not 'false', it is nobody having decided — and the first pack that needs
+        # true would ship without it", and it blocked every pack this lane built until
+        # the row existed. A real bool because that is what V12 compares against
+        # (`value is not expected_rtl`); the column's TEXT affinity stores it as 0/1 and
+        # the `pack_row` artefact keeps the boolean. `config/validate.py::RTL_LANGUAGES`
+        # is the list, and no v1 language is in it — es/fr/de/ja are all LTR, and
+        # INV-I18N-01 pins the app's layout to LTR besides.
+        {"key": RTL_META_ROW_ID, "value": inputs.lang in RTL_LANGUAGES},
     ]
     for credit in credit_rows(inputs):
         rows.append(
@@ -589,7 +599,19 @@ def exercise_rows(inputs: PackInputs) -> list[dict[str, Any]]:
 
 @register_writer("exercise_item_tag")
 def exercise_item_tag_rows(inputs: PackInputs) -> list[dict[str, Any]]:
-    """D1's join. A wrong row here silently corrupts the memory model — hence V4."""
+    """D1's join. A wrong row here silently corrupts the memory model — hence V4.
+
+    ONE ROW PER (exercise, kind, ref), because the table's key says so and a sentence
+    does not. `item_tags.lemmas` is the token-aligned lemma list of the sentence — `El
+    libro está sobre la mesa.` carries `el` twice, and `Hola, hola, hola.` carries
+    `hola` three times — which is the artefact being faithful to the text. The JOIN is a
+    set: "this exercise tags this lexeme" is true once. Measured on the real course,
+    2026-09-12: G9 refused the pack with `UNIQUE constraint failed:
+    exercise_item_tag.exercise_id, exercise_item_tag.item_kind,
+    exercise_item_tag.item_ref` — after a bake, which is the expensive place to find out.
+    Deduplicated here rather than in the artefact so `item_tags.lemmas` stays the list
+    V4 checks against the analysis.
+    """
     introduced: set[tuple[str, str]] = set()
     rows = []
 
@@ -608,7 +630,11 @@ def exercise_item_tag_rows(inputs: PackInputs) -> list[dict[str, Any]]:
             for concept in tags.get("grammar_concepts", [])
         ]
         pairs += [("grapheme", str(glyph)) for glyph in tags.get("graphemes", [])]
+        seen_here: set[tuple[str, str]] = set()
         for kind, ref in pairs:
+            if (kind, ref) in seen_here:
+                continue
+            seen_here.add((kind, ref))
             is_new = (kind, ref) not in introduced
             introduced.add((kind, ref))
             rows.append(
