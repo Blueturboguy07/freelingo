@@ -96,14 +96,31 @@ def _schema() -> dict[str, Any]:
             "duration_ms": _count(),
         },
     }
+    # `joined` and `unjoined` are REQUIRED, not optional. B3's rate is computed over the
+    # intersection of the scores file with THIS build's sheet (`sample.review_summary`),
+    # and a report that published the rate without the join count would be publishing a
+    # number whose denominator the reader cannot see: `scored: 300, wrong_item_rate: 0.01`
+    # says one thing when all 300 rows are on the sheet and something else entirely when
+    # four of them are. Both are `["integer", "null"]` because "no sheet on disk" is a
+    # real state and is not the same answer as an empty intersection.
     review = {
         "type": "object",
         "additionalProperties": False,
-        "required": ["reviewer_kind", "sample_size", "scored", "wrong_item_rate", "note"],
+        "required": [
+            "reviewer_kind",
+            "sample_size",
+            "scored",
+            "joined",
+            "unjoined",
+            "wrong_item_rate",
+            "note",
+        ],
         "properties": {
             "reviewer_kind": _nonempty(),
             "sample_size": _count(),
             "scored": _count(),
+            "joined": {"type": ["integer", "null"], "minimum": 0},
+            "unjoined": {"type": ["integer", "null"], "minimum": 0},
             "wrong_item_rate": {"type": ["number", "null"], "minimum": 0},
             "awkward_rate": {"type": ["number", "null"], "minimum": 0},
             "note": {"type": "string"},
@@ -314,11 +331,18 @@ def summarise(report: Mapping[str, Any]) -> dict[str, Any]:
         "wrong_item_rate_note": PROVISIONAL_DEFECT_RATE_NOTE,
         "reviewer_kind": None,
         "reviewer_sample_size": 0,
+        # The denominator travels with the rate for the same reason the note does: S002
+        # and S137 render "measured wrong-item rate 1.0%", and 3/300 of a sheet is not
+        # the same claim as 300/300 of it.
+        "reviewer_scored": 0,
+        "reviewer_joined": None,
     }
     if review is not None:
         summary["wrong_item_rate"] = review["wrong_item_rate"]
         summary["reviewer_kind"] = review["reviewer_kind"]
         summary["reviewer_sample_size"] = review["sample_size"]
+        summary["reviewer_scored"] = review["scored"]
+        summary["reviewer_joined"] = review["joined"]
         summary["wrong_item_rate_note"] = (
             "" if review["reviewer_kind"] == REVIEWER_KIND_PAID_NATIVE else review["note"]
         )

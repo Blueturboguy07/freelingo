@@ -13,6 +13,37 @@ slow one that proves the app exists on real devices; `mutation.yml` is nightly a
 
 (`cla.yml` is the CLA bot on pull requests and proves nothing about the code.)
 
+What each **job** of `pack-ci.yml` proves, since the workflow row above is one line for
+four jobs. "Never run" means exactly that; the reasons are in `docs/P2-BLOCKERS.md`.
+
+| Job              | Proves                                                                                                                                                                                     | Has it ever been green?             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| `coursekit`      | ruff + the whole pytest suite, with `opus-tools` installed so the INV-AUD-08 clip guard runs instead of skipping, and `coursekit --help` reaching every verb                               | yes, every push                     |
+| `pipeline-ready` | every id in `VALIDATOR_IDS` and `BUILD_STAGE_IDS` is registered — and while it says `false`, the two jobs below **skip**, which is green                                                   | yes; `ready=true` since `281b623`   |
+| `build-es`       | G0–G9 on a real corpus with a real LanguageTool 6.6 sidecar and all four dependency groups; the bank inside the 120 MB budget; the sheet drawn; the manifest signed when the secret exists | **no — fails at G5** (B1/B1a)       |
+| `validate-es`    | `coursekit validate es` exits 0, V1–V4 at 100%, no validator unregistered or skipped, **the built pack opens in `packages/core`'s loader**, and `es-pack-<sha>` is complete                | **no — skips on `needs: build-es`** |
+
+Two things `validate-es` now asserts that it did not before, both because the previous
+round found the assertion missing rather than failing:
+
+- **The pack the gate built is the pack the loader opens.** The gate clause is "the pack
+  loads in `packages/core`'s pack loader tests", and it was discharged against the
+  committed `packages/core/src/packs/__fixtures__/es-mini` pack. That fixture is a real
+  `coursekit` G9 output and the right thing for a unit test, and it is 30 rows built by a
+  different invocation on a different day; the pack `build-es` produces was uploaded and
+  never opened. So the job now sets `FREELINGO_REAL_PACK` to
+  `build/es/g9/pack.sqlite` and runs `packages/core/src/packs/real-pack.test.ts` over it:
+  meta a device can read, unit 1 lesson 1 non-empty, item ids that resolve to exercises,
+  `creditsViolations()` empty, the manifest's hard gate at 100% with a V8 engine record
+  that is neither `none` nor a mock, `payloadSha256` equal to the real file's digest, and
+  the install gate mapping a bad signature to `unverified` rather than installing.
+- **That test fails rather than skips when the pack is absent.** With
+  `FREELINGO_REAL_PACK` unset the whole file is skipped, so `pnpm test`, `ci.yml` and
+  every developer run are unaffected — there is no 90-minute build tree on a laptop. With
+  it set and the pack missing, the first assertion is red and names the path it wanted.
+  An env-gated test that skipped in both cases would be `flows-present`'s failure one
+  workflow over: a green tick over nothing.
+
 ## `pack-bake.yml` was deleted, and why that is the honest option
 
 **Decision, 2026-09-12: `pack-bake.yml` is deleted.** The brief offered two ways out —
@@ -82,13 +113,25 @@ G4 emitted 918 gap slots and `content/es/candidates.jsonl` covers a handful. `va
 then skipped on `needs:`. Reproduced locally 2026-09-12 outside CI (920 gaps, 918 at
 zero), so it is not a runner artefact. Two consequences worth stating plainly:
 
-- `coursekit validate es` **has never run**. V1–V4 at 100%, V5–V12, the V8 engine record,
-  the licence sweep, the 120 MB bank measured on real bytes, `coursekit sample es` and
-  `coursekit sign es` are all unproven on real data.
-- Even once the content lands, **`validate-es` still cannot exit 0 today**: `build-es`
-  names no grammar engine and no KenLM model, so V8 blocks on "zero errors from nothing".
-  `docs/P2-BLOCKERS.md` B8 carries the one-step remedy and the live measurement that
-  proves it.
+- `coursekit validate es` **has never run in CI**. V1–V4 at 100%, V5–V12, the licence
+  sweep, the 120 MB bank measured on real bytes, `coursekit sample es` and
+  `coursekit sign es` are all unproven on real data. (It has been run once locally on a
+  diagnostic tree, which is where B17's 13 falling unit boundaries were measured.)
+- **The two things that would have stopped it one stage later are now in the workflow.**
+  B8: `build-es` named no grammar engine and no KenLM model, so V8 would have blocked on
+  "zero errors from nothing" for any content whatsoever — it now starts a LanguageTool 6.6
+  sidecar, probes it for `MORFOLOGIK_RULE_ES` (Spanish has a spell checker as well as
+  grammar rules, so a `spellcheck_engine: none` on es is a broken sidecar and not a
+  property of the language) and passes the **server base**, because
+  `LanguageToolEngine` appends `/v2/languages` and `/v2/check` itself and a URL ending in
+  an endpoint fails on a 404 for `/v2/check/v2/languages`. KenLM stays absent on purpose:
+  the pip package ships the query module only, so G6 degrades to `grammar_only`, names
+  what it lost, and V8 does not block. B13: the `align` group was missing and G7 exits 3
+  without it, with no fallback, because a degraded aligner produces word-bank hints that
+  are wrong in a way no row-level validator can see.
+  `tools/coursekit/tests/test_validate_runner.py` and `test_g6_validate_language.py` read
+  the YAML and fail if either regresses — a regression there is a _skipped_ `validate-es`,
+  and a skipped job is a green job.
 
 `build-es` carries the `tts` dependency group and the cached Kokoro weights, unlike the
 `coursekit` job. A stage whose group is absent exits 3 rather than degrading, G8 needs

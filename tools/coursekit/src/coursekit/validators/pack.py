@@ -34,6 +34,7 @@ from ..artifacts import artifact_path, read_records
 from ..config.validate import (
     AUTHORED_SENTENCE_LICENCE,
     AUTHORED_SENTENCE_OWNER,
+    CROSS_SECTION_DIFFICULTY_FALL_SEVERITY,
     DIFFICULTY_EPSILON,
     DIFFICULTY_WEIGHT_DECILE,
     DIFFICULTY_WEIGHT_TOKENS,
@@ -46,6 +47,7 @@ from ..config.validate import (
     SHIPPED_FONT_RANGES,
     UNBANDED_TOKEN_DECILE,
     UNRESOLVED_LICENCE_VALUES,
+    WITHIN_SECTION_DIFFICULTY_FALL_SEVERITY,
     allowed_licences_for,
 )
 from ..ledger import letter_runs
@@ -55,6 +57,7 @@ __all__ = [
     "ShippedItem",
     "covered_by_shipped_font",
     "difficulty",
+    "sections_by_unit",
     "shipped_items",
     "word_tokens",
 ]
@@ -219,6 +222,19 @@ def shipped_items(lang: str) -> tuple[ShippedItem, ...]:
 
 def _deciles(lang: str) -> dict[str, int]:
     return {row["lemma"].lower(): row["decile"] for row in _read("banded_lemma", lang)}
+
+
+def sections_by_unit(lang: str) -> dict[int, int]:
+    """`unit_index -> section_index`, from G3's `unit_assignment`.
+
+    Founder ruling B17 makes V11's severity a function of whether a boundary is a SECTION
+    boundary, so the mapping is an input the validator must have rather than something it
+    may assume. `_read` raises `SuiteInputMissing` when G3 has not run: V11 then reports
+    the missing artefact instead of defaulting every unit into one section, which is the
+    one default that would make the ruling unfalsifiable (see
+    `tests/test_validators_pack.py`, the "one section" falsifier).
+    """
+    return {row["unit_index"]: row["section_index"] for row in _read("unit_assignment", lang)}
 
 
 def difficulty(item: ShippedItem, deciles: dict[str, int]) -> tuple[float, int, int]:
@@ -387,10 +403,29 @@ def mean_difficulty_is_non_decreasing(ctx: ValidatorContext) -> list[Finding]:
     build has no reason to be immune. A per-sentence check cannot see it: every
     individual candidate can be inside the ledger and the batch can still be flatter than
     the curriculum it was written for.
+
+    **Founder ruling B17 (2026-09-12) decides the severity, not the check.** Every fall
+    is measured, named and carried into `validator-report.json` with its delta. A fall
+    **across a section boundary** blocks: a section is the course's own promise of a
+    level (`unit_assignment.section_cefr`), and breaking that promise is not a content
+    nuance. A fall **inside** a section is a warning, because the run that measured this
+    found 13 of them — largest −3.222 at u18→u19 — and the cause is structural rather
+    than a defect: an authored gap-fill sentence is shorter and plainer than a corpus
+    sentence that happened to fit the same window, so a gap-heavy unit reads easier than
+    the one before it while its vocabulary is strictly larger. Whether a learner feels
+    that as a regression is what the reviewer sample (B3) is for.
+
+    **The falsifier for the ruling is not a fall at all; it is the section map.** A V11
+    that treated an absent or partial `unit_assignment` as "one big section" would
+    downgrade every cross-section regression to a warning and report green over a course
+    that got easier — the ruling would then be unfalsifiable, because no input could make
+    the blocking branch fire. So an absent artefact is `_input_missing`, and a unit with
+    no section row is a blocking finding naming the unit.
     """
     try:
         items = shipped_items(ctx.lang)
         deciles = _deciles(ctx.lang)
+        sections = sections_by_unit(ctx.lang)
     except SuiteInputMissing as exc:
         return [_input_missing("V11", exc)]
 
@@ -429,23 +464,87 @@ def mean_difficulty_is_non_decreasing(ctx: ValidatorContext) -> list[Finding]:
         means[unit_index] = fmean(scores) if scores else 0.0
 
     ordered = sorted(means)
+
+    # A unit with no section row is the falsifier's input: B17's severity rule cannot be
+    # applied to it, and guessing would make the ruling unfalsifiable.
+    unplaced = [unit for unit in ordered if unit not in sections]
+    for unit_index in unplaced:
+        findings.append(
+            Finding(
+                validator_id="V11",
+                severity="blocking",
+                message=(
+                    f"unit {unit_index} ships items and has no row in unit_assignment, "
+                    f"so V11 cannot tell which section it is in. Founder ruling B17 makes "
+                    f"severity a function of the section boundary; a unit with no section "
+                    f"would silently take the warning branch and a real cross-section "
+                    f"regression would report green."
+                ),
+                subject=f"u{unit_index}",
+            )
+        )
+
+    within_section_falls: list[dict[str, Any]] = []
+    cross_section_falls: list[dict[str, Any]] = []
     for previous, following in zip(ordered, ordered[1:], strict=False):
         drop = means[previous] - means[following]
-        if drop > DIFFICULTY_EPSILON:
+        if drop <= DIFFICULTY_EPSILON:
+            continue
+        before_section = sections.get(previous)
+        after_section = sections.get(following)
+        if before_section is None or after_section is None:
+            # Already reported by name above; comparing an unplaced unit would be the
+            # guess this branch exists to refuse.
+            continue
+        record = {
+            "from_unit": previous,
+            "to_unit": following,
+            "before": means[previous],
+            "after": means[following],
+            # Signed, and negative: a reader of the report should not have to remember
+            # that a positive "drop" means the course got easier.
+            "delta": -drop,
+            "from_section": before_section,
+            "to_section": after_section,
+        }
+        crossed = before_section != after_section
+        if crossed:
+            cross_section_falls.append(record)
             findings.append(
                 Finding(
                     validator_id="V11",
-                    severity="blocking",
+                    severity=CROSS_SECTION_DIFFICULTY_FALL_SEVERITY,  # type: ignore[arg-type]
                     message=(
                         f"mean difficulty falls from {means[previous]:.3f} in unit "
                         f"{previous} to {means[following]:.3f} in unit {following} "
-                        f"(-{drop:.3f}). The curriculum goes forwards; the content went "
-                        f"backwards."
+                        f"(-{drop:.3f}), ACROSS the section boundary "
+                        f"s{before_section}->s{after_section}. The curriculum goes "
+                        f"forwards; the content went backwards. A section is the course's "
+                        f"own promise of a level, so this one blocks (founder ruling B17)."
                     ),
                     subject=f"u{previous}->u{following}",
-                    detail={"before": means[previous], "after": means[following]},
+                    detail=record,
                 )
             )
+            continue
+        within_section_falls.append(record)
+        findings.append(
+            Finding(
+                validator_id="V11",
+                severity=WITHIN_SECTION_DIFFICULTY_FALL_SEVERITY,  # type: ignore[arg-type]
+                message=(
+                    f"mean difficulty falls from {means[previous]:.3f} in unit "
+                    f"{previous} to {means[following]:.3f} in unit {following} "
+                    f"(-{drop:.3f}), inside section {before_section}. Founder ruling B17: "
+                    f"within a section this is a warning carried in the report with its "
+                    f"measured delta, not a block — a gap-heavy unit reads easier than the "
+                    f"one before it while its vocabulary is strictly larger, and whether a "
+                    f"learner feels it as a regression is the reviewer sample's question."
+                ),
+                subject=f"u{previous}->u{following}",
+                detail=record,
+            )
+        )
 
     coverage = (banded_tokens / total_tokens) if total_tokens else 0.0
     if coverage < MIN_BANDED_TOKEN_COVERAGE:
@@ -469,6 +568,37 @@ def mean_difficulty_is_non_decreasing(ctx: ValidatorContext) -> list[Finding]:
         units=len(means),
         mean_difficulty={str(unit): round(value, 4) for unit, value in means.items()},
         banded_token_coverage=round(coverage, 4),
+        # B17: the warning is only honest if the number rides with it. `validator-report
+        # .json` carries these rows, so a reader of S002/S137 — or of the next round's
+        # blocker file — sees the 13 falls and their deltas rather than a warning count.
+        sections=len(set(sections.values())),
+        section_by_unit={str(unit): section for unit, section in sorted(sections.items())},
+        within_section_falls=[
+            {
+                "boundary": f"u{row['from_unit']}->u{row['to_unit']}",
+                "section": row["from_section"],
+                "before": round(float(row["before"]), 4),
+                "after": round(float(row["after"]), 4),
+                "delta": round(float(row["delta"]), 4),
+            }
+            for row in within_section_falls
+        ],
+        cross_section_falls=[
+            {
+                "boundary": f"u{row['from_unit']}->u{row['to_unit']}",
+                "sections": f"s{row['from_section']}->s{row['to_section']}",
+                "before": round(float(row["before"]), 4),
+                "after": round(float(row["after"]), 4),
+                "delta": round(float(row["delta"]), 4),
+            }
+            for row in cross_section_falls
+        ],
+        largest_fall_delta=(
+            round(min(float(row["delta"]) for row in within_section_falls + cross_section_falls), 4)
+            if (within_section_falls or cross_section_falls)
+            else 0.0
+        ),
+        units_with_no_section=unplaced,
     )
     return findings
 

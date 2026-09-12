@@ -15,10 +15,13 @@ from coursekit.artifacts import artifact_path, write_records
 from coursekit.config import INGEST_LICENCE_ALLOW_LIST
 from coursekit.config.validate import (
     AUTHORED_SENTENCE_LICENCE,
+    CROSS_SECTION_DIFFICULTY_FALL_SEVERITY,
     MIN_ITEMS_PER_UNIT_FOR_DIFFICULTY,
     REQUIRED_CHARACTERS_BY_LANGUAGE,
     RTL_LANGUAGES,
     SHIPPED_FONT_RANGES,
+    SUITE_REQUIRED_ARTIFACTS,
+    WITHIN_SECTION_DIFFICULTY_FALL_SEVERITY,
     allowed_licences_for,
 )
 from coursekit.runlog import RunLog
@@ -30,6 +33,7 @@ from coursekit.validators.pack import (
     direction_and_font_coverage,
     every_sentence_carries_a_resolved_licence,
     mean_difficulty_is_non_decreasing,
+    sections_by_unit,
     shipped_items,
     word_tokens,
 )
@@ -44,6 +48,53 @@ def context(lang: str = "es") -> ValidatorContext:
 
 def blocking(findings: list[Finding]) -> list[Finding]:
     return [finding for finding in findings if finding.severity == "blocking"]
+
+
+def warnings(findings: list[Finding]) -> list[Finding]:
+    return [finding for finding in findings if finding.severity == "warning"]
+
+
+#: The five section labels `artifacts.UNIT_ASSIGNMENT` permits, so a fixture section
+#: number resolves to a label the schema accepts rather than a made-up one.
+_SECTION_CEFR = ("Intro", "A1", "A2", "B1", "B2")
+
+
+def write_sections(units_to_sections: dict[int, int], lang: str = "es") -> None:
+    """Write G3's `unit_assignment` for a fixture build.
+
+    `make_es_build` (conftest, another lane's file) writes G0/G4/G5/G2/G7/G9 artefacts
+    and no G3 one, because nothing read G3 until founder ruling B17 made V11's severity
+    depend on the section a unit is in. So the section map is written here, per test,
+    and each V11 test states the section layout it is about — which is the right shape
+    anyway: "unit 3 is easier than unit 2" is a different finding depending on whether
+    the two are in the same section, so a test that did not say would be testing nothing.
+    """
+    write_records(
+        "unit_assignment",
+        [
+            {
+                "schema_version": 1,
+                "lang": lang,
+                "section_index": section,
+                "section_cefr": _SECTION_CEFR[min(section, len(_SECTION_CEFR)) - 1],
+                "unit_index": unit,
+                "unit_title": f"unit {unit}",
+                "function": f"function-{unit}",
+                "grammar_concept": f"concept-{unit}",
+                "register_slot": "n/a",
+                "target_lemmas": [f"lemma-{unit}"],
+                "recycled_lemmas": [],
+                "level_count": 4,
+            }
+            for unit, section in sorted(units_to_sections.items())
+        ],
+        lang=lang,
+    )
+
+
+def one_section(units: int) -> dict[int, int]:
+    """Every unit in section 1: the layout where no boundary is a section boundary."""
+    return dict.fromkeys(range(1, units + 1), 1)
 
 
 # ---------------------------------------------------------------------------
@@ -90,8 +141,8 @@ def test_v10_fails_a_single_unresolved_licence(make_es_build) -> None:
     assert "unresolved" in found[0].message
 
 
-def test_v10_fails_a_licence_that_resolved_to_the_wrong_thing(make_es_build) -> None:
-    """The dangerous case is not an empty field, it is a real string off the allow-list.
+def test_INV_PACK_13_v10_fails_a_licence_that_resolved_to_the_wrong_thing(make_es_build) -> None:
+    """[INV-PACK-13] the dangerous case is not an empty field: a real string, off-list.
 
     CC BY-NC-ND is the licence that cut TED2020: a validator that only looked for empty
     or `UNKNOWN` would let it through, and every intermediate artefact would already
@@ -105,8 +156,8 @@ def test_v10_fails_a_licence_that_resolved_to_the_wrong_thing(make_es_build) -> 
     assert any("allow-list" in finding.message for finding in found)
 
 
-def test_v10_fails_an_nc_corpus_row_even_though_the_pack_itself_is_nc(make_es_build) -> None:
-    """The falsifier for a MERGED allow-list, beside the ND one above.
+def test_INV_PACK_13_v10_fails_an_nc_corpus_row_even_though_the_pack_is_nc(make_es_build) -> None:
+    """[INV-PACK-13] the falsifier for a MERGED allow-list, beside the ND one above.
 
     `AUTHORED_SENTENCE_LICENCE` is `CC-BY-NC-SA-4.0` — the pack's own licence, which
     this repository may put on text it wrote. A first version of V10 built one set,
@@ -216,18 +267,129 @@ def test_difficulty_is_the_declared_formula() -> None:
 
 def test_v11_passes_a_curriculum_that_gets_harder(make_es_build) -> None:
     make_es_build(units=4, per_unit=6)
-    assert blocking(mean_difficulty_is_non_decreasing(context())) == []
+    write_sections({1: 1, 2: 1, 3: 2, 4: 2})
+    assert mean_difficulty_is_non_decreasing(context()) == []
 
 
-def test_v11_fails_when_a_later_unit_is_easier(make_es_build) -> None:
-    """Batch-level drift: every sentence is legal and the batch went backwards."""
+def test_v11_fails_when_a_later_unit_is_easier_across_a_section_boundary(
+    make_es_build,
+) -> None:
+    """Batch-level drift: every sentence is legal and the batch went backwards.
+
+    Founder ruling B17 kept this case blocking and narrowed it to section boundaries, so
+    the fixture places the fall on one: units 1-2 are section 1, units 3-4 section 2, and
+    difficulty collapses at unit 3.
+    """
     make_es_build(units=4, per_unit=6, difficulty_of_unit=lambda unit: 10 if unit < 3 else 1)
+    write_sections({1: 1, 2: 1, 3: 2, 4: 2})
     found = blocking(mean_difficulty_is_non_decreasing(context()))
     assert found and "goes forwards" in found[0].message
+    assert "ACROSS the section boundary s1->s2" in found[0].message
+    assert found[0].subject == "u2->u3"
+    assert found[0].detail["delta"] < 0
+
+
+def test_v11_warns_rather_than_blocks_on_a_fall_inside_one_section(make_es_build) -> None:
+    """**Founder ruling B17, the whole of it.** Same content, one section.
+
+    The fixture is the blocking test's, with the section map changed and nothing else:
+    the same measured fall at the same boundary is a WARNING when both units are inside
+    one section. Nothing is softened away — the finding is still there, still names the
+    boundary, and still carries the measured delta, because the round that raised B17
+    measured 13 of these and the largest was −3.222 at u18->u19. A validator that simply
+    stopped looking inside a section would have reported the same green as one that
+    looked and found nothing.
+    """
+    make_es_build(units=4, per_unit=6, difficulty_of_unit=lambda unit: 10 if unit < 3 else 1)
+    write_sections(one_section(4))
+    findings = mean_difficulty_is_non_decreasing(context())
+    assert blocking(findings) == []
+    warned = [finding for finding in warnings(findings) if finding.subject == "u2->u3"]
+    assert len(warned) == 1
+    assert "inside section 1" in warned[0].message
+    assert "Founder ruling B17" in warned[0].message
+    # The measured delta rides with the warning, in the message and in the detail.
+    assert warned[0].detail["delta"] < 0
+    assert f"-{-warned[0].detail['delta']:.3f}" in warned[0].message
+
+
+def test_v11_would_pass_while_wrong_if_a_missing_section_map_read_as_one_section(
+    make_es_build,
+) -> None:
+    """THE falsifier for B17, and it is not a fall — it is the section map.
+
+    B17 makes severity a function of the boundary, so a V11 that defaulted an absent or
+    partial `unit_assignment` to "one big section" would take the warning branch for
+    every boundary in the course. The two tests above would both still pass, `coursekit
+    validate es` would exit 0, and a Spanish course that gets easier at the A1->A2 line
+    would ship. No input could then make the blocking branch fire, which is what an
+    unfalsifiable ruling looks like.
+
+    Two inputs, because there are two ways to lose the map:
+
+    * the artefact is absent — G3 has not run — and V11 reports the missing input;
+    * the artefact exists and one shipping unit has no row in it, which is the
+      partial-map case a `dict.get(unit, 1)` would swallow silently.
+    """
+    make_es_build(units=4, per_unit=6, difficulty_of_unit=lambda unit: 10 if unit < 3 else 1)
+
+    absent = blocking(mean_difficulty_is_non_decreasing(context()))
+    assert absent and "unit_assignment" in absent[0].message
+    assert absent[0].subject == "<missing-artefact>"
+
+    # 1-3 in one section so the u2->u3 fall is the WARNING branch; unit 4 ships and
+    # is in no section at all, which is the partial-map case.
+    write_sections({1: 1, 2: 1, 3: 1})
+    partial = blocking(mean_difficulty_is_non_decreasing(context()))
+    assert [finding.subject for finding in partial] == ["u4"]
+    assert "cannot tell which section" in partial[0].message
+
+
+def test_the_two_severities_are_named_constants_and_are_not_the_same_one() -> None:
+    """B17 is one line of config, and the line has to say two different things."""
+    assert CROSS_SECTION_DIFFICULTY_FALL_SEVERITY == "blocking"
+    assert WITHIN_SECTION_DIFFICULTY_FALL_SEVERITY == "warning"
+
+
+def test_the_section_map_is_a_declared_suite_input_not_an_incidental_read() -> None:
+    """`unit_assignment` is in `SUITE_REQUIRED_ARTIFACTS`, so its absence is a failure.
+
+    The constant is the suite's statement of what it must be able to read. An artefact
+    V11 depends on that were listed as OPTIONAL would be one deletion away from turning
+    the blocking branch off for good.
+    """
+    assert "unit_assignment" in SUITE_REQUIRED_ARTIFACTS
+
+
+def test_the_section_map_reader_returns_the_g3_assignment(make_es_build) -> None:
+    make_es_build(units=3, per_unit=4)
+    write_sections({1: 1, 2: 2, 3: 2})
+    assert sections_by_unit("es") == {1: 1, 2: 2, 3: 2}
+
+
+def test_v11_records_every_fall_and_its_delta_in_the_report(make_es_build) -> None:
+    """The report is where B17's warning has to survive: notes, not just a count.
+
+    `docs/P2-BLOCKERS.md` §B17 exists because a run PRINTED its 13 falls with their
+    deltas. If the warning carried only a message, the next round would have to re-run
+    the build to learn which boundaries moved and by how much.
+    """
+    make_es_build(units=4, per_unit=6, difficulty_of_unit=lambda unit: 10 if unit < 3 else 1)
+    write_sections({1: 1, 2: 1, 3: 2, 4: 2})
+    ctx = context()
+    mean_difficulty_is_non_decreasing(ctx)
+    notes = ctx.entry.notes
+    assert notes["sections"] == 2
+    assert notes["units_with_no_section"] == []
+    assert [row["boundary"] for row in notes["cross_section_falls"]] == ["u2->u3"]
+    assert notes["cross_section_falls"][0]["sections"] == "s1->s2"
+    assert notes["cross_section_falls"][0]["delta"] < 0
+    assert notes["largest_fall_delta"] == notes["cross_section_falls"][0]["delta"]
 
 
 def test_v11_fails_a_unit_too_small_to_have_a_mean(make_es_build) -> None:
     make_es_build(units=3, per_unit=MIN_ITEMS_PER_UNIT_FOR_DIFFICULTY - 1)
+    write_sections(one_section(3))
     found = blocking(mean_difficulty_is_non_decreasing(context()))
     assert found and "noise" in found[0].message
 
@@ -237,16 +399,18 @@ def test_v11_warns_rather_than_lies_when_the_banded_table_barely_matches(
 ) -> None:
     """Coverage is the honesty half: below the floor the number is sentence length."""
     make_es_build(units=4, per_unit=6)
+    write_sections(one_section(4))
     write_records("banded_lemma", [], lang="es")
     findings = mean_difficulty_is_non_decreasing(context())
-    warnings = [finding for finding in findings if finding.severity == "warning"]
-    assert warnings and "difficulty proxy" in warnings[0].message
+    assert any("difficulty proxy" in finding.message for finding in warnings(findings))
 
 
 def test_v11_fails_on_an_empty_pack(make_es_build) -> None:
     make_es_build(units=1, per_unit=1)
+    write_sections(one_section(1))
     write_records("selected_item", [], lang="es")
-    assert blocking(mean_difficulty_is_non_decreasing(context()))
+    found = blocking(mean_difficulty_is_non_decreasing(context()))
+    assert found and "had no shipped sentence to check" in found[0].message
 
 
 # ---------------------------------------------------------------------------
