@@ -1,0 +1,50 @@
+{
+  "$comment": "Invariant ids the P2 fix task `p2fix-author-u01-u06` contributes to. This lane writes ONE file of content — content/es/candidates/u01-u06.jsonl, the authored gap-fill candidates for units 1-6 — and no code. It therefore owns no test of its own; what it owns is the input three coursekit gates read, and the gates are the tests. The claim recorded here is deliberately narrow: an authoring lane can make INV-PACK-06/08/10 provable, and it can make them fail, but it cannot prove them by itself. G5/G6 and V1-V6 do that, in `tools/coursekit`, on the shard this lane wrote.",
+  "task": "p2fix-author-u01-u06",
+  "module": "content/es/candidates/u01-u06.jsonl",
+  "phase": "P2",
+  "owned": [],
+  "contributesTo": {
+    "INV-PACK-06": "V1-V4 at 100% is a property of the ledger, and every candidate this lane writes is measured against the G4 gap row's lemma window before it can fill a slot: `allowed_lemmas` is copied verbatim from the frozen brief (the stale_ledger axis), every lemma es_core_news_md finds in `text` is inside that window (out_of_vocabulary, which is V1's 'no lemma before its unit' seen from the authoring side), and at most one lemma of the slot's `new_lemmas` appears (new_lemma_budget, V2's <=1 new item per exercise).",
+    "INV-PACK-08": "V6 reads the accepted answers of the exercises G7 expands from these texts. The es course declares ONE register for the whole run - DEFAULT_REGISTER_BY_SLOT['binary_t_v'] = 'tu', because section 1 unit 1 declares binary_t_v and G7 takes the first slot in sorted order - so `usted` or `ustedes` anywhere in this shard is a blocking V6 finding, and a sentence carrying both a tu-marker and a usted-marker is a second one. This lane's authoring rule is therefore: no usted, no ustedes, no mixed-register sentence. Verified over the shard by scripts/verify_shard.py alongside the G5 axes.",
+    "INV-PACK-10": "The invariant's gate is a property of the generator, not of the output, and the generator is `stages/g5_gapfill.py` (this lane touches no Python). What this lane owes it is the condition that makes discard-and-resample possible: 20 candidates per slot, so a slot that loses candidates to an axis still has a next one and is never filled by a patched sentence. A shard with a thin slot forces exactly the choice the invariant exists to remove."
+  },
+  "heldWithoutAnInvariantId": [
+    "Back-translation scores are the agent's own judgement against content/es/gapfill-rubric.md, recorded per candidate at authoring time (rubric_version 1, judged_by 'agent'). They are a floor on quality, not a measurement of it; the measurement is the paid 300-item native-reviewer sample. Scores below 3 are written down rather than rounded up, because G6 discarding them is the rubric working."
+  ],
+  "measured": {
+    "$comment": "Measured against the frozen brief `coursekit gaps es` wrote from G4 run 8db636fb85db4b9ebc3ed2ff6c7004e2 (max_pairs 200000, 276,203 sentences ingested, 490 gap slots course-wide, brief digest e1dcba859bdfe9aa157b14d130d692bec1bf72041624b0921c0ea99733adfbbe). The numbers come from a replica of G5's five axes run over this shard with the same es_core_news_md adapter G1 and G5 use, including G5's per-unit `seen` bookkeeping (every accepted text, not only the one that fills).",
+    "gap_slots_units_1_to_6": 143,
+    "rows": 2735,
+    "distinct_sentences": 421,
+    "rejected_by_axis": {
+      "stale_ledger": 0,
+      "out_of_vocabulary": 0,
+      "new_lemma_budget": 0,
+      "length": 0,
+      "duplicate": 1307
+    },
+    "slots_with_a_G5_survivor": 143,
+    "slots_with_a_survivor_G6_would_ship": 138,
+    "winners_that_teach_the_slot_s_reserved_lemma": "137 of 138; the exception is u1/l3/s8, whose reserved lemma is `usted`",
+    "backtranslation_scores": {
+      "3": 880,
+      "2": 440,
+      "1": 165,
+      "4": 1250
+    },
+    "usted_or_ustedes_rows": 0,
+    "slots_below_MIN_CANDIDATES_PER_SLOT": 9
+  },
+  "blockers": [
+    "u1/l1/s0..s8 carry 1-11 candidates, not 20, and five of the nine have no candidate G6 would ship. The cause is the ledger window, not the authoring. Lesson 1 of unit 1 allows exactly {bueno, dia, hola, noche, tarde}: no verb (ser arrives at lesson 3), no article (el at lesson 19), no proper noun anywhere in the ledger, and es_core_news_md lemmatises every prenominal form of bueno to buen/buena/buenos/buenas - none of which is a ledger lemma - so `Buenos dias.` is OUT OF VOCABULARY in the lesson that teaches both `bueno` and `dia`. Eleven grammatical strings exist inside that window; four clear the rubric's ship bar. MIN_CANDIDATES_PER_SLOT is 20, so G5 fails the stage by name on those nine slots until the window, the chunking (five lemmas dealt to lesson 1 by _split_new_lemmas) or the floor is revisited. No amount of authoring changes it.",
+    "u1/l3/s8 reserves `usted` and this lane will not author it. The es course declares ONE register for the whole run - DEFAULT_REGISTER_BY_SLOT['binary_t_v'] = 'tu' - and V6 returns a BLOCKING finding for any accepted answer carrying `usted` or `ustedes`. Teaching the slot's lemma and passing V6 cannot both be true while the course declares 'tu', so the slot is filled with an in-window sentence that does not carry it and `usted` goes un-shown (a V4 coverage finding rather than a V6 blocking one). Founder call: either the course declares a second register for that unit, or `usted` leaves unit 1's target list."
+  ],
+  "method": {
+    "$comment": "How the shard was produced, since only the shard itself is inside this lane's file ownership.",
+    "authoring": "424 Spanish sentences written by hand into a lane pool, each tagged with the lemma it exists to teach, its English, and a back-translation score against content/es/gapfill-rubric.md. Every sentence was checked with the pinned spaCy adapter before it entered the pool, which is what caught the lemmatisation traps: gracias -> gracia, buenos -> buen, llamarse absent (the ledger has no `llamar`), cuantos -> cuantos, un/una -> uno, se/me/te -> el/yo/tu.",
+    "assignment": "Sentences are joined to slots by the ledger rather than by the lesson the author had in mind: a sentence is offered to a slot only when its lemma set is inside known+new, at most one lemma is the slot's new one, and spaCy counts 3-12 tokens. So a sentence written for one lesson lands in whichever lesson actually teaches it, and a chunking change moves it instead of breaking it.",
+    "the_twenty": "A slot's twenty are its fresh leaders plus sentences already accepted earlier in the same unit, which G5 rejects as duplicates. That is the only shape a closed vocabulary allows: unit 2 has 30 gap slots and its lesson-7 window admits about 120 sentences in total, so 20 x 30 distinct candidates do not exist. The duplicate rate (1,307 of 2,735 rows) is that fact, not a defect.",
+    "ledger_fields": "slot, ledger_digest and new_lemmas are copied from the brief verbatim by the generator; no lemma list is typed by hand."
+  }
+}
