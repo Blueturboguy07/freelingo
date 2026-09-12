@@ -273,11 +273,117 @@ es: 7/17 validators green, 0 unregistered, 0 skipped, 15 blocking finding(s). No
 
 ## CI
 
-<!-- CI-RESULTS -->
+All three workflows ran on the integration sha `47b91bd`.
+
+| Workflow         | Run                                                                    | Result                                                                                 |
+| ---------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `ci.yml`         | <https://github.com/Blueturboguy07/freelingo/actions/runs/34691399776> | **SUCCESS** — lint, typecheck, 114 files / 1,316 tests, golden-DB migrations, gitleaks |
+| `pack-ci.yml`    | <https://github.com/Blueturboguy07/freelingo/actions/runs/34691399785> | **FAILURE at G5, and nowhere else**                                                    |
+| `native-e2e.yml` | <https://github.com/Blueturboguy07/freelingo/actions/runs/34691399754> | **SUCCESS** — all four jobs                                                            |
+| `mutation.yml`   | nightly, non-gating                                                    | no score exists; B7                                                                    |
+
+### `ci.yml` — green on a re-run, and the first attempt is worth naming
+
+The first attempt failed with **1,316 of 1,316 tests passing**:
+
+```
+Vitest caught 1 unhandled error during the test run.
+Error: [vitest-worker]: Timeout calling "onTaskUpdate"
+Test Files  114 passed (114)
+Tests  1316 passed (1316)
+Errors  1 error
+```
+
+That is the reporter's RPC to the worker timing out on a 224-second run, not a test. Rerun
+of the failed job: green in 3m6s, same tree. Recorded rather than quietly re-run, because
+a flake that nobody writes down is a flake somebody re-runs forever.
+
+### `pack-ci.yml` — three jobs, and the one that matters got further than it ever has
+
+```
+✓ pipeline-ready (which stages and validators exist)   8s
+✓ coursekit lint + tests                               2m1s
+X build-es (G0-G9, capped ingest)                     24m20s
+- validate-es (V1-V12 + F1-F5)                        skipped (needs: build-es)
+```
+
+Every step of `build-es` before the build passed, including the two this round added:
+**`Sync nlp + lm + align + tts (locked)`** and **`Start the LanguageTool sidecar`**, whose
+last line is the probe asserting `MORFOLOGIK_RULE_ES` on a planted misspelling. Then:
+
+```
+11:35:34  g0  Ingest — corpus fetch, dedup, length and register filter, licence row
+11:36:33  g1  Analyze — segment, lemmatise, morph features (Mode A for ja)
+11:52:24  g2  Band — frequency rank and CEFR/decile band per lemma
+11:55:23  g3  Solve curriculum — assign lemmas and grammar concepts to units
+11:55:25  g4  Select — pick corpus sentences inside the ledger; emit the gap list
+11:58:50  g5  Gap-fill — the only authoring stage; candidates re-enter at G6
+11:59:16  g5 failed: 9 slot(s) authored below the over-generation floor of 20:
+          u1/l1/s0 (1), u1/l1/s1 (2), u1/l1/s2 (3), u1/l1/s3 (4), u1/l1/s4 (7),
+          u1/l1/s5 (8), u1/l1/s6 (9), u1/l1/s7 (10), u1/l1/s8 (11).
+          Generate-and-reject has nothing to resample from, and the alternative is patching.
+##[error]Process completed with exit code 4.
+```
+
+**Nine slots. Not 918, not 481 — nine, all in one lesson, all of them B9.** Round 1's build
+died at the same stage with every slot short; this one names the nine that a founder
+decision has to unblock.
+
+### The artefact that settles the ledger question — CI-produced, not corroboration
+
+`build-es` uploads `es-gap-brief-47b91bd…` on `always()`, which is why it survived the
+failure. Downloaded and diffed against the committed `content/es/authoring/gap-brief.jsonl`:
+
+```
+frozen 490 slots · CI 490 slots
+frozen digest e1dcba859bdfe9aa157b14d130d692bec1bf72041624b0921c0ea99733adfbbe
+CI     digest e1dcba859bdfe9aa157b14d130d692bec1bf72041624b0921c0ea99733adfbbe
+slots only in the frozen brief: 0 · only in CI's: 0
+ledger_digest mismatches: 0 · new_lemmas mismatches: 0 · ingested: 276,203 both
+```
+
+So the 9,687 authored rows are keyed to slots that exist **on a runner that streamed the
+corpus itself**, and `stale_ledger` cannot reject them. That was the open question of the
+round and it is answered by CI rather than by this Mac.
+
+### `native-e2e.yml`
+
+```
+✓ flows exist                                                8s
+✓ INV-PLAT-02 — native trees are generated and reproducible  20s
+✓ Android emulator                                           17m54s
+✓ iOS simulator                                              29m34s
+```
+
+Non-regression, as the gate asks. The iOS job failed on the previous sha `78cfae3` — a
+docs-only commit — with `xcrun simctl openurl … exited with non-zero code: 60` while
+opening the dev-client URL, and passed here on a tree that differs from it by content and
+workflow files only. Flaky simulator launch, not a regression.
+
+An earlier pair of runs on `aa49862` was **cancelled**, not failed: `pack-ci` and
+`native-e2e` share a concurrency group with the branch, so the push carrying the G7 fix
+killed them. `ci.yml` on that sha finished green first
+(<https://github.com/Blueturboguy07/freelingo/actions/runs/34690354264>).
 
 ## Screenshots
 
-<!-- SCREENSHOTS -->
+`gh run download 34691399754` → `e2e/artifacts/ci-47b91bd/`. Two screenshots, one per
+platform, both from the single P0 flow `p0-db-path`, both CI-produced:
+
+| File                                                         | What it shows                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `e2e-47b91bd…-ios/screenshots/p0-db-path-p0-db-path.png`     | the app's **Diagnostics** sheet on iPhone 17 / iOS 26.1: title in Freelingo green, `db-path` = `…/Application/395863DE…/Documents/freelingo-progress.db`, `journal-mode wal`, `user-version 2`, `packs-dir` = `…/Library/Caches/packs/`, `packs-excluded true`, `platform ios`, `db-path-persistent true`, `pre-migration-backup none`, and a green CLOSE |
+| `e2e-47b91bd…-android/screenshots/p0-db-path-p0-db-path.png` | the same sheet on API 34 x86_64: `file:///data/user/0/org.freelingo.app/files/freelingo-progress.db`, `wal`, `user-version 2`, `packs-dir file:///data/user/0/org.freelingo.app/cache/packs/`, `packs-excluded true`, `platform android`, `db-path-persistent true`                                                                                       |
+
+Both `report.xml` files read `tests="1" failures="0"`. Runner metadata is beside them:
+`maestro=2.10.0`, Android `api_level=34 arch=x86_64 target=google_apis`, iOS
+`simulator_used=iPhone 17 @ iOS-26-1`, `xcode=Xcode 26.2 Build version 17C52`.
+
+**There are no pack screenshots, and there cannot be yet.** P2's product is a content pack,
+not a screen. The first surfaces that render any of it — S001's course card with
+`{{n}}% machine-authored` and the measured wrong-item rate, S002's validator-report summary,
+S137's About — are P3's, and P3 has not started. `docs/pack-provenance.md` specifies their
+copy.
 
 ## Blockers
 
@@ -328,4 +434,10 @@ today and should get one at G3 whichever option is chosen.
 
 ## Disk
 
-<!-- DISK -->
+`df -h ~` at the end of the round: **69 GiB free of 460 GiB (84% used)**.
+
+P0's target of ≥80 GB free is still unmet, and nothing in P2 needed it. This round added
+about 1.5 GB locally that is not in the repository and is not needed again: the `align`
+group's torch/transformers wheels in `tools/coursekit/.venv` (1.1 GB), the pinned Kokoro
+weights (353,764,321 B across two files) and a LanguageTool 6.6 unpack, all under the
+session scratchpad or the venv. CI carries its own copies and caches the Kokoro weights.
