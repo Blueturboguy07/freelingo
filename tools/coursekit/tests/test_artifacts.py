@@ -16,6 +16,7 @@ import base64
 import json
 import re
 from collections import Counter
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -72,7 +73,13 @@ from coursekit.runlog import (
 #: eight lanes agree on these shapes before most of them exist, so an edit has to be a
 #: deliberate act with a failing test attached and a note to the other lanes, rather
 #: than a diff in a 300-line file that nobody reviews.
-FROZEN_CONTRACT_DIGEST = "3e2f6a6849cdb5a8815a5bc18f13d751742438ee6596d5267da3031bf703d0f2"
+#:
+#: Re-pinned 2026-09-12 by `p2r3/deps-contract` (round 3's deps lane), once, for one
+#: change: `candidate` gained a required, nullable `analysis` — B16's option 2, carrying
+#: G1's analysis across the G5 -> G7 boundary so G7 stops resolving a distractor by
+#: SURFACE. Previous value
+#: `3e2f6a6849cdb5a8815a5bc18f13d751742438ee6596d5267da3031bf703d0f2`.
+FROZEN_CONTRACT_DIGEST = "1e743a0c70077d64dcaae319a8763b909d8fa8a5ad01d6e0bba17a45a5102c7d"
 
 
 def test_the_contract_digest_is_frozen() -> None:
@@ -101,6 +108,56 @@ def test_every_record_carries_the_schema_version() -> None:
         assert art.schema["properties"]["schema_version"] == {"const": ARTIFACT_SCHEMA_VERSION}, (
             kind
         )
+
+
+def _closed_objects(schema: object, path: str = "<root>") -> Iterator[tuple[str, dict]]:
+    """Every object subschema that declares properties, anywhere in the contract."""
+    if isinstance(schema, dict):
+        if "properties" in schema:
+            yield path, schema
+        for key, value in schema.items():
+            if key in {"title", "description", "$schema", "const", "enum"}:
+                continue
+            yield from _closed_objects(value, f"{path}/{key}")
+    elif isinstance(schema, list):
+        for index, value in enumerate(schema):
+            yield from _closed_objects(value, f"{path}/{index}")
+
+
+def test_every_object_in_the_contract_is_closed_all_the_way_down() -> None:
+    """`test_every_record_is_closed` only reads the nine TOP-level records.
+
+    Every record shape that matters now lives one or more levels down —
+    `analysed_sentence.adapter`, `exercise.item_tags`, and as of B16
+    `candidate.analysis` and its `tokens[]`. An open sub-object is the same hole as an
+    open record: the next lane depends on a field the schema never promised. So the
+    closedness property is asserted over the whole tree, and the walk is counted so it
+    cannot pass by walking nothing.
+    """
+    walked = {}
+    for kind, art in ARTIFACTS.items():
+        for path, schema in _closed_objects(art.schema, kind):
+            assert schema.get("additionalProperties") is False, f"{path} is open"
+            assert sorted(schema["properties"]) == schema["required"], path
+            walked[path] = schema.get("title")
+
+    titles = set(walked.values())
+    assert {"Token", "Adapter", "CandidateAnalysis", "ItemTags"} <= titles, titles
+    # Nine records + every nested object. Fewer means the walk stopped early.
+    assert len(walked) >= 14, sorted(walked)
+
+
+def test_the_open_payload_is_the_only_object_the_contract_leaves_open() -> None:
+    """`pack_row.payload` is `{"type": "object"}` on purpose — `packages/schema` owns
+    the column shapes — and it is the ONE exemption, stated here so a second one cannot
+    appear as "the existing pattern"."""
+    open_objects = [
+        f"{kind}/{name}"
+        for kind, art in ARTIFACTS.items()
+        for name, prop in art.schema["properties"].items()
+        if isinstance(prop, dict) and prop.get("type") == "object" and "properties" not in prop
+    ]
+    assert open_objects == ["pack_row/payload"]
 
 
 def test_an_unknown_record_kind_is_never_a_pass_through() -> None:
@@ -188,6 +245,190 @@ def test_the_run_directory_is_under_the_ignored_build_root() -> None:
     """`build/` is in `.gitignore`; a run directory is output and is never committed."""
     assert run_dir("es").name == "es"
     assert run_dir("es").parent.name == "build"
+
+
+# ---------------------------------------------------------------------------
+# `candidate.analysis` — B16, the G5 -> G7 boundary
+# ---------------------------------------------------------------------------
+#
+# G7 resolved a gap by the SURFACE at the gap index. On a corpus sentence that works by
+# accident (a lowercase mid-sentence surface often equals its lemma); on an authored
+# sentence there was no analysis at all, so POS was empty, the band was `unbanded`, and
+# the stage stopped with `NotEnoughDistractors: … needed 3 distractors for 'tardes'
+# (POS , band unbanded) and the rule core found 0` — `tardes` is a surface, `tarde` is
+# the lemma, and over 490 authored items most gaps land on an inflected form.
+#
+# Founder ruling 2026-09-12, B16: option 2 — carry G1's analysis across the boundary,
+# which changes the frozen contract, which is this lane's to change. Two wave-2 lanes
+# code against these tests in parallel: gapfill WRITES the field from the analyser G5
+# already runs (`stages/g5_gapfill.py` `_lemmas`), expand READS it and must fail by name
+# when it is null for a row it is asked to expand.
+
+
+def _analysis() -> dict[str, object]:
+    return {
+        "analyser": {
+            "name": "spacy-es",
+            "version": "3.8.0",
+            "model": "es_core_news_md",
+            "split_mode": None,
+        },
+        "tokens": [
+            {
+                "surface": "Buenas",
+                "lemma": "bueno",
+                "pos": "ADJ",
+                "morph": "Gender=Fem|Number=Plur",
+                "start": 0,
+                "end": 6,
+            },
+            {
+                "surface": "tardes",
+                "lemma": "tarde",
+                "pos": "NOUN",
+                "morph": "Gender=Fem|Number=Plur",
+                "start": 7,
+                "end": 13,
+            },
+        ],
+        "lemmas": ["bueno", "tarde"],
+        "display_tokens": ["Buenas", "tardes"],
+    }
+
+
+def _candidate(**overrides: object) -> dict[str, object]:
+    record = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "lang": "es",
+        "candidate_id": sentence_id("es", "Buenas tardes"),
+        "unit_index": 1,
+        "lesson_index": 1,
+        "slot_index": 0,
+        "text": "Buenas tardes",
+        "translation": "Good afternoon",
+        "author": "agent:opus",
+        "generated_at": "2026-09-12T00:00:00Z",
+        "accepted": True,
+        "reject_reason": None,
+        "provenance": "llm",
+        "analysis": _analysis(),
+    }
+    record.update(overrides)
+    return record
+
+
+def test_a_candidate_carries_its_analysis_across_the_boundary() -> None:
+    """The whole point: what G5 writes is what G7 reads, lemma-for-lemma."""
+    assert write_records("candidate", [_candidate()], lang="es") == 1
+    (row,) = list(read_records("candidate", lang="es"))
+    assert row["analysis"]["lemmas"] == ["bueno", "tarde"]
+    # The lemma at the gap index, not the surface. This is the bug, in one assertion.
+    assert row["analysis"]["tokens"][1]["lemma"] == "tarde"
+    assert row["analysis"]["tokens"][1]["surface"] == "tardes"
+
+
+def test_the_analysis_is_the_g1_shape_and_cannot_drift_from_it() -> None:
+    """Not "the same fields", the same OBJECT.
+
+    A copy of G1's `Token` beside G1's `Token` is two shapes that agree today; the
+    expand lane reads one function over both a corpus row and an authored row, so a
+    field added to one and not the other is a crash in the lane that did nothing wrong.
+    """
+    analysed = ARTIFACTS["analysed_sentence"].schema["properties"]
+    analysis = ARTIFACTS["candidate"].schema["properties"]["analysis"]
+    shape = analysis["oneOf"][0]["properties"]
+
+    assert shape["tokens"] == analysed["tokens"]
+    assert shape["analyser"] == analysed["adapter"]
+    assert shape["lemmas"] == analysed["lemmas"]
+    assert shape["display_tokens"] == analysed["display_tokens"]
+    assert sorted(shape) == ["analyser", "display_tokens", "lemmas", "tokens"]
+
+
+def test_the_analysis_object_is_closed() -> None:
+    """Stated directly as well as through the recursive walk, because this is the object
+    two lanes are writing against this week."""
+    branch = ARTIFACTS["candidate"].schema["properties"]["analysis"]["oneOf"][0]
+    assert branch["additionalProperties"] is False
+    assert branch["required"] == sorted(branch["properties"])
+    token = branch["properties"]["tokens"]["items"]
+    assert token["additionalProperties"] is False
+    assert token["required"] == ["end", "lemma", "morph", "pos", "start", "surface"]
+
+
+def test_an_unknown_key_inside_the_analysis_is_refused_on_write() -> None:
+    bad = _candidate(analysis=_analysis() | {"confidence": 0.9})
+    with pytest.raises(ArtifactError, match="confidence"):
+        write_records("candidate", [bad], lang="es")
+
+
+def test_an_unknown_key_inside_the_analysis_is_refused_on_read(tmp_path: Path) -> None:
+    """Closedness one level down has to hold on the way OUT too.
+
+    The field exists to be read by another stage, and a nested extra key is the easiest
+    thing in the contract to smuggle: `additionalProperties: false` on the record says
+    nothing about the inside of `analysis`, so this asserts the inside, through
+    `read_records`, from a file this module never wrote.
+    """
+    path = tmp_path / "candidates.jsonl"
+    for record in (
+        _candidate(analysis=_analysis() | {"confidence": 0.9}),
+        _candidate(
+            analysis=_analysis() | {"tokens": [_analysis()["tokens"][0] | {"ner": "O"}]},  # type: ignore[index]
+        ),
+    ):
+        path.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+        with pytest.raises(ArtifactError):
+            list(read_records("candidate", path=path))
+
+
+def test_a_token_missing_its_offsets_is_refused_and_the_message_names_the_token() -> None:
+    """`start`/`end` are why the field is `tokens` and not just `lemmas`: the gap span
+    is computed from them.
+
+    The message matters as much as the refusal. A nullable sub-object is a `oneOf`, and
+    the plain jsonschema report for one is "analysis: {the whole object, inlined} is not
+    valid under any of the given schemas" — no field named, one token bundle per word
+    printed, for a stage streaming hundreds of rows. `validate_record` picks the
+    best-matching branch instead, so the path is `analysis/tokens/0`.
+    """
+    token = dict(_analysis()["tokens"][0])  # type: ignore[index]
+    del token["start"]
+    bad = _candidate(analysis=_analysis() | {"tokens": [token]})
+    with pytest.raises(ArtifactError) as raised:
+        write_records("candidate", [bad], lang="es")
+    assert "analysis/tokens/0: 'start' is a required property" in str(raised.value)
+    assert "is not valid under any of the given schemas" not in str(raised.value)
+
+
+def test_a_null_analysis_stays_legal() -> None:
+    """A row can exist with no analysis and it is not a schema violation.
+
+    A candidate rejected on `stale_ledger` is rejected before the analyser is reached,
+    and the reject rate is the number that tells you the ledger window is too tight —
+    so those rows are written, with nothing to carry. "Non-null exactly when G7 will
+    read it" is not expressible as a schema keyword, which is why the expand lane
+    enforces it in code and fails by name instead.
+    """
+    assert write_records("candidate", [_candidate(analysis=None)], lang="es") == 1
+    (row,) = list(read_records("candidate", lang="es"))
+    assert row["analysis"] is None
+
+
+def test_the_analysis_key_is_required_even_when_it_is_null() -> None:
+    """Nullable is not optional. An omitted key would let a writer that predates this
+    change keep writing rows the expand lane cannot tell from "analysed, no tokens"."""
+    partial = _candidate()
+    del partial["analysis"]
+    with pytest.raises(ArtifactError, match="analysis"):
+        write_records("candidate", [partial], lang="es")
+    assert "analysis" in ARTIFACTS["candidate"].schema["required"]
+
+
+def test_the_analysis_must_be_an_object_or_null_and_nothing_else() -> None:
+    for value in ("", "bueno tarde", [], 0, False):
+        with pytest.raises(ArtifactError, match="analysis"):
+            write_records("candidate", [_candidate(analysis=value)], lang="es")
 
 
 # ---------------------------------------------------------------------------

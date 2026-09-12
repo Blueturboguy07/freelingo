@@ -47,7 +47,7 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from jsonschema import ValidationError as _JsonSchemaValidationError
+from jsonschema.exceptions import best_match
 
 from .config import (
     ARTIFACT_SCHEMA_VERSION,
@@ -111,6 +111,70 @@ def _object(properties: Mapping[str, Any], title: str, description: str) -> dict
     }
 
 
+#: One analyser, pinned. Shared by `analysed_sentence.adapter` (G1, over a corpus
+#: sentence) and `candidate.analysis.analyser` (G5, over an authored one) so that the
+#: two can never drift into two different notions of "which lemmatiser said this".
+_ADAPTER = _object(
+    {
+        "name": _NONEMPTY,
+        "version": _NONEMPTY,
+        "model": {"type": ["string", "null"], "minLength": 1},
+        "split_mode": {"type": ["string", "null"], "enum": ["A", "B", "C", None]},
+    },
+    "Adapter",
+    (
+        "Which analyser produced this, pinned. A lemmatiser change "
+        "re-partitions the ledger and can retro-introduce a lemma before its "
+        "unit, so the version rides on every row rather than on the run."
+    ),
+)
+
+#: One morpheme-or-word. Shared by `analysed_sentence.tokens` and
+#: `candidate.analysis.tokens`: G7 reads the same shape whether the sentence came from
+#: the corpus or from an author, which is the whole point of carrying the analysis
+#: across the G5 -> G7 boundary (B16).
+_TOKEN = _object(
+    {
+        "surface": _NONEMPTY,
+        "lemma": _NONEMPTY,
+        "pos": _NONEMPTY,
+        "morph": {"type": "string"},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 1},
+    },
+    "Token",
+    "One morpheme-or-word with its UD POS tag and morph feature bundle.",
+)
+
+#: The G1-shaped analysis of an AUTHORED sentence, carried on the G5 record so that G7
+#: never has to look a token up by surface. Same four fields G1 emits, same `Token`, so
+#: a consumer can treat a corpus row and an authored row identically.
+CANDIDATE_ANALYSIS = _object(
+    {
+        "analyser": _ADAPTER,
+        "tokens": {"type": "array", "minItems": 1, "items": _TOKEN},
+        "lemmas": {"type": "array", "minItems": 1, "items": _NONEMPTY},
+        "display_tokens": {"type": "array", "minItems": 1, "items": _NONEMPTY},
+    },
+    "CandidateAnalysis",
+    (
+        "G5's analysis of its own text, in G1's shape. It exists because G7 used to "
+        "resolve a gap by the SURFACE at the gap index: for a corpus sentence that works "
+        "by accident when a lowercase mid-sentence surface equals its lemma, and for an "
+        "authored sentence there was no analysis at all, so POS was empty, the band was "
+        "`unbanded`, the rule core found zero distractors and G7 stopped ('needed 3 "
+        "distractors for \\'tardes\\' (POS , band unbanded)' — `tardes` is a surface, "
+        "`tarde` is the lemma). The alternative was a second full analyser pass inside "
+        "G7, which would make G7 depend on the `nlp` group as well as `align`; carrying "
+        "the pass G5 already runs is cheaper and cannot disagree with itself. "
+        "`analyser` is pinned for the same reason G1 pins it: the lemmas here join the "
+        "same ledger. `tokens` carries offsets because the gap span is computed from "
+        "them, `lemmas` is the ledger key set, and `display_tokens` is what the learner "
+        "sees and what the word bank is built from."
+    ),
+)
+
+
 # ---------------------------------------------------------------------------
 # The nine records
 # ---------------------------------------------------------------------------
@@ -149,36 +213,8 @@ ANALYSED_SENTENCE = _object(
         "schema_version": _SCHEMA_VERSION,
         "sentence_id": _ID16,
         "lang": _LANG,
-        "adapter": _object(
-            {
-                "name": _NONEMPTY,
-                "version": _NONEMPTY,
-                "model": {"type": ["string", "null"], "minLength": 1},
-                "split_mode": {"type": ["string", "null"], "enum": ["A", "B", "C", None]},
-            },
-            "Adapter",
-            (
-                "Which analyser produced this, pinned. A lemmatiser change "
-                "re-partitions the ledger and can retro-introduce a lemma before its "
-                "unit, so the version rides on every row rather than on the run."
-            ),
-        ),
-        "tokens": {
-            "type": "array",
-            "minItems": 1,
-            "items": _object(
-                {
-                    "surface": _NONEMPTY,
-                    "lemma": _NONEMPTY,
-                    "pos": _NONEMPTY,
-                    "morph": {"type": "string"},
-                    "start": {"type": "integer", "minimum": 0},
-                    "end": {"type": "integer", "minimum": 1},
-                },
-                "Token",
-                "One morpheme-or-word with its UD POS tag and morph feature bundle.",
-            ),
-        },
+        "adapter": _ADAPTER,
+        "tokens": {"type": "array", "minItems": 1, "items": _TOKEN},
         "lemmas": {"type": "array", "minItems": 1, "items": _NONEMPTY},
         "display_tokens": {"type": "array", "minItems": 1, "items": _NONEMPTY},
     },
@@ -285,6 +321,7 @@ CANDIDATE = _object(
         "accepted": {"type": "boolean"},
         "reject_reason": {"type": ["string", "null"], "minLength": 1},
         "provenance": {"const": "llm"},
+        "analysis": {"oneOf": [CANDIDATE_ANALYSIS, {"type": "null"}]},
     },
     "Candidate",
     (
@@ -294,7 +331,17 @@ CANDIDATE = _object(
         "types), so the constraint is enforced after generation, not during it. "
         "Rejected candidates are WRITTEN, not dropped — the reject rate is the number "
         "that tells you the ledger window is too tight. `author` is a model id or, in "
-        "an environment with no API keys, the agent that wrote the candidates file."
+        "an environment with no API keys, the agent that wrote the candidates file. "
+        "`analysis` carries G5's own analyser pass (it runs one already, to lemmatise "
+        "the candidate against the ledger) forward to G7, which otherwise has to guess "
+        "a lemma from a surface — see `CandidateAnalysis`. It is NULLABLE rather than "
+        "always present because a row can exist without one: a row rejected on an axis "
+        "evaluated before the analyser runs never had a pass, and no schema keyword can "
+        "say 'non-null exactly when G7 will read it'. The rule G7 enforces is therefore "
+        "a coded one and it fails BY NAME: an authored row G7 is asked to expand and "
+        "whose `analysis` is null stops the stage naming the candidate_id, rather than "
+        "silently falling back to the surface, which is the bug this field exists to "
+        "delete."
     ),
 )
 
@@ -451,13 +498,22 @@ def validate_record(kind: str, record: Mapping[str, Any], *, where: str = "") ->
     The message names the record kind, the failing path and the file, because the
     caller is usually a stage halfway through a 250k-row stream and "additional
     properties are not allowed" on its own identifies nothing.
+
+    The error is chosen with `best_match` rather than taken from `validate()`, and that
+    is not cosmetic. A nullable sub-object — `candidate.analysis`, the only interesting
+    one — is a `oneOf`, and `validate()` reports the FAILING COMBINATOR: "analysis:
+    {the entire analysis object, inlined} is not valid under any of the given schemas".
+    That message names no field, and the object it inlines is one token bundle per word.
+    `best_match` descends into the branch that nearly matched, so the same record
+    reports `analysis/tokens/0: 'start' is a required property`, which is the thing the
+    writer has to fix.
     """
-    try:
-        _validator_for(kind).validate(dict(record))
-    except _JsonSchemaValidationError as exc:
-        location = "/".join(str(part) for part in exc.absolute_path) or "<root>"
-        suffix = f" in {where}" if where else ""
-        raise ArtifactError(f"{kind}{suffix}: {location}: {exc.message}") from exc
+    error = best_match(_validator_for(kind).iter_errors(dict(record)))
+    if error is None:
+        return
+    location = "/".join(str(part) for part in error.absolute_path) or "<root>"
+    suffix = f" in {where}" if where else ""
+    raise ArtifactError(f"{kind}{suffix}: {location}: {error.message}") from error
 
 
 # ---------------------------------------------------------------------------
