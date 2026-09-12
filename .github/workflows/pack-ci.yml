@@ -165,7 +165,10 @@ jobs:
     needs: pipeline-ready
     if: needs.pipeline-ready.outputs.ready == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 90, raised from 60 at the P2 fix integration: this job now starts a LanguageTool
+    # sidecar, runs G6 over every candidate, downloads torch for G7's aligner and bakes
+    # every shipped sentence in G8 — none of which had ever run when 60 was chosen.
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: tools/coursekit
@@ -178,18 +181,25 @@ jobs:
           enable-cache: true
           cache-dependency-glob: tools/coursekit/uv.lock
 
-      # `nlp` and `lm` are the two groups CI carries: spaCy with the URL-pinned
-      # es_core_news_md wheel, and KenLM pinned to a commit archive. `align` (torch +
-      # transformers) and `tts` (onnxruntime + model downloads) are gigabytes and do not
-      # fit this job — a stage that needs one exits 3 with the install command rather
-      # than degrading to a worse aligner or a system voice.
-      # `tts` as well, because G8 runs inside this job now that `pack-bake.yml` is gone.
-      # The deps lane kept it out of `[tool.uv] default-groups` so the 20-minute
-      # `coursekit` job stays 20 minutes; THIS job has 60 and its product is a pack, and
-      # a pack contains audio. A stage whose group is absent exits 3 rather than
-      # degrading, so without this the build stops at G8 and the artefact is not a pack.
-      - name: Sync nlp + lm + tts (locked)
-        run: uv sync --locked --group nlp --group lm --group tts
+      # ALL FOUR GROUPS, because this job runs G0-G9 and four stages each need one:
+      # G1/G2 need `nlp` (spaCy with the URL-pinned es_core_news_md wheel), G2's band
+      # needs `lm` (KenLM pinned to a commit archive), G7 needs `align` (SimAlign +
+      # torch + transformers) and G8 needs `tts` (kokoro-onnx + soundfile).
+      #
+      # `align` was NOT here until the P2 fix integration, and the omission was invisible
+      # for the same reason B8 was: the build had never reached G7. It exits 3 —
+      # "G7 expand (SimAlign word alignment) needs the 'align' dependency group" — with no
+      # fallback, deliberately, because a degraded aligner produces word-bank hints that
+      # are wrong in a way no row-level validator can see. Measured on this Mac by running
+      # G5, G6, G7 against the real corpus: G5 and G6 pass, G7 exits 3.
+      #
+      # torch is routed to https://download.pytorch.org/whl/cpu on Linux by an explicit
+      # [[tool.uv.index]] in pyproject.toml, so this is CPU wheels rather than ~2.5 GB of
+      # CUDA. The groups stay out of `[tool.uv] default-groups` so the 20-minute
+      # `coursekit lint + tests` job stays 20 minutes; THIS job's product is a pack, and a
+      # pack contains audio and aligned word banks.
+      - name: Sync nlp + lm + align + tts (locked)
+        run: uv sync --locked --group nlp --group lm --group align --group tts
 
       - name: Install opus-tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends opus-tools
