@@ -75,17 +75,35 @@ what the P2 integration found; see `docs/P2-REPORT.md` §3.
 ### A lane that claims nothing
 
 `docs/owned/<task>.json` is where a task records the ids it owns, and an **empty** `owned`
-list is a legitimate and sometimes correct answer. Two lanes in P2 claim nothing, for two
-different reasons, and both said so in the file rather than padding the list:
+list is a legitimate and sometimes correct answer. **Twelve** ownership files carry an
+empty `owned` list — ten of the P2 ones, plus `art.json` and `journey.json` from P1 —
+and each says in the file why. Two of the P2 ten, as examples of the two shapes the
+reason takes:
 
-- `p2-validate-ci.json` — `scripts/coverage-map.ts` walks `packages`, `apps` and `e2e`
-  for owning tests and deliberately does not walk `tools/`, so a Python test cannot be an
-  owning test. Claiming an id there would be claiming one with no owner;
+- `p2-validate-ci.json` — the lane's ids are properties of a **pack that has never been
+  built**. `coursekit build es` has never got past G5 (`docs/ci.md`), so there is no
+  manifest, no bank and no attribution table for a test to read, and a test that asserted
+  the shape of a fixture instead would be coverage of the fixture. That file gives **two**
+  reasons and only this one still holds: its first reason — that `coverage-map.ts` does
+  not walk `tools/`, so a Python test cannot own an id — was true when it was written and
+  is not true now. `TEST_ROOTS` is `['packages', 'apps', 'e2e', 'tools']` today and the
+  script's own header explains why `tools` was added, so a pytest test **is** an owning
+  test and the P2 `C`-kind ids are ownable. What is missing is the pack, not the gate;
 - `p2r3-provenance-docs.json` — the lane writes prose, and prose cannot falsify an
   invariant. It records the ids it _serves_ separately from the ids it _owns_, which is
   zero.
 
 The failure this convention exists to prevent is the one plan rule 4 names: "an invariant
-with no owning test is worse than a failing one". A test that asserts a dictionary has a
-key, named after an invariant about a device refusing a pack, is that failure wearing a
-green tick. An empty `owned` list with a paragraph saying why is the honest version.
+with no owning test is worse than a failing one" — and its mirror image, which is a test
+that owns an id without exercising it. A test that asserts a fixture dictionary has a key,
+named after an invariant about behaviour on a device, is that failure wearing a green tick.
+An empty `owned` list with a paragraph saying why is the honest version.
+
+Say which of the two a thing is, because they are not the same claim and the difference is
+where release reports go wrong. INV-PACK-18 is the worked example: the **rule** (verify
+before install) is owned by `docs/owned/packs.json` and carried by thirteen tests whose
+names hold the id, which assert the step ordering and the `unverified`-never-`corrupt`
+mapping and fail when the guard is removed — while the **path** it describes, a real device
+refusing a real foreign-signed pack, has never run, because no pack has ever been built.
+"Owned and green" and "exercised end to end" are two rows, not one, and `docs/RELEASE.md`
+§2 keeps them apart.

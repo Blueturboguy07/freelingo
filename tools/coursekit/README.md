@@ -189,7 +189,7 @@ that something renders it. `docs/pack-provenance.md` is the full account; this i
 | **S001** | course-picker card: `A1 · CEFR-aligned` / `Beginner · frequency-ordered`, `{{n}}% machine-authored`, `measured wrong-item rate {{n}}%`, size |
 | **S002** | pack detail: sample sentence + speaker, item count, size, the **validator-report summary** (`validators/report.py::summarise()`)             |
 | **S137** | About: licences, content provenance, measured defect rate, version, and `Content credits` into S152                                          |
-| **S152** | Credits: `Source: {{source}}` · `Licence: {{licence}}` · `By {{owner}}` per row, the derived-list and voice declarations, the pack's licence |
+| **S152** | Credits: per row the **sentence text** then `Source: {{source}}` · `Licence: {{licence}}` · `By {{owner}}`; the derived-list and voice declarations; the pack's licence |
 
 S152 is the surface INV-PACK-17 and validator **F3** enforce: every sentence, voice and
 derived list whose licence requires attribution must be **reachable** from it, and the
@@ -197,6 +197,11 @@ build fails otherwise. It was a screen id in an invariant with no product-map ro
 founder ruling **B5** gave it one (Surface 16: states `list · filtered · sentence-detail ·
 empty · pack-missing`, entered from S137 `Content credits` and S045 `Credits for this
 sentence`). P4 builds it; the pack half is already gated here.
+
+`docs/pack-provenance.md` carries the full slot list. The one to not lose is the **per-row
+sentence text**, which Surface 16 writes without backticks among nine backticked strings:
+a credited row renders the sentence, then its source, licence and owner, and the whole-pack
+state is searchable by that text.
 
 ## Voices — Kokoro, and the three licences a reader must not conflate
 

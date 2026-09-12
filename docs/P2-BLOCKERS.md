@@ -5,7 +5,8 @@ What is stopping the Spanish pack, in one place, with the evidence each claim re
 the live list. Last rewritten **2026-09-12, P2 round 3**, against the founder rulings of
 the same date.
 
-**The eight founder decisions were answered on 2026-09-12.** They are recorded verbatim
+**The nine founder decisions were answered on 2026-09-12** — B3, B5, B6, B9, B1b, B16,
+B14, B17 and B7, plus a scheduling note about `pnpm format`. They are recorded verbatim
 at the foot of this file (§Founder rulings) and quoted in each body below. That changes
 what this file is for: no row now waits on a question, and the rows that used to be
 questions are rows that wait on **work**, which is a different kind of blocker and has an
@@ -17,18 +18,22 @@ So the status column distinguishes three things, and the distinction is the poin
   of a ruling; a decision is not a measurement.
 - **DECIDED** — the founder answered it. Followed by whether the answer has been **built**,
   because a ruling with no code behind it blocks exactly as much as the open question did.
+- **AUTHORED** — used once, for B1: the work the row asked for was done and measured, and
+  the row is still not RESOLVED because the stage it exists to unblock still fails. A row
+  whose own deliverable landed but whose blocker moved to another row says so, rather than
+  going green and leaving the block invisible.
 - **OPEN / NON-GATING** — neither.
 
 | Id      | What                                                                                     | Kind                 | Status                                                             |
 | ------- | ---------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
-| **B1**  | the candidate sentences do not exist                                                     | authoring            | **RESOLVED 2026-09-12** — 9,687 rows, 481/490 slots                |
+| **B1**  | the candidate sentences do not exist                                                     | authoring            | **AUTHORED 2026-09-12** — 9,687 rows, 481/490 slots; 9 short = B9  |
 | **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                 | **RESOLVED** — p2fix/ledger-freeze                                 |
 | **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision      | **DECIDED + BUILT** — course-global is canonical; fixture verified |
 | **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                 | **RESOLVED 2026-09-12** — deleted                                  |
 | **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision** | **DECIDED** — agent-scored gate; paid review → `docs/RELEASE.md`   |
 | **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                 | **RESOLVED 2026-09-12**                                            |
 | **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision** | **DECIDED** — Surface 16 written; P4 builds the screen             |
-| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, PART-BUILT** — three of five parts outstanding          |
+| **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision** | **DECIDED, PART-BUILT** — 3/5 built here; 2 outstanding            |
 | **B7**  | `mutation.yml` has never produced a score                                                | pre-existing         | **NON-GATING by ruling** — still no score, measured                |
 | **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)            | **RESOLVED 2026-09-12** — sidecar                                  |
 | **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision** | **DECIDED, NOT BUILT** — all three parts owed; the phase blocker   |
@@ -44,15 +49,49 @@ So the status column distinguishes three things, and the distinction is the poin
 
 ---
 
-## B1 — 18,200 candidates do not exist (the phase blocker)
+## B1 — the candidates — AUTHORED 2026-09-12, and the phase is still blocked by B9
 
 Not this task's lane; recorded here because everything below waits on it.
 
-G4 emits **918 gap slots**; `content/es/candidates.jsonl` is **160 rows** covering **8**
-of them (8 × exactly 20), which is **0.9%**. The course needs 918 × 20 = **18,360**.
-`coursekit build es` therefore exits 4 at G5, `validate-es` skips on `needs:`, and the
-whole downstream half of P2 — `coursekit validate es`, V1–V4 at 100%, V5–V12, the V8
-engine record, the licence sweep, the 120 MB bank on real bytes, `coursekit sample es`,
+**Where it stands now, measured on this tree 2026-09-12.** The five shards under
+`content/es/candidates/` hold **9,687 rows** over **490 distinct slots**, of which **481
+carry 20 or more candidates** — the over-generation floor `MIN_CANDIDATES_PER_SLOT`
+requires:
+
+```
+$ python3 -c "...count content/es/candidates/*.jsonl by slot..."
+rows 9687
+distinct slots 490
+slots with >=20 candidates 481
+slots under 20 9
+```
+
+The nine short slots are `u1/l1/s0 … s8` and they are **B9**, not an authoring shortfall:
+no sentence can fill them until the G1 lemma table and the per-lesson `MIN_TOKENS` land,
+which is why B1 is marked as authored rather than as resolved. **`coursekit build es`
+still cannot pass G5**, so everything in the paragraph below that says "has never run"
+is still true of `coursekit validate es`, `sample es` and `sign es`.
+
+### The original finding, as filed — superseded by the measurement above
+
+Kept because the size of the gap is the reason four authoring shards were commissioned,
+and because one number in it turned out to be a join artefact rather than a count.
+
+> G4 emits **918 gap slots**; `content/es/candidates.jsonl` is **160 rows** covering
+> **8** of them (8 × exactly 20), which is **0.9%**. The course needs 918 × 20 =
+> **18,360**.
+
+Two things in that quotation have since changed and neither is a correction to the
+authoring work. `content/es/candidates.jsonl` **no longer exists** — candidates are a
+directory of five shards (see B1b, and B11 on the reading side) — and the slot arithmetic
+moved with the ledger: the build reproduced below emitted 920 gaps against a ledger that
+now yields **490** authorable slots. The "8 slots" figure was also the wrong kind of
+number: a lesson-numbering mismatch made the join report 8 where the real join said two,
+which is the hazard B1b's last paragraph says is still unguarded.
+
+`coursekit build es` exits 4 at G5, `validate-es` skips on `needs:`, and the whole
+downstream half of P2 — `coursekit validate es`, V1–V4 at 100%, V5–V12, the V8 engine
+record, the licence sweep, the 120 MB bank on real bytes, `coursekit sample es`,
 `coursekit sign es` — has **never run**.
 
 **Reproduced locally on this Mac, 2026-09-12**, so the numbers below are first-hand and
@@ -351,7 +390,9 @@ that row, given the corpus is research and not a repo file?_
 **Verified, not taken on trust.** The row exists in the corpus as of 2026-09-12:
 `~/duolingo-research/deep/00-PRODUCT-MAP.md` line 378 opens "Surface 16 — Credits (S152)
 — added 2026-09-12 by founder ruling B5", the S152 row carries the five states above and
-eight copy slots, and the file's own count line now reads "**152 screens/state-groups**
+**ten** copy slots — nine backticked strings plus the per-row `sentence text` the corpus
+writes unbackticked, which is the one a quoter loses — and the file's own count line now
+reads "**152 screens/state-groups**
 (`S001`–`S152`)" where it used to stop at S151. The string `S152`, which appeared zero
 times in the map when this blocker was filed, now appears in it.
 
@@ -425,8 +466,10 @@ Accepted, and with one thing the question did not offer: the manifest **stops cl
 the locale**. `es-ES` does not become a soft claim, it is replaced by a fact
 (`language: es`) plus an explicit absence of a claim (`accent_claim: unverified`). That is
 a better answer than the one asked for — an unfalsifiable claim removed beats an
-unfalsifiable claim footnoted — and it means the ruling has five parts, of which **two**
-are built.
+unfalsifiable claim footnoted — and it means the ruling has five parts, of which
+**three** are built and **two** are not. The table below is the authority; both
+outstanding parts live in files outside this lane, and one of them has since landed on a
+sibling branch — see the note after the table.
 
 | Part of the ruling                                        | State          | Where / who                                                                           |
 | --------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------- |
@@ -448,13 +491,28 @@ explicitly; `config/sample.py` is the authority and is not in this lane. Until t
 constant carries it, `RUBRIC.md` §"If the constant does not carry it yet" tells a scorer
 to record the finding in `note` instead, so a sheet scored in the gap is still usable.
 
-**2. `cast.yaml` still says `locale: es-ES`.** The file is not in this lane and the
-ruling moves the claim off it, so the change belongs to whoever owns the bake:
-`locale: es-ES` → `language: es` plus `accent_claim: unverified`, with `D-CAST-ES-01`
-rewritten from "the declared locale is the course's claim" to "there is no declared
-accent". Note that `D-CAST-ES-01`'s current text is _more_ generous to the project than
-the ruling is, which is the direction of drift to watch: a file that keeps a claim the
-ruling withdrew.
+**2. `cast.yaml` still says `locale: es-ES` — on this branch, and not on the bake lane's.**
+Measured here 2026-09-12: `content/es/cast.yaml:12` reads `language: es` and **`:16` still
+reads `locale: es-ES`**, so both the fact and the withdrawn claim are in the file at once.
+`cast.yaml` is not in this lane.
+
+**It is already fixed on the sibling branch, and this table goes stale when that merges.**
+`git show p2r3/expand-bake-package:content/es/cast.yaml` carries `language: es` plus
+`accent_claim: unverified` with **no `locale:` key at all**, `config/g8.py` there defines
+`ACCENT_CLAIMS = ("unverified",)` with no `verified` member (the only thing that could
+produce that claim is B3's 300-item sample), `packbuild/manifest.py` writes `accentClaim`
+into the manifest's `audio` block and F2 refuses a manifest that still carries `locale`,
+and `content/es/audio-manifest.json` carries `"accent_claim": "unverified"`. So at the
+integrate pass the **manifest row of the table above becomes built**, the count becomes
+4/5, and this note is deleted rather than softened — the re-measurement commands are in
+`docs/owned/p2r3-provenance-docs.json` → `integratorMustRemeasure`. Prose that reports a
+build state is only true at the sha it was measured on, and the merge queue is where these
+four documents get re-measured.
+
+One thing worth carrying forward when the note is deleted: `D-CAST-ES-01`'s text on this
+branch is _more_ generous to the project than the ruling is ("the declared locale is the
+course's claim" against a ruling that withdrew the claim), and that is the direction of
+drift to watch — a file that keeps a claim a ruling took away.
 
 **3. Neither field is in the manifest schema.** `MANIFEST_EXTRA_FIELDS` in
 `config/g9.py` carries `lang` (which is the `language: es` half, under a different name)

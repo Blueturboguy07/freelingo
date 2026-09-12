@@ -95,9 +95,29 @@ pair, committed the public half to `packages/schema/keys/pack-signing.pub`, and 
 private half in the `PACK_SIGNING_KEY` Actions secret (`docs/P0-REPORT.md`, "Signing key
 custody: done"). What has not happened is a signature: `coursekit sign es` has never
 signed a manifest that exists, because no pack has ever been built
-(`docs/owned/p2-validate-ci.json` → `knownHazards`). So the custody is real and the
-**path** is unexercised, and INV-PACK-18 — a device refusing an unverified pack — has no
-owning test and never has. Before release:
+(`docs/owned/p2-validate-ci.json` → `knownHazards`).
+
+So the custody is real, the **engine-side rule is owned and green**, and what is
+unexercised is the **end-to-end path**. Be exact about that split, because the three
+claims are different:
+
+- **the rule** — INV-PACK-18, "verify before install" — has thirteen tests whose names
+  carry the id (nine in `packages/core/src/packs/install.test.ts`, three in
+  `state.test.ts`, one in `falsifiers.test.ts`), the id is owned in
+  `docs/owned/packs.json`, and `node --experimental-strip-types scripts/coverage-map.ts`
+  exits 0 attributing 23 tests to it. They are substantive, not name-only:
+  `install.test.ts:83` asserts `result.steps` equals
+  `['parse-manifest','verify-signature','verify-payload-digest','install']` **and** that
+  `indexOf('verify-signature') < indexOf('install')`, so deleting the ordering guard
+  fails it, and `:96` asserts a wrong key yields `unverified` with `installed: false` and
+  never `corrupt`;
+- **the signature** does not exist. No manifest has been signed by the CI secret, because
+  G5 has never produced the content a manifest describes;
+- **the path** — an app on a real device refusing a pack signed by a foreign key — has
+  never run, because there is no pack and no app screen that installs one. That is the
+  release prerequisite, and it is not the same thing as the invariant being unowned.
+
+Before release:
 
 - one real pack signed in CI by the secret, not by a local key (there is no `--key` flag
   and that is deliberate);

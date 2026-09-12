@@ -81,11 +81,18 @@ Score the six dimensions, then give one verdict.
 
 Each dimension is `pass` or `fail`.
 
-The six keys are declared in code, as `REVIEW_DIMENSIONS` in
-`tools/coursekit/src/coursekit/config/sample.py`, and the spelling is not free: a
-`dimensions` key that is not in that tuple makes `read_scores` raise `ScoreError` and
-the **whole scored sheet produces no rate at all** — not a lower rate, no rate. Read the
-constant before scoring a sheet, and see "If the constant does not carry it yet" below.
+**Five of those six keys are declared in code; `accent_consistency` is not, yet.**
+`REVIEW_DIMENSIONS` in `tools/coursekit/src/coursekit/config/sample.py` is
+`("meaning", "grammar", "naturalness", "register", "answer_set")` as measured on this
+branch, and the spelling is not free: a `dimensions` key that is not in that tuple makes
+`read_scores` raise `ScoreError` and the **whole scored sheet produces no rate at all** —
+not a lower rate, no rate, including the five dimensions that were scored correctly.
+
+So the sixth row of the table is a dimension you **judge and write into `note`**, not a
+key you put in `dimensions`, until the sample lane lands the constant. Read the constant
+before scoring a sheet and see §"If the constant does not carry it yet" below; the row
+format at the foot of this file shows the object to copy today and, separately, the one to
+copy afterwards.
 
 ## `accent_consistency` — the dimension that is the only check there is
 
@@ -239,7 +246,8 @@ otherwise be one number.
 
 ## The row format
 
-One JSON object per line in `scores.jsonl`:
+One JSON object per line in `scores.jsonl`. **Copy this row, exactly as it is**, and change
+the values:
 
 ```json
 {
@@ -250,8 +258,7 @@ One JSON object per line in `scores.jsonl`:
     "grammar": "pass",
     "naturalness": "pass",
     "register": "pass",
-    "answer_set": "pass",
-    "accent_consistency": "pass"
+    "answer_set": "pass"
   },
   "reviewer": "opus-agent-reviewer",
   "reviewed_at": "2026-09-12",
@@ -263,10 +270,46 @@ One JSON object per line in `scores.jsonl`:
 `REVIEW_DIMENSIONS`; a key outside it is a hard error on the whole file, never a dropped
 row. `note` is free text and is what a maintainer reads when a rate moves.
 
-Omit `accent_consistency` entirely on a row you could not listen to — which today is
-every row, because the drawn sheet carries no clip reference (see above). An omitted
-dimension is unscored; `"pass"` on a clip nobody played would be the one lie this sheet
-exists to prevent.
+**There is no `accent_consistency` key in that object, and its absence is deliberate.**
+`REVIEW_DIMENSIONS` in `config/sample.py` is
+`("meaning", "grammar", "naturalness", "register", "answer_set")` — five members, measured
+on this branch — so a row carrying a sixth key makes `read_scores` raise and produces no
+rate for the **whole sheet**. Until the constant carries the key, an accent finding goes
+in `note`, prefixed `accent:`, exactly as §"If the constant does not carry it yet" says.
+A canonical example that showed the key would be a foot-gun: the row most likely to be
+copied would be the one action this file twice forbids.
+
+### After the constant lands — do not use this form yet
+
+When the sample lane has added `accent_consistency` to `REVIEW_DIMENSIONS`, and only
+then, a row that had audio carries a sixth key:
+
+```json
+{
+  "exercise_id": "3f0c1a2b4d5e6f70",
+  "verdict": "awkward",
+  "dimensions": {
+    "meaning": "pass",
+    "grammar": "pass",
+    "naturalness": "pass",
+    "register": "pass",
+    "answer_set": "pass",
+    "accent_consistency": "fail"
+  },
+  "reviewer": "paid-native-speaker",
+  "reviewed_at": "2026-10-01",
+  "note": "accent: consistently Latin American under a vosotros course"
+}
+```
+
+Check the constant before writing that form — `python -c "from coursekit.config.sample
+import REVIEW_DIMENSIONS; print(REVIEW_DIMENSIONS)"` from `tools/coursekit` answers it in
+one line — and note that the dimension is still unscoreable for a second reason even after
+the constant lands: the drawn sheet carries no clip reference, per §"The sheet carries no
+audio today" above and **B18** in `docs/P2-BLOCKERS.md`. Omit
+`accent_consistency` entirely on a row you could not listen to, which today is every row.
+An omitted dimension is unscored; `"pass"` on a clip nobody played would be the one lie
+this sheet exists to prevent.
 
 Score **every** row on the sheet. `coursekit`'s `unscored_items()` reports the ones you
 did not, and an unscored sample has a rate of `None` — which does not pass the gate.

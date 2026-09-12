@@ -28,17 +28,25 @@ with no row anywhere — and founder ruling **B5** closed that on 2026-09-12:
 filtered · sentence-detail · empty · pack-missing`, entry points S137 → `Content
 credits` and S045 → `Credits for this sentence`. P4 builds it.
 
-So the copy slots exist to build against. From Surface 16, verbatim:
+So the copy slots exist to build against. All of them, from Surface 16, verbatim — nine
+backticked strings plus one unbacketed slot the corpus writes as "per row: sentence text":
 
 | Slot                                                                        | Where                                  |
 | --------------------------------------------------------------------------- | -------------------------------------- |
 | `Credits`                                                                   | the screen title                       |
 | `Content credits`                                                           | the S137 row that opens the whole pack |
 | `Credits for this sentence`                                                 | the S045 row that opens one item       |
+| the **sentence text** itself                                                | per row, before its three credit lines |
 | `Source: {{source}}` · `Licence: {{licence}}` · `By {{owner}}`              | per credited row                       |
 | `Frequency ordering derived from FrequencyWords (hermitdave), CC BY-SA 4.0` | the derived-list declaration           |
 | `Voices: Kokoro (Apache-2.0)`                                               | the voice declaration                  |
 | `This pack is CC BY-NC-SA 4.0`                                              | the pack's own licence                 |
+
+The `sentence text` row is easy to lose because it is the one slot the corpus does not
+backtick, and losing it would build the screen wrong in a way nothing would catch: a
+credits list of sources and owners with no sentences beside them credits nothing a reader
+can identify, and the map also makes the whole-pack state **searchable by sentence text**,
+which needs the text rendered to be worth searching.
 
 The `filtered` state filters by source — Tatoeba / NLLB / Freelingo-authored / voices /
 lists — and the surface reads only the pack's `sentence`, `audio` and `meta` rows. **No
@@ -199,9 +207,18 @@ inputs.defect_rate` in `tools/coursekit/src/coursekit/packbuild/manifest.py` —
 `MANIFEST_EXTRA_FIELDS` in `config/g9.py`. The note travels today only in the validator
 report, whose `summarise()` cannot emit a rate without it. Until the manifest carries the
 note too, the rule "every rate carries its provenance" holds in the report and in these
-two documents, and the manifest is the gap. The same paragraph is where `accent_claim`
-has to land: B6 replaced `locale` with `language` + `accent_claim`, and neither
-`accent_claim` nor `locale` is in `MANIFEST_EXTRA_FIELDS` at all.
+two documents, and the manifest is the gap.
+
+**`accent_claim` is a separate gap in the same file, and it closes first.** Measured on
+this branch: `MANIFEST_EXTRA_FIELDS` in `config/g9.py` contains neither `accent_claim`
+nor `locale`, so a manifest built here makes no accent claim at all — accidentally
+compliant rather than compliant, since B6 wants the absence _declared_. That is already
+fixed on the sibling branch `p2r3/expand-bake-package`, where
+`packbuild/manifest.py` writes `accentClaim` into the manifest's `audio` block and F2
+refuses a manifest still carrying `locale`. So at the integrate pass this paragraph splits
+in two: the accent half becomes built, and the **note** half — the `PROVISIONAL` string
+beside `defectRate` — stays future, because nothing on any branch has landed it. Keep the
+two apart; they are one sentence today only because they share a constant's neighbourhood.
 
 `tools/coursekit/tests/test_sample.py::test_the_honesty_string_is_exactly_what_the_docs_promise`
 opens the two committed carriers and asserts the constant appears verbatim in both — a

@@ -7,7 +7,7 @@
   "branch": "p2r3/provenance-docs",
   "owned": [],
   "serves": {
-    "INV-PACK-17": "Every sentence, voice and derived list whose licence requires attribution is reachable from the rendered credits surface (S152), itself reachable from the report sheet (S045) and About (S137). This lane wrote down the surface: docs/pack-provenance.md now carries S152 in its surface table with the eight copy slots verbatim from the product map's Surface 16, its five states, both entry-point strings, and the no-network property. That is build material for P4, not coverage. The id stays unclaimed by anyone; when P4 builds the screen, the E half becomes testable and P4 claims it."
+    "INV-PACK-17": "Every sentence, voice and derived list whose licence requires attribution is reachable from the rendered credits surface (S152), itself reachable from the report sheet (S045) and About (S137). This lane wrote down the surface: docs/pack-provenance.md now carries S152 in its surface table with all ten copy slots from the product map's Surface 16 — nine backticked strings plus the per-row `sentence text` the corpus writes unbackticked — its five states, both entry-point strings, and the no-network property. That is build material for P4, not coverage. THE ID IS ALREADY OWNED AND MUST NOT BE RE-CLAIMED: docs/owned/p2-g9.json on origin/main reads \"owned\": [\"INV-PACK-17\", \"INV-PACK-41\"], and scripts/coverage-map.ts errors when two ownership files claim the same id — so a later lane that read this note as an invitation would turn CI red. What is genuinely unowned is the `E` half: p2-g9.json's own propertyTests entry says \"the `E` half is P4's, when S152 exists to walk\", and P4 adds that as an e2e test under the id p2-g9 already owns rather than as a second claim."
   },
   "deliverables": [
     {
@@ -19,13 +19,13 @@
     {
       "file": "content/es/review/RUBRIC.md",
       "state": "amended",
-      "what": "A sixth scored dimension, `accent_consistency`, named, defined and scoreable: three ordered questions (is it one accent / is it the variety the course teaches / is it the same cast row to row), the two blended roles with their weights and the specific question content/es/cast.yaml promises the reviewer gets asked, the verdict mapping (accent-only failure is `awkward` with a note prefixed `accent:`, never folded into the wrong-item rate), and the reporting rule. Also: the B3 ruling quoted where 'who is scoring' is explained, the locale sentence corrected from `es-ES` to `language: es` + `accent_claim: unverified`, and the row-format example updated.",
+      "what": "A sixth scored dimension, `accent_consistency`, named, defined and scoreable: three ordered questions (is it one accent / is it the variety the course teaches / is it the same cast row to row), the two blended roles with their weights and the specific question content/es/cast.yaml promises the reviewer gets asked, the verdict mapping (accent-only failure is `awkward` with a note prefixed `accent:`, never folded into the wrong-item rate), and the reporting rule. Also: the B3 ruling quoted where 'who is scoring' is explained, the locale sentence corrected from `es-ES` to `language: es` + `accent_claim: unverified`, and the row-format example left at FIVE dimensions on purpose: `accent_consistency` is not in REVIEW_DIMENSIONS on this branch or on any sibling p2r3 branch, and a canonical example carrying the key would be the one action the file twice forbids — a reviewer copying it would make read_scores raise and destroy the rate for the whole sheet. The sixth-key form is shown separately under a heading that says not to use it yet, with the one-line command that checks the constant.",
       "why": "B6 demoted the accent claim to something nothing in the toolchain can falsify. The 300-item sample is the last place a Latin-American-sounding peninsular course can be caught, so the clause is load-bearing rather than a nicety, and it has to be a scored column and not a paragraph of advice."
     },
     {
       "file": "docs/pack-provenance.md",
       "state": "amended",
-      "what": "The surface table goes from three screens to four (S152 added, with its states, its eight copy slots verbatim and both entry points, and the B5 ruling quoted). The claims table's `locale: es-ES` row becomes `accent_claim`. The section under it is rewritten as the post-B6 truth: the ruling quoted, five parts with which two are built, the three unbuilt parts each with the way it fails, the blended cast with real weights, and a three-row licence table separating the synthesiser's code licence, the model weights' licence and the pack's own licence. The honesty-string section gains the B3 ruling and an exact account of what the manifest carries today.",
+      "what": "The surface table goes from three screens to four (S152 added, with its states, all ten copy slots verbatim (nine backticked strings plus the per-row `sentence text` Surface 16 writes unbackticked) and both entry points, and the B5 ruling quoted). The claims table's `locale: es-ES` row becomes `accent_claim`. The section under it is rewritten as the post-B6 truth: the ruling quoted, five parts with which two are built, the three unbuilt parts each with the way it fails, the blended cast with real weights, and a three-row licence table separating the synthesiser's code licence, the model weights' licence and the pack's own licence. The honesty-string section gains the B3 ruling and an exact account of what the manifest carries today.",
       "why": "The brief: the provisional-rate story and the S001/S002/S137/S152 copy slots live where a reader of the pack will find them, and the B6 override, the blends and the Kokoro licence chain are recorded rather than implied."
     },
     {
@@ -74,15 +74,19 @@
     },
     {
       "claim": "The product-map row founder ruling B5 promises exists.",
-      "how": "~/duolingo-research/deep/00-PRODUCT-MAP.md line 378 opens 'Surface 16 — Credits (S152) — added 2026-09-12 by founder ruling B5'; the S152 row carries the five states and eight copy slots; the count line now reads '152 screens/state-groups (S001-S152)'. The string S152 appeared zero times in the map when B5 was filed."
+      "how": "~/duolingo-research/deep/00-PRODUCT-MAP.md line 378 opens 'Surface 16 — Credits (S152) — added 2026-09-12 by founder ruling B5'; the S152 row carries the five states and TEN copy slots (nine backticked strings plus the per-row `sentence text` the corpus writes unbackticked); the count line now reads '152 screens/state-groups (S001-S152)'. The string S152 appeared zero times in the map when B5 was filed."
     },
     {
-      "claim": "B6 is two-fifths built.",
-      "how": "Built: the engine (cast.yaml D-CAST-ES-00, config/g8.py maps es/fr/ja to kokoro) and the two declared blends (D-CAST-ES-02, Rosa ef_dora 0.70 + em_santa 0.30 at rate 0.98, Nico em_alex 0.55 + ef_dora 0.45 at rate 1.08). Not built: `accent_consistency` in REVIEW_DIMENSIONS; cast.yaml still declares `locale: es-ES`; MANIFEST_EXTRA_FIELDS in config/g9.py contains neither `accent_claim` nor `locale`, so a shipped manifest makes no accent claim at all rather than declaring it unverified."
+      "claim": "B6 is two-fifths built ON THIS BRANCH'S TREE (see integratorMustRemeasure: the sibling p2r3/expand-bake-package has already landed two more parts).",
+      "how": "Built: the engine (cast.yaml D-CAST-ES-00, config/g8.py maps es/fr/ja to kokoro) and the two declared blends (D-CAST-ES-02, Rosa ef_dora 0.70 + em_santa 0.30 at rate 0.98, Nico em_alex 0.55 + ef_dora 0.45 at rate 1.08). Not built: `accent_consistency` in REVIEW_DIMENSIONS; cast.yaml still declares `locale: es-ES`; MANIFEST_EXTRA_FIELDS in config/g9.py contains neither `accent_claim` nor `locale`, so a shipped manifest makes no accent claim at all rather than declaring it unverified. Re-measured for the refuter 2026-09-12: `grep -n '^locale:\\|^language:' content/es/cast.yaml` -> 12:language: es, 16:locale: es-ES on THIS branch; `git show p2r3/expand-bake-package:content/es/cast.yaml` has no `locale:` key at all."
     },
     {
       "claim": "The product map and the manifest constant disagree on the S001 CEFR string.",
       "how": "The map's S001 row reads `A1 · CEFR-aligned`; CEFR_CLAIM_CHECKED in config/g9.py:169 is `A1 · CEFR-checked`, and that is also the plan's Q8 wording. Noted in docs/pack-provenance.md for whoever builds S001 at P3 rather than silently picking one."
+    },
+    {
+      "claim": "INV-PACK-18 is owned and green, so docs/RELEASE.md §2 must not say the invariant has no owning test — only that the END-TO-END PATH is unexercised.",
+      "how": "A previous attempt of this lane asserted in RELEASE.md that 'INV-PACK-18 ... has no owning test and never has'. That was false and it was false in the one document whose purpose is honest accounting. Measured: `grep -c \"it('\\[INV-PACK-18\\]\" packages/core/src/packs/*.test.ts` gives 9 in install.test.ts, 3 in state.test.ts, 1 in falsifiers.test.ts = 13 owning tests; install.test.ts:82 opens describe('INV-PACK-18 verify before install'); :83 asserts result.steps equals ['parse-manifest','verify-signature','verify-payload-digest','install'] AND indexOf('verify-signature') < indexOf('install'), so the ordering guard is load-bearing rather than name-only; :96 asserts a wrong key yields state 'unverified' with installed false and never 'corrupt'. The id is owned at docs/owned/packs.json (P1 task p1-packs-data-security), and `node --experimental-strip-types scripts/coverage-map.ts` EXITS 0 reporting 'OK INV-PACK-18 <- 23 test(s)', which is impossible for an unowned id. RELEASE.md now splits the three claims that were conflated: the RULE is owned and green, the SIGNATURE has never been produced (no pack exists), and the PATH — a device refusing a foreign-signed pack — has never run. Only the last two are release prerequisites."
     }
   ],
   "crossLaneContracts": [
@@ -106,8 +110,8 @@
       "artefact": "~/duolingo-research/deep/00-PRODUCT-MAP.md Surface 16 (S152)",
       "producedBy": "the founder, per ruling B5 — the corpus is research and no phase agent may rewrite it",
       "consumedBy": "docs/pack-provenance.md and tools/coursekit/README.md, which quote its copy slots so a P4 implementer does not have to read the corpus",
-      "assertion": "the eight copy slots are quoted verbatim, including `Voices: Kokoro (Apache-2.0)` and `Frequency ordering derived from FrequencyWords (hermitdave), CC BY-SA 4.0`",
-      "why": "The map is the P3/P4 build contract and it lives outside the repository, so nothing in CI can hold a repo doc against it. A copy slot that drifted here would be a screen built wrong with a document saying it was right. Whoever builds S152 should diff these two tables against the corpus row rather than trusting either."
+      "assertion": "all TEN copy slots are quoted verbatim: the nine backticked strings — `Credits`, `Content credits`, `Credits for this sentence`, `Source: {{source}}`, `Licence: {{licence}}`, `By {{owner}}`, `Frequency ordering derived from FrequencyWords (hermitdave), CC BY-SA 4.0`, `Voices: Kokoro (Apache-2.0)`, `This pack is CC BY-NC-SA 4.0` — plus the per-row slot the corpus writes without backticks as \"per row: sentence text\".",
+      "why": "The map is the P3/P4 build contract and it lives outside the repository, so nothing in CI can hold a repo doc against it. A copy slot that drifted here would be a screen built wrong with a document saying it was right. Whoever builds S152 should diff these two tables against the corpus row rather than trusting either. The sentence-text slot is the one a quoter loses, because it is the only slot Surface 16 does not backtick: an earlier draft of both tables quoted nine strings and called it the whole contract, which would have built a credits list of sources and owners with no sentence beside them, and made the map's 'searchable by sentence text' unimplementable. Both tables now carry it and say why it is easy to drop."
     },
     {
       "artefact": "MANIFEST_EXTRA_FIELDS (config/g9.py) and the manifest built by packbuild/manifest.py",
@@ -135,9 +139,9 @@
       "forWhom": "whoever owns tools/coursekit/src/coursekit/sample.py"
     },
     {
-      "what": "content/es/cast.yaml still declares `locale: es-ES`, which ruling B6 withdrew",
-      "why": "cast.yaml is not in this lane's file list. The change is `locale: es-ES` -> `language: es` plus `accent_claim: unverified`, with D-CAST-ES-01 rewritten from 'the declared locale is the course's claim' to 'there is no declared accent' — note that D-CAST-ES-01's current text is MORE generous to the project than the ruling is, which is the direction of drift to watch.",
-      "forWhom": "the G8 / bake lane"
+      "what": "content/es/cast.yaml still declares `locale: es-ES` ON THIS BRANCH — already fixed on p2r3/expand-bake-package",
+      "why": "Measured on this lane's tree 2026-09-12: content/es/cast.yaml:16 reads `locale: es-ES` beside `language: es` at line 12. cast.yaml is not in this lane's file list. It IS fixed on the sibling branch: `git show p2r3/expand-bake-package:content/es/cast.yaml` carries `language: es` + `accent_claim: unverified` with no `locale:` key, config/g8.py defines ACCENT_CLAIMS = (\"unverified\",), packbuild/manifest.py writes `accentClaim` into the manifest's audio block and blocks a manifest that still carries `locale`, and content/es/audio-manifest.json carries \"accent_claim\": \"unverified\". So this entry, B6's part table in docs/P2-BLOCKERS.md and pack-provenance.md's cast.yaml paragraph all go stale the moment that branch merges — see integratorMustRemeasure.",
+      "forWhom": "already done by p2r3/expand-bake-package; the integrator re-measures the prose"
     },
     {
       "what": "The manifest carries neither `accent_claim` nor a note beside `defectRate`",
@@ -154,5 +158,36 @@
       "why": "It is the frozen phase report at its own sha and stays as written — the new docs/README.md row says so explicitly, and P2-BLOCKERS.md is the file that moves. Recorded so nobody 'fixes' the report later and loses the history.",
       "forWhom": "nobody; deliberate"
     }
-  ]
+  ],
+  "integratorMustRemeasure": {
+    "$comment": "Every sentence in this lane's prose that reports BUILD STATE was measured on this branch's tree, which does not contain the sibling p2r3 branches. Measured-at-a-sha prose is only honest at that sha, so the integrate pass must re-measure these after the merge queue runs and edit the prose in the same commit. This list exists so the integrator does not have to find them by reading four documents.",
+    "afterP2R3ExpandBakePackageMerges": [
+      {
+        "claim": "docs/P2-BLOCKERS.md B6 row: '**DECIDED, PART-BUILT** — three of five parts outstanding', and the B6 part table's last two rows ('accent_consistency in REVIEW_DIMENSIONS' not built; 'manifests carry language + accent_claim, not locale' not built, with 'cast.yaml still declares locale: es-ES' as its evidence).",
+        "whyItGoesStale": "p2r3/expand-bake-package lands cast.yaml's `language: es` + `accent_claim: unverified` with no `locale:` key, config/g8.py::ACCENT_CLAIMS, packbuild/manifest.py's `accentClaim` in the audio block plus an F2 refusal of a manifest carrying `locale`, and content/es/audio-manifest.json's accent_claim. That makes the manifest part BUILT and leaves only ONE part outstanding: `accent_consistency` in REVIEW_DIMENSIONS.",
+        "reMeasureWith": "git grep -n 'accent_claim\\|ACCENT_CLAIMS\\|accentClaim' content tools/coursekit/src && grep -n '^locale:\\|^language:\\|^accent_claim:' content/es/cast.yaml && grep -n 'MANIFEST_EXTRA_FIELDS' -A16 tools/coursekit/src/coursekit/config/g9.py",
+        "expectedEdit": "B6 row becomes 'DECIDED, PART-BUILT — one of five parts outstanding'; the part table's manifest row becomes built with the three files named; B6 note 2 ('cast.yaml still says locale: es-ES') is deleted, not softened."
+      },
+      {
+        "claim": "docs/pack-provenance.md §'The accent claim is the one row nothing can contradict', second bullet under consequence 1, and its closing paragraph about MANIFEST_EXTRA_FIELDS carrying neither `accent_claim` nor `locale`.",
+        "whyItGoesStale": "Same merge. The doc's claim that 'the manifest makes no accent claim at all rather than declaring it unverified' becomes false once accentClaim ships in the audio block.",
+        "reMeasureWith": "grep -n 'accentClaim' tools/coursekit/src/coursekit/packbuild/manifest.py",
+        "expectedEdit": "The manifest becomes a carrier that EXISTS for accent_claim and still does not carry the PROVISIONAL note beside defectRate — two different gaps that the current paragraph describes as one. Splitting them is the edit; tools/coursekit/tests/test_sample.py::test_the_docs_do_not_claim_the_note_already_appears_where_it_cannot reads this section, so the note half must keep its future tense."
+      },
+      {
+        "claim": "docs/owned/p2r3-provenance-docs.json measuredHere 'B6 is two-fifths built' and notDone's cast.yaml entry.",
+        "whyItGoesStale": "Same merge.",
+        "reMeasureWith": "the two commands above",
+        "expectedEdit": "four-fifths built; the cast.yaml notDone entry is deleted."
+      }
+    ],
+    "afterAnyLaneLandsREVIEW_DIMENSIONS": [
+      {
+        "claim": "content/es/review/RUBRIC.md §'The row format' (the five-key canonical object and the paragraph saying the sixth key is deliberately absent), §'If the constant does not carry it yet', the dimension table's lead-in ('Five of those six keys are declared in code'), and docs/P2-BLOCKERS.md B6's `accent_consistency` part row.",
+        "whyItGoesStale": "Measured 2026-09-12: REVIEW_DIMENSIONS is ('meaning','grammar','naturalness','register','answer_set') on this branch AND on every sibling p2r3 branch, so nothing has landed the key. When it lands, the canonical row gains the sixth key and the 'after the constant lands' block becomes the canonical one.",
+        "reMeasureWith": "grep -n 'REVIEW_DIMENSIONS' -A9 tools/coursekit/src/coursekit/config/sample.py",
+        "expectedEdit": "Promote the six-key example to canonical, delete the 'do not use this form yet' heading, keep the B18 omit-if-no-audio rule (that gap is separate and outlives the constant)."
+      }
+    ]
+  }
 }
