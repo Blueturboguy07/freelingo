@@ -1988,16 +1988,18 @@ def test_the_lesson_one_shard_ships_none_of_the_eleven_word_lists() -> None:
     # happened: B9(a)+(c) moved the ledger, 18 authored slots stopped existing, and the
     # 363 rows keyed to them were moved to `content/es/candidates-orphaned/` — 16 of them
     # word lists (B19). `201 + 16 == 217`, measured, so nothing was edited away. The
-    # orphan tree is outside `COMMITTED_SHARDS`'s glob on purpose: those rows are not
-    # course content until a slot exists for them again.
+        # orphan tree is outside `COMMITTED_SHARDS`'s glob on purpose: those rows are not
+        # course content until a slot exists for them again. B19 round 4 moved `usted`
+        # from u1 to u23; ten more word-list rows followed their vanished slot into the
+        # orphan tree, so the live/orphan split is now 191/26 and the total stays 217.
     elsewhere = [
         row["text"]
         for path in COMMITTED_SHARDS
         for row in authored_shard(path)
         if row["text"] in word_lists
     ]
-    assert len(elsewhere) == 201, (
-        f"{len(elsewhere)} word-list rows outside u1/l1, not 201. If the number went "
+    assert len(elsewhere) == 191, (
+        f"{len(elsewhere)} word-list rows outside u1/l1, not 191. If the number went "
         f"DOWN a lane cleaned up; if it went UP, a lane is padding with them again."
     )
     orphaned = [

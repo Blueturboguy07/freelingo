@@ -75,6 +75,26 @@ def slot_name(slot: Slot) -> str:
     return f"u{unit}/l{lesson}/s{index}"
 
 
+def _orphan_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
+    slot = row["slot"]
+    return (
+        int(slot["unit_index"]),
+        int(slot["lesson_index"]),
+        int(slot["slot_index"]),
+        str(row["text"]),
+    )
+
+
+def merge_orphans(
+    existing: list[dict[str, Any]], new: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Preserve earlier quarantines and append only genuinely new orphan rows."""
+    merged: dict[tuple[int, int, int, str], dict[str, Any]] = {}
+    for row in (*existing, *new):
+        merged.setdefault(_orphan_key(row), row)
+    return list(merged.values())
+
+
 def gap_rows(build_root: Path, lang: str) -> dict[Slot, dict[str, Any]]:
     """G4's gap rows, keyed by slot. The build being re-keyed against, not a brief.
 
@@ -182,10 +202,20 @@ def main() -> int:
             if orphans:
                 orphan_dir.mkdir(parents=True, exist_ok=True)
                 target = orphan_dir / f"{shard.stem}.orphaned.jsonl"
+                existing = (
+                    [
+                        json.loads(line)
+                        for line in target.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+                    if target.exists()
+                    else []
+                )
+                preserved = merge_orphans(existing, orphans)
                 target.write_text(
                     "".join(
                         json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
-                        for row in orphans
+                        for row in preserved
                     ),
                     encoding="utf-8",
                 )

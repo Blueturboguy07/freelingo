@@ -1,0 +1,22 @@
+{
+  "$comment": "P2 round-4 B19 ruling and units 1-6 authoring lane. INV-PACK-08 and INV-PACK-10 already have canonical owners; this file records new falsifying tests without duplicating coverage ownership.",
+  "phase": "P2",
+  "round": 4,
+  "task": "p2r4-author-u01-u06",
+  "module": "Spanish curriculum, G3 register gate, candidate re-key and units 1-6 candidates",
+  "branch": "p2r4/author-u01-u06",
+  "owned": [],
+  "serves": ["INV-PACK-06", "INV-PACK-08", "INV-PACK-10"],
+  "tests": [
+    "tools/coursekit/tests/test_g3_solve.py::test_INV_PACK_08_reserved_register_lemma_belongs_in_the_address_unit",
+    "tools/coursekit/tests/test_rekey_authored_candidates.py::test_INV_PACK_10_a_later_rekey_preserves_previous_orphans"
+  ],
+  "measured": {
+    "gap_slots": 496,
+    "rows_rekeyed": 6941,
+    "rows_already_correct": 2468,
+    "rows_orphaned": 40,
+    "orphan_slots": ["u1/l3/s8", "u23/l133/s5"],
+    "unauthored_slots_before_round4_authoring": 26
+  }
+}

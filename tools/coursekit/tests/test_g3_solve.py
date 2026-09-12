@@ -196,6 +196,31 @@ def test_a_register_slot_the_language_does_not_have_is_refused(tmp_path: Path) -
         load_curriculum("es", path=write(tmp_path, document))
 
 
+def test_INV_PACK_08_reserved_register_lemma_belongs_in_the_address_unit(
+    tmp_path: Path,
+) -> None:
+    """[INV-PACK-08] B19: `usted` is curriculum, not a unit-1 V6 exemption."""
+    document = minimal()
+    document["grammar_concepts"].append(
+        {
+            "id": "formal_informal_address",
+            "label": "Choosing formal or informal address",
+            "cefr": "A1",
+            "probe": {"lemma_any": ["usted", "tú"]},
+        }
+    )
+    document["sections"][0]["units"][0]["target_lexemes"].append("usted")
+
+    with pytest.raises(CurriculumError, match="formal_informal_address"):
+        load_curriculum("es", path=write(tmp_path, document))
+
+    document["sections"][0]["units"][0]["target_lexemes"].remove("usted")
+    document["sections"][0]["units"][1]["grammar_concept"] = "formal_informal_address"
+    document["sections"][0]["units"][1]["target_lexemes"].append("usted")
+    curriculum = load_curriculum("es", path=write(tmp_path, document))
+    assert "usted" in curriculum.sections[0].units[1].target_lexemes
+
+
 def test_a_cefr_prose_string_that_does_not_ship_is_refused(tmp_path: Path) -> None:
     """Only seven prose values exist and there is no A2 one (deep/03 §review)."""
     document = minimal()

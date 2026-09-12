@@ -171,6 +171,17 @@ REGISTER_SLOT_BY_LANGUAGE: Final[dict[str, str]] = {
     "ja": "graded_honorific",
 }
 
+#: Register-marked lemmas that may be reserved only by the concept that explicitly
+#: teaches the contrast. B19 moved `usted` out of unit 1: a course whose default T/V
+#: choice is tuteo must not smuggle formal address into an unrelated introduction unit.
+#: This is deliberately high precision, matching V6's unambiguous marker policy.
+REGISTER_LEXEME_CONCEPT_BY_LANGUAGE: Final[dict[str, dict[str, str]]] = {
+    "es": {
+        "usted": "formal_informal_address",
+        "ustedes": "formal_informal_address",
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Section skeleton bounds
 # ---------------------------------------------------------------------------

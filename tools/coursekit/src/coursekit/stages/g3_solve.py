@@ -68,6 +68,7 @@ from ..config.g3 import (
     PROBE_CLAUSES,
     RECYCLE_LEMMAS_MAX,
     RECYCLE_WINDOW_UNITS,
+    REGISTER_LEXEME_CONCEPT_BY_LANGUAGE,
     REGISTER_SLOT_BY_LANGUAGE,
     REGISTER_SLOTS,
     SECTION_BAND_AGREEMENT_MIN,
@@ -371,6 +372,16 @@ def _load_sections(
             )
             if not lexemes:
                 raise CurriculumError(f"{unit_where}: no target_lexemes")
+            restricted = REGISTER_LEXEME_CONCEPT_BY_LANGUAGE.get(lang, {})
+            for lexeme in lexemes:
+                required_concept = restricted.get(lexeme)
+                if required_concept is not None and concept != required_concept:
+                    raise CurriculumError(
+                        f"{unit_where}: register-marked target lexeme {lexeme!r} belongs "
+                        f"in grammar_concept {required_concept!r}, not {concept!r}. A "
+                        f"reserved lemma outside its address unit would make V6 reject "
+                        f"every exercise that actually teaches it (INV-PACK-08)."
+                    )
             for lexeme in lexemes:
                 if lexeme in seen_lexemes:
                     raise CurriculumError(
