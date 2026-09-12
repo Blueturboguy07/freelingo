@@ -352,7 +352,6 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
   const freezesGrantedAtStart = engine.freeze?.held(world.freezeLedger) ?? 0;
 
   let freezesConsumedTotal = 0;
-  let previousZone: ZoneStampPort | null = null;
 
   for (const scripted of script) {
     const zoneId = scripted.zone;
@@ -367,7 +366,7 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
     }
 
     /* -- travel: a zone change may jump over a civil date (INV-DAY-03) ---------- */
-    if (scripted.travelledFrom !== undefined && previousZone !== null) {
+    if (scripted.travelledFrom !== undefined) {
       // The instant is declared by the trace, never guessed here: WHEN the zone changed
       // decides which civil dates are skipped, and a default hour chosen by the driver
       // would make the unlived date an accident of the driver rather than a property of
@@ -383,7 +382,6 @@ export function runJourney(options: JourneyOptions): JourneyLedger {
       };
       for (const jumped of day.unlivedDaysFromTransitions([transition])) world.unlived.add(jumped);
     }
-    previousZone = stamp;
 
     /* -- rollover, then replay it (INV-DAY-09, INV-FRZ-05) --------------------- */
     const ctx = { completedDays: world.completedDays, unlivedDays: world.unlived };
