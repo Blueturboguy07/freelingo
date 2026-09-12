@@ -11,16 +11,19 @@ it.
 
 | Id      | What                                                                                     | Kind                     | Status                            |
 | ------- | ---------------------------------------------------------------------------------------- | ------------------------ | --------------------------------- |
-| **B1**  | 18,200 candidate sentences do not exist                                                  | authoring                | **OPEN — the phase blocker**      |
-| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                     | **OPEN — measured 920/920**       |
-| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision          | **OPEN — found 2026-09-12**       |
+| **B1**  | the candidate sentences do not exist                                                     | authoring                | **RESOLVED 2026-09-12** — 481/490 |
+| **B1a** | every G4 gap slot carries empty `known_lemmas`/`new_lemmas`, so no candidate can pass G5 | code                     | **RESOLVED** — p2fix/ledger-freeze |
+| **B1b** | the committed candidates are keyed in a lesson numbering G4 does not use                 | code + decision          | **RESOLVED** — fixture re-filed    |
 | **B2**  | `pack-bake.yml` could not succeed on any dispatch                                        | code                     | **RESOLVED 2026-09-12** — deleted |
 | **B3**  | the wrong-item rate is `None`, not 2%                                                    | **founder decision**     | **OPEN**                          |
 | **B4**  | `coursekit sample es --n 300` is not a spelling the CLI has                              | docs                     | **RESOLVED 2026-09-12**           |
 | **B5**  | S152 has a validator, F3, and no row in the product map                                  | **founder decision**     | **OPEN**                          |
 | **B6**  | Azure is dead; Spanish bakes on Kokoro                                                   | **founder decision**     | **OPEN**                          |
 | **B7**  | `mutation.yml` has never produced a score                                                | pre-existing, non-gating | **OPEN, measured**                |
-| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)                | **OPEN — found 2026-09-12**       |
+| **B8**  | `build-es` names no language engine, so V8 will block even once B1 is fixed              | code (CI)                | **RESOLVED 2026-09-12** — sidecar |
+| **B9**  | unit 1 lesson 1 cannot hold a sentence: 5 lemmas, no verb, and `bueno` is unreachable    | **founder decision**     | **OPEN — the phase blocker**      |
+| **B10** | 218 candidate texts were `usted` in a course that declares `tu` (blocking V6)            | content                  | **RESOLVED 2026-09-12** — rewritten |
+| **B11** | G6 read one candidates file and there are nine, so the rubric engine probed nothing      | code                     | **RESOLVED 2026-09-12**           |
 
 ---
 

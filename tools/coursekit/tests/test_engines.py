@@ -327,7 +327,7 @@ def test_the_rubric_engine_names_itself_as_agent_authored() -> None:
     published rubric. Whatever else changes, a reader must never be able to mistake it
     for a translation round trip.
     """
-    report = AgentRubricEngine(path=REAL_CANDIDATES).probe("es")
+    report = AgentRubricEngine(paths=(REAL_CANDIDATES,)).probe("es")
     assert report["available"]
     assert "not a model round-trip" in report["backtranslation_engine"]
     # Keyed by text, so the six deliberate exact repeats (the `duplicate` axis's
@@ -344,20 +344,20 @@ def test_an_unscored_candidate_makes_the_axis_absent_not_passed(tmp_path: Path) 
     target.write_text(
         "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n", encoding="utf-8"
     )
-    report = AgentRubricEngine(path=target).probe("es")
+    report = AgentRubricEngine(paths=(target,)).probe("es")
     assert not report["available"]
     assert report["backtranslation_engine"] == ENGINE_NONE
     assert "no rubric score" in report["reason"]
 
 
 def test_an_absent_file_is_absent_not_clean(tmp_path: Path) -> None:
-    report = AgentRubricEngine(path=tmp_path / "nothing.jsonl").probe("es")
+    report = AgentRubricEngine(paths=(tmp_path / "nothing.jsonl",)).probe("es")
     assert not report["available"]
     assert report["backtranslation_engine"] == ENGINE_NONE
 
 
 def test_a_text_nobody_scored_returns_none_rather_than_a_default() -> None:
-    engine = AgentRubricEngine(path=REAL_CANDIDATES)
+    engine = AgentRubricEngine(paths=(REAL_CANDIDATES,))
     engine.probe("es")
     assert engine.score("Una frase que nadie escribió.") is None
 

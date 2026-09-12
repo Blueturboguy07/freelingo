@@ -27,6 +27,7 @@ and_is_not_blocked` runs it live rather than replaying the runlog.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -725,31 +726,48 @@ def test_live_languagetool_alone_is_enough_to_stop_v8_blocking(
     assert not blocking(findings), [finding.message for finding in findings]
 
 
-def test_the_invocation_build_es_uses_today_leaves_v8_with_nothing(
+def test_INV_PACK_14_the_invocation_build_es_uses_names_a_language_engine(
     es_after_g5: list[dict[str, Any]],
 ) -> None:
-    """[INV-PACK-14] B8, pinned: no engine named -> V8 blocking, for ANY content.
+    """[INV-PACK-14] B8, closed: the workflow itself has to bring an engine.
 
-    `.github/workflows/pack-ci.yml`'s `build-es` step is
-    `coursekit build es --set max_pairs=$COURSEKIT_MAX_PAIRS` — no `languagetool_url`, no
-    `kenlm_model`. `test_no_engine_at_all_is_a_blocking_v8_not_a_clean_one` already covers
-    the empty-options case as a property of G6; this one names the WORKFLOW, so that the
-    day somebody adds a sidecar step to `build-es` and this test starts failing, the
-    failure says which paragraph of docs/P2-BLOCKERS.md to delete.
+    This test used to pin the BROKEN state. `.github/workflows/pack-ci.yml`'s `build-es`
+    ran `coursekit build es` with no `languagetool_url` and no `kenlm_model`, G6 recorded
+    `grammar_engine: none` the way its docstring says it must, and V8 read "zero errors
+    from nothing" — so `validate-es` could not exit 0 for any content whatsoever, and
+    nobody could see it while G5 was failing one stage earlier.
 
-    It runs on every runner, with no Java and no model, because that is precisely the
-    runner it is about.
+    The sidecar step landed at the P2 fix integration, so the assertion is inverted: the
+    workflow must name an engine, and it must pass the SERVER BASE, because
+    `LanguageToolEngine` appends `/v2/languages` and `/v2/check` itself and a URL ending
+    in an endpoint fails the stage with a 404 on `/v2/check/v2/languages`.
+
+    The property behind it — no engine at all is a blocking V8 — stays covered by
+    `test_no_engine_at_all_is_a_blocking_v8_not_a_clean_one`, which is about G6 rather
+    than about the workflow. This one reads the YAML, because the defect was in the YAML.
     """
-    result = run_g6({})
-    assert result.ok, result.message
-
-    notes = read_entries("es", stage="g6")[-1]["notes"]
-    assert notes["grammar_engine"] == ENGINE_NONE
-    assert notes["perplexity_engine"] == ENGINE_NONE
-
-    findings = blocking(run_v8())
-    assert findings, "V8 passed a run in which nothing that can find an error ran"
-    assert "zero errors from nothing" in findings[0].message
+    workflow = (
+        Path(__file__).resolve().parents[3] / ".github" / "workflows" / "pack-ci.yml"
+    ).read_text(encoding="utf-8")
+    build_es = workflow[workflow.index("Build es (G0-G9)") :]
+    invocation = build_es[: build_es.index("\n\n")]
+    assert "--set languagetool_url=" in invocation, (
+        "build-es names no language engine, so G6 degrades to grammar_engine: none and "
+        "V8 blocks the pack with 'zero errors from nothing' (INV-PACK-14). Start the "
+        f"LanguageTool sidecar and pass its base URL. Invocation was:\n{invocation}"
+    )
+    # A regex rather than a whitespace split, and deliberately: INV-PACK-40's grep gate
+    # in tests/test_ledger_unit.py reads a whitespace split anywhere under tools/coursekit
+    # as a second notion of what a token is, even in a test that is slicing YAML.
+    named = re.search(r"--set languagetool_url=(\S+)", invocation)
+    assert named is not None
+    url = named.group(1)
+    assert not url.rstrip("/").endswith(("/v2/check", "/v2/languages")), (
+        f"languagetool_url must be the server base, not an endpoint; got {url!r}"
+    )
+    assert "org.languagetool.server.HTTPServer" in workflow, (
+        "the workflow passes a LanguageTool URL and never starts a server at it"
+    )
 
 
 def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(

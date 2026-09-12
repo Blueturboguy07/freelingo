@@ -52,7 +52,9 @@ env:
   #
   # Named here because two jobs assert against it and one of them is a shell script.
   AUDIO_BUDGET_MB: '120'
-  # Where `build-es` puts the Kokoro weights. Same path shape as `pack-bake.yml`.
+  # Where `build-es` puts the Kokoro weights. This is the only workflow that bakes:
+  # `pack-bake.yml` was deleted at the P2 fix round (docs/ci.md), because a dispatch on a
+  # fresh checkout has no G7 output to bake.
   COURSEKIT_KOKORO_WEIGHTS: ${{ github.workspace }}/.kokoro
 
 jobs:
@@ -181,7 +183,7 @@ jobs:
       # transformers) and `tts` (onnxruntime + model downloads) are gigabytes and do not
       # fit this job — a stage that needs one exits 3 with the install command rather
       # than degrading to a worse aligner or a system voice.
-      # `tts` as well, which `pack-bake.yml` asks for by name for the same reason.
+      # `tts` as well, because G8 runs inside this job now that `pack-bake.yml` is gone.
       # The deps lane kept it out of `[tool.uv] default-groups` so the 20-minute
       # `coursekit` job stays 20 minutes; THIS job has 60 and its product is a pack, and
       # a pack contains audio. A stage whose group is absent exits 3 rather than
@@ -225,8 +227,46 @@ jobs:
       - name: Disk before
         run: df -h .
 
+      # V8 BLOCKS A RUN THAT CHECKED NOTHING (INV-PACK-14), so `build-es` has to bring a
+      # language engine or `validate-es` cannot exit 0 for any content whatsoever. Until
+      # this step existed the job ran `coursekit build es` with no engine option at all,
+      # G6 recorded `grammar_engine: none` the way its docstring says it must, and V8
+      # read "0 errors from nothing". That was invisible while G5 was failing one stage
+      # earlier; it is the next thing that stops the build the moment the candidates land.
+      #
+      # LanguageTool is a Java sidecar. It is on the ingest allow-list already
+      # (grammar_rules / languagetool / shippable / LGPL-2.1-or-later), Java is on
+      # ubuntu-latest, and the server is one jar. KenLM stays absent on purpose: the pip
+      # package ships the query module only, training needs binaries built from source,
+      # and `engines/kenlm.py` refuses to invent an ARPA. With the sidecar up and no KenLM
+      # model, G6 degrades to `grammar_only`, names what it lost, and V8 does not block -
+      # which is the honest state and one the suite already has a name for.
+      #
+      # THE URL IS THE SERVER BASE, NOT AN ENDPOINT: LanguageToolEngine appends
+      # `/v2/languages` and `/v2/check` itself, so passing `.../v2/check` fails on a 404
+      # for `/v2/check/v2/languages`.
+      - name: Start the LanguageTool sidecar (LGPL-2.1-or-later)
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o LanguageTool-6.6.zip https://languagetool.org/download/LanguageTool-6.6.zip
+          unzip -q LanguageTool-6.6.zip
+          nohup java -cp LanguageTool-6.6/languagetool-server.jar \
+            org.languagetool.server.HTTPServer --port 8081 > languagetool.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://localhost:8081/v2/languages" > /dev/null; then
+              echo "languagetool is up"; break
+            fi
+            sleep 2
+          done
+          # The probe V8's engine record rests on: Spanish has a spell checker as well as
+          # grammar rules, so a `spellcheck_engine: none` on es is a broken sidecar, not a
+          # property of the language (which it IS for ja - 735 grammar rules, no speller).
+          curl -fsS -X POST -d "language=es&text=Yo tengo un qwzxvb grande." \
+            "http://localhost:8081/v2/check" | grep -q MORFOLOGIK_RULE_ES
+          echo "spell checker confirmed"
+
       - name: Build es (G0-G9)
-        run: uv run coursekit build es
+        run: uv run coursekit build es --set languagetool_url=http://localhost:8081
 
       # The gap list this build produced, as the authoring lanes read it. Uploaded, never
       # asserted against the committed `content/es/authoring/gap-brief.jsonl`: G0 reads a
@@ -289,13 +329,18 @@ jobs:
           fi
           uv run coursekit sign es
 
+      # `retention-days: 7`, raised from 1 at the P2 fix integration. This artefact is
+      # `validate-es`'s input AND, since `pack-bake.yml` was deleted, the only place the
+      # baked voice bank (`g8/bank/`, `g8/clips.jsonl`) is downloadable from. One day made
+      # a bank re-derivable only by re-running the build; docs/ci.md named that as the one
+      # thing the deletion did not fix, and this is the fix.
       - name: Upload the build tree for validate-es
         uses: actions/upload-artifact@v4
         with:
           name: es-build-${{ github.sha }}
           path: build/es
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
   validate-es:
     name: validate-es (V1-V12 + F1-F5)
