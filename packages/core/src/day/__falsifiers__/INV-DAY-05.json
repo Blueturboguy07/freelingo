@@ -1,0 +1,14 @@
+{
+  "id": "INV-DAY-05",
+  "falsifier": "a day boundary computed by adding 86,400 s, which skips a civil date on a 23-hour day and fails to advance on a 25-hour one",
+  "source": "EC-STK-06/07/08, deep/04 cases 8-10",
+  "input": {
+    "days": 400,
+    "practiseEveryNth": 3,
+    "freezes": 5,
+    "expectedConsumed": 5,
+    "startInstantUtc": "2026-01-01T12:00:00Z"
+  },
+  "mustNotBe": "a walk that decides a date twice, skips one, or spends two freezes on one date",
+  "usedBy": ["day/rollover.test.ts"]
+}

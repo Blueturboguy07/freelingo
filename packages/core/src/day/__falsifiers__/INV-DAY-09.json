@@ -1,0 +1,13 @@
+{
+  "id": "INV-DAY-09",
+  "falsifier": "a session killed mid-lesson whose `session_in_progress` flag defers rollover forever",
+  "source": "EC-STK-14, deep/04 case 43; plan ruling maxRolloverDeferralSeconds = 300",
+  "input": {
+    "localMidnightUtc": "2026-09-12T07:00:00Z",
+    "lastCheckpointUtc": "2026-09-12T06:58:00Z",
+    "killedHoursAgo": 8,
+    "raisedCeilingSeconds": 7200
+  },
+  "mustNotBe": "defer === true at more than 300 s past local midnight -- and, at a ceiling high enough not to bind, a deferral that ignores how stale the session's own checkpoint is (the shipped graceSeconds and maxRolloverDeferralSeconds are both 300, so the ceiling always binds and the session term is arithmetically invisible unless the ceiling is raised)",
+  "usedBy": ["day/rollover.test.ts"]
+}

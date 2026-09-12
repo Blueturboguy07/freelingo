@@ -1,0 +1,13 @@
+{
+  "id": "INV-DAY-06",
+  "falsifier": "a clock set back behind `broken_on` that un-breaks the streak or moves `previous_streak`",
+  "source": "EC-STK-10, deep/04 case 13",
+  "input": {
+    "lastDay": "2026-09-09",
+    "streak": 30,
+    "openedOn": "2026-09-11",
+    "clockSetBackTo": "2026-09-09"
+  },
+  "mustNotBe": "brk cleared, previousStreak recomputed, or last_processed_day walked backwards",
+  "usedBy": ["day/rollover.test.ts"]
+}

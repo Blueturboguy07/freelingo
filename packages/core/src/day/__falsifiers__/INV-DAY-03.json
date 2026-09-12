@@ -1,0 +1,22 @@
+{
+  "id": "INV-DAY-03",
+  "falsifier": "a three-date powered-off gap that returns `unlived` and preserves the streak",
+  "source": "EC-STK-21 (the corrected INV-DAY-03) and EC-STK-03/EC-STK-04 for the one case that IS unlived",
+  "input": {
+    "poweredOff": {
+      "lastDay": "2026-09-22",
+      "streak": 25,
+      "freezes": 2,
+      "returnedOn": "2026-09-26",
+      "gap": ["2026-09-23", "2026-09-24", "2026-09-25"]
+    },
+    "dateLineHop": {
+      "atUtc": "2026-09-12T10:00:00Z",
+      "fromTz": "Pacific/Midway",
+      "toTz": "Pacific/Kiritimati",
+      "skipped": ["2026-09-12"]
+    }
+  },
+  "mustNotBe": "any of the three slept-through dates disposed `unlived`, or the streak surviving them",
+  "usedBy": ["day/boundary.test.ts"]
+}

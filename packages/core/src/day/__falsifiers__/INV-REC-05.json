@@ -1,0 +1,19 @@
+{
+  "id": "INV-REC-05",
+  "falsifier": "a lesson started inside the window refused credit at completion",
+  "source": "EC-FRZ-16: evaluate the window at challenge START, so a session begun inside it always counts. The third lesson is begun at 23:5x on the last day of the window and commits after local midnight, which is the only way a completion legitimately lands outside it.",
+  "input": {
+    "lastDay": "2026-09-22",
+    "streak": 22,
+    "freezes": 2,
+    "missedDays": 3,
+    "returnedOn": "2026-09-26",
+    "brokenOn": "2026-09-25",
+    "startedOn": "2026-09-27",
+    "finishedOn": "2026-09-28",
+    "uncoveredWhenFinished": ["2026-09-25", "2026-09-26"],
+    "expectedStreakAfter": 24
+  },
+  "mustNotBe": "challengeEligibleAtStart false for a start day inside the window, an earned challenge deleted by the rollover that crosses the window's end, or a refused restore for a session begun inside it",
+  "usedBy": ["day/recovery.test.ts"]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "INV-FRZ-02",
+  "falsifier": "a frozen day that increments the streak, or arms the recovery challenge on a streak that never broke",
+  "source": "EC-FRZ-02 / EC-FRZ-12, deep/04 case 17 and open question 6",
+  "input": {
+    "lastDay": "2026-09-10",
+    "streak": 40,
+    "freezes": 2,
+    "openedOn": "2026-09-12",
+    "frozenDay": "2026-09-11"
+  },
+  "mustNotBe": "a streak of 41, or a challenge offered when a freeze covered the day",
+  "usedBy": ["day/rollover.test.ts"]
+}

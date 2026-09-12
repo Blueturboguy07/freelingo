@@ -1,0 +1,19 @@
+{
+  "id": "INV-FRZ-04",
+  "falsifier": "a clock-tamper replay of one Society tier entry that mints a second freeze -- specifically a replay AFTER the learner has spent freezes, where the balance has room and only the idempotency key stands between the replay and a refill",
+  "source": "EC-FRZ-07: tier entry GRANTS the freezes (2/2 -> 3/3), idempotent on society_tier_entered_at. The `spendThenReplay` block exists because the earlier version of this fixture proved nothing: the replay was blocked by cap arithmetic (`increase === 0`), so deleting the idempotency check left the suite green.",
+  "input": {
+    "tier": "ember",
+    "enteredAt": "2026-11-10T09:00:00Z",
+    "startingCap": 2,
+    "expectedCap": 3,
+    "replayEnteredAt": "2026-11-10T09:00:00Z",
+    "spendThenReplay": {
+      "spendOnDays": ["2026-11-12", "2026-11-13"],
+      "heldAfterSpending": 1,
+      "heldAfterReplay": 1
+    }
+  },
+  "mustNotBe": "a balance above the new cap, a second grant row under the same entered-at, or a replay that refills a balance the learner has spent down",
+  "usedBy": ["day/freeze.test.ts"]
+}

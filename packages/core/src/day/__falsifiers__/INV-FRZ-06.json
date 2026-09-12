@@ -1,0 +1,11 @@
+{
+  "id": "INV-FRZ-06",
+  "falsifier": "a day-1 fixture at 2/2 writing a third freeze, raising the cap, or rendering freeze-gift copy with no balance change",
+  "source": "EC-FRZ-17: clamp every grant to cap - held; never raise the cap to absorb a gift",
+  "input": {
+    "cap": 2,
+    "giftKey": "goal_met_gift:2026-09-11"
+  },
+  "mustNotBe": "ceremony true with applied 0, or a cap that moved",
+  "usedBy": ["day/freeze.test.ts"]
+}

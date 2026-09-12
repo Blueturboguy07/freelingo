@@ -1,0 +1,14 @@
+{
+  "id": "INV-DAY-14",
+  "falsifier": "a 1970 install that mints a goal chest then walks 20,000 civil days",
+  "source": "EC-STK-23: a dead-battery device whose clock reads 1970, corrected by the OS after lesson one",
+  "input": {
+    "deadBatteryUtc": "1970-01-02T10:00:00Z",
+    "tz": "America/Los_Angeles",
+    "buildLocalDay": "2026-09-11",
+    "correctedTo": "2026-09-11",
+    "goalXp": 20
+  },
+  "mustNotBe": "a day-keyed reward on the 1970 row, more than one freeze consumed, or a backfilled walk",
+  "usedBy": ["day/boundary.test.ts"]
+}

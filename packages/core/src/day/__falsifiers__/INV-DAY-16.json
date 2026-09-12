@@ -1,0 +1,25 @@
+{
+  "id": "INV-DAY-16",
+  "falsifier": "a date-line hop over the 1st that skips or doubles a monthly settlement",
+  "source": "EC-STK-25. The case was first written as 'LA 2026-09-30, landing in Sydney 2026-10-02', but LA -> Sydney is a 17-hour hop: it advances the civil date by exactly one, so under the CORRECTED INV-DAY-03 nothing is unlived and 2026-10-01 is lived-and-missed. A date must be jumped over by more than 24 hours of offset change to be unlived at all, so the fixture uses the transition that really does it (Pacific/Midway -11 -> Pacific/Kiritimati +14, 25 hours) and ALSO keeps the original LA -> Sydney stamps as the lived-and-missed control.",
+  "input": {
+    "lastDay": "2026-09-30",
+    "streak": 6,
+    "unlivedTransition": {
+      "atUtc": "2026-10-01T10:30:00Z",
+      "fromTz": "Pacific/Midway",
+      "toTz": "Pacific/Kiritimati",
+      "expectedUnlived": ["2026-10-01"],
+      "landedOn": "2026-10-02"
+    },
+    "livedControlTransition": {
+      "atUtc": "2026-09-30T14:00:00Z",
+      "fromTz": "America/Los_Angeles",
+      "toTz": "Australia/Sydney",
+      "expectedUnlived": [],
+      "landedOn": "2026-10-02"
+    }
+  },
+  "mustNotBe": "two settlements for one month, a missing October settlement, a freeze spent on the unlived date, or an `unlived` disposition derived from a transition that only advanced the date by one",
+  "usedBy": ["day/rollover.test.ts"]
+}

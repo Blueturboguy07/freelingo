@@ -1,0 +1,16 @@
+{
+  "id": "INV-REC-04",
+  "falsifier": "complete one of three lessons, advance three local days, and still find the challenge live",
+  "source": "EC-FRZ-15: the window is measured from broken_on, in LOCAL DAYS, and expiry is one transaction",
+  "input": {
+    "lastDay": "2026-09-22",
+    "streak": 22,
+    "freezes": 2,
+    "missedDays": 3,
+    "returnedOn": "2026-09-26",
+    "brokenOn": "2026-09-25",
+    "expiredOn": "2026-09-28"
+  },
+  "mustNotBe": "a resumable challenge row, an armed offer, or a restored streak after the window",
+  "usedBy": ["day/recovery.test.ts"]
+}

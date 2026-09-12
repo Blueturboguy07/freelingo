@@ -1,0 +1,12 @@
+{
+  "id": "INV-FRZ-01",
+  "falsifier": "a freeze acquired on the morning of the return that retroactively rescues the gap behind it",
+  "source": "EC-FRZ-01 schema half; plan ruling: consumed iff owned BEFORE the missed day began",
+  "input": {
+    "gapDay": "2026-09-23",
+    "returnDay": "2026-09-26",
+    "amount": 2
+  },
+  "mustNotBe": "freezesOwnedBefore counting a grant owned from the return day",
+  "usedBy": ["day/freeze.test.ts"]
+}
