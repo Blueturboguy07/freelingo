@@ -275,6 +275,7 @@ def test_INV_SCH_11_actual_objective_definitions_cannot_change_after_assembly(tm
 
     inputs = fixture()
     if fault == "unit-grammar":
+        inputs.drafts[0]["lexicalBindings"] = []
         inputs.drafts[0]["schedulerObjective"] = reviewed(
             {
                 "exerciseId": "ex1",
@@ -296,6 +297,7 @@ def test_INV_SCH_11_actual_objective_definitions_cannot_change_after_assembly(tm
             },
         )
     if fault == "unit-grammar":
+        inputs.drafts[0]["lexicalBindings"] = []
         rows["grammar_concept"].append(
             {**rows["grammar_concept"][0], "concept_id": "g2", "name": "Other"}
         )
