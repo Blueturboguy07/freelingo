@@ -150,6 +150,45 @@ function lesson() {
   };
 }
 describe('real App screen composition', () => {
+  it('[INV-SESS-01] repeated actual typed edits while the checkpoint is pending reach the runtime in order', async () => {
+    const f = fixture();
+    const content = lesson();
+    f.set({
+      lesson: {
+        ...content,
+        state: {
+          ...freshSession({ queue: [item(1, { type: 'typedTranslate' })] }),
+          shellState: 'challenge.idle',
+        },
+        challenge: {
+          ...content.challenge,
+          type: 'typedTranslate',
+          instruction: 'Write this in English',
+        },
+      },
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const dispatch = vi.mocked(f.runtime.dispatchLesson).getMockImplementation()!;
+    vi.mocked(f.runtime.dispatchLesson).mockImplementation(async (event) => {
+      if (event.type === 'input') await gate;
+      return dispatch(event);
+    });
+    render(<FreelingoApp services={f.services} lifecycle={f.lifecycle} />);
+    const field = await screen.findByRole('textbox', { name: 'Your answer' });
+    fireEvent.change(field, { target: { value: 'hello' } });
+    fireEvent.change(field, { target: { value: 'hello' } });
+    await act(async () => {
+      release();
+    });
+    await waitFor(() =>
+      expect(
+        vi.mocked(f.runtime.dispatchLesson).mock.calls.filter(([event]) => event.type === 'input'),
+      ).toHaveLength(2),
+    );
+  });
   it('[INV-SESS-14] lesson credits return to the same player and expose no tab-based exit', async () => {
     const f = fixture();
     f.set({ lesson: lesson() });
