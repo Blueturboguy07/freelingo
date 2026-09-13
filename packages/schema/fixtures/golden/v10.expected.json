@@ -256,6 +256,7 @@
       "evidence_json": "{\"reviews\":[{\"sessionId\":\"s_golden_1\",\"strength\":0.96},{\"sessionId\":\"s_path_jump\",\"strength\":0.97}]}"
     }
   ],
+  "account_word_review": [],
   "account_word_state": [
     {
       "id": 1,
