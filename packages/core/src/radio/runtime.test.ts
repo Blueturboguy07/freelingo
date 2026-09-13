@@ -79,6 +79,33 @@ const episode: RadioEpisode = {
   ],
 };
 describe('radio runtime', () => {
+  it('[INV-STO-08] a capped Radio MATCH credits only the five displayed pairs', () => {
+    const matching: RadioEpisode = {
+      ...episode,
+      questions: [
+        {
+          id: 'six',
+          atMs: 10000,
+          kind: 'matching',
+          prompt: 'Match',
+          pairs: Array.from({ length: 6 }, (_, i) => ({
+            id: `pair${i}`,
+            left: `word${i}`,
+            right: `gloss${i}`,
+            audioUri: `clip${i}.opus`,
+            itemIds: [`item${i}`],
+          })),
+        },
+      ],
+    };
+    const state = answerRadio(matching, moveRadio(matching, startRadio(matching, 'run'), 10000), {
+      kind: 'matches',
+      pairs: Array.from({ length: 5 }, (_, i) => ({ leftId: `pair${i}`, rightId: `pair${i}` })),
+    });
+    expect(state.answers[0]?.correct).toBe(true);
+    expect(state.answers[0]?.itemIds).toEqual(['item0', 'item1', 'item2', 'item3', 'item4']);
+  });
+
   it('[INV-STO-05] exactly the declared count arms selection for any count', () => {
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 12 }), fc.integer({ min: 0, max: 15 }), (n, length) => {

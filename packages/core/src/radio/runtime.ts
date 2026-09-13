@@ -1,5 +1,5 @@
 import { RADIO_MIN_CONTENT_TILES } from './config.js';
-import { gradeStoryChallenge } from '../stories/runtime.js';
+import { gradeStoryChallenge, storyChallengeItems } from '../stories/runtime.js';
 import type { NarrativeCompletion } from '../stories/types.js';
 import type { NarrativeAnswer, RadioEpisode, RadioQuestion, RadioState } from './types.js';
 export function selectionReady(count: number, selected: readonly string[]): boolean {
@@ -135,7 +135,7 @@ export function answerRadio(
     itemIds = question.itemIds;
   } else {
     correct = gradeStoryChallenge({ ...question, type: 'MATCH', lineIndex: 0 }, answer);
-    itemIds = [...new Set(question.pairs.flatMap((pair) => pair.itemIds))];
+    itemIds = storyChallengeItems({ ...question, type: 'MATCH', lineIndex: 0 });
   }
   const skippedIds = state.skippedIds.filter((id) => id !== question.id);
   return {
