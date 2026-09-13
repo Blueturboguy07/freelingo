@@ -8,7 +8,7 @@ import {
 } from '@freelingo/core/course';
 import { GOAL_TIERS } from '@freelingo/core/economy';
 import type { LoopPorts, LoopRoute, SettingsRoute, SettingsSnapshot } from './contracts';
-import { Action, ErrorNotice, Label, Page, Panel, styles, useLoopAction } from './ui';
+import { Action, ErrorNotice, Label, Page, Panel, useLoopAction, useLoopUi } from './ui';
 const PREFERENCES: readonly { key: PreferenceKey; label: string }[] = [
   { key: 'soundEffects', label: 'Sound effects' },
   { key: 'animations', label: 'Animations' },
@@ -50,6 +50,7 @@ export function SettingsScreen({
   snapshot: SettingsSnapshot;
   ports: LoopPorts;
 }) {
+  const { styles } = useLoopUi();
   const action = useLoopAction(snapshot.courseId + '/' + route);
   const [confirm, setConfirm] = useState<{
     courseId: string;
