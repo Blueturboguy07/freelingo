@@ -884,7 +884,20 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
         )
         intro = row["introduction"]
         if intro is not None:
-            fields(intro, {"exerciseId", "unitId", "lessonIndex", "when"}, "surface introduction")
+            fields(
+                intro,
+                {"exerciseId", "unitId", "lessonIndex", "when"},
+                "surface introduction",
+                {"location", "optionId"},
+            )
+            if "location" in intro or "optionId" in intro:
+                require(
+                    intro.get("location") == "option"
+                    and intro["when"] == "prompt"
+                    and isinstance(intro.get("optionId"), str)
+                    and bool(intro["optionId"].strip()),
+                    "surface introduction: invalid option location",
+                )
             require(
                 intro["when"] in {"prompt", "wrong-feedback"},
                 "surface introduction: unknown display event",
@@ -1140,7 +1153,29 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             if intro is None or intro["exerciseId"] != exercise_id:
                 continue
             require(draft["sourceId"] in row["sourceIds"], "introduction: wrong source binding")
-            if intro["when"] == "prompt":
+            if intro.get("location") == "option":
+                option = next(
+                    (
+                        option
+                        for option in presentation.get("options", [])
+                        if option["id"] == intro["optionId"]
+                    ),
+                    None,
+                )
+                require(
+                    presentation["type"] == "pictureSelect"
+                    and presentation.get("introduction") == "word"
+                    and row["language"] == inputs.identity["lang"]
+                    and option is not None
+                    and option["text"] == row["surface"]
+                    and row["surface"] in presentation["acceptedAnswers"]
+                    and any(
+                        mapping["surfaceId"] == row["surfaceId"] and mapping["kind"] == "lexeme"
+                        for mapping in scheduler_surfaces
+                    ),
+                    "introduction: option is not the visible correct NEW WORD target",
+                )
+            elif intro["when"] == "prompt":
                 require(
                     presentation["type"] not in HIDDEN_AUDIO_PROMPT_TYPES
                     and "promptLanguage" in presentation
@@ -1157,6 +1192,11 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             introductions.append(
                 {key: row[key] for key in ("surfaceId", "surface", "language")}
                 | {"when": intro["when"]}
+                | (
+                    {"location": "option", "optionId": intro["optionId"]}
+                    if intro.get("location") == "option"
+                    else {}
+                )
             )
         speech = {}
         if gradable["family"] == "speaking":

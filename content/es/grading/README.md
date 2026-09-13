@@ -147,6 +147,7 @@ A reviewed surface row is:
 {surfaceId,language,surface,rank,introduction,sourceIds,author,
  review:{reviewer,verdict:'accepted',sha256}}
 introduction = null | {exerciseId,unitId,lessonIndex,when:'prompt'|'wrong-feedback'}
+ | {exerciseId,unitId,lessonIndex,when:'prompt',location:'option',optionId}
 ```
 
 The surface ID is `sf_` plus the first 32 hex characters of the canonical JSON hash
@@ -284,3 +285,15 @@ the declared character fallback. Accepted speech returns the actual matched surf
 ID. Empty normalized audio is distinct from a failed pronunciation; the existing
 native/session amplitude gate remains upstream. Unit tests and synthetic SQLite
 roundtrips do not claim that native speech was heard or production content approved.
+
+
+A picture-select NEW WORD beat may instead declare the additive introduction
+location `{when:'prompt',location:'option',optionId}`. The reviewed surface must
+match that exact visible correct option's text in the course target language,
+`presentation.type` must be `pictureSelect`, and `presentation.introduction` must
+be `word`. The surface must have an approved lexeme scheduler mapping; grammar
+objectives, arbitrary/distractor options, unknown IDs, missing markers, foreign
+language surfaces, and location fields on wrong-feedback witnesses are rejected.
+The runtime carries the same location and ID. The existing prompt-phase callback
+fires after options render; only that actual display event records the exposure.
+No introduction is inferred from decoding, and the production delay is unchanged.

@@ -995,3 +995,110 @@ it('[INV-SCH-11] an existing tagged grammar concept must still be this actual un
   );
   expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
 });
+
+function pictureIntroPayload() {
+  const base = payload(),
+    surface = 'cantar',
+    id = surfaceId('es', surface);
+  return {
+    ...base,
+    gradable: {
+      itemId: base.itemId,
+      family: 'select',
+      accepted: [{ surfaceId: id, surface, rank: 4 }],
+    },
+    presentation: {
+      ...base.presentation,
+      type: 'pictureSelect',
+      prompt: 'to sing',
+      acceptedAnswers: [surface],
+      introduction: 'word',
+      options: [
+        ['correct', 'cantar'],
+        ['other1', 'contar'],
+        ['other2', 'bailar'],
+      ].map(([id, text]) => ({
+        id: id!,
+        text: text!,
+        imageUri: 'original/' + id + '.png',
+        imageDescription: 'Original fixture ' + text,
+      })),
+    },
+    schedulerSurfaces: [{ ...base.schedulerSurfaces[0]!, surfaceId: id, surface }],
+    introductions: [
+      {
+        surfaceId: id,
+        surface,
+        language: 'es',
+        when: 'prompt',
+        location: 'option',
+        optionId: 'correct',
+      },
+    ],
+  };
+}
+function pictureIntroDatabase(value: unknown = pictureIntroPayload()) {
+  const result = database(value);
+  result.db
+    .prepare('UPDATE exercise SET type=?,prompt=?,accepted_answers_json=?,distractors_json=?')
+    .run('match', 'Translate this sentence\nto sing', '["cantar"]', '["contar","bailar"]');
+  return result;
+}
+it('[INV-SCH-11] a NEW WORD picture option is a declared prompt-phase exposure', () => {
+  const value = pictureIntroPayload(),
+    { reader } = pictureIntroDatabase(value);
+  const item = readRuntimeItem(reader, identity, 'ex1');
+  expect(item.introductions).toEqual(value.introductions);
+  expect(item.presentation.promptLanguage).toBe('en');
+  expect(item.introductions[0]!.language).toBe('es');
+});
+it.each([
+  'missing-id',
+  'wrong-id',
+  'distractor-id',
+  'missing-marker',
+  'grammar-marker',
+  'wrong-shape',
+  'feedback',
+  'unknown-location',
+  'grammar-objective',
+  'foreign-language',
+])('[INV-SCH-11] rejects an unproved picture option exposure: %s', (fault) => {
+  const value = pictureIntroPayload(),
+    intro = value.introductions[0]!;
+  if (fault === 'missing-id') Reflect.deleteProperty(intro, 'optionId');
+  if (fault === 'wrong-id') intro.optionId = 'missing';
+  if (fault === 'distractor-id') intro.optionId = 'other1';
+  if (fault === 'missing-marker') Reflect.deleteProperty(value.presentation, 'introduction');
+  if (fault === 'grammar-marker') value.presentation.introduction = 'grammar';
+  if (fault === 'wrong-shape') value.presentation.type = 'meaningSelect';
+  if (fault === 'feedback') intro.when = 'wrong-feedback';
+  if (fault === 'unknown-location') intro.location = 'answer-cache';
+  if (fault === 'grammar-objective') {
+    value.schedulerSurfaces[0]!.kind = 'grammarConcept';
+    value.schedulerSurfaces[0]!.itemRef = 'gc:original';
+  }
+  if (fault === 'foreign-language') {
+    intro.language = 'en';
+    intro.surfaceId = surfaceId('en', intro.surface);
+  }
+  const { reader, db } = pictureIntroDatabase(value);
+  if (fault === 'grammar-objective')
+    db.exec(
+      "INSERT INTO grammar_concept VALUES('gc:original');INSERT INTO exercise_item_tag VALUES('ex1','grammar_concept','gc:original',1)",
+    );
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
+});
+it('[INV-SCH-11] an orphan option ID cannot masquerade as a full prompt witness', () => {
+  const value = payload();
+  value.introductions = [
+    {
+      surfaceId: surfaceId('en', value.presentation.prompt),
+      surface: value.presentation.prompt,
+      language: 'en',
+      when: 'prompt',
+    },
+  ];
+  Object.assign(value.introductions[0]!, { optionId: 'unbound' });
+  expect(() => decode(value)).toThrow(PackFormatError);
+});
