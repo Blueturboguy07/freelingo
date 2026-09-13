@@ -442,7 +442,7 @@ def select(
                     continue
 
                 new_lemmas = sorted((choice.lemmas & unit_new) - shown)
-                known_lemmas = sorted(choice.lemmas - set(new_lemmas))
+                known_lemmas = sorted(index.known - set(new_lemmas))
                 shown.update(choice.lemmas)
                 lesson_new.update(new_lemmas)
                 for lemma in choice.lemmas:

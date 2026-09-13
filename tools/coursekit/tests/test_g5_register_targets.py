@@ -434,3 +434,30 @@ def test_INV_PACK_08_g6_rejects_missing_or_borrowed_sentence_analysis(
         "alternate" if bad_evidence == "alternate_stale" else "preferred"
     )
     assert findings[0]["analysis_error"]
+
+
+def test_INV_PACK_06_g4_corpus_carries_scheduled_window_beyond_its_surface():
+    u = unit(index=1)
+    u["level_count"] = 2
+    u["target_lemmas"] = ["alfa", "beta", "gamma"]
+    candidates = []
+    for i, word in enumerate(u["target_lemmas"]):
+        a = analysis(word)
+        candidates.append(Candidate(str(i) * 16, frozenset({word}), tuple(a["tokens"]), 1, word))
+    result = select(
+        [u],
+        candidates,
+        {
+            u["grammar_concept"]: SimpleNamespace(
+                probe=SimpleNamespace(matches_sentence=lambda _: True)
+            )
+        },
+        {},
+    )
+    selected = {row["sentence_id"]: row for row in result.items if not row["gap"]}
+    first, second = selected["0" * 16], selected["1" * 16]
+    assert first["new_lemmas"] == ["alfa"]
+    assert "beta" not in first["known_lemmas"] and "gamma" not in first["known_lemmas"]
+    assert second["new_lemmas"] == ["beta"]
+    assert "alfa" in second["known_lemmas"]  # legitimate alternate may reuse prior vocabulary
+    assert "gamma" not in second["known_lemmas"]
