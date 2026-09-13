@@ -298,3 +298,71 @@ cannot be fixed after release.
 is unregistered, which is why `coursekit build es` exits **2** today. The wave-2 lanes
 register them; nothing in `cli.py`, `commands/`, `artifacts.py`, `runlog.py` or
 `inputs.py` needs to change for that to work.
+
+## Round-5 selected-source answer evidence (contract, 2026-09-13)
+
+`selected_sources.resolve_selected_sources(lang, selected, candidates, ingested,
+analysed, units, banded=())` returns the complete ordered tuple of `SelectedSource` occurrences.
+The key includes unit, lesson, slot, source kind and exact source ID. It joins corpus
+G0/G1 evidence or the first surviving G5 candidate after G6, verifies exact token spans,
+and retains the original source/attribution row. `source_population_digest` includes
+the canonical Spanish/English pair, analysis, destination ledger, unit declaration and
+legacy alternate surfaces. This identity check is not a language-quality certificate.
+The snapshot also binds the unchanged sentence-length policy: corpus keeps its strict
+floor; an authored verbless window requires complete G2 POS proof for the existing B9
+relaxation. Missing POS evidence keeps the strict floor. G6 recomputes the shared token
+count with the original adapter, and checks all accepted Spanish surfaces for duplicate
+uses across actual slots in a unit. G4 must emit its complete scheduled known-lemma allowance for corpus slots as it does
+for gaps; reconstructing that window in G7 would create a second source of truth.
+
+The original authoring resource `content/<lang>/authoring/answers.jsonl` contains one
+row for **every actual selected occurrence**, including explicit empty alternate sets.
+It has schema version 1, the exact `SelectedSource.snapshot()`, author, original-content
+licence, authoring date and rationale; `canonical_pair`; ordered `spanish` and
+`english_reverse_only` arrays; and independent review metadata. A pair judgement has
+an integer `score` on the unchanged 0–4 rubric, prose `judgement`, and an explicit
+whole-sentence `register` (`tu`, `usted` or `neutral`). Each alternate has `text` and its
+own `pair` judgement. Register means the Spanish side's contextual form of address,
+including for an alternate English translation. A parser's failure to detect a marker
+cannot certify a neutral register. Independent review hashes all author fields and
+must be redone if any canonical pair, placement or accepted surface changes.
+
+`load_answer_evidence` rejects missing, extra, duplicate, stale, rejected, self-reviewed
+or unreviewed occurrences. It also refuses to omit a legacy Spanish alternate from
+review. Explicitly empty sets document an inspected answer set; they cannot excuse a
+known missing-valid-answer defect in the scored sample. Authors and reviewers remain
+agents here, so review is **PROVISIONAL (unreviewed by a paid native speaker)**.
+
+G6 consumes these reviewed sets for selected corpus and authored sources alike. Its
+`build_answer_approval` input is a per-slot ordered list of proofs for canonical
+Spanish, Spanish alternatives, canonical English and reverse-only English alternatives.
+Every proof records use, exact text, its own Spanish analysis (null for English), and
+checks with explicit engine, language, requested/available status, pass result and
+details. Spanish requires destination ledger, register, length, duplicate and exact pair checks plus
+available grammar and/or perplexity evidence. English requires exact bilingual review
+and actual English grammar checking; Spanish morphology or a Spanish LanguageTool
+result cannot certify an English alternative. Requested unavailable checks fail.
+Unrequested absent Spanish grammar/perplexity axes retain a named reason and a null
+pass result. No failing surface is silently trimmed from a reviewed set.
+
+`write_answer_approval` writes `build/<lang>/g6/answer-approval.json` and returns the
+`answer_approval` runlog note with its exact byte hash, G6 run ID, authored evidence
+digest and resolved population digest. The sidecar has its own versioned contract; it
+is included with immutable build artifacts and does not change frozen exercise or
+SQLite schemas. G7 calls `load_validated_answer_evidence`, which requires the latest
+actual G6 attempt to have succeeded after the latest G0–G5 attempts, verifies the file
+against that entry, and rechecks its complete evidence joins. An older successful G6
+cannot hide a later failed attempt or rerun of its sources.
+
+The returned `ApprovedAnswers` contains canonical-first whole `spanish` and
+`english_reverse_only` tuples, exact Spanish analyses and the independent review hash.
+G7 must use these only in the matching free-typing direction. It must not derive new
+pro-drop/pronoun/synonym answers after G6. A typed translation blank may accept a span
+only when the unchanged prefix plus that span plus unchanged suffix reconstructs one
+of the approved whole Spanish alternatives exactly (NFC normalization only). Fixed
+word banks, transcription, listening gaps, agreement choices and speaking preserve
+their existing input contracts. Conversation first-turn/reply/distractor evidence
+requires separately reviewed roles and will not be inferred from ordinary pairs.
+
+This section freezes producer/consumer interfaces for the held repair batch. Passing
+these contract tests is not a regenerated-course, human-quality or release result.
