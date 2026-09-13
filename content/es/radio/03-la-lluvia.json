@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "id": "03-la-lluvia",
+  "title": "Un plan para la lluvia",
+  "translation": "A plan for the rain",
+  "language": "es",
+  "unit_index": 30,
+  "author": "Codex P6 author",
+  "register": "tu",
+  "show": {
+    "id": "un-rato-con-rosa",
+    "title": "Un rato con Rosa",
+    "host_character_id": "adult_female"
+  },
+  "l1_ratio": 0,
+  "target_duration_ms": 240000,
+  "segments": [
+    {
+      "id": "03-la-lluvia:s1",
+      "character_id": "adult_female",
+      "text": "Bienvenidos. Hoy hablamos de una fiesta en el jardín y de un problema que llega del cielo: la lluvia.",
+      "translation": "Welcome. Today we are talking about a garden party and a problem that comes from the sky: rain."
+    },
+    {
+      "id": "03-la-lluvia:s2",
+      "character_id": "adult_male",
+      "text": "El domingo es mi cumpleaños. Quiero celebrar la fiesta en el jardín, pero va a llover por la mañana. No sé qué hacer.",
+      "translation": "Sunday is my birthday. I want to celebrate the party in the garden, but it is going to rain in the morning. I do not know what to do."
+    },
+    {
+      "id": "03-la-lluvia:s3",
+      "character_id": "adult_female",
+      "text": "Podemos preparar otro plan. No tienes que cancelar la fiesta. ¿Cuántas personas vienen y cuánto espacio tienes dentro de casa?",
+      "translation": "We can prepare another plan. You do not have to cancel the party. How many people are coming, and how much space do you have inside the house?"
+    },
+    {
+      "id": "03-la-lluvia:s4",
+      "character_id": "adult_male",
+      "text": "Vienen seis amigos. Con mi familia somos diez personas. Mi salón es pequeño y la mesa está en el centro.",
+      "translation": "Six friends are coming. With my family there are ten of us. My living room is small, and the table is in the centre."
+    },
+    {
+      "id": "03-la-lluvia:s5",
+      "character_id": "adult_female",
+      "text": "Puedes mover la mesa junto a la pared. Así el centro queda libre. Puedes poner la comida en la mesa y dejar algunas sillas cerca de la ventana.",
+      "translation": "You can move the table next to the wall. That leaves the centre free. You can put the food on the table and leave some chairs near the window."
+    },
+    {
+      "id": "03-la-lluvia:s6",
+      "character_id": "adult_male",
+      "text": "Mi abuelo prefiere sentarse junto a la ventana. Los demás podemos hablar de pie. Tenemos pan, queso, fruta y una tarta de chocolate.",
+      "translation": "My grandfather prefers to sit next to the window. The rest of us can talk standing up. We have bread, cheese, fruit, and a chocolate cake."
+    },
+    {
+      "id": "03-la-lluvia:s7",
+      "character_id": "adult_female",
+      "text": "Esa comida es fácil de servir dentro de casa. ¿Tienes algo para adornar el salón? No hace falta comprar más cosas.",
+      "translation": "That food is easy to serve inside the house. Do you have anything to decorate the living room? There is no need to buy more things."
+    },
+    {
+      "id": "03-la-lluvia:s8",
+      "character_id": "adult_male",
+      "text": "Tengo globos para el jardín. Puedo ponerlos junto a la puerta del salón. Así mis amigos saben dónde está la fiesta cuando entran.",
+      "translation": "I have balloons for the garden. I can put them next to the living-room door. That way my friends know where the party is when they come in."
+    },
+    {
+      "id": "03-la-lluvia:s9",
+      "character_id": "adult_female",
+      "text": "Muy bien. Recuerda avisarles del cambio. Si saben que la fiesta es dentro, no tienen que traer ropa para estar bajo la lluvia.",
+      "translation": "Very good. Remember to tell them about the change. If they know the party is indoors, they do not have to bring clothes for being out in the rain."
+    },
+    {
+      "id": "03-la-lluvia:s10",
+      "character_id": "adult_male",
+      "text": "Puedo enviar un mensaje hoy. La fiesta empieza a las cinco y termina a las ocho. La hora no cambia, solo el lugar.",
+      "translation": "I can send a message today. The party starts at five and ends at eight. The time does not change, only the place."
+    },
+    {
+      "id": "03-la-lluvia:s11",
+      "character_id": "adult_female",
+      "text": "Tres horas son suficientes para comer, hablar y cantar. ¿Alguien prepara una canción para tu cumpleaños?",
+      "translation": "Three hours are enough to eat, talk, and sing. Is anyone preparing a song for your birthday?"
+    },
+    {
+      "id": "03-la-lluvia:s12",
+      "character_id": "adult_male",
+      "text": "Mi hermana siempre canta. Ya tiene una canción preparada. Podemos escucharla dentro del salón. La lluvia no cambia su voz.",
+      "translation": "My sister always sings. She already has a song prepared. We can listen to her inside the living room. The rain does not change her voice."
+    },
+    {
+      "id": "03-la-lluvia:s13",
+      "character_id": "adult_female",
+      "text": "Exacto. Y si después sale el sol, podéis abrir la puerta y salir al jardín. Tener dos planes no significa que tengas dos fiestas.",
+      "translation": "Exactly. And if the sun comes out afterwards, you can open the door and go out into the garden. Having two plans does not mean you have two parties."
+    },
+    {
+      "id": "03-la-lluvia:s14",
+      "character_id": "adult_male",
+      "text": "Ahora estoy más tranquilo. Lo importante es estar con mi familia y mis amigos. Con lluvia o sin lluvia, tenemos mucho que celebrar.",
+      "translation": "Now I am calmer. The important thing is to be with my family and my friends. With or without rain, we have a lot to celebrate."
+    },
+    {
+      "id": "03-la-lluvia:s15",
+      "character_id": "adult_female",
+      "text": "Feliz cumpleaños. Gracias por escuchar. Nos encontramos en el próximo episodio.",
+      "translation": "Happy birthday. Thank you for listening. We will meet in the next episode."
+    }
+  ],
+  "questions": [
+    {
+      "id": "03-la-lluvia:q1",
+      "kind": "comprehension",
+      "after_segment": "03-la-lluvia:s4",
+      "prompt": "¿Cuántas personas estarán en la fiesta?",
+      "accepted": "Diez.",
+      "distractors": [
+        "Seis.",
+        "Tres."
+      ],
+      "target_lemmas": [
+        "diez"
+      ]
+    },
+    {
+      "id": "03-la-lluvia:q2",
+      "kind": "listenSelect",
+      "after_segment": "03-la-lluvia:s6",
+      "count": 2,
+      "correct_lemmas": [
+        "pan",
+        "queso"
+      ],
+      "tile_lemmas": [
+        "pan",
+        "queso",
+        "mesa",
+        "ventana"
+      ]
+    },
+    {
+      "id": "03-la-lluvia:q3",
+      "kind": "matching",
+      "after_segment": "03-la-lluvia:s14",
+      "pairs": [
+        {
+          "lemma": "fiesta",
+          "translation": "party"
+        },
+        {
+          "lemma": "jardín",
+          "translation": "garden"
+        },
+        {
+          "lemma": "lluvia",
+          "translation": "rain"
+        },
+        {
+          "lemma": "mesa",
+          "translation": "table"
+        },
+        {
+          "lemma": "ventana",
+          "translation": "window"
+        }
+      ]
+    }
+  ]
+}

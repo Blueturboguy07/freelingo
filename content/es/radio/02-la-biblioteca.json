@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "id": "02-la-biblioteca",
+  "title": "Un libro para el viaje",
+  "translation": "A book for the journey",
+  "language": "es",
+  "unit_index": 30,
+  "author": "Codex P6 author",
+  "register": "tu",
+  "show": {
+    "id": "un-rato-con-rosa",
+    "title": "Un rato con Rosa",
+    "host_character_id": "adult_female"
+  },
+  "l1_ratio": 0,
+  "target_duration_ms": 240000,
+  "segments": [
+    {
+      "id": "02-la-biblioteca:s1",
+      "character_id": "adult_female",
+      "text": "Bienvenidos. Hoy buscamos un libro para un viaje en tren. No hace falta llevar una biblioteca entera en la maleta.",
+      "translation": "Welcome. Today we are looking for a book for a train journey. There is no need to carry an entire library in the suitcase."
+    },
+    {
+      "id": "02-la-biblioteca:s2",
+      "character_id": "adult_male",
+      "text": "Mi viaje dura dos horas. Quiero leer un poco y también mirar por la ventana. Me interesan las historias de otras ciudades.",
+      "translation": "My journey lasts two hours. I want to read a little and also look out of the window. I am interested in stories about other cities."
+    },
+    {
+      "id": "02-la-biblioteca:s3",
+      "character_id": "adult_female",
+      "text": "Puedes buscar un libro sobre el lugar que vas a visitar. ¿Viajas a una ciudad grande o a un pueblo pequeño?",
+      "translation": "You can look for a book about the place you are going to visit. Are you travelling to a big city or to a small town?"
+    },
+    {
+      "id": "02-la-biblioteca:s4",
+      "character_id": "adult_male",
+      "text": "Voy a un pueblo pequeño en el norte, cerca de la montaña. Ya tengo un mapa. Quiero conocer las historias de la gente.",
+      "translation": "I am going to a small town in the north, near the mountain. I already have a map. I want to get to know people's stories."
+    },
+    {
+      "id": "02-la-biblioteca:s5",
+      "character_id": "adult_female",
+      "text": "Entonces puedes preguntar en la biblioteca. No tienes que comprar todos los libros. ¿Tienes la tarjeta de la biblioteca?",
+      "translation": "Then you can ask at the library. You do not have to buy every book. Do you have your library card?"
+    },
+    {
+      "id": "02-la-biblioteca:s6",
+      "character_id": "adult_male",
+      "text": "Sí. Está en mi cartera. La biblioteca está cerca de la estación, así que puedo entrar antes de coger el tren.",
+      "translation": "Yes. It is in my wallet. The library is near the station, so I can go in before catching the train."
+    },
+    {
+      "id": "02-la-biblioteca:s7",
+      "character_id": "adult_female",
+      "text": "Es importante mirar el horario. No quieres encontrar la puerta cerrada cuando tienes poco tiempo. También debes recordar cuándo tienes que devolver el libro.",
+      "translation": "It is important to check the opening hours. You do not want to find the door closed when you have little time. You should also remember when you have to return the book."
+    },
+    {
+      "id": "02-la-biblioteca:s8",
+      "character_id": "adult_male",
+      "text": "La biblioteca abre a las nueve y mi tren sale a las once. Vuelvo el domingo y puedo devolver el libro el lunes después del trabajo.",
+      "translation": "The library opens at nine and my train leaves at eleven. I return on Sunday, and I can return the book on Monday after work."
+    },
+    {
+      "id": "02-la-biblioteca:s9",
+      "character_id": "adult_female",
+      "text": "Tienes tiempo suficiente. ¿Prefieres un libro largo o uno corto? El tamaño también importa si tu bolso está lleno.",
+      "translation": "You have enough time. Do you prefer a long book or a short one? The size also matters if your bag is full."
+    },
+    {
+      "id": "02-la-biblioteca:s10",
+      "character_id": "adult_male",
+      "text": "Prefiero uno corto. Tengo ropa para dos días y una botella de agua. Quiero poder cerrar el bolso sin ponerme encima.",
+      "translation": "I prefer a short one. I have clothes for two days and a bottle of water. I want to be able to close the bag without sitting on top of it."
+    },
+    {
+      "id": "02-la-biblioteca:s11",
+      "character_id": "adult_female",
+      "text": "Un libro pequeño puede contar una historia muy grande. Puedes empezar durante el viaje y continuar por la noche, cuando estés tranquilo.",
+      "translation": "A small book can tell a very big story. You can start during the journey and continue at night, when you are relaxed."
+    },
+    {
+      "id": "02-la-biblioteca:s12",
+      "character_id": "adult_male",
+      "text": "No necesito terminarlo en el tren. También quiero ver las montañas. Puedo leer una parte y después guardar el libro para mirar por la ventana.",
+      "translation": "I do not need to finish it on the train. I also want to see the mountains. I can read one part and then put the book away to look out of the window."
+    },
+    {
+      "id": "02-la-biblioteca:s13",
+      "character_id": "adult_female",
+      "text": "Ese es un buen plan. Leer no es un examen. Puedes disfrutar de las palabras y del paisaje sin contar las páginas.",
+      "translation": "That is a good plan. Reading is not an exam. You can enjoy the words and the landscape without counting the pages."
+    },
+    {
+      "id": "02-la-biblioteca:s14",
+      "character_id": "adult_male",
+      "text": "Entonces llevo mi tarjeta, busco un libro corto y apunto la fecha para devolverlo. Si me gusta, puedo recomendarlo a mis amigos.",
+      "translation": "Then I will take my card, look for a short book, and note the date for returning it. If I like it, I can recommend it to my friends."
+    },
+    {
+      "id": "02-la-biblioteca:s15",
+      "character_id": "adult_female",
+      "text": "Buen viaje. Gracias por escuchar. Nos encontramos en el próximo episodio.",
+      "translation": "Have a good journey. Thank you for listening. We will meet in the next episode."
+    }
+  ],
+  "questions": [
+    {
+      "id": "02-la-biblioteca:q1",
+      "kind": "comprehension",
+      "after_segment": "02-la-biblioteca:s4",
+      "prompt": "¿Qué quiere conocer el invitado?",
+      "accepted": "Las historias de la gente.",
+      "distractors": [
+        "Las recetas de cocina.",
+        "Los horarios del trabajo."
+      ],
+      "target_lemmas": [
+        "gente"
+      ]
+    },
+    {
+      "id": "02-la-biblioteca:q2",
+      "kind": "listenSelect",
+      "after_segment": "02-la-biblioteca:s10",
+      "count": 2,
+      "correct_lemmas": [
+        "ropa",
+        "agua"
+      ],
+      "tile_lemmas": [
+        "ropa",
+        "agua",
+        "libro",
+        "montaña"
+      ]
+    },
+    {
+      "id": "02-la-biblioteca:q3",
+      "kind": "matching",
+      "after_segment": "02-la-biblioteca:s14",
+      "pairs": [
+        {
+          "lemma": "libro",
+          "translation": "book"
+        },
+        {
+          "lemma": "tren",
+          "translation": "train"
+        },
+        {
+          "lemma": "tarjeta",
+          "translation": "card"
+        },
+        {
+          "lemma": "cartera",
+          "translation": "wallet"
+        },
+        {
+          "lemma": "ventana",
+          "translation": "window"
+        }
+      ]
+    }
+  ]
+}

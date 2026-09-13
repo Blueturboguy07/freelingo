@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "id": "01-el-mercado",
+  "title": "El mercado del sábado",
+  "translation": "The Saturday market",
+  "language": "es",
+  "unit_index": 30,
+  "author": "Codex P6 author",
+  "register": "tu",
+  "show": {
+    "id": "un-rato-con-rosa",
+    "title": "Un rato con Rosa",
+    "host_character_id": "adult_female"
+  },
+  "l1_ratio": 0,
+  "target_duration_ms": 240000,
+  "segments": [
+    {
+      "id": "01-el-mercado:s1",
+      "character_id": "adult_female",
+      "text": "Bienvenidos. Hoy hablamos de una compra pequeña y de una comida para cinco personas.",
+      "translation": "Welcome. Today we are talking about a small shopping trip and a meal for five people."
+    },
+    {
+      "id": "01-el-mercado:s2",
+      "character_id": "adult_male",
+      "text": "Quiero invitar a tres amigos a comer. Con mi hermana y conmigo, somos cinco. No quiero comprar demasiada comida.",
+      "translation": "I want to invite three friends to eat. With my sister and me, there are five of us. I do not want to buy too much food."
+    },
+    {
+      "id": "01-el-mercado:s3",
+      "character_id": "adult_female",
+      "text": "Antes de salir, podemos mirar lo que tienes en casa. A veces compramos otra botella de aceite y ya tenemos dos.",
+      "translation": "Before going out, we can look at what you have at home. Sometimes we buy another bottle of oil when we already have two."
+    },
+    {
+      "id": "01-el-mercado:s4",
+      "character_id": "adult_male",
+      "text": "En la nevera hay queso, dos tomates y una botella de agua. En la cocina también hay aceite y sal. No tenemos pan.",
+      "translation": "In the refrigerator there is cheese, two tomatoes, and a bottle of water. In the kitchen there is also oil and salt. We do not have bread."
+    },
+    {
+      "id": "01-el-mercado:s5",
+      "character_id": "adult_female",
+      "text": "Entonces puedes comprar pan en la panadería. ¿Qué quieres servir después? La fruta es un postre fácil y no tienes que cocinarla.",
+      "translation": "Then you can buy bread at the bakery. What do you want to serve afterwards? Fruit is an easy dessert, and you do not have to cook it."
+    },
+    {
+      "id": "01-el-mercado:s6",
+      "character_id": "adult_male",
+      "text": "Quiero comprar cinco manzanas. Cada persona puede comer una. Mi hermana quiere hacer una sopa de verduras. Ella sabe cocinar muy bien.",
+      "translation": "I want to buy five apples. Each person can eat one. My sister wants to make vegetable soup. She knows how to cook very well."
+    },
+    {
+      "id": "01-el-mercado:s7",
+      "character_id": "adult_female",
+      "text": "Tu hermana puede escribir lo que necesita para la sopa. Así cada persona tiene una tarea y tú no tienes que preparar todo.",
+      "translation": "Your sister can write down what she needs for the soup. That way each person has a task, and you do not have to prepare everything."
+    },
+    {
+      "id": "01-el-mercado:s8",
+      "character_id": "adult_male",
+      "text": "Necesita patatas y otros tomates. Los dos tomates de la nevera son para la ensalada. No necesita comprar aceite porque ya tenemos una botella.",
+      "translation": "She needs potatoes and more tomatoes. The two tomatoes in the refrigerator are for the salad. She does not need to buy oil because we already have a bottle."
+    },
+    {
+      "id": "01-el-mercado:s9",
+      "character_id": "adult_female",
+      "text": "¿Cuándo vais al mercado? Es mejor tener tiempo para volver a casa y preparar la comida sin correr.",
+      "translation": "When are you going to the market? It is better to have time to return home and prepare the meal without rushing."
+    },
+    {
+      "id": "01-el-mercado:s10",
+      "character_id": "adult_male",
+      "text": "Vamos el sábado a las nueve. Mis amigos vienen a la una. El mercado está cerca de casa, junto a la plaza.",
+      "translation": "We are going on Saturday at nine. My friends are coming at one. The market is near home, next to the square."
+    },
+    {
+      "id": "01-el-mercado:s11",
+      "character_id": "adult_female",
+      "text": "Entonces tenéis tiempo suficiente. Podéis comprar las verduras primero y pasar por la panadería después. El pan está mejor si no lo ponéis debajo de las patatas.",
+      "translation": "Then you have enough time. You can buy the vegetables first and go to the bakery afterwards. The bread is better if you do not put it under the potatoes."
+    },
+    {
+      "id": "01-el-mercado:s12",
+      "character_id": "adult_male",
+      "text": "Tenemos dos bolsas grandes. Mi hermana lleva las patatas y los tomates. Yo llevo las manzanas y el pan. El queso se queda en la nevera.",
+      "translation": "We have two big bags. My sister is carrying the potatoes and tomatoes. I am carrying the apples and bread. The cheese stays in the refrigerator."
+    },
+    {
+      "id": "01-el-mercado:s13",
+      "character_id": "adult_female",
+      "text": "Muy bien. Ahora podemos pensar en la mesa. Necesitas cinco platos, cinco vasos y una silla para cada persona.",
+      "translation": "Very good. Now we can think about the table. You need five plates, five glasses, and a chair for each person."
+    },
+    {
+      "id": "01-el-mercado:s14",
+      "character_id": "adult_male",
+      "text": "En casa tenemos cuatro sillas. Mi vecino puede traer otra. Él no viene a comer, pero siempre nos ayuda cuando necesitamos alguna cosa.",
+      "translation": "At home we have four chairs. My neighbour can bring another one. He is not coming to eat, but he always helps us when we need something."
+    },
+    {
+      "id": "01-el-mercado:s15",
+      "character_id": "adult_female",
+      "text": "Puedes devolverle la silla después de la comida. También puedes agradecerle la ayuda con una manzana si compras una más.",
+      "translation": "You can return the chair after the meal. You can also thank him for his help with an apple if you buy one more."
+    },
+    {
+      "id": "01-el-mercado:s16",
+      "character_id": "adult_male",
+      "text": "Entonces compro seis manzanas. Cinco son para la comida y una es para mi vecino. Es fácil recordar la cantidad cuando sé para quién son.",
+      "translation": "Then I will buy six apples. Five are for the meal and one is for my neighbour. It is easy to remember the quantity when I know who they are for."
+    },
+    {
+      "id": "01-el-mercado:s17",
+      "character_id": "adult_female",
+      "text": "Una compra pequeña puede ser suficiente. No necesitas llenar la nevera para compartir una buena comida con tus amigos.",
+      "translation": "A small shopping trip can be enough. You do not need to fill the refrigerator to share a good meal with your friends."
+    },
+    {
+      "id": "01-el-mercado:s18",
+      "character_id": "adult_male",
+      "text": "Ahora estoy tranquilo. Tenemos un plan, conocemos las cantidades y cada persona puede ayudar. Lo importante es comer juntos y disfrutar de la tarde.",
+      "translation": "Now I am calm. We have a plan, we know the quantities, and each person can help. The important thing is to eat together and enjoy the afternoon."
+    },
+    {
+      "id": "01-el-mercado:s19",
+      "character_id": "adult_female",
+      "text": "Gracias por escuchar. Nos encontramos en el próximo episodio.",
+      "translation": "Thank you for listening. We will meet in the next episode."
+    }
+  ],
+  "questions": [
+    {
+      "id": "01-el-mercado:q1",
+      "kind": "comprehension",
+      "after_segment": "01-el-mercado:s6",
+      "prompt": "¿Cuántas manzanas quiere comprar al principio?",
+      "accepted": "Cinco.",
+      "distractors": [
+        "Seis.",
+        "Dos."
+      ],
+      "target_lemmas": [
+        "cinco"
+      ]
+    },
+    {
+      "id": "01-el-mercado:q2",
+      "kind": "listenSelect",
+      "after_segment": "01-el-mercado:s16",
+      "count": 2,
+      "correct_lemmas": [
+        "manzana",
+        "vecino"
+      ],
+      "tile_lemmas": [
+        "manzana",
+        "vecino",
+        "pan",
+        "mesa"
+      ]
+    },
+    {
+      "id": "01-el-mercado:q3",
+      "kind": "comprehension",
+      "after_segment": "01-el-mercado:s18",
+      "prompt": "¿Para quién es la sexta manzana?",
+      "accepted": "Para el vecino.",
+      "distractors": [
+        "Para su hermana.",
+        "Para un camarero."
+      ],
+      "target_lemmas": [
+        "vecino"
+      ]
+    }
+  ]
+}
