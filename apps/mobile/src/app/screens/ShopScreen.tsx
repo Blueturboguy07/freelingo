@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { View } from 'react-native';
 import { GEM_DISPLAY_CLAMP, SHOP_CATALOGUE } from '@freelingo/core/economy';
-import { BodyText, Heading, SPACE } from '@freelingo/ui';
+import { BodyText, Heading, Mascot, SPACE } from '@freelingo/ui';
 import { Action, ErrorNotice, Page, Panel, useLoopAction } from '../../loop/ui';
 import type { MainTabsPorts, ShopSnapshot } from './contracts';
 import { boostClock, Row, SmallText, TabGlyph } from './ui';
@@ -30,9 +30,11 @@ export function ShopScreen({ snapshot, ports }: { snapshot: ShopSnapshot; ports:
             <Panel>
               <View style={{ gap: SPACE.md }}>
                 <Row>
-                  <TabGlyph
-                    name={freeze ? 'freeze' : entry.id.endsWith('perch') ? 'perch' : 'outfit'}
-                  />
+                  {freeze ? (
+                    <TabGlyph name="freeze" />
+                  ) : (
+                    <Mascot size={64} outfitId={entry.id} label={`${entry.displayName} preview`} />
+                  )}
                   <View style={{ flex: 1, gap: SPACE.xs }}>
                     <Heading level={2}>{entry.displayName}</Heading>
                     {freeze ? (

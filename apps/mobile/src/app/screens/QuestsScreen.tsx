@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { BodyText, Heading, SPACE, useUiTheme } from '@freelingo/ui';
+import { BodyText, Heading, Mascot, SPACE, useUiTheme } from '@freelingo/ui';
 import { Page, Panel } from '../../loop/ui';
 import type { QuestsSnapshot } from './contracts';
 import { Progress, resetLabel, Row, SectionTabs, SmallText, TabGlyph } from './ui';
@@ -21,7 +21,7 @@ export function QuestsScreen({ snapshot }: { snapshot: QuestsSnapshot }) {
       {tab === 'daily' ? (
         <>
           <Row>
-            <TabGlyph name="quest" />
+            <Mascot pose="happy" size={64} label="Happy parrot" />
             <View style={{ flex: 1, gap: SPACE.xs }}>
               <Heading level={2}>Welcome!</Heading>
               <BodyText>Complete quests to earn rewards! Quests refresh every day.</BodyText>
