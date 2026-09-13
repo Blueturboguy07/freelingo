@@ -11,6 +11,7 @@
  */
 import { openDatabaseSync, type SQLiteBindParams, type SQLiteDatabase } from 'expo-sqlite';
 import { SqliteWordStore } from './SqliteWordStore';
+import { corruptQuarantineName } from '@freelingo/core/data';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { Db, DbRow } from '@freelingo/core';
 import { preMigrationCopiesToDelete, preMigrationCopyName } from '@freelingo/core';
@@ -165,6 +166,48 @@ async function onInit(
   return backup;
 }
 
+/** SQLite-owned companions, preserved with the main file on failed first creation.
+ * Freelingo recovery policy, 2026-09-13; not a measured UI constant. */
+const RECOVERY_SIDECARS = ['-wal', '-shm'] as const;
+
+function emptyRolledBackCreation(handle: SQLiteDatabase): boolean {
+  if (handle.isInTransactionSync()) return false;
+  const version = handle.getFirstSync<{ user_version: number }>('PRAGMA user_version');
+  // A wholly rolled-back first migration has no application schema at all. This
+  // stronger test avoids guessing whether an unexpected table's rows are valuable.
+  const schema = handle.getAllSync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'",
+  );
+  if (version?.user_version !== 0 || schema.length !== 0) return false;
+  const checkpoint = handle.getFirstSync<{ busy: number }>(CHECKPOINT);
+  return checkpoint?.busy === 0;
+}
+
+function preserveFailedCreation(now: Date): void {
+  const source = progressDbFile();
+  if (!source.exists) throw new Error('Failed initialization file missing; recovery required.');
+  // Reuse the recovery naming contract, but never overwrite a prior recovery from
+  // the same second. There is deliberately no pruning of these retained files.
+  let offsetSeconds = 0;
+  let name: string;
+  do {
+    name = corruptQuarantineName(new Date(now.getTime() + offsetSeconds++ * 1000));
+  } while (
+    [name, ...RECOVERY_SIDECARS.map((suffix) => name + suffix)].some(
+      (candidate) => new File(Paths.document, candidate).exists,
+    )
+  );
+  // Close/checkpoint precede all moves. Keep the main path present until every
+  // remaining companion is preserved, so a failed move cannot authorize a retry
+  // over stale WAL bytes. Native moveSync refuses destination overwrite.
+  for (const suffix of RECOVERY_SIDECARS) {
+    const companion = new File(Paths.document, PROGRESS_DB_FILENAME + suffix);
+    if (companion.exists)
+      companion.moveSync(new File(Paths.document, name + suffix), { overwrite: false });
+  }
+  source.moveSync(new File(Paths.document, name), { overwrite: false });
+}
+
 /** Open the progress DB in `Paths.document`, in WAL, migrated to the latest schema. */
 export async function openProgressDb(now: Date = new Date()): Promise<OpenedProgressDb> {
   // Read the real file state before SQLite can create it. A pre-existing empty or
@@ -189,9 +232,31 @@ export async function openProgressDb(now: Date = new Date()): Promise<OpenedProg
       backup,
     };
   } catch (error) {
-    // Preserve the file and its rolled-back schema for recovery; release the native
-    // handle even if migration or the first permanent history write fails.
-    handle.closeSync();
+    // Only this live call knows that SQLite created the file. A crash before this
+    // catch loses that proof: the next open must retain the pre-existing file as
+    // unknown legacy history and require explicit recovery, even if it is empty.
+    let recoverable = false;
+    const failures: unknown[] = [error];
+    try {
+      recoverable = databaseWasCreated && emptyRolledBackCreation(handle);
+    } catch (recoveryError) {
+      failures.push(recoveryError);
+    }
+    try {
+      handle.closeSync();
+    } catch (closeError) {
+      failures.push(closeError);
+      recoverable = false;
+    }
+    if (recoverable) {
+      try {
+        preserveFailedCreation(now);
+      } catch (recoveryError) {
+        failures.push(recoveryError);
+      }
+    }
+    if (failures.length > 1)
+      throw new AggregateError(failures, 'Initialization failed; database preserved for recovery.');
     throw error;
   }
 }

@@ -1,7 +1,15 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LATEST_USER_VERSION, PROGRESS_DB_FILENAME } from '@freelingo/schema';
@@ -12,6 +20,9 @@ const handles: DatabaseSync[] = [];
 const calls: string[] = [];
 let directory = '';
 let failWordWrite = false;
+let failMigration = false;
+let afterRollback: ((db: DatabaseSync) => void) | undefined;
+let failMove = false;
 vi.mock('expo-file-system', () => ({
   Paths: {
     get document() {
@@ -36,6 +47,12 @@ vi.mock('expo-file-system', () => ({
     copySync(destination: { uri: string }) {
       copyFileSync(this.uri, destination.uri);
     }
+    moveSync(destination: { uri: string }) {
+      calls.push('move');
+      if (failMove) throw new Error('move denied');
+      if (existsSync(destination.uri)) throw new Error('destination exists');
+      renameSync(this.uri, destination.uri);
+    }
     delete() {
       rmSync(this.uri);
     }
@@ -53,6 +70,8 @@ vi.mock('expo-sqlite', () => ({
         h.exec(sql);
       },
       runSync(sql: string, params: unknown[] = []) {
+        if (failMigration && sql.includes('CREATE TABLE account_word_state'))
+          throw new Error('SQLITE_FULL migration');
         if (failWordWrite && sql.startsWith('INSERT INTO account_word_state'))
           throw new Error('SQLITE_FULL word header');
         return h.prepare(sql).run(...(params as never[]));
@@ -73,6 +92,7 @@ vi.mock('expo-sqlite', () => ({
         } catch (error) {
           h.exec('ROLLBACK');
           calls.push('ROLLBACK');
+          afterRollback?.(h);
           throw error;
         } finally {
           inTransaction = false;
@@ -92,6 +112,9 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   calls.length = 0;
   failWordWrite = false;
+  failMigration = false;
+  afterRollback = undefined;
+  failMove = false;
 });
 const at = new Date('2026-09-13T12:00:00Z');
 function setup() {
@@ -160,16 +183,101 @@ it('[INV-ECO-27][INV-PER-03] migrating an actual populated legacy database prese
   ).toEqual(counters);
   backup.close();
 });
-it('[INV-PER-03][INV-PER-04] failure during fresh history initialization rolls back schema and closes the failed handle while preserving the file', async () => {
+it('[INV-PER-03][INV-PER-04] failure during fresh history initialization rolls back schema and closes the failed handle while preserving the file under its recovery name', async () => {
   const file = setup();
   failWordWrite = true;
   await expect(openProgressDb(at)).rejects.toThrow('SQLITE_FULL word header');
   expect(handles).toEqual([]);
-  expect(calls.at(-1)).toBe('close');
+  expect(calls.indexOf('close')).toBeLessThan(calls.indexOf('move'));
   expect(calls).toContain('ROLLBACK');
-  expect(existsSync(file)).toBe(true);
-  const failed = new DatabaseSync(file);
+  expect(existsSync(file)).toBe(false);
+  const recovery = readdirSync(directory).find((name) => name.startsWith('freelingo-corrupt-'));
+  expect(recovery).toBeDefined();
+  const failed = new DatabaseSync(join(directory, recovery!));
   expect(failed.prepare('PRAGMA user_version').get()).toEqual({ user_version: 0 });
   expect(failed.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).toEqual([]);
   failed.close();
+});
+
+it('[INV-ECO-27][INV-PER-04] failure then retry creates real fresh history and retains the failed bytes', async () => {
+  const file = setup();
+  failWordWrite = true;
+  await expect(openProgressDb(at)).rejects.toThrow('SQLITE_FULL word header');
+  expect(existsSync(file)).toBe(false);
+  const recovered = readdirSync(directory);
+  expect(recovered).toHaveLength(1);
+  failWordWrite = false;
+  const retry = await openProgressDb(new Date(at.getTime() + 1000));
+  expect(new SqliteWordStore(retry.db).readCounters()).toEqual({
+    wordsIntroduced: 0,
+    wordsLearned: 0,
+  });
+  expect(retry.db.get('SELECT initialized_at_utc_ms FROM account_word_state')).toEqual({
+    initialized_at_utc_ms: at.getTime() + 1000,
+  });
+  expect(readdirSync(directory)).toContain(recovered[0]);
+});
+for (const legacy of [false, true]) {
+  it(`[INV-PER-03][INV-ECO-27] failed migration never moves a pre-existing ${legacy ? 'populated legacy' : 'empty version-zero'} file`, async () => {
+    const file = setup();
+    if (legacy)
+      copyFileSync(
+        new URL('../../../../packages/schema/fixtures/golden/v2.db', import.meta.url),
+        file,
+      );
+    else writeFileSync(file, '');
+    failMigration = true;
+    await expect(openProgressDb(at)).rejects.toThrow('SQLITE_FULL migration');
+    expect(existsSync(file)).toBe(true);
+    expect(calls).not.toContain('move');
+    const kept = new DatabaseSync(file);
+    expect(kept.prepare('PRAGMA user_version').get()).toEqual({ user_version: legacy ? 2 : 0 });
+    kept.close();
+    failMigration = false;
+    const reopened = await openProgressDb(at);
+    expect(() => new SqliteWordStore(reopened.db).readCounters()).toThrow('unknown word history');
+  });
+}
+for (const altered of ['rows', 'version'] as const) {
+  it(`[INV-PER-03] newly created file with unexpected ${altered} is preserved for explicit recovery`, async () => {
+    const file = setup();
+    failWordWrite = true;
+    afterRollback = (db) =>
+      db.exec(
+        altered === 'rows'
+          ? 'CREATE TABLE sqliteXretained(value); INSERT INTO sqliteXretained VALUES(7)'
+          : 'PRAGMA user_version=1',
+      );
+    await expect(openProgressDb(at)).rejects.toThrow();
+    expect(existsSync(file)).toBe(true);
+    expect(calls).not.toContain('move');
+    const kept = new DatabaseSync(file);
+    if (altered === 'rows')
+      expect(kept.prepare('SELECT value FROM sqliteXretained').get()).toEqual({ value: 7 });
+    else expect(kept.prepare('PRAGMA user_version').get()).toEqual({ user_version: 1 });
+    kept.close();
+  });
+}
+it('[INV-PER-03] recovery naming never overwrites an earlier failed initialization', async () => {
+  setup();
+  failWordWrite = true;
+  await expect(openProgressDb(at)).rejects.toThrow('SQLITE_FULL word header');
+  const first = readdirSync(directory)[0];
+  await expect(openProgressDb(at)).rejects.toThrow('SQLITE_FULL word header');
+  const files = readdirSync(directory);
+  expect(files).toHaveLength(2);
+  expect(files).toContain(first);
+});
+it('[INV-PER-03] a failed recovery move preserves the main file and reports both errors', async () => {
+  const file = setup();
+  failWordWrite = true;
+  failMove = true;
+  const error = await openProgressDb(at).catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(AggregateError);
+  expect((error as AggregateError).errors.map((e: Error) => e.message)).toEqual([
+    'SQLITE_FULL word header',
+    'move denied',
+  ]);
+  expect(existsSync(file)).toBe(true);
+  expect(handles).toEqual([]);
 });
