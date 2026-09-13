@@ -373,6 +373,34 @@ function seedV8(db: Db): void {
   );
 }
 
+function seedV9(db: Db): void {
+  seedV8(db);
+  db.run("INSERT INTO course_path_state VALUES ('en-es',1789214400000,1,1)");
+  db.run(
+    "INSERT INTO committed_session(session_id,committed_at,outcome) VALUES ('s_path_jump','2026-09-13T10:00:00Z','completed')",
+  );
+  db.run(
+    "INSERT INTO course_session_commit_link VALUES ('s_path_jump','en-es','n_008','jumpHere',NULL,NULL)",
+  );
+  db.run("INSERT INTO course_path_jump VALUES ('en-es','u_01','s_path_jump')");
+  // New v9 witness only: explicit observed script receipt, never a backfill of old data.
+  db.run("INSERT INTO course_progress(course_id,added_at) VALUES ('en-ja','2026-09-13')");
+  db.run("INSERT INTO course_path_state VALUES ('en-ja',1789214400000,0,0)");
+  db.run('INSERT INTO course_surface_exposure VALUES (?,?,?,?,?,?,?,?,?,?)', [
+    'en-ja',
+    'sf:golden-a',
+    'あ',
+    'ja',
+    's_script',
+    'slot-a',
+    'ex-a',
+    'a'.repeat(64),
+    'prompt',
+    1789214400000,
+  ]);
+  db.run("INSERT INTO course_script_introduction VALUES ('en-ja','kana-a','sf:golden-a')");
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -382,6 +410,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   6: seedV6,
   7: seedV7,
   8: seedV8,
+  9: seedV9,
 };
 
 /* ------------------------------------------------------------------------ build */
