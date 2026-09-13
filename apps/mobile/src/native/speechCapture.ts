@@ -216,13 +216,13 @@ export function createSpeechCapture(
             finish({ transcript: '', amplitude: 0 });
           else
             finish(
-              event.error === 'interrupted' ||
-                event.error === 'audio-capture' ||
-                event.error === 'aborted'
-                ? 'interrupted'
-                : event.error === 'not-allowed'
-                  ? 'permission-denied'
-                  : 'unavailable',
+              event.error === 'audio-capture'
+                ? 'route'
+                : event.error === 'interrupted' || event.error === 'aborted'
+                  ? 'interrupted'
+                  : event.error === 'not-allowed'
+                    ? 'permission-denied'
+                    : 'unavailable',
             );
         }),
       );
