@@ -2300,10 +2300,11 @@ def test_INV_PACK_07_S039_lexical_cloze_keeps_meaning_and_exact_source(
 
 @pytest.mark.parametrize("builder", ["sentence", "grammar"])
 def test_INV_PACK_07_S039_standalone_cloze_only_offers_proven_disagreement(builder: str) -> None:
-    """[INV-PACK-07] same-lemma tense changes are valid; person/number conflicts are not."""
+    """[INV-PACK-07] exclude same-number forms; retain opposite-number first/third forms."""
     slot = _quality_slot()
     forms = {
         "Mood=Ind|Number=Sing|Person=1|VerbForm=Fin": "como",
+        "Mood=Ind|Number=Plur|Person=1|VerbForm=Fin": "comemos",
         "Mood=Ind|Number=Plur|Person=3|VerbForm=Fin": "comen",
         "Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin": "comió",
         "Mood=Cnd|Number=Sing|Person=3|VerbForm=Fin": "comería",
@@ -2315,7 +2316,7 @@ def test_INV_PACK_07_S039_standalone_cloze_only_offers_proven_disagreement(build
     assert draft.shape_id == "fill_in_the_blank"
     assert draft.body == "Ella ____ pan."
     assert draft.accepted_answers == ("come",)
-    assert set(draft.distractors) == {"como", "comen"}
+    assert set(draft.distractors) == {"comemos", "comen"}
     assert draft.source_sentence_id == slot.source_id
 
 
@@ -2329,7 +2330,7 @@ def test_INV_PACK_07_S039_unproven_agreement_cloze_uses_translation(
 ) -> None:
     """[INV-PACK-07] missing proof never borrows a noun, adjective, tense or another lemma."""
     slot = _quality_slot()
-    forms = {"Number=Sing|Person=1|VerbForm=Fin": "como",
+    forms = {"Number=Plur|Person=1|VerbForm=Fin": "comemos",
              "Number=Plur|Person=3|VerbForm=Fin": "comen"}
     if failure in {"no_subject", "coordinated", "punctuation", "adverb"}:
         prefix = {"no_subject": "", "coordinated": "Ella y yo ",
@@ -2358,20 +2359,20 @@ def test_INV_PACK_07_S039_unproven_agreement_cloze_uses_translation(
     elif failure == "bad_span":
         slot.analysis["tokens"][1]["start"] = 0
     elif failure == "syncretic":
-        forms["Number=Sing|Person=3|VerbForm=Fin"] = "como"
+        forms["Number=Sing|Person=3|VerbForm=Fin"] = "comemos"
     elif failure == "same_agreement":
         forms = {"Number=Sing|Person=3|Tense=Past|VerbForm=Fin": "comió",
                  "Number=Sing|Person=3|Tense=Imp|VerbForm=Fin": "comía"}
     elif failure == "one_safe":
-        forms.pop("Number=Sing|Person=1|VerbForm=Fin")
+        forms.pop("Number=Plur|Person=1|VerbForm=Fin")
     elif failure == "unknown_form":
-        forms[""] = "como"
+        forms[""] = "comemos"
     elif failure in {"nonfinite_form", "missing_person", "missing_number"}:
-        forms.pop("Number=Sing|Person=1|VerbForm=Fin")
-        morph = {"nonfinite_form": "Number=Sing|Person=1|VerbForm=Inf",
-                 "missing_person": "Number=Sing|VerbForm=Fin",
+        forms.pop("Number=Plur|Person=1|VerbForm=Fin")
+        morph = {"nonfinite_form": "Number=Plur|Person=1|VerbForm=Inf",
+                 "missing_person": "Number=Plur|VerbForm=Fin",
                  "missing_number": "Person=1|VerbForm=Fin"}[failure]
-        forms[morph] = "como"
+        forms[morph] = "comemos"
     draft = _cloze_draft(_cloze_inputs(slot, forms), slot, builder)
     assert draft.shape_id == "complete_the_translation"
     assert draft.body.startswith(slot.translation + "\n")
@@ -2405,7 +2406,7 @@ def _add_agreement_ledger() -> None:
     selected = list(read_records("selected_item", lang=LANG))
     for subject, verb, person, number, english in [
         ("Yo", "corro", "1", "Sing", "I run today."),
-        ("Tú", "corres", "2", "Sing", "You run today."),
+        ("Nosotros", "corremos", "1", "Plur", "We run today."),
         ("Ellos", "corren", "3", "Plur", "They run today."),
     ]:
         text = f"{subject} {verb} hoy."
@@ -2430,7 +2431,7 @@ def _add_agreement_ledger() -> None:
 
 
 @pytest.mark.parametrize("builder", ["sentence", "grammar"])
-def test_INV_PACK_07_S039_morph_key_collision_cannot_hide_an_agreeing_attestation(
+def test_INV_PACK_07_S039_morph_key_collision_cannot_hide_an_unknown_attestation(
     builder: str,
 ) -> None:
     """[INV-PACK-07] first surface per morphology is a pool shortcut, not complete proof."""
@@ -2439,17 +2440,99 @@ def test_INV_PACK_07_S039_morph_key_collision_cannot_hide_an_agreeing_attestatio
     slot = _quality_slot()
     inputs = _cloze_inputs(slot)
     inputs.pool = DistractorPool.build([], [{"tokens": [
-        {"lemma": "comer", "surface": "comió", "pos": "VERB",
-         "morph": "Number=Sing|Person=3|VerbForm=Fin"},
-        {"lemma": "comer", "surface": "comía", "pos": "VERB",
-         "morph": "Number=Sing|Person=3|VerbForm=Fin"},
-        {"lemma": "comer", "surface": "comía", "pos": "VERB",
-         "morph": "Number=Sing|Person=1|VerbForm=Fin"},
+        {"lemma": "comer", "surface": "comió", "pos": "VERB", "morph": ""},
+        {"lemma": "comer", "surface": "comen", "pos": "VERB", "morph": ""},
         {"lemma": "comer", "surface": "comen", "pos": "VERB",
          "morph": "Number=Plur|Person=3|VerbForm=Fin"},
+        {"lemma": "comer", "surface": "comemos", "pos": "VERB",
+         "morph": "Number=Plur|Person=1|VerbForm=Fin"},
     ]}])
     # Retain a lexical pool so the pre-fix builder can emit an actual wrong exercise.
     inputs.pool.by_pos_band[("PRON", "A1")] = ["alguien", "nadie"]
     draft = _cloze_draft(inputs, slot, builder)
     assert draft.shape_id == "complete_the_translation"
     assert draft.distractors == ()
+
+
+@pytest.mark.parametrize("builder", ["sentence", "grammar"])
+@pytest.mark.parametrize(("subject", "person", "verb", "lemma", "tail", "translation", "forms"), [
+    ("Yo", "1", "hablo", "hablar", "una lengua", "I speak a language.", [
+        ("Habla", "Number=Sing|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("Hablaba", "Number=Sing|Person=3|Tense=Imp|VerbForm=Fin"),
+    ]),
+    ("Tú", "2", "hablas", "hablar", "una lengua", "You speak a language.", [
+        ("habla", "Number=Sing|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("hablaba", "Number=Sing|Person=3|Tense=Imp|VerbForm=Fin"),
+    ]),
+    ("Tú", "2", "vives", "vivir", "aquí", "You live here.", [
+        ("vivís", "Number=Plur|Person=2|VerbForm=Fin"),
+        ("vivimos", "Number=Plur|Person=1|VerbForm=Fin"),
+    ]),
+    ("Yo", "1", "vivo", "vivir", "aquí", "I live here.", [
+        ("vivís", "Number=Plur|Person=2|VerbForm=Fin"),
+        ("vivimos", "Number=Plur|Person=1|VerbForm=Fin"),
+    ]),
+    ("Tú", "2", "corres", "correr", "hoy", "You run today.", [
+        ("corremos", "Number=Plur|Person=1|VerbForm=Fin"),
+        ("corren", "Number=Plur|Person=3|VerbForm=Fin"),
+    ]),
+])
+def test_INV_PACK_07_S039_unobserved_person_readings_cannot_prove_a_decoy_wrong(
+    builder: str, subject: str, person: str, verb: str, lemma: str, tail: str,
+    translation: str, forms: list[tuple[str, str]],
+) -> None:
+    """[INV-PACK-07] actual item 928d15b151d72b50 and RAE imperative/voseo falsifiers."""
+    from coursekit.exercises.distractors import DistractorPool
+
+    text = f"{subject} {verb} {tail}."
+    rows = [(subject, subject.casefold(), "PRON", f"Number=Sing|Person={person}|PronType=Prs"),
+            (verb, lemma, "VERB", f"Number=Sing|Person={person}|VerbForm=Fin")]
+    rows.extend((token, token, "NOUN", "") for token in tail.split())
+    slot = ResolvedSlot(text, translation, "d0ba32e53702070e",
+                        _quality_analysis(text, rows), None)
+    inputs = _cloze_inputs(slot)
+    inputs.pool = DistractorPool.build([], [{"tokens": [
+        {"lemma": lemma, "surface": surface, "pos": "VERB", "morph": morph}
+        for surface, morph in forms
+    ]}])
+    draft = _cloze_draft(inputs, slot, builder)
+    assert draft.shape_id == "complete_the_translation"
+    assert draft.body.startswith(translation + "\n")
+    assert draft.body.split("\n", 1)[1].replace(GAP_MARKER, draft.accepted_answers[0]) == text
+    assert draft.distractors == ()
+    assert draft.source_sentence_id == slot.source_id
+
+
+
+@pytest.mark.parametrize("builder", ["sentence", "grammar"])
+@pytest.mark.parametrize(("subject", "person", "number", "verb", "translation", "forms"), [
+    ("Yo", "1", "Sing", "corro", "I run today.",
+     [("corremos", "1", "Plur"), ("corren", "3", "Plur")]),
+    ("Ellos", "3", "Plur", "corren", "They run today.",
+     [("corro", "1", "Sing"), ("corre", "3", "Sing")]),
+])
+def test_INV_PACK_07_S039_nonsecond_person_opposite_numbers_keep_standalone_form(
+    builder: str, subject: str, person: str, number: str, verb: str, translation: str,
+    forms: list[tuple[str, str, str]],
+) -> None:
+    """[INV-PACK-07] first/third-person opposite-number forms disagree independent of tense."""
+    from coursekit.exercises.distractors import DistractorPool
+
+    text = f"{subject} {verb} hoy."
+    slot = ResolvedSlot(text, translation, "a" * 16, _quality_analysis(text, [
+        (subject, subject.casefold(), "PRON", f"Number={number}|Person={person}|PronType=Prs"),
+        (verb, "correr", "VERB", f"Number={number}|Person={person}|VerbForm=Fin"),
+        ("hoy", "hoy", "ADV", ""),
+    ]), None)
+    inputs = _cloze_inputs(slot)
+    inputs.pool = DistractorPool.build([], [{"tokens": [
+        {"lemma": "correr", "surface": surface, "pos": "VERB",
+         "morph": f"Number={form_number}|Person={form_person}|VerbForm=Fin"}
+        for surface, form_person, form_number in forms
+    ]}])
+    draft = _cloze_draft(inputs, slot, builder)
+    assert draft.shape_id == "fill_in_the_blank"
+    assert draft.body == f"{subject} ____ hoy."
+    assert draft.accepted_answers == (verb,)
+    assert set(draft.distractors) == {surface for surface, _p, _n in forms}
+    assert draft.source_sentence_id == slot.source_id

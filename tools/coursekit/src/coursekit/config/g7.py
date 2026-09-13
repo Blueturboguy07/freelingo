@@ -892,3 +892,9 @@ SPANISH_SUBJECT_AGREEMENT: Final[dict[str, tuple[str, str]]] = {
 SPANISH_PRODROP_ADVERBS: Final[frozenset[str]] = frozenset(
     {"no", "nunca", "jamás", "siempre", "también", "ya", "todavía"}
 )
+
+
+# 2026-09-13, P2 fresh-output refutation; no A/B arm. RAE DPD `voseo` §2.1.2
+# documents plural verb endings with singular tú. Neither side of the standalone
+# cloze's number proof may be second person. Other cases use the translation scaffold.
+SPANISH_CLOZE_PROOF_PERSONS: Final[frozenset[str]] = frozenset({"1", "3"})

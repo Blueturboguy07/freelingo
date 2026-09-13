@@ -95,6 +95,7 @@ from ..config.g7 import (
     REGISTERS,
     SENTENCE_FORM_PLAN,
     SHAPES,
+    SPANISH_CLOZE_PROOF_PERSONS,
     SPANISH_INFINITIVE_ENDINGS,
     SPANISH_PRODROP_ADVERBS,
     SPANISH_SUBJECT_AGREEMENT,
@@ -788,11 +789,21 @@ def _agreement_cloze(
 ) -> tuple[int, tuple[str, ...]] | None:
     """S039 standalone gaps need proof that every displayed option is wrong.
 
-    An immediate Spanish personal subject and agreeing finite verb establish the
-    required person/number. Only attested forms of that same verb whose every stored
-    analysis contradicts the subject qualify. Tense, mood, lexical plausibility and
-    unknown or syncretic analyses establish no disagreement. Without enough proven
-    options, the caller uses deep01 §S8's translation scaffold to constrain the gap.
+    Require an immediate non-second-person subject and agreeing finite verb. Every
+    analysis of a candidate must be non-second-person, finite and opposite in NUMBER.
+    A corpus's missing person reading proves nothing: hablaba is first/third singular;
+    habla can be a tú imperative. Voseo can even use plural verb forms with singular tú.
+
+    RAE DPD `concordancia` §1b supplies subject/verb number agreement; RAE's conjugation
+    tables separate singular/plural first and third persons. Excluding second persons
+    on BOTH sides avoids the cross-number readings in DPD `voseo` §2.1.2. Inference is
+    confined to this simple subject construction, never coordination or group nouns.
+    https://www.rae.es/dpd/concordancia
+    https://www.rae.es/buen-uso-espa%C3%B1ol/conjugaci%C3%B3n-espa%C3%B1ola
+    https://www.rae.es/dpd/voseo
+
+    Unknown/conflicting analyses abstain. Too few attested options use deep01 §S8's
+    translation scaffold; no inflection or missing reading is generated here.
     """
     if inputs.lang != "es" or slot.analysis is None:
         return None
@@ -804,6 +815,7 @@ def _agreement_cloze(
     personal, finite = _morph_features(subject), _morph_features(predicate)
     if (agreement is None or subject["pos"] != "PRON"
             or personal.get("PronType") != "Prs"
+            or personal.get("Person") not in SPANISH_CLOZE_PROOF_PERSONS
             or (personal.get("Person"), personal.get("Number")) != agreement
             or predicate["pos"] not in VERB_POS or finite.get("VerbForm") != "Fin"
             or (finite.get("Person"), finite.get("Number")) != agreement):
@@ -816,8 +828,8 @@ def _agreement_cloze(
             or slot.text[start:end] != predicate["surface"]):
         return None
 
-    # Group by displayed surface before judging: a surface attested as both first and
-    # third person (comía) remains valid for either, regardless of iteration order.
+    # Group every stored analysis of each surface before judging. A conflicting or
+    # unknown attestation must not disappear behind a different observed reading.
     attestations: dict[str, list[tuple[str, dict[str, str]]]] = {}
     surfaces: dict[str, str] = {}
     for surface, analyses in sorted(
@@ -835,9 +847,9 @@ def _agreement_cloze(
         surfaces[folded] for folded, analyses in sorted(attestations.items())
         if folded not in forbidden and all(
             pos == predicate["pos"] and form.get("VerbForm") == "Fin"
-            and form.get("Person") in {"1", "2", "3"}
+            and form.get("Person") in SPANISH_CLOZE_PROOF_PERSONS
             and form.get("Number") in {"Sing", "Plur"}
-            and (form["Person"], form["Number"]) != agreement
+            and form["Number"] != agreement[1]
             for pos, form in analyses
         )
     ]
