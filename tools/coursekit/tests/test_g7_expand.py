@@ -69,9 +69,30 @@ from coursekit.stages.g7_expand import (
     ResolvedSlot,
     StarvedSlot,
     _display_split,
+    _gapped,
     _target_tokens,
     ending_split,
 )
+
+
+def test_INV_PACK_07_initial_cloze_gap_reconstructs_the_source_byte_for_byte() -> None:
+    """[INV-PACK-07] punctuation tokens cannot shift a lexical token's source span."""
+    text = "¿Tienes un lápiz?"
+    analysis = {
+        "tokens": [
+            {"surface": "¿", "lemma": "¿", "pos": "PUNCT", "start": 0, "end": 1},
+            {"surface": "Tienes", "lemma": "tener", "pos": "VERB", "start": 1, "end": 7},
+            {"surface": "un", "lemma": "uno", "pos": "DET", "start": 8, "end": 10},
+            {"surface": "lápiz", "lemma": "lápiz", "pos": "NOUN", "start": 11, "end": 16},
+            {"surface": "?", "lemma": "?", "pos": "PUNCT", "start": 16, "end": 17},
+        ]
+    }
+    slot = ResolvedSlot(text, "Have you got a pencil?", "sid", analysis, None)
+
+    gapped = _gapped(slot, ["Tienes", "un", "lápiz"], 0)
+
+    assert gapped == "¿____ un lápiz?"
+    assert gapped.replace("____", "Tienes") == text
 
 
 @pytest.fixture(autouse=True)

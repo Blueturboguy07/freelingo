@@ -490,10 +490,18 @@ def _gapped(slot: ResolvedSlot, tokens: Sequence[str], index: int) -> str:
     up, falls back to the join it always was.
     """
     analysis = slot.analysis
-    if analysis is not None and index < len(analysis["tokens"]):
-        token = analysis["tokens"][index]
+    if analysis is not None:
+        analysis_tokens = [
+            token
+            for token in analysis["tokens"]
+            if token.get("pos") != "PUNCT" and str(token["surface"]).strip()
+        ]
+    else:
+        analysis_tokens = []
+    if index < len(analysis_tokens) and index < len(tokens):
+        token = analysis_tokens[index]
         start, end = int(token["start"]), int(token["end"])
-        if slot.text[start:end] == token["surface"]:
+        if token["surface"] == tokens[index] and slot.text[start:end] == token["surface"]:
             return f"{slot.text[:start]}{GAP_MARKER}{slot.text[end:]}"
     return " ".join(GAP_MARKER if position == index else token
                     for position, token in enumerate(tokens))
@@ -665,6 +673,7 @@ def _sentence_draft(
             alternatives=alternatives,
             prompt_tokens=list(surface_tokens(body)),
             item_key=item_key,
+            allow_wrong_forms=False,
         )
     elif chosen.id == "complete_the_translation":
         gap_index = _gap_index(target_tokens)
@@ -747,6 +756,7 @@ def _decoys(
     l1_side: bool = False,
     prompt_tokens: Sequence[str] = (),
     item_key: str | None = None,
+    allow_wrong_forms: bool = True,
 ) -> tuple[str, ...]:
     """`count` distractors for one slot, drawn from the pool the DIRECTION selects.
 
@@ -818,6 +828,7 @@ def _decoys(
             *forbidden_item,
         ],
         count=count,
+        allow_wrong_forms=allow_wrong_forms,
     )
 
 
@@ -999,6 +1010,7 @@ def _grammar_draft(
             alternatives=alternatives,
             prompt_tokens=list(surface_tokens(body)),
             item_key=key,
+            allow_wrong_forms=False,
         )
     return ExerciseDraft(
         lang=lang,

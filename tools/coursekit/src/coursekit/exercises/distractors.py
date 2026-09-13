@@ -279,6 +279,7 @@ def rule_core_distractors(
     band: str,
     accepted_answers: Sequence[str],
     count: int,
+    allow_wrong_forms: bool = True,
     seed: int = DISTRACTOR_SEED,
 ) -> tuple[str, ...]:
     """`count` distractors obeying all three V5 clauses, or `NotEnoughDistractors`.
@@ -287,7 +288,9 @@ def rule_core_distractors(
     because a wrong inflection is the distractor that teaches the grammar point, then
     same-POS same-band lexemes. There is no third fallback, and the band does not widen
     (`DISTRACTOR_BAND_WIDENING` is empty) — a distractor from a band the learner has
-    never met is eliminable without knowing anything.
+    never met is eliminable without knowing anything. Context-free cloze callers set
+    `allow_wrong_forms=False`: without a constraining phrase, another attested form may
+    agree with an equally valid reconstruction and cannot honestly be called wrong.
     """
     if count == 0:
         return ()
@@ -304,6 +307,8 @@ def rule_core_distractors(
         if len(chosen) >= count:
             break
         if strategy == "wrong_form":
+            if not allow_wrong_forms:
+                continue
             candidates = pool.wrong_forms(answer_lemma, answer_surface, pos, band)
         else:
             candidates = pool.same_pos_same_band(pos, band, exclude_lemma=answer_lemma)

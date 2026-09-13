@@ -322,6 +322,42 @@ def test_a_wrong_form_is_preferred_over_a_neighbour_lemma(pool: DistractorPool) 
     assert drawn[0] in surfaces[1:]
 
 
+@pytest.mark.parametrize(
+    ("answer", "valid_decoy"),
+    [
+        ("tarjeta", "tarjetas"),
+        ("deporte", "deportes"),
+        ("Estaba", "Estarían"),
+        ("compiten", "competían"),
+        ("invitado", "invitada"),
+    ],
+)
+def test_INV_PACK_07_context_free_cloze_abstains_from_same_lemma_forms(
+    answer: str, valid_decoy: str
+) -> None:
+    """[INV-PACK-07] agreement/morphology is not wrong without constraining context."""
+    pool = DistractorPool(
+        by_pos_band={("NOUN", "A1"): ["otro", "tercero"]},
+        forms={"answer": {"a": answer, "b": valid_decoy}},
+        pos_of_lemma={"answer": "NOUN"},
+        band_of_lemma={"answer": "A1"},
+    )
+    drawn = rule_core_distractors(
+        pool=pool,
+        alternatives=AlternativesIndex(),
+        key="context-free-cloze",
+        answer_surface=answer,
+        answer_lemma="answer",
+        pos="NOUN",
+        band="A1",
+        accepted_answers=[answer],
+        count=2,
+        allow_wrong_forms=False,
+    )
+    assert valid_decoy not in drawn
+    assert set(drawn) == {"otro", "tercero"}
+
+
 # ---------------------------------------------------------------------------
 # The re-ranker
 # ---------------------------------------------------------------------------
