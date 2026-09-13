@@ -24,8 +24,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from test_g7_answer_evidence import approve_current_ledger
 from typer.testing import CliRunner
 
+from coursekit.answer_evidence import ApprovedAnswers
 from coursekit.artifacts import read_records, sentence_id, write_records
 from coursekit.cli import app
 from coursekit.config import EXERCISE_TYPES, EXIT_FAILED, EXIT_MISSING_INPUT, EXIT_OK
@@ -70,8 +72,8 @@ from coursekit.stages.g7_expand import (
     StarvedSlot,
     _display_split,
     _gapped,
-    _spanish_accepted_surfaces,
     _target_tokens,
+    _translation_surfaces,
     build_glosses,
     ending_split,
 )
@@ -83,7 +85,8 @@ from coursekit.stages.g7_expand import (
 ])
 def test_INV_GRD_03_subject_pronoun_surface_without_analysis_gains_no_variant(surface: str) -> None:
     """[INV-GRD-03] a spelling match alone cannot establish an optional subject."""
-    assert _spanish_accepted_surfaces(surface) == (surface,)
+    slot = ResolvedSlot(surface, "English", None, None, None)
+    assert _translation_surfaces(slot, "es") == (surface,)
 
 
 def test_INV_PACK_07_build_glosses_discards_bad_alignment_votes_without_repair() -> None:
@@ -139,7 +142,8 @@ def g7_is_registered() -> None:
 _REVIEWED_TEST_GLOSSES = (
     ("perro", "NOUN", "dog"), ("casa", "NOUN", "house"), ("libro", "NOUN", "book"),
     ("mesa", "NOUN", "table"), ("coche", "NOUN", "car"), ("parque", "NOUN", "park"),
-    ("pan", "NOUN", "bread"), ("cuarto", "NOUN", "room"), ("queso", "NOUN", "cheese"),
+    ("sopa", "NOUN", "soup"), ("pan", "NOUN", "bread"), ("cuarto", "NOUN", "room"),
+    ("queso", "NOUN", "cheese"),
     ("comer", "VERB", "eat"), ("beber", "VERB", "drink"), ("correr", "VERB", "run"),
     ("mirar", "VERB", "look"), ("leer", "VERB", "read"), ("él", "PRON", "he"),
     ("yo", "PRON", "I"), ("ella", "PRON", "she"), ("usted", "PRON", "you"),
@@ -797,7 +801,7 @@ SENTENCES: list[tuple[str, str, list[tuple[str, str, str]]]] = [
 ]
 
 
-#: Which lemmas each slot INTRODUCES. Seven, not one, and every one of them a NOUN in
+#: Which lemmas each slot INTRODUCES. Five, one per slot, and every one a NOUN in
 #: band A1 — because a match (S033) is only authored over lemmas that already carry two
 #: punitive lexeme forms, and `meaning_select` is only authored when the lemma has a
 #: gloss AND two same-POS same-band glossed neighbours to fill its option list. One new
@@ -805,19 +809,21 @@ SENTENCES: list[tuple[str, str, list[tuple[str, str, str]]]] = [
 #: needs five eligible rows and there was one.
 NEW_LEMMAS_BY_SLOT: list[list[str]] = [
     ["pan"],
-    [],
-    ["casa", "cuarto"],
-    ["perro", "parque"],
-    ["libro", "mesa"],
+    ["sopa"],
+    ["casa"],
+    ["perro"],
+    ["libro"],
 ]
 
 
 def _banded() -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in (FIXTURES / "banded.jsonl").read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    # This deliberately small fixture declares one G2 row per lemma and puts its
+    # five noun introductions in one band; the archived mini source contains repeats.
+    rows = [json.loads(line) for line in (FIXTURES / "banded.jsonl").read_text().splitlines()
+            if line.strip()]
+    return list({row["lemma"]: {**row, **({"band": "A1"} if row["lemma"] == "sopa" else {})}
+                 for row in reversed(rows)}.values())
+
 
 
 
@@ -928,7 +934,9 @@ def _write_ledger(lang: str = LANG) -> None:
                 "provenance": "corpus",
                 "gap": False,
                 "new_lemmas": NEW_LEMMAS_BY_SLOT[slot],
-                "known_lemmas": [lemma for _s, lemma, _p in tokens],
+                "known_lemmas": sorted(
+                    {lemma for _s, lemma, _p in tokens} - set(NEW_LEMMAS_BY_SLOT[slot])
+                ),
                 "grammar_concept": "present tense -er verbs",
             }
         )
@@ -943,6 +951,7 @@ def _write_ledger(lang: str = LANG) -> None:
     for stage_id in ("g0", "g1", "g2", "g3", "g4"):
         with runlog.stage(stage_id, tool="coursekit", tool_version="test") as entry:
             entry.written = 1
+    approve_current_ledger()
 
 
 def test_the_stage_runs_end_to_end_with_the_declared_fallback_aligner() -> None:
@@ -1071,7 +1080,10 @@ def _write_gap_ledger(gaps: list[dict[str, Any]]) -> None:
                 "provenance": "llm",
                 "gap": True,
                 "new_lemmas": gap.get("new_lemmas", []),
-                "known_lemmas": ["el", "pan", "estar", "caliente"],
+                "known_lemmas": sorted(
+                    set((gap.get("analysis") or {}).get("lemmas", []))
+                    - set(gap.get("new_lemmas", []))
+                ),
                 "grammar_concept": "present tense -er verbs",
             }
         )
@@ -1100,6 +1112,8 @@ def _write_gap_ledger(gaps: list[dict[str, Any]]) -> None:
     for stage_id in ("g5", "g6"):
         with runlog.stage(stage_id, tool="coursekit", tool_version="test") as entry:
             entry.written = len(candidates)
+    if all(g.get("candidate", True) and g.get("analysis") is not None for g in gaps):
+        approve_current_ledger()
 
 
 def _build() -> Any:
@@ -1226,7 +1240,7 @@ def test_INV_PACK_07_a_word_or_fixed_phrase_is_a_lexeme_item_not_a_sentence_one(
                 "slot_index": 5,
                 "text": "La mesa.",
                 "translation": "The table.",
-                "new_lemmas": [],
+                "new_lemmas": ["mesa"],
                 "analysis": _analysis([("La", "el", "DET"), ("mesa", "mesa", "NOUN")]),
             }
         ]
@@ -1393,11 +1407,8 @@ def test_S033_match_pairs_is_emitted_by_a_real_run_with_five_rows() -> None:
     """
     records = _built_records()
     matches = _of_shape(records, "match_pairs")
-    # TWO matches over seven eligible lemmas: one cut of five, then a final cut of the
-    # unit's LAST five, which picks up the two leftovers by re-using three lemmas that
-    # are already matched. A short final cut would leave those two with one punitive
-    # form each and fail INV-PACK-07, which is why the cut is five or nothing.
-    assert len(matches) == 2, [record["prompt"] for record in matches]
+    # Five one-lemma introductions yield one complete five-row match.
+    assert len(matches) == 1, [record["prompt"] for record in matches]
     assert all(len(m["accepted_answers"]) == MATCH_PAIRS_PER_EXERCISE for m in matches)
     for match in matches:
         assert len(match["item_tags"]["lemmas"]) == MATCH_PAIRS_PER_EXERCISE
@@ -1901,7 +1912,9 @@ def _quality_slot(*, alternates: tuple[str, ...] = ()) -> ResolvedSlot:
         ],
     )
     return ResolvedSlot(
-        text, "She eats bread.", "aaaaaaaaaaaaaaaa", analysis, None, accepted_alternates=alternates
+        text, "She eats bread.", "aaaaaaaaaaaaaaaa", analysis, None,
+        approved_answers=ApprovedAnswers((text, *dict.fromkeys(s for s in alternates if s != text)),
+            ("She eats bread.",), {text: analysis}, "a" * 64)
     )
 
 
@@ -2009,16 +2022,17 @@ def test_INV_PACK_40_gloss_alignment_uses_the_same_lexical_indices_as_the_aligne
         ),
     ],
 )
-def test_INV_GRD_03_prodrop_requires_a_simple_agreeing_finite_predicate(
+def test_INV_GRD_03_unreviewed_fragments_never_gain_inferred_answers(
     text: str, tokens: list[tuple[str, str, str, str]]
 ) -> None:
     """[INV-GRD-03] fragments, coordination and uncertain morphology gain no alternate."""
     analysis = _quality_analysis(text, tokens)
-    assert _spanish_accepted_surfaces(text, analysis) == (text,)
+    slot = ResolvedSlot(text, "English", None, analysis, None)
+    assert _translation_surfaces(slot, "es") == (text,)
 
 
-def test_INV_GRD_03_prodrop_requires_analysis_and_preserves_question_punctuation() -> None:
-    """[INV-GRD-03] omission is derived only from the stored Spanish morphology."""
+def test_INV_GRD_03_morphology_alone_cannot_approve_prodrop() -> None:
+    """[INV-GRD-03] even a simple agreeing predicate needs explicit whole-pair approval."""
     text = "¿Él no come pan?"
     tokens = [
         ("¿", "¿", "PUNCT", ""),
@@ -2028,11 +2042,9 @@ def test_INV_GRD_03_prodrop_requires_analysis_and_preserves_question_punctuation
         ("pan", "pan", "NOUN", ""),
         ("?", "?", "PUNCT", ""),
     ]
-    assert _spanish_accepted_surfaces(text) == (text,)
-    assert _spanish_accepted_surfaces(text, _quality_analysis(text, tokens)) == (
-        text,
-        "¿No come pan?",
-    )
+    assert _translation_surfaces(ResolvedSlot(text, "English", None, None, None), "es") == (text,)
+    slot = ResolvedSlot(text, "English", None, _quality_analysis(text, tokens), None)
+    assert _translation_surfaces(slot, "es") == (text,)
 
 
 @pytest.mark.parametrize(
@@ -2045,7 +2057,7 @@ def test_INV_GRD_03_only_whole_sentence_typed_course_translation_accepts_alterna
     slot = _quality_slot(alternates=("Ella está comiendo pan.", "Ella come pan."))
     draft = _quality_draft(slot, shape_id)
     if shape_id == "typed_translate_forward":
-        assert draft.accepted_answers == ("Ella come pan.", "Ella está comiendo pan.", "Come pan.")
+        assert draft.accepted_answers == ("Ella come pan.", "Ella está comiendo pan.")
     else:
         assert "Ella está comiendo pan." not in draft.accepted_answers
         assert "Come pan." not in draft.accepted_answers
@@ -2174,6 +2186,7 @@ def test_INV_PACK_40_G7_preserves_the_exact_first_postG6_candidate_identity() ->
     }
     reserve = {**candidate, "candidate_id": reserve_id}
     write_records("candidate", [rejected, candidate, reserve], lang=LANG)
+    approve_current_ledger()
     result = _build()
     assert result.exit_code == EXIT_OK, result.output
     records = list(read_records("exercise", lang=LANG))
@@ -2199,6 +2212,11 @@ def test_INV_GRD_03_every_validated_alternate_is_indexed_before_any_draft(
     alternate = "Sobre las mesas están los libros."
     candidate["accepted_alternates"] = [alternate]
     write_records("candidate", [candidate], lang=LANG)
+    analysis = _complete_source_analysis(alternate, _analysis([
+        ("Sobre", "sobre", "ADP"), ("las", "el", "DET"), ("mesas", "mesa", "NOUN"),
+        ("están", "estar", "AUX"), ("los", "el", "DET"), ("libros", "libro", "NOUN"),
+    ]))
+    approve_current_ledger(spanish_by_source={candidate["candidate_id"]: {alternate: analysis}})
     original = module._sentence_draft
     seen = []
 
@@ -2255,7 +2273,7 @@ def test_INV_GRD_03_unknown_subject_analysis_cannot_author_prodrop(field: str, v
     """[INV-GRD-03] a matching surface without personal-pronoun proof is insufficient."""
     slot = _quality_slot()
     slot.analysis["tokens"][0][field] = value
-    assert _spanish_accepted_surfaces(slot.text, slot.analysis) == (slot.text,)
+    assert _translation_surfaces(slot, "es") == (slot.text,)
 
 
 def test_INV_GRD_03_spanish_prodrop_is_never_applied_to_another_language() -> None:
@@ -2470,7 +2488,9 @@ def _add_agreement_ledger() -> None:
     write_records("selected_item", selected, lang=LANG)
     banded = _banded()
     template = next(row for row in banded if row["pos"] == "VERB")
-    write_records("banded_lemma", [*banded, {**template, "lemma": "correr"}], lang=LANG)
+    rows = [row for row in banded if row["lemma"] != "correr"]
+    write_records("banded_lemma", [*rows, {**template, "lemma": "correr"}], lang=LANG)
+    approve_current_ledger()
 
 
 @pytest.mark.parametrize("builder", ["sentence", "grammar"])
@@ -2647,6 +2667,7 @@ def _write_two_register_units() -> None:
         {**item, "unit_index": 23, "lesson_index": item["lesson_index"] + 130,
          "grammar_concept": "formal_informal_address"} for item in selected
     ]], lang=LANG)
+    approve_current_ledger()
 
 
 def test_INV_PACK_08_g7_stamps_each_units_sentence_and_synthetic_forms() -> None:
@@ -2819,7 +2840,7 @@ def test_INV_PACK_40_multiple_reviewed_pos_abstains_from_standalone_meaning() ->
 
 
 
-def test_INV_PACK_08_g7_gate_checks_finite_register_before_writing() -> None:
+def test_INV_PACK_08_g7_gate_checks_finite_register_before_writing(monkeypatch) -> None:
     _write_ledger()
     ingested = list(read_records("ingested_sentence", lang=LANG))
     analysed = list(read_records("analysed_sentence", lang=LANG))
@@ -2842,6 +2863,14 @@ def test_INV_PACK_08_g7_gate_checks_finite_register_before_writing() -> None:
     write_records("selected_item", [{**selected[0], "unit_index": 23,
                    "sentence_id": sid, "slot_index": 1,
                    "grammar_concept": "formal_informal_address"}], lang=LANG)
+    # Deliberately counterfeit only the upstream approval boundary: V6 must still
+    # independently refute this finite tuteo sentence in a formal unit.
+    import coursekit.stages.g7_expand as module
+    monkeypatch.setattr(module, "load_validated_answer_evidence", lambda lang, sources: {
+        source.slot: ApprovedAnswers((source.text,), (source.translation,),
+                                     {source.text: source.analysis}, "a" * 64)
+        for source in sources
+    })
     result = _build()
     assert result.exit_code != EXIT_OK
     assert "source_context" in result.output and "carries tu" in result.output

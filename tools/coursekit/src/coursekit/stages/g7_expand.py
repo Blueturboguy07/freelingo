@@ -2,7 +2,8 @@
 
 Reads `analysed_sentence` (G1), `banded_lemma` (G2), `unit_assignment` (G3),
 `selected_item` (G4) and, for every slot G4 marked a gap, the accepted `candidate`
-rows (G5, validated at G6). Writes `exercise`.
+rows (G5, validated at G6), plus reviewed whole-answer evidence with current G6
+approval for every exact selected slot. Writes `exercise`.
 
 ## The four things this stage refuses to do
 
@@ -74,6 +75,7 @@ from dataclasses import dataclass, field
 from typing import Any, Final
 
 from .. import __version__
+from ..answer_evidence import AnswerEvidenceError, ApprovedAnswers, load_validated_answer_evidence
 from ..artifacts import first_accepted_candidates, read_records, sentence_id, write_records
 from ..config import EXERCISE_TYPES, TOOL_NAME
 from ..config.g7 import (
@@ -95,7 +97,6 @@ from ..config.g7 import (
     SHAPES,
     SPANISH_CLOZE_PROOF_PERSONS,
     SPANISH_INFINITIVE_ENDINGS,
-    SPANISH_PRODROP_ADVERBS,
     SPANISH_SUBJECT_AGREEMENT,
     VERB_POS,
     WHOLE_SENTENCE_ALTERNATE_SHAPES,
@@ -116,6 +117,7 @@ from ..ledger import is_lexical_pos, surface_tokens
 from ..lexeme_glosses import GlossaryError, ReviewedGloss, load_glossary_by_lemma
 from ..registers import RegisterPolicyError, unit_register
 from ..runlog import require_successful
+from ..selected_sources import SelectedSource, SourceEvidenceError, resolve_selected_sources
 from ..tts.cast import Cast, CastError, load_cast, rebake_key
 from ..validators.exercise import check_pack_07, check_pack_50, check_v5, check_v6, pos_sets
 from . import StageContext, StageResult, register_stage
@@ -185,6 +187,8 @@ class ExpansionInputs:
     #: question — see `validators/exercise.py::pos_sets`.
     pos_sets: dict[str, set[str]] = field(default_factory=dict)
     glossary: dict[str, tuple[ReviewedGloss, ...]] = field(default_factory=dict)
+    sources: dict[tuple[int, int, int], SelectedSource] = field(default_factory=dict)
+    approved_answers: dict[tuple[int, int, int], ApprovedAnswers] = field(default_factory=dict)
 
 
 def _audio_id(inputs: ExpansionInputs, text: str) -> str:
@@ -200,18 +204,40 @@ def _audio_id(inputs: ExpansionInputs, text: str) -> str:
 
 
 def _load(lang: str) -> ExpansionInputs:
-    analysed = {row["sentence_id"]: row for row in read_records("analysed_sentence", lang=lang)}
+    cast = load_cast(lang)
+    analysed_rows = list(read_records("analysed_sentence", lang=lang))
+    analysed = {row["sentence_id"]: row for row in analysed_rows}
     banded = list(read_records("banded_lemma", lang=lang))
-    units = {row["unit_index"]: row for row in read_records("unit_assignment", lang=lang)}
+    unit_rows = list(read_records("unit_assignment", lang=lang))
+    units = {row["unit_index"]: row for row in unit_rows}
     selected = list(read_records("selected_item", lang=lang))
     ingested = list(read_records("ingested_sentence", lang=lang))
 
-    # Shared post-G6 selection: reserves remain accepted but are not shipped fills.
-    candidates = (
-        first_accepted_candidates(read_records("candidate", lang=lang), lang=lang)
-        if any(item["gap"] for item in selected)
-        else {}
+    candidate_rows = list(read_records("candidate", lang=lang)) if any(
+        item["gap"] for item in selected
+    ) else []
+    candidates = first_accepted_candidates(candidate_rows, lang=lang)
+    for item in selected:
+        if not item["gap"]:
+            continue
+        key = (item["unit_index"], item["lesson_index"], item["slot_index"])
+        candidate = candidates.get(key)
+        if candidate is None:
+            raise StarvedSlot(
+                f"selected slot {key} is a gap and no accepted candidate exists for it. "
+                "G5 over-generates and G6 rejects; a slot with no survivor is a content "
+                "failure, not something G7 may fill."
+            )
+        if candidate.get("analysis") is None:
+            raise MissingAnalysis(
+                f"candidate {candidate['candidate_id']} (slot {key}) carries analysis: null; "
+                "G7 will not fall back to the surface (B16)"
+            )
+    sources = resolve_selected_sources(
+        lang, selected=selected, candidates=candidate_rows, ingested=ingested,
+        analysed=analysed_rows, units=unit_rows, banded=banded,
     )
+    approved = load_validated_answer_evidence(lang, sources)
 
     return ExpansionInputs(
         lang=lang,
@@ -229,8 +255,10 @@ def _load(lang: str) -> ExpansionInputs:
         pos_of={row["lemma"]: row["pos"] for row in banded},
         band_of={row["lemma"]: row["band"] for row in banded},
         pos_sets=pos_sets(banded, analysed.values()),
-        cast=load_cast(lang),
+        cast=cast,
         glossary=load_glossary_by_lemma(lang),
+        sources={source.slot: source for source in sources},
+        approved_answers=approved,
     )
 
 
@@ -257,8 +285,10 @@ class ResolvedSlot:
     analysis: Mapping[str, Any] | None
     #: The authored row this slot came from, for the message an error has to name.
     candidate_id: str | None
-    #: Whole-sentence course-language surfaces independently validated by G5/G6.
+    #: Legacy hand-built input only; deliberately ignored as answer authority.
     accepted_alternates: tuple[str, ...] = ()
+    #: Exact-slot whole-pair G6 proof; legacy surface lists are never authority.
+    approved_answers: ApprovedAnswers | None = None
 
     @property
     def source_id(self) -> str | None:
@@ -276,44 +306,17 @@ def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
     * an authored row with **no analysis** silently fell back to the surface at the gap
       index, and the surface of an inflected form is in no lexicon (B16).
     """
-    if item["gap"]:
-        key = (item["unit_index"], item["lesson_index"], item["slot_index"])
-        candidate = inputs.candidates.get(key)
-        if candidate is None:
-            raise StarvedSlot(
-                f"selected slot {key} is a gap and no accepted candidate exists for it. "
-                "G5 over-generates and G6 rejects; a slot with no survivor is a content "
-                "failure, not something G7 may fill."
-            )
-        analysis = candidate.get("analysis")
-        if analysis is None:
-            raise MissingAnalysis(
-                f"candidate {candidate['candidate_id']} (slot {key}, "
-                f"{candidate['text']!r}) carries analysis: null and G7 is being asked to "
-                "expand it. G5 writes its own adapter pass onto every row it analysed; a "
-                "null there means this row was rejected before the analyser ran, so it "
-                "cannot be an accepted candidate. G7 will not fall back to the surface: "
-                "that fallback handed 'tardes' to the distractor core where 'tarde' "
-                "belongs, and it is the bug candidate.analysis exists to delete (B16)."
-            )
-        return ResolvedSlot(
-            text=candidate["text"],
-            translation=candidate["translation"],
-            sid=None,
-            analysis=analysis,
-            candidate_id=str(candidate["candidate_id"]),
-            accepted_alternates=tuple(candidate.get("accepted_alternates", ())),
-        )
-    sid = item["sentence_id"]
-    if sid not in inputs.texts:
-        raise StarvedSlot(f"selected item names sentence {sid} which G0 never ingested")
+    key = (item["unit_index"], item["lesson_index"], item["slot_index"])
+    source = inputs.sources.get(key)
+    approved = inputs.approved_answers.get(key)
+    if source is None or approved is None:
+        raise AnswerEvidenceError(f"selected slot {key} lacks exact-slot G6 answer approval")
     return ResolvedSlot(
-        text=inputs.texts[sid],
-        translation=inputs.translations[sid],
-        sid=sid,
-        analysis=inputs.analysed.get(sid),
-        candidate_id=None,
-        accepted_alternates=tuple(item.get("accepted_alternates", ())),
+        text=source.text, translation=source.translation,
+        sid=source.source_id if source.source_kind == "corpus" else None,
+        analysis=source.analysis,
+        candidate_id=source.source_id if source.source_kind != "corpus" else None,
+        approved_answers=approved,
     )
 
 
@@ -624,8 +627,8 @@ def _sentence_draft(
     reverse = chosen.direction == "l2_to_l1"
     body = translation if chosen.direction == "l1_to_l2" else text
     accepted = (translation,) if reverse else (text,)
-    if chosen.id in WHOLE_SENTENCE_ALTERNATE_SHAPES and chosen.direction == "l1_to_l2":
-        accepted = _translation_surfaces(slot, lang)
+    if chosen.id in WHOLE_SENTENCE_ALTERNATE_SHAPES:
+        accepted = _translation_surfaces(slot, lang, reverse=reverse)
     distractors: tuple[str, ...] = ()
 
     if chosen.id in {"word_bank_forward", "word_bank_reverse", "tap_what_you_hear"}:
@@ -683,8 +686,8 @@ def _sentence_draft(
         )
     elif chosen.id == "complete_the_translation":
         gap_index = _gap_index(target_tokens)
-        body = translation + "\n" + _gapped(slot, target_tokens, gap_index)
-        accepted = (target_tokens[gap_index],)
+        scaffold, accepted = _translation_cloze(slot, target_tokens, gap_index)
+        body = translation + "\n" + scaffold
     elif chosen.id == "complete_the_chat":
         body = translation
         distractors = _chat_distractor(inputs, text=text, key=key, alternatives=alternatives)
@@ -712,71 +715,56 @@ def _sentence_draft(
     )
 
 
-def _translation_surfaces(slot: ResolvedSlot, lang: str) -> tuple[str, ...]:
-    """Preferred first; authored and proven Spanish variants retain insertion order."""
-    derived = _spanish_accepted_surfaces(slot.text, slot.analysis) if lang == "es" else ()
-    result: list[str] = []
-    seen: set[str] = set()
-    for surface in (slot.text, *slot.accepted_alternates, *derived):
-        folded = normalise(surface)
-        if folded not in seen:
-            result.append(surface)
-            seen.add(folded)
-    return tuple(result)
+def _translation_surfaces(
+    slot: ResolvedSlot, lang: str, *, reverse: bool = False
+) -> tuple[str, ...]:
+    """Canonical first, from the exact-slot G6 approval; never infer an answer here.
+
+    Hand-built builder inputs without a proof can only use their canonical sentence.
+    The production resolver requires approval for every selected slot, even when its
+    reviewed alternate lists are explicitly empty.
+    """
+    if slot.approved_answers is None:
+        return (slot.translation,) if reverse else (slot.text,)
+    return (slot.approved_answers.english_reverse_only if reverse
+            else slot.approved_answers.spanish)
+
+
+def _translation_cloze(
+    slot: ResolvedSlot, tokens: Sequence[str], index: int
+) -> tuple[str, tuple[str, ...]]:
+    """S039: approved whole answers may supply only an exact fixed-context span.
+
+    Offsets refer to the original canonical text. Prefix/suffix are compared exactly,
+    preserving punctuation, case and whitespace. Reordered answers remain valid for
+    whole-sentence typing but cannot change the text already shown around this blank.
+    """
+    analysed = _lexical_analysis_tokens(slot.analysis) if slot.analysis is not None else []
+    if index >= len(analysed) or index >= len(tokens):
+        raise ValueError("typed translation cloze lacks an exact source span")
+    token = analysed[index]
+    start, end = token.get("start"), token.get("end")
+    if (type(start) is not int or type(end) is not int or not 0 <= start < end <= len(slot.text)
+            or token["surface"] != tokens[index] or slot.text[start:end] != tokens[index]):
+        raise ValueError("typed translation cloze has invalid source span offsets")
+    prefix, suffix = slot.text[:start], slot.text[end:]
+    accepted = [tokens[index]]
+    for surface in _translation_surfaces(slot, ""):
+        if not surface.startswith(prefix) or not surface.endswith(suffix):
+            continue
+        stop = len(surface) - len(suffix) if suffix else len(surface)
+        span = surface[len(prefix):stop]
+        if (not span.strip() or span != span.strip() or GAP_MARKER in span
+                or prefix + span + suffix != surface):
+            continue
+        if span not in accepted:
+            accepted.append(span)
+    return prefix + GAP_MARKER + suffix, tuple(accepted)
 
 
 def _morph_features(token: Mapping[str, Any]) -> dict[str, str]:
     return dict(part.split("=", 1) for part in str(token.get("morph", "")).split("|")
                 if "=" in part)
-
-
-def _spanish_accepted_surfaces(
-    surface: str, analysis: Mapping[str, Any] | None = None
-) -> tuple[str, ...]:
-    """Derive pro-drop only from a simple pronoun and agreeing finite predicate.
-
-    Stored POS, person, number, finite morphology and original offsets must agree.
-    Coordination, fragments, emphasis, intervening punctuation and missing morphology
-    abstain. This is a build-time Spanish translation rule, never a listening target.
-    """
-    if analysis is None:
-        return (surface,)
-    tokens = _lexical_analysis_tokens(analysis)
-    if len(tokens) < 2:
-        return (surface,)
-    subject = tokens[0]
-    agreement = SPANISH_SUBJECT_AGREEMENT.get(str(subject["surface"]).casefold())
-    features = _morph_features(subject)
-    if (agreement is None or subject["pos"] != "PRON"
-            or features.get("PronType") != "Prs"
-            or (features.get("Person"), features.get("Number")) != agreement):
-        return (surface,)
-    first = int(subject["start"])
-    last = int(subject["end"])
-    opening = surface[:first]
-    if opening not in {"", "¿", "¡"} or surface[first:last] != subject["surface"]:
-        return (surface,)
-    predicate = None
-    cursor = last
-    for token in tokens[1:]:
-        start, end = int(token["start"]), int(token["end"])
-        if (start <= cursor or not surface[cursor:start].isspace()
-                or surface[start:end] != token["surface"]):
-            return (surface,)
-        if token["pos"] == "ADV" and str(token["surface"]).casefold() in SPANISH_PRODROP_ADVERBS:
-            cursor = end
-            continue
-        predicate = token
-        break
-    if predicate is None or predicate["pos"] not in VERB_POS:
-        return (surface,)
-    finite = _morph_features(predicate)
-    if (finite.get("VerbForm") != "Fin"
-            or (finite.get("Person"), finite.get("Number")) != agreement):
-        return (surface,)
-    remainder = surface[last:].lstrip()
-    dropped = opening + remainder[:1].upper() + remainder[1:]
-    return (surface, dropped)
 
 
 def _agreement_cloze(
@@ -1150,19 +1138,22 @@ def _grammar_draft(
         accepted: tuple[str, ...] = (ending,)
         distractors: tuple[str, ...] = ()
     else:
-        agreement_cloze = _agreement_cloze(
-            inputs, slot, target_tokens, alternatives, key, key,
-            count=shape(shape_id).distractor_count,
+        agreement_cloze = (
+            _agreement_cloze(
+                inputs, slot, target_tokens, alternatives, key, key,
+                count=shape(shape_id).distractor_count,
+            ) if shape_id == "fill_in_the_blank" else None
         )
         if agreement_cloze is None:
             shape_id = "complete_the_translation"
             gap_index = _gap_index(target_tokens)
-            body = slot.translation + "\n" + _gapped(slot, target_tokens, gap_index)
+            scaffold, accepted = _translation_cloze(slot, target_tokens, gap_index)
+            body = slot.translation + "\n" + scaffold
             distractors = ()
         else:
             gap_index, distractors = agreement_cloze
             body = _gapped(slot, target_tokens, gap_index)
-        accepted = (target_tokens[gap_index],)
+            accepted = (target_tokens[gap_index],)
     return ExerciseDraft(
         lang=lang,
         exercise_id=_exercise_id(
@@ -1514,7 +1505,9 @@ def expand(ctx: StageContext) -> StageResult:
     require_successful(lang, ["g1", "g2", "g3", "g4"])
     try:
         inputs = _load(lang)
-    except GlossaryError as exc:
+    except (
+        GlossaryError, AnswerEvidenceError, SourceEvidenceError, StarvedSlot, MissingAnalysis
+    ) as exc:
         return StageResult(ok=False, message=str(exc))
     except CastError as exc:
         # G7 names the clips G8 will bake, and a clip's id hashes the engine and the
@@ -1569,9 +1562,11 @@ def expand(ctx: StageContext) -> StageResult:
             # The gap index is content-free (`_gap_index`), so it is knowable here, before
             # any distractor is drawn — which is the only order that works: a distractor
             # is chosen against this index, so anything missing from it can be chosen.
-            accepted_here = [*_translation_surfaces(slot, lang), slot.translation]
+            accepted_here = [*_translation_surfaces(slot, lang),
+                             *_translation_surfaces(slot, lang, reverse=True)]
             if tokens:
-                accepted_here.append(tokens[_gap_index(tokens)])
+                _scaffold, spans = _translation_cloze(slot, tokens, _gap_index(tokens))
+                accepted_here.extend(spans)
             alternatives.add(_alt_key(item, slot), accepted_here)
             # Also preserve the direct-fixture fallback key used by the validator.
             alternatives.add(_item_key(item, slot), accepted_here)

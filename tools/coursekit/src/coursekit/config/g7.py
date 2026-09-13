@@ -870,10 +870,12 @@ CHAT_TURN_SEPARATOR: Final[str] = "\n"
 
 
 # P2 review ruling, 2026-09-13; pipeline semantics, no reference-app A/B arm.
-# Only a complete typed L1→L2 translation can accept sentence-level alternatives.
-WHOLE_SENTENCE_ALTERNATE_SHAPES: Final[frozenset[str]] = frozenset({"typed_translate_forward"})
+# Only free typing accepts whole reviewed answer sets; each direction has its own set.
+WHOLE_SENTENCE_ALTERNATE_SHAPES: Final[frozenset[str]] = frozenset(
+    {"typed_translate_forward", "typed_translate_reverse"}
+)
 
-# Conservative Spanish pro-drop requires personal-pronoun and finite-verb agreement.
+# Conservative standalone cloze proof requires personal-pronoun/finite-verb agreement.
 SPANISH_SUBJECT_AGREEMENT: Final[dict[str, tuple[str, str]]] = {
     "yo": ("1", "Sing"), "tú": ("2", "Sing"),
     "él": ("3", "Sing"), "ella": ("3", "Sing"),
@@ -881,10 +883,6 @@ SPANISH_SUBJECT_AGREEMENT: Final[dict[str, tuple[str, str]]] = {
     "vosotros": ("2", "Plur"), "vosotras": ("2", "Plur"),
     "ellos": ("3", "Plur"), "ellas": ("3", "Plur"),
 }
-SPANISH_PRODROP_ADVERBS: Final[frozenset[str]] = frozenset(
-    {"no", "nunca", "jamás", "siempre", "también", "ya", "todavía"}
-)
-
 
 # 2026-09-13, P2 fresh-output refutation; no A/B arm. RAE DPD `voseo` §2.1.2
 # documents plural verb endings with singular tú. Neither side of the standalone
