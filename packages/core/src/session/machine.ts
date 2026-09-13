@@ -477,9 +477,14 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
     }
   } else if (wrong) {
     // INV-GRD-04: a soft-correct never creates a mistake row — `wrong` is the only gate.
+    const firstWrongItemId = pairState?.firstWrongItemId;
+    const missedItem =
+      firstWrongItemId == null
+        ? item
+        : { ...item, itemId: firstWrongItemId, conceptId: firstWrongItemId };
     mistakes = queueMistake({
       config: deps.config,
-      item,
+      item: missedItem,
       queue: state.mistakes,
       mainAnswersAtMiss: mainAnswerCount(state) + 1,
     });
@@ -487,9 +492,9 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
       mistakeRows = [
         ...mistakeRows,
         {
-          itemId: item.itemId,
+          itemId: missedItem.itemId,
           courseId: state.courseId,
-          conceptId: item.conceptId,
+          conceptId: missedItem.conceptId,
           createdInSessionId: state.sessionId,
           reviewStreak: 0,
         },
@@ -546,10 +551,17 @@ function answerPair(
   const record = {
     taps: [
       ...current.taps,
-      { attemptId: event.attemptId, leftId: event.leftId, rightId: event.rightId, wrong },
+      {
+        attemptId: event.attemptId,
+        leftId: event.leftId,
+        rightId: event.rightId,
+        leftItemId: pair.leftItemId,
+        wrong,
+      },
     ],
     matchedLeftIds: wrong ? current.matchedLeftIds : [...current.matchedLeftIds, event.leftId],
     paid: current.paid + (wrong ? 1 : 0),
+    firstWrongItemId: current.firstWrongItemId ?? (wrong ? pair.leftItemId : null),
   };
   const partialState = {
     ...state.inFlight.partialState,
@@ -739,7 +751,17 @@ function serveReplay(state: RuntimeState, deps: StepDeps): StepResult {
     if (mainDrained(state)) return complete(state, deps);
     return { state: mark(freshChallenge(state), 'challenge.idle', deps), writes: [], exit: null };
   }
-  const target = recycleTarget(served.served, phase, deps.isTypeEligible);
+  // EC-GRD-13: a failed grid queues its first wrong LEFT lexeme. Both recycles are
+  // recognition of that item; replaying the whole original grid would teach five targets.
+  const offered = recycleTarget(
+    served.served,
+    served.served.originalType === 'matchPairs' ? 'midLesson' : phase,
+    deps.isTypeEligible,
+  );
+  const target =
+    served.served.originalType === 'matchPairs' && offered.type === 'matchPairs'
+      ? { type: 'meaningSelect' as const, degraded: true }
+      : offered;
   const original = state.core.queue.find((q) => q.itemId === served.served.itemId);
   const item: QueuedItem = {
     id: `${served.served.slotId}#replay${served.served.recyclesServed}`,

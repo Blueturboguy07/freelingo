@@ -1,5 +1,7 @@
 /** S033: validated per-pair state lives in the existing opaque persisted checkpoint. */
 export interface RuntimeMatchPair {
+  /** Stable scheduling identity of the LEFT lexeme, never a display or tile ID. */
+  readonly leftItemId: string;
   readonly leftId: string;
   readonly rightId: string;
 }
@@ -11,14 +13,17 @@ export interface MatchRuntime {
   readonly taps: readonly RuntimeMatchTap[];
   readonly matchedLeftIds: readonly string[];
   readonly paid: number;
+  readonly firstWrongItemId: string | null;
 }
 export const MATCH_RUNTIME_KEY = 'matchRuntime';
 export function matchRuntime(
   partial: Readonly<Record<string, unknown>>,
   pairs: readonly RuntimeMatchPair[],
 ): MatchRuntime | null {
+  if (pairs.some((pair) => typeof pair.leftItemId !== 'string' || pair.leftItemId.trim() === ''))
+    return null;
   const value = partial[MATCH_RUNTIME_KEY];
-  if (value === undefined) return { taps: [], matchedLeftIds: [], paid: 0 };
+  if (value === undefined) return { taps: [], matchedLeftIds: [], paid: 0, firstWrongItemId: null };
   if (
     value === null ||
     typeof value !== 'object' ||
@@ -30,6 +35,7 @@ export function matchRuntime(
   const ids = new Set<string>();
   const matched = new Set<string>();
   let paid = 0;
+  let firstWrongItemId: string | null = null;
   for (const raw of value.taps as unknown[]) {
     if (
       raw === null ||
@@ -51,12 +57,20 @@ export function matchRuntime(
     )
       return null;
     const wrong = pair.rightId !== raw.rightId;
-    taps.push({ attemptId: raw.attemptId, leftId: raw.leftId, rightId: raw.rightId, wrong });
+    taps.push({
+      attemptId: raw.attemptId,
+      leftId: raw.leftId,
+      rightId: raw.rightId,
+      leftItemId: pair.leftItemId,
+      wrong,
+    });
     ids.add(raw.attemptId);
-    if (wrong) paid++;
-    else matched.add(raw.leftId);
+    if (wrong) {
+      paid++;
+      firstWrongItemId ??= pair.leftItemId;
+    } else matched.add(raw.leftId);
   }
-  return { taps, matchedLeftIds: [...matched], paid };
+  return { taps, matchedLeftIds: [...matched], paid, firstWrongItemId };
 }
 /** Presentation input may carry all its own keys, but may never manufacture a payment. */
 export function preserveMatchRuntime(

@@ -6,7 +6,11 @@ import { DEFAULT_FLAVOUR_MATRIX } from './flavours.js';
 import { step } from './machine.js';
 import type { StepDeps, SessionEvent } from './machine.js';
 import type { SessionState } from './resume.js';
-const pairs = Array.from({ length: 5 }, (_, n) => ({ leftId: `l${n}`, rightId: `r${n}` }));
+const pairs = Array.from({ length: 5 }, (_, n) => ({
+  leftId: `l${n}`,
+  rightId: `r${n}`,
+  leftItemId: `lexeme${n}`,
+}));
 const deps: StepDeps = {
   config: DEFAULT_FLAVOUR_MATRIX.legendary,
   clock: { nowMs: () => 1 },
@@ -30,6 +34,46 @@ const tap = (attemptId: string, leftId: string, rightId: string): SessionEvent =
   rightId,
 });
 describe('immediate match-pair accounting', () => {
+  it('[INV-GRD-07] first wrong LEFT semantic item owns the only mistake and both replays are recognition', () => {
+    const lessonDeps = { ...deps, config: DEFAULT_FLAVOUR_MATRIX.lesson };
+    let state = step(start(), tap('first-wrong', 'l3', 'r1'), lessonDeps).state;
+    expect(state.inFlight.partialState['matchRuntime']).toMatchObject({
+      firstWrongItemId: 'lexeme3',
+    });
+    state = step(state, tap('second-wrong', 'l1', 'r2'), lessonDeps).state;
+    for (let n = 0; n < 5; n++)
+      state = step(state, tap(`correct-${n}`, `l${n}`, `r${n}`), lessonDeps).state;
+    expect(state.mistakeRows).toHaveLength(1);
+    expect(state.mistakeRows[0]?.itemId).toBe('lexeme3');
+    expect(state.mistakeRows[0]?.conceptId).toBe('lexeme3');
+    expect(state.mistakes[0]?.itemId).toBe('lexeme3');
+    expect(state.core.answers).toHaveLength(1);
+    expect(state.core.answers[0]?.itemId).toBe(start().core.queue[0]?.itemId);
+    const replayTypes: string[] = [];
+    for (let n = 0; n < 20 && state.shellState !== 'complete'; n++) {
+      if (
+        state.shellState.startsWith('banner.') ||
+        state.shellState === 'mistakeReview' ||
+        state.shellState === 'interstitial'
+      )
+        state = step(state, { type: 'continue' }, lessonDeps).state;
+      else if (state.shellState === 'challenge.idle') {
+        replayTypes.push(state.currentReplay?.item.type ?? 'missing');
+        expect(state.currentReplay?.item.itemId).toBe('lexeme3');
+        state = step(
+          state,
+          { type: 'input', text: 'correct', caret: 7, partialState: {}, gradeable: true },
+          lessonDeps,
+        ).state;
+      } else if (state.shellState === 'challenge.armed')
+        state = step(state, { type: 'check' }, lessonDeps).state;
+      else if (state.shellState === 'grading')
+        state = step(state, { type: 'graded' }, lessonDeps).state;
+    }
+    expect(replayTypes).toEqual(['meaningSelect', 'meaningSelect']);
+    expect(state.core.hearts).toMatchObject({ remaining: 18 });
+  });
+
   it('[INV-SESS-15] [INV-GRD-07] charges each wrong pair immediately, persists the taps, and never charges it again', () => {
     let state = start();
     const wrong = tap('first', 'l0', 'r1');
