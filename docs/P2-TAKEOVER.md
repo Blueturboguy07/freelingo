@@ -37,8 +37,12 @@ Six existing worktree tasks retain disjoint lanes, with these bounded extensions
 
 - Sole deps/contracts lane: shared register, glossary and occurrence-bound answer
   evidence contracts, their config/tests and pipeline documentation. The latest answer
-  contract is in `codex/p2r5-evidence-contract` using the existing deps worktree; no
-  dependency changed. Consumers wait for the shared interface freeze.
+  contract began in `codex/p2r5-evidence-contract`; the bounded conversation and
+  explicit-plan extensions are frozen as `3a3f0e5` and `4bdab82` in
+  `codex/p2r5-conversation-contract`. No dependency or exercise/SQLite schema changed.
+  A reviewed correction distinguishes canonical source length/target requirements
+  from admissible noncanonical answers; it preserves vocabulary, budget, register,
+  exact meaning and per-surface language checks.
 - Upstream lane: G1 punctuation normalization coordinated with G7, G2 intended POS,
   G3 unit declaration, G4 full known-lemma windows, target/register guards in G4–G6,
   and real-source recurrence/difficulty repair. No threshold or section-map change.
@@ -51,15 +55,40 @@ Six existing worktree tasks retain disjoint lanes, with these bounded extensions
   lint/typecheck/ownership/Ruff, independent falsifiers and six guard mutations.
 - Review/integration lane: complete frozen review, report/method/history, original
   glossary assembly and ownership mappings. Glossary commit `e8f0a6e` contains 945
-  explicit citation-sense rows with independent hashed review. Conversations remain
-  feasibility proposals until all three roles have destination and G6 proof.
+  explicit citation-sense rows with independent hashed review. Three exact fresh
+  conversation occurrences now have independently hashed contextual review in
+  `content/es/authoring/conversations.jsonl`, with their separate explicit plan.
+  All nine role pairs retain original source/analysis identity and attribution.
+  Complete-population G6 approval and question audio are still pending.
 
-Known real producer deficits include 50 first-attempt gap slots that starve under the
-correct required-target guard, 51 lemmas owing 69 appearances inside unchanged V3
-windows, and the u10→u11 difficulty decrease (10.1152→9.3045). A corrected-join/order
-probe fixes V2/V9 findings but is not a regenerated pack gate. The next preparation
-must regenerate G1 onward to apply punctuation and lexeme/POS changes; cached text,
-old reviews and old audio fingerprints cannot be patched into current proof.
+Fresh G1–G4 preparation completed at `86c1051` in an isolated build root. It reused
+only the immutable G0 input and frequency data, then recomputed source analysis and
+selection: 273,324 analysed rows; 1,584 slots, comprising 1,071 corpus selections and
+513 gaps. Thirteen gaps are new; 15 old gap targets moved despite unchanged
+known/new union digests. All 12 previously missing targets remain reserved. This is
+source preparation, not another full G0–G9 gate.
+
+A read-only current-G5 census inspected all 10,269 raw candidate rows across 12 shards
+without rewriting them. Of the 513 gaps, 443 have a current G5 survivor and 70 have
+none: 13 new slots, 15 shifted targets and 42 other exhausted slots. The authoring
+worklist requires at least 1,400 fresh rows under the unchanged 20-candidate floor.
+G6 may still reject current G5 survivors. Fresh source-only recurrence and difficulty
+reports guide authoring; neither substitutes for actual G7/V3 or the final V11 gate.
+
+The additional Sample/G9 repair now tests actual SQLite role text, attribution,
+question-audio binding and signed metadata, current plan/G6/source joins, all-role
+V1/V2 exposure, canonical-only V3/V4 teaching credit, and V9 repetition with the
+unchanged selected-slot denominator. V10/V12 include extra role text while V11 keeps
+its original selected population. Its local Python regression passed 1,526 tests
+with eight skips and one optional live SimAlign test deselected; independent review
+and integration are pending. The historical seven-exercise packaging fixture uses
+an explicitly empty mock chat context; the new caller and SQLite tests exercise real
+shared approval checks separately. No generated production chat or heard audio is
+claimed by these tests.
+
+The next review seed was fixed as `2026091302` in `554139f` before the new population
+or scores exist. The first-attempt seed `20260913` and every frozen review fingerprint
+remain unchanged. No replacement 300-item sample has been drawn.
 
 P0/P1 are GREEN. P2 is RED. P3–P8 remain unstarted; App.tsx is still Diagnostics.
 The authorized next full post-fix attempt must meet the unchanged gate. A second RED

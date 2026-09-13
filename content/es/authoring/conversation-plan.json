@@ -1,0 +1,24 @@
+{
+  "author": "Codex root conversation author",
+  "authored_on": "2026-09-13",
+  "expected_slots": [
+    [
+      10,
+      55,
+      4
+    ],
+    [
+      14,
+      79,
+      5
+    ],
+    [
+      30,
+      176,
+      5
+    ]
+  ],
+  "lang": "es",
+  "rationale": "Three corpus-backed question/reply contexts selected from the fresh G4 population before G7 generation. Each reply is already a selected sentence at this destination. The previous u28 proposal no longer belongs to the selection. Every role still requires independent contextual review and complete G6 language checks.",
+  "schema_version": 1
+}
