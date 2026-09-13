@@ -1,0 +1,271 @@
+{
+  "declaration": {
+    "schemaVersion": 1,
+    "packId": "fixture-pack",
+    "courseId": "en-es",
+    "packVersion": "1.0.0",
+    "languageName": "Spanish",
+    "scoreCeiling": 19,
+    "cefrChecked": true,
+    "declaredNodeTypes": [
+      "lesson",
+      "chest",
+      "unitReview"
+    ],
+    "legendaryDenominator": [
+      "lesson"
+    ],
+    "sections": [
+      {
+        "sectionIndex": 1,
+        "title": "Original section 1",
+        "band": "very early A1",
+        "units": [
+          {
+            "unitId": "u001",
+            "unitIndex": 1,
+            "title": "Original unit 1",
+            "colourIndex": 0,
+            "nodes": [
+              {
+                "nodeId": "u001:learn",
+                "type": "lesson",
+                "sessions": [
+                  {
+                    "lessonIndex": 101,
+                    "exerciseIds": [
+                      "e101-1",
+                      "e101-2"
+                    ]
+                  },
+                  {
+                    "lessonIndex": 102,
+                    "exerciseIds": [
+                      "e102-1",
+                      "e102-2"
+                    ]
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              },
+              {
+                "nodeId": "u001:chest",
+                "type": "chest",
+                "sessions": [],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              },
+              {
+                "nodeId": "u001:review",
+                "type": "unitReview",
+                "sessions": [
+                  {
+                    "lessonIndex": 102,
+                    "exerciseIds": [
+                      "e102-1",
+                      "e102-2"
+                    ]
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "sectionIndex": 2,
+        "title": "Original section 2",
+        "band": "early A1",
+        "units": [
+          {
+            "unitId": "u002",
+            "unitIndex": 2,
+            "title": "Original unit 2",
+            "colourIndex": 1,
+            "nodes": [
+              {
+                "nodeId": "u002:learn",
+                "type": "lesson",
+                "sessions": [
+                  {
+                    "lessonIndex": 201,
+                    "exerciseIds": [
+                      "e201-1",
+                      "e201-2"
+                    ]
+                  },
+                  {
+                    "lessonIndex": 202,
+                    "exerciseIds": [
+                      "e202-1",
+                      "e202-2"
+                    ]
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              },
+              {
+                "nodeId": "u002:chest",
+                "type": "chest",
+                "sessions": [],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              },
+              {
+                "nodeId": "u002:review",
+                "type": "unitReview",
+                "sessions": [
+                  {
+                    "lessonIndex": 202,
+                    "exerciseIds": [
+                      "e202-1",
+                      "e202-2"
+                    ]
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "units": [
+    {
+      "unit_id": "u001",
+      "section_index": 1,
+      "section_cefr": "A1",
+      "unit_index": 1,
+      "title": "Original unit 1",
+      "level_count": 1
+    },
+    {
+      "unit_id": "u002",
+      "section_index": 2,
+      "section_cefr": "A1",
+      "unit_index": 2,
+      "title": "Original unit 2",
+      "level_count": 1
+    }
+  ],
+  "exercises": [
+    {
+      "exercise_id": "e101-1",
+      "item_id": "i101-1",
+      "unit_id": "u001",
+      "lesson_index": 101,
+      "slot_index": 1,
+      "type": "translate",
+      "prompt": "Prompt 101 1",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s101-1"
+    },
+    {
+      "exercise_id": "e101-2",
+      "item_id": "i101-2",
+      "unit_id": "u001",
+      "lesson_index": 101,
+      "slot_index": 2,
+      "type": "translate",
+      "prompt": "Prompt 101 2",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s101-2"
+    },
+    {
+      "exercise_id": "e102-1",
+      "item_id": "i102-1",
+      "unit_id": "u001",
+      "lesson_index": 102,
+      "slot_index": 1,
+      "type": "translate",
+      "prompt": "Prompt 102 1",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s102-1"
+    },
+    {
+      "exercise_id": "e102-2",
+      "item_id": "i102-2",
+      "unit_id": "u001",
+      "lesson_index": 102,
+      "slot_index": 2,
+      "type": "translate",
+      "prompt": "Prompt 102 2",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s102-2"
+    },
+    {
+      "exercise_id": "e201-1",
+      "item_id": "i201-1",
+      "unit_id": "u002",
+      "lesson_index": 201,
+      "slot_index": 1,
+      "type": "translate",
+      "prompt": "Prompt 201 1",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s201-1"
+    },
+    {
+      "exercise_id": "e201-2",
+      "item_id": "i201-2",
+      "unit_id": "u002",
+      "lesson_index": 201,
+      "slot_index": 2,
+      "type": "translate",
+      "prompt": "Prompt 201 2",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s201-2"
+    },
+    {
+      "exercise_id": "e202-1",
+      "item_id": "i202-1",
+      "unit_id": "u002",
+      "lesson_index": 202,
+      "slot_index": 1,
+      "type": "translate",
+      "prompt": "Prompt 202 1",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s202-1"
+    },
+    {
+      "exercise_id": "e202-2",
+      "item_id": "i202-2",
+      "unit_id": "u002",
+      "lesson_index": 202,
+      "slot_index": 2,
+      "type": "translate",
+      "prompt": "Prompt 202 2",
+      "preferred_surface": "hola",
+      "register": "tu",
+      "accepted_answers_json": "[\"hola\"]",
+      "distractors_json": "[\"adiós\"]",
+      "source_sentence_id": "s202-2"
+    }
+  ]
+}
