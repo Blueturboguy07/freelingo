@@ -6,3 +6,4 @@ export * from './golden.js';
 export * from './session-commit.js';
 export * from './signing.js';
 export * from './pack-schema.js';
+export * from './pack-digest.js';
