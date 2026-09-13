@@ -146,6 +146,7 @@ def make_es_build():
                             "slot_index": slot,
                             "text": text,
                             "translation": translation,
+                            "accepted_alternates": [],
                             "author": "opus-agent",
                             "generated_at": "2026-09-11T00:00:00+00:00",
                             "accepted": True,
@@ -170,6 +171,7 @@ def make_es_build():
                             "new_lemmas": [tokens[0]],
                             "known_lemmas": tokens[1:],
                             "grammar_concept": f"concept-{unit}",
+                            "accepted_alternates": [],
                         }
                     )
                 else:
@@ -205,6 +207,7 @@ def make_es_build():
                             "new_lemmas": [tokens[0]],
                             "known_lemmas": tokens[1:],
                             "grammar_concept": f"concept-{unit}",
+                            "accepted_alternates": [],
                         }
                     )
                 if with_exercises:

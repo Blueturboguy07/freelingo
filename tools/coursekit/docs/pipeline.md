@@ -99,6 +99,65 @@ Three properties make it a contract rather than a suggestion:
 **Changing a schema is allowed.** Update `FROZEN_CONTRACT_DIGEST` in the same commit, and
 say so here, because every other lane reads these shapes.
 
+### Answer and source boundary — P2 repair contract, 2026-09-12
+
+This contract extends `selected_item` and `candidate` with `accepted_alternates`.
+It is an array of unique, nonblank course-language strings. These are the only optional
+fields in the closed record schemas: **absence on existing records means no authored
+alternates**. New G4/G5 writers emit `[]` when there are none. Consumers read with
+`record.get("accepted_alternates", [])`, and must not drop a present set. `null`, a
+string in place of an array, duplicate strings, and authored rubric objects are invalid
+at this boundary. G0–G3 and the pack database schema do not change.
+
+The canonical sentence remains the source's `text`; English meaning remains its
+`translation`. An alternate is an authored whole-sentence answer in `lang`, with the
+same meaning and unit register. It is neither an English answer nor a preferred
+replacement. The JSON schema checks shape, not semantic equivalence or language;
+producers must establish those properties before publishing an accepted surface.
+
+| Producer / consumer | Obligation                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G4                  | Emit `accepted_alternates: []` for corpus slots and gaps; an unfilled gap must not assert an alternate for a nonexistent source.                                                                                                                                                                                                                            |
+| G5                  | Read authored `{text, backtranslation}` alternate entries; independently analyse each alternate against the same slot ledger, language, register and budget as the canonical text. Carry only the explicit surface strings after those checks. The raw authoring format is not the inter-stage format.                                                      |
+| G6                  | Independently apply every configured language engine and the recorded meaning rubric to each alternate. A canonical pass cannot stand in for an alternate pass. Apply the same reject/discard/resample policy; downstream selection reads the final post-G6 accepted flags.                                                                                 |
+| G7                  | Use the canonical surface first, then validated authored alternates only for whole-sentence English-to-course-language translation (`reverse_translate`). Do not copy this set into `translate` (course-language-to-English), cloze, word-bank, transcription, or speaking contracts. Those shapes need their own explicit answer evidence.                 |
+| G9 / grader         | `exercise.accepted_answers[0]` is the canonical preferred surface, carried into `preferred_surface`; all remaining entries are non-preferred accepted forms. Preserve order and deduplicate without replacing index 0. Grading treats acceptance as a set. Never sort the array to determine preference or generate new alternates at runtime (INV-GRD-03). |
+
+Adding, removing, or reordering non-preferred alternates is a presentation change:
+keep the preferred surface and semantic item fields fixed so item ids and FSRS rows
+remain stable (INV-PACK-41). No new ledger unit or token-counting rule is introduced;
+existing ledger declarations and analyser output still govern each language
+(INV-PACK-40). V6 remains responsible for every accepted answer's declared register
+and the enumerated Japanese script variants (INV-PACK-08).
+
+`exercise.source_sentence_id` already holds either a corpus G0 `sentence_id` or an
+authored G5 `candidate_id`; it needs no companion source field. Candidate ids include
+slot context, so consumers must not replace one with `sentence_id(lang, text)`, infer
+identity from a preferred answer, or look up a different reserve candidate in its slot.
+
+The shared `first_accepted_candidates(records, lang=...)` contract helper validates
+rows, refuses mixed-language streams, and chooses the first row with `accepted: true`
+for each `(unit_index, lesson_index, slot_index)` in input order. Later surviving rows
+are reserves. G7, G9, validator population building, and sampling must call it over the
+**same ordered post-G6 candidate stream**. Only chosen gap fills join the shipped
+sentence population; shipping every accepted reserve biases provenance and review.
+
+G7 writes the chosen `candidate_id` verbatim. G9 stores that row under the same id in
+the pack sentence table, and sampling joins it to that exact candidate. Corpus sources
+retain their G0 ids. Source-less synthetic lexeme or grammar exercises may use `null`;
+a sentence-backed exercise must resolve to its exact source in the same language.
+Missing or conflicting source joins must fail with the exercise/source id rather than
+quietly becoming `unknown` provenance. Nullable schema shape alone cannot prove this
+relational obligation; each consuming lane owns its executable join checks.
+
+Migration: old G4/G5 artefacts remain readable with no alternates; new producers write
+the field explicitly. Shared synthetic fixtures now do so. Rebuild G4 onward once the
+producer changes land to obtain the new source population and audited alternate sets;
+rebuild G7–G9 and redraw/review after any selection or semantic correction. An earlier
+sample's scores do not describe the rebuilt population. This boundary change requires
+no dependency installation, signature-key change, or database migration. The contract
+digest is re-pinned in `tests/test_artifacts.py` in the same commit.
+
 ### Run directories
 
 ```
