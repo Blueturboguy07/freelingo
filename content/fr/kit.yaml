@@ -1,0 +1,12 @@
+schema_version: 1
+language: fr
+title: French
+beta: false
+claim: cefr_checked
+inputs:
+  curriculum:
+    path: curriculum.yaml
+    sha256: null
+  cast:
+    path: cast.yaml
+    sha256: null

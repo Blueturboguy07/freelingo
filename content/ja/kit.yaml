@@ -1,0 +1,27 @@
+schema_version: 1
+language: ja
+title: Japanese
+beta: true
+claim: frequency_ordered
+inputs:
+  curriculum:
+    path: curriculum.yaml
+    sha256: null
+  cast:
+    path: cast.yaml
+    sha256: null
+  characters:
+    path: characters.yaml
+    sha256: null
+  furigana:
+    path: furigana.json
+    sha256: null
+  strokes:
+    path: strokes.json
+    sha256: null
+  romanization:
+    path: romanization.json
+    sha256: null
+  alignment_gold:
+    path: alignment_gold.json
+    sha256: null
