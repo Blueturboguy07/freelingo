@@ -37,10 +37,14 @@ exists for that run. These measurements do not assert that the repaired workflow
 ### Candidate artifacts and reviewer input
 
 `es-build-<sha>` contains the entire `build/es` tree, including G7 exercises, the
-300-item sheet, its summary, G8 clips and bank, the candidate database/manifest and
-runlog. It is uploaded before validation, H1 and signing, so a rejected review or a
-signing failure leaves the exact candidate available. `ci-source.json` records the
-source SHA, workflow run ID/attempt, sheet digest and selected stage measurements.
+300-item sheet, its summary, G8 clips, bank and full measured audio manifest, the
+candidate database/manifest and runlog. It is uploaded before validation, H1 and signing, so a rejected review or a
+signing failure leaves the exact candidate available. Before upload, the current audio
+manifest is copied into `g8/audio-manifest.json`.
+The validation job restores that exact file after joining every clip to the G8 rows
+and checking file sizes and SHA256 hashes. Missing or stale candidate manifests
+fail before validation; the committed manifest is never a fallback for this handoff.
+`ci-source.json` records the source SHA, workflow run ID/attempt, sheet digest and selected stage measurements.
 The artifact belongs to that run; its contents are immutable. Retention is seven days.
 
 The sheet uses paths such as `g8/bank/<id>.opus`, relative to the downloaded language

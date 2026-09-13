@@ -95,3 +95,20 @@ def test_inv_pack_18_final_archive_contains_playable_audio_or_collection_fails(
     assert (result.returncode == 0) is with_audio, result.stdout + result.stderr
     if with_audio:
         assert (tmp_path / "es-pack/audio/throwaway.opus").read_bytes() == b"test-opus-bytes"
+
+
+def test_inv_pack_15_current_audio_manifest_is_transferred_before_validation():
+    build_snapshot = index_of("build-es", "coursekit.ci_audio snapshot es")
+    upload = next(
+        i
+        for i, step in enumerate(steps("build-es"))
+        if step.get("with", {}).get("name", "").startswith("es-build-")
+    )
+    assert index_of("build-es", "coursekit build es") < build_snapshot < upload
+    restore = index_of("validate-es", "coursekit.ci_audio restore es")
+    download = next(
+        i
+        for i, step in enumerate(steps("validate-es"))
+        if step.get("with", {}).get("name", "").startswith("es-build-")
+    )
+    assert download < restore < index_of("validate-es", "coursekit validate es")

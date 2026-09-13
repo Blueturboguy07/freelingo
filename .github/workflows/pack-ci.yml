@@ -328,6 +328,9 @@ jobs:
             exit 1
           fi
 
+      - name: Snapshot the current measured audio manifest into the candidate
+        run: uv run python -m coursekit.ci_audio snapshot es
+
       - name: Draw the reviewer sample (300 items, recorded seed)
         run: uv run coursekit sample es
 
@@ -406,6 +409,11 @@ jobs:
         with:
           name: es-build-${{ github.sha }}
           path: build/es
+
+      # G8 writes outside build/es too. The fresh checkout contains an older manifest;
+      # restore only the candidate copy after checking every clip id, byte count and hash.
+      - name: Restore the candidate audio manifest for V7 and F2
+        run: uv run python -m coursekit.ci_audio restore es
 
       # Exit 0 only. 2 means a validator nobody wrote, 3 means one that could not run,
       # 4 means one that ran and failed — and all three report zero findings, which is
