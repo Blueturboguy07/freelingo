@@ -224,80 +224,135 @@ def _validate_check(check: Any, *, language: str, required: bool) -> None:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class SurfacePolicy:
+    """Destination allowance is independent of which role must carry its target."""
+
+    lang: str
+    known_lemmas: frozenset[str]
+    new_lemmas: frozenset[str]
+    unit: Mapping[str, Any]
+    register: str
+    minimum_tokens: int
+    window_pos_digest: str
+
+    @classmethod
+    def from_source(cls, source: SelectedSource) -> SurfacePolicy:
+        return cls(
+            source.lang,
+            source.known_lemmas,
+            source.new_lemmas,
+            source.unit,
+            source.register,
+            source.minimum_tokens,
+            source.window_pos_digest,
+        )
+
+
+def validate_surface_proof(
+    source: SurfacePolicy,
+    proof: Mapping[str, Any],
+    *,
+    use: str,
+    text: str,
+    pair: Mapping[str, Any],
+    review_hash: str,
+    required_target_lemmas: frozenset[str],
+    expected_analysis: Mapping[str, Any] | None = None,
+) -> None:
+    """Pure per-surface boundary shared by answers and independently joined roles.
+
+    A non-teaching role can omit a reserved target. It cannot enlarge the allowed
+    vocabulary, spend another new item, borrow analysis, or skip any language axis.
+    """
+    _require(use in {"forward", "reverse_only"}, "unsupported surface direction")
+    _require(required_target_lemmas <= source.new_lemmas, "target outside destination reserve")
+    _pair(pair, source)
+    _fields(proof, {"use", "text", "analysis", "checks"}, "surface proof")
+    _require(proof["use"] == use and proof["text"] == text, "wrong surface or answer direction")
+    spanish = use == "forward"
+    language = source.lang if spanish else "en"
+    names = (
+        {"ledger", "register", "length", "duplicate", "pair", "grammar", "perplexity"}
+        if spanish
+        else {"pair", "grammar"}
+    )
+    _fields(proof["checks"], names, "surface checks")
+    for name, check in proof["checks"].items():
+        _validate_check(
+            check,
+            language=language,
+            required=name not in {"grammar", "perplexity"} or not spanish,
+        )
+    detail = proof["checks"]["pair"]["detail"]
+    _require(
+        detail.get("review_hash") == review_hash and detail.get("score") == pair["score"],
+        "pair proof lacks the exact review",
+    )
+    if not spanish:
+        _require(proof["analysis"] is None, "English cannot borrow Spanish analysis")
+        return
+    _require(
+        any(proof["checks"][name]["available"] for name in ("grammar", "perplexity")),
+        "no Spanish language engine ran",
+    )
+    try:
+        tokens = _sentence_tokens(text, proof["analysis"])
+    except RegisterPolicyError as exc:
+        raise AnswerEvidenceError(str(exc)) from exc
+    adapter = proof["analysis"].get("adapter", proof["analysis"].get("analyser"))
+    _require(isinstance(adapter, Mapping), "surface analysis lacks its original adapter")
+    token_count = count_units({"lang": source.lang, "tokens": tokens, "adapter": adapter})
+    _require(
+        source.minimum_tokens <= token_count <= MAX_TOKENS,
+        "Spanish surface violates its destination length window",
+    )
+    _require(
+        proof["checks"]["length"]["detail"]
+        == {
+            "minimum": source.minimum_tokens,
+            "maximum": MAX_TOKENS,
+            "count": token_count,
+            "window_pos_digest": source.window_pos_digest,
+        },
+        "length proof does not bind the current shared policy",
+    )
+    lemmas = {token["lemma"] for token in tokens if token["pos"] not in LEDGER_EXCLUDED_POS}
+    _require(
+        lemmas <= source.known_lemmas | source.new_lemmas,
+        "surface contains an unseen destination lemma",
+    )
+    _require(required_target_lemmas <= lemmas, "surface omits a reserved target lemma")
+    _require(
+        len(lemmas - source.known_lemmas) <= MAX_NEW_LEMMAS_PER_EXERCISE,
+        "surface exceeds the new-lemma budget",
+    )
+    _require(
+        sentence_register_matches(source.lang, source.unit, text, proof["analysis"]),
+        "surface violates destination register",
+    )
+    if expected_analysis is not None:
+        _require(
+            proof["analysis"] == expected_analysis, "canonical analysis changed after selection"
+        )
+
+
 def _validate_surfaces(source, row, proofs):
     expected = answer_surfaces(source, row)
     _require(
         isinstance(proofs, list) and len(proofs) == len(expected), "missing or extra surface proof"
     )
     for proof, (use, text, pair) in zip(proofs, expected, strict=True):
-        _fields(proof, {"use", "text", "analysis", "checks"}, "surface proof")
-        _require(proof["use"] == use and proof["text"] == text, "wrong surface or answer direction")
-        spanish = use == "forward"
-        language = source.lang if spanish else "en"
-        names = (
-            {"ledger", "register", "length", "duplicate", "pair", "grammar", "perplexity"}
-            if spanish
-            else {"pair", "grammar"}
+        validate_surface_proof(
+            SurfacePolicy.from_source(source),
+            proof,
+            use=use,
+            text=text,
+            pair=pair,
+            review_hash=row["review"]["content_hash"],
+            required_target_lemmas=source.new_lemmas,
+            expected_analysis=source.analysis if use == "forward" and text == source.text else None,
         )
-        _fields(proof["checks"], names, "surface checks")
-        for name, check in proof["checks"].items():
-            _validate_check(
-                check,
-                language=language,
-                required=name not in {"grammar", "perplexity"} or not spanish,
-            )
-        detail = proof["checks"]["pair"]["detail"]
-        _require(
-            detail.get("review_hash") == row["review"]["content_hash"]
-            and detail.get("score") == pair["score"],
-            "pair proof lacks the exact review",
-        )
-        if not spanish:
-            _require(proof["analysis"] is None, "English cannot borrow Spanish analysis")
-            continue
-        _require(
-            any(proof["checks"][name]["available"] for name in ("grammar", "perplexity")),
-            "no Spanish language engine ran",
-        )
-        try:
-            tokens = _sentence_tokens(text, proof["analysis"])
-        except RegisterPolicyError as exc:
-            raise AnswerEvidenceError(str(exc)) from exc
-        adapter = proof["analysis"].get("adapter", proof["analysis"].get("analyser"))
-        _require(isinstance(adapter, Mapping), "surface analysis lacks its original adapter")
-        token_count = count_units({"lang": source.lang, "tokens": tokens, "adapter": adapter})
-        _require(
-            source.minimum_tokens <= token_count <= MAX_TOKENS,
-            "Spanish surface violates its destination length window",
-        )
-        _require(
-            proof["checks"]["length"]["detail"]
-            == {
-                "minimum": source.minimum_tokens,
-                "maximum": MAX_TOKENS,
-                "count": token_count,
-                "window_pos_digest": source.window_pos_digest,
-            },
-            "length proof does not bind the current shared policy",
-        )
-        lemmas = {token["lemma"] for token in tokens if token["pos"] not in LEDGER_EXCLUDED_POS}
-        _require(
-            lemmas <= source.known_lemmas | source.new_lemmas,
-            "surface contains an unseen destination lemma",
-        )
-        _require(source.new_lemmas <= lemmas, "surface omits a reserved target lemma")
-        _require(
-            len(lemmas - source.known_lemmas) <= MAX_NEW_LEMMAS_PER_EXERCISE,
-            "surface exceeds the new-lemma budget",
-        )
-        _require(
-            sentence_register_matches(source.lang, source.unit, text, proof["analysis"]),
-            "surface violates destination register",
-        )
-        if text == source.text:
-            _require(
-                proof["analysis"] == source.analysis, "canonical analysis changed after selection"
-            )
 
 
 def build_answer_approval(
