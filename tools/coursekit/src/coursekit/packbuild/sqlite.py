@@ -27,11 +27,13 @@ then discovers it again under its real name, and every writer registers twice â€
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..config import PACK_LICENCE, PACK_TABLES
 from ..config.g9 import (
@@ -52,6 +54,9 @@ from ..config.g9 import (
 )
 from ..config.validate import RTL_LANGUAGES, RTL_META_ROW_ID
 from . import register_writer
+
+if TYPE_CHECKING:
+    from .grading import GradingPayload
 
 __all__ = [
     "PackInputs",
@@ -754,18 +759,36 @@ def build_rows(inputs: PackInputs) -> dict[str, list[dict[str, Any]]]:
     return {table: list(PACKBUILD.get(table)(inputs)) for table in PACK_TABLES}
 
 
-def write_pack(destination: Path, rows_by_table: Mapping[str, Sequence[Mapping[str, Any]]]) -> Path:
+def write_pack(
+    destination: Path,
+    rows_by_table: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    grading: GradingPayload | None = None,
+    grading_credits: Sequence[Mapping[str, Any]] = (),
+) -> Path:
     """Create the pack database at `destination` and insert every row.
 
     Foreign keys are ON for the insert, so a dangling `unit_id` or `audio_id` fails here
     rather than becoming an empty screen on a device. The file is then written once and
     never opened for writing again â€” the app opens it read-only.
     """
+    unknown_tables = set(rows_by_table) - set(PACK_INSERT_ORDER)
+    if unknown_tables:
+        raise ValueError("unknown pack table: " + ", ".join(sorted(unknown_tables)))
+    if any(
+        row.get("key") in ("grading:v1", "grading-provenance:v1")
+        for row in rows_by_table.get("meta", ())
+    ):
+        raise ValueError("grading metadata is written only from the complete producer payload")
+    if grading is None and grading_credits:
+        raise ValueError("grading credits without a grading payload")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        destination.unlink()
-
-    connection = sqlite3.connect(destination)
+    descriptor, name = tempfile.mkstemp(
+        prefix=".pack-write-", suffix=".sqlite", dir=destination.parent
+    )
+    os.close(descriptor)
+    temporary = Path(name)
+    connection = sqlite3.connect(temporary)
     try:
         connection.execute("PRAGMA foreign_keys = ON")
         create_pack_schema(connection)
@@ -788,9 +811,16 @@ def write_pack(destination: Path, rows_by_table: Mapping[str, Sequence[Mapping[s
                     f'INSERT INTO "{table}" ({quoted}) VALUES ({placeholders})',
                     [row[name] for name in names],
                 )
+        if grading is not None:
+            from .grading_sqlite import write_learning_extension
+
+            write_learning_extension(connection, grading, grading_credits)
         connection.commit()
+        connection.close()
+        os.replace(temporary, destination)
     finally:
         connection.close()
+        temporary.unlink(missing_ok=True)
     return destination
 
 

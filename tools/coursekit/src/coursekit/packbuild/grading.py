@@ -1103,6 +1103,9 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
         "schemaVersion": WIRE_VERSION,
         "metadataSha256": content_hash(metadata),
         "runtimeSha256": content_hash(runtime),
+        "exerciseRowsSha256": content_hash(
+            sorted(inputs.exercises, key=lambda row: row["exercise_id"])
+        ),
         "surfaceCatalogSha256": content_hash(inputs.surface_catalog),
         "teachingSha256": content_hash(inputs.teaching),
         "dictionaryProofs": [copy.deepcopy(row.provenance) for row in dictionaries.values()],

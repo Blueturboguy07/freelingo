@@ -565,7 +565,7 @@ function packFromCase(testCase: CreditsCase): PackReader {
     run(
       `INSERT INTO meta (key, value) VALUES (
          ${quote(`${CREDITS_META_PREFIX}${credit.source_id}`)},
-         ${quote(JSON.stringify(credit))})`,
+         '${JSON.stringify(credit).replaceAll("'", "''")}')`,
     );
   }
   for (const sentence of testCase.sentences) {
@@ -663,5 +663,27 @@ describe('path joining', () => {
       '/var/cache/packs/es/audio/a.opus',
     );
     expect(joinPackPath('', 'audio/a.opus')).toBe('audio/a.opus');
+  });
+});
+
+describe('source dictionary notices', () => {
+  it('[INV-PACK-17] preserves the complete notice separately from the credited owner', () => {
+    const { reader, run } = relaxedPack();
+    const notice = 'Original dictionary notice.\nKeep this complete line and source attribution.';
+    const credit = {
+      kind: 'derived-list',
+      source_id: 'dictionary-original',
+      owner: 'Original author',
+      licence: 'CC0-1.0',
+      url: 'https://example.test/source',
+      items: 3,
+      notice,
+    };
+    run(
+      `INSERT INTO meta VALUES ('attribution:dictionary-original', '${JSON.stringify(credit).replaceAll("'", "''")}')`,
+    );
+    expect(openPack(reader, { packRoot: '/tmp' }).credits()).toMatchObject([
+      { owner: 'Original author', notice },
+    ]);
   });
 });
