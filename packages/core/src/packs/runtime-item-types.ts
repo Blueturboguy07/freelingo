@@ -52,6 +52,39 @@ export interface RuntimeSchedulerSurface {
   readonly language: string;
   readonly canonical: boolean;
 }
+/** Independently authored lexical meaning, using the unchanged semantic item hash.
+ * This is not the enclosing exercise prompt and has no language/placement hash salt. */
+export interface RuntimeLexicalSemantic {
+  readonly prompt: string;
+  readonly preferredSurface: string;
+  readonly register: string;
+  readonly lexemes: readonly string[];
+  readonly grammarConcepts: readonly string[];
+  readonly graphemes: readonly string[];
+}
+/** Exact reviewed word-counter identity for one actual scheduler surface.
+ * Scheduling keeps schedulerItemId. Only actual exposure/review can contribute the
+ * distinct wordItemId to counters; declaration/loading never introduces a word. */
+export interface RuntimeLexicalBinding {
+  readonly schedulerItemId: string;
+  readonly surfaceId: string;
+  readonly surface: string;
+  readonly language: string;
+  readonly lexemeId: string;
+  readonly lemma: string;
+  readonly pos: string;
+  readonly wordItemId: string;
+  readonly semantic: RuntimeLexicalSemantic;
+  readonly countable: boolean;
+  /** countable:true is allowed only for word; exclusions explicitly carry false. */
+  readonly classification: 'word' | 'particle' | 'bound-morpheme' | 'character';
+  readonly proof: {
+    readonly sourceId: string;
+    readonly sourceSha256: string;
+    readonly declarationSha256: string;
+    readonly bindingSha256: string;
+  };
+}
 export interface VerifiedRuntimeItem {
   readonly schemaVersion: 1;
   readonly exerciseId: string;
@@ -65,6 +98,8 @@ export interface VerifiedRuntimeItem {
   readonly presentation: LessonChallenge;
   readonly schedulerSurfaces: readonly RuntimeSchedulerSurface[];
   readonly introductions: readonly RuntimeIntroduction[];
+  /** Complete explicit lexical scheduler-surface bindings; grammar has none. */
+  readonly lexicalBindings: readonly RuntimeLexicalBinding[];
   /** Required for speaking; absent for other grading families. */
   readonly speech?: SpeechEvidence;
   readonly explanation: string;
