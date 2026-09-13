@@ -15,6 +15,16 @@ export interface RuntimeItemProof {
   readonly approvalSha256: string;
   readonly draftSha256: string;
 }
+/** A reviewed exact full surface eligible only on the named actual display event.
+ * Approval/loading is not exposure. Consumers retain only the target course language;
+ * prompt language may differ from response language (including reverse translation).
+ */
+export interface RuntimeIntroduction {
+  readonly surfaceId: string;
+  readonly surface: string;
+  readonly language: string;
+  readonly when: 'prompt' | 'wrong-feedback';
+}
 export interface VerifiedRuntimeItem {
   readonly schemaVersion: 1;
   readonly exerciseId: string;
@@ -26,7 +36,7 @@ export interface VerifiedRuntimeItem {
   readonly proof: RuntimeItemProof;
   readonly gradable: GradableItem;
   readonly presentation: LessonChallenge;
-  readonly introductions: readonly string[];
+  readonly introductions: readonly RuntimeIntroduction[];
   readonly explanation: string;
   readonly grading: ExerciseGradingContext;
 }
