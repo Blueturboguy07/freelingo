@@ -23,7 +23,7 @@ export function Button3D({
   compact = false,
   language,
 }: Button3DProps) {
-  const { colors, highContrast } = useUiTheme();
+  const { colors, highContrast, boldText } = useUiTheme();
   const cjk = isCjkLanguage(language);
   const hintId = useId();
   const hint = accessibilityHint ?? (disabled ? 'Complete the required action first' : undefined);
@@ -97,7 +97,13 @@ export function Button3D({
               {...languageProps(language)}
               style={{
                 color: ink,
-                fontFamily: language?.startsWith('ja') ? FONT.japanese : FONT.strong,
+                // EC-TYP-15 gives the concrete mapping: body500→700, label700→800.
+                // INV-TYP-14's 'two ladder steps' wording is not a separate numeric measurement.
+                fontFamily: language?.startsWith('ja')
+                  ? FONT.japanese
+                  : boldText
+                    ? FONT.heading
+                    : FONT.strong,
                 fontSize: TYPE.labelButton.fontSizePx,
                 lineHeight: 18,
                 letterSpacing: cjk ? 0 : TYPE.labelButton.letterSpacingPx,

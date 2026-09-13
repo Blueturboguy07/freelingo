@@ -3,6 +3,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { Button3D, UiProvider, Heading, BodyText } from '@freelingo/ui';
 
 describe('P3 measured UI atoms', () => {
+  it('[INV-TYP-14] EC-TYP-15 maps Bold Text body500→700 and label700→800 without collapsing hierarchy', () => {
+    render(
+      <UiProvider boldText>
+        <BodyText testID="bold-body">Your answer</BodyText>
+        <Button3D label="Continue" onPress={() => {}} testID="bold-button" />
+      </UiProvider>,
+    );
+    expect(screen.getByTestId('bold-body').style.fontFamily).toContain('Nunito_700Bold');
+    expect(screen.getByTestId('bold-button-label').style.fontFamily).toContain(
+      'Nunito_800ExtraBold',
+    );
+  });
+  it('P3 measured macaw CTA uses its declared #0096DD lip', () => {
+    render(
+      <UiProvider>
+        <Button3D label="Next" tone="macaw" onPress={() => {}} testID="macaw" />
+      </UiProvider>,
+    );
+    expect(screen.getByTestId('macaw').style.backgroundColor).toBe('rgb(0, 150, 221)');
+  });
+
   it('[INV-A11Y-14] exposes one button with its precondition and blocks disabled taps', () => {
     const onPress = vi.fn();
     const { rerender } = render(
