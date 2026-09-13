@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shlex
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ..ledger import is_lexical_pos
 from ..validators import Finding
 
 
@@ -159,14 +161,29 @@ def compile_story(
             if span["start"] not in boundaries or span["end"] not in boundaries:
                 raise NarrativeError(f"Range crosses a morpheme boundary at {eid}.")
         analyses[eid] = analysis
-        occurred.update(
-            token["lemma"] for token in tokens if token["pos"] not in ("PUNCT", "SYM", "SPACE")
-        )
+        occurred.update(token["lemma"] for token in tokens if is_lexical_pos(token["pos"]))
         hints: list[dict] = []
         if hint_line is not None:
             grouped, _, _ = parse_markup(raw.replace("~", "\uf000"))
-            words = list(re.finditer(r"[^\W_]+(?:\uf000[^\W_]+)*", grouped))
-            glosses = hint_line.removeprefix("~").strip().split()
+            # Source segmentation belongs to the supplied analyzer. Only an authored
+            # tilde joins adjacent lexical spans into a phrase hint; no regex invents
+            # word boundaries inside compounds or scripts without spaces.
+            words: list[dict[str, int]] = []
+            for token in tokens:
+                if not is_lexical_pos(token["pos"]):
+                    continue
+                start, end = token["start"], token["end"]
+                between = grouped[words[-1]["end"] : start] if words else ""
+                if words and between and all(char == "\uf000" for char in between):
+                    words[-1]["end"] = end
+                else:
+                    words.append({"start": start, "end": end})
+            # This is the DSL's gloss-field lexer, not target-language tokenization.
+            # Tilde is the only in-field phrase separator; quotes/escapes stay literal.
+            lexer = shlex.shlex(hint_line.removeprefix("~"), posix=True)
+            lexer.whitespace_split = True
+            lexer.commenters = lexer.quotes = lexer.escape = ""
+            glosses = list(lexer)
             if len(words) != len(glosses):
                 raise NarrativeError(
                     f"Hint alignment count differs at {eid}: "
@@ -174,8 +191,8 @@ def compile_story(
                 )
             hints = [
                 {
-                    "start": _offset(grouped[: word.start()]),
-                    "end": _offset(grouped[: word.end()]),
+                    "start": _offset(text[: word["start"]]),
+                    "end": _offset(text[: word["end"]]),
                     "gloss": gloss.replace("~", " "),
                 }
                 for word, gloss in zip(words, glosses, strict=True)

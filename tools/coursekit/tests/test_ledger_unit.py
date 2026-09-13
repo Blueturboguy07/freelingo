@@ -430,6 +430,14 @@ _ALLOWED_TO_TOKENISE: dict[str, str] = {
         "must not be produced by the code under test), and parses `CREATE TABLE` DDL, "
         "which is a field parse the pattern list cannot tell from a tokeniser"
     ),
+    "tests/test_narratives.py": (
+        "original Story adapter fixtures re-derive exact spans independently of the "
+        "production ledger; the Story consumer itself uses supplied lexical analysis"
+    ),
+    "tests/test_radio_compiler.py": (
+        "original Radio adapter fixtures re-derive exact spans to refute source "
+        "joins; production Radio never uses this fixture tokenizer or a lemma fallback"
+    ),
     "tests/test_manifest.py": (
         "`re.findall(r\"readonly (\\w+)\\??:\")` reads a TypeScript interface "
         "declaration to check the two manifest shapes agree; it never sees natural "

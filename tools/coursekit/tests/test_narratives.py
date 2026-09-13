@@ -160,3 +160,39 @@ def test_inv_sto_03_continuation_omits_hidden_speech_without_splitting_surrogate
     line = next(e for e in result.document["elements"] if e.get("spokenText") is not None)
     assert line["spokenText"] == "😀 Quiero ."
     assert line["content"]["text"] == "😀 Quiero café."
+
+
+def test_INV_PACK_40_story_hints_follow_supplied_lexical_spans_inside_a_fixture_compound():
+    # Original exact adapter fixture, deliberately unlike a regex word boundary.
+    # It proves which segmentation the parser uses, not a real language analysis.
+    source = SOURCE.replace("Speakeradult_female: Quiero café.", "Speakeradult_female: 猫犬.")
+    source = source.replace("~ I~want coffee", "~ cat dog", 1)
+
+    def explicit(text):
+        if text != "猫犬.":
+            return analyse(text)
+        return {
+            "tokens": [
+                {"surface": "猫", "lemma": "猫", "pos": "NOUN", "start": 0, "end": 1, "morph": ""},
+                {"surface": "犬", "lemma": "犬", "pos": "NOUN", "start": 1, "end": 2, "morph": ""},
+                {"surface": ".", "lemma": ".", "pos": "PUNCT", "start": 2, "end": 3, "morph": ""},
+            ],
+            "lemmas": ["猫", "犬"],
+        }
+
+    story = compile_story(source, analyse=explicit, item_ids={"café": "i_original"})
+    line = next(row for row in story.document["elements"] if row["type"] == "LINE")
+    assert line["content"]["hints"] == [
+        {"start": 0, "end": 1, "gloss": "cat"},
+        {"start": 1, "end": 2, "gloss": "dog"},
+    ]
+
+
+def test_INV_PACK_40_story_hint_grouping_uses_only_explicit_tilde_fields():
+    source = SOURCE.replace(
+        "Speakeradult_female: Quiero café.", "Speakeradult_female: Quiero~café."
+    )
+    source = source.replace("~ I~want coffee", "~ want~coffee", 1)
+    story = compile(source)
+    line = next(row for row in story.document["elements"] if row["type"] == "LINE")
+    assert line["content"]["hints"] == [{"start": 0, "end": 11, "gloss": "want coffee"}]
