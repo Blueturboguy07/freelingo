@@ -1750,6 +1750,7 @@
       "runtime_json": null
     }
   ],
+  "course_source_exposure": [],
   "course_surface_exposure": [
     {
       "course_id": "en-es",

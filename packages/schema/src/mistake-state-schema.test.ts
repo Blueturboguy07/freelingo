@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { createNodeDb } from '@freelingo/testkit';
-import { migrate, MIGRATIONS, currentUserVersion } from './migrations.js';
+import { migrate, MIGRATIONS, currentUserVersion, LATEST_USER_VERSION } from './migrations.js';
 import { regionViolations } from './progress-schema.js';
 import type { Db } from './db.js';
 const opened: Db[] = [];
@@ -127,7 +127,7 @@ it('[INV-PER-03] killed v12 DDL retains exact legacy rows and version until retr
   ).toBeUndefined();
   expect(db.all('SELECT * FROM course_mistake')).toEqual(old);
   migrate(db);
-  expect(currentUserVersion(db)).toBe(12);
+  expect(currentUserVersion(db)).toBe(LATEST_USER_VERSION);
   expect(regionViolations(db)).toEqual([]);
   expect(db.all('SELECT * FROM course_mistake_state')).toEqual([]);
   expect(db.all('SELECT * FROM course_mistake')).toEqual(old);

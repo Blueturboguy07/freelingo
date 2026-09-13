@@ -226,5 +226,6 @@
   "course_session_context": [],
   "course_session_slot": [],
   "course_session_state": [],
+  "course_source_exposure": [],
   "course_surface_exposure": []
 }
