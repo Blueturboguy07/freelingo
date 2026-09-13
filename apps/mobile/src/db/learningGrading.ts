@@ -1,5 +1,8 @@
 import {
   gradeTypedAnswer,
+  gradeSpeech,
+  type SpeechGradeResult,
+  type SpeechSegment,
   gradeListening,
   gradeWordBank,
   gradeMultiGap,
@@ -37,8 +40,9 @@ export function schedulerGradeFor(answer: Answer): Grade | null {
 }
 export interface RuntimeGrade {
   readonly session: Verdict;
-  /** The actual checker result remains available for feedback/source attribution. */
-  readonly feedback: GradingVerdict;
+  /** The actual checker result; speech has its own result, never a fabricated text tier. */
+  readonly feedback: GradingVerdict | null;
+  readonly speech?: SpeechGradeResult;
   /** Actual accepted response ID, including the sole supported gap checker result. */
   readonly responseSurfaceId: string | null;
 }
@@ -52,6 +56,49 @@ function tileIds(value: unknown, allowed: readonly string[]): readonly string[] 
   )
     throw new LearningDataError('The answer must use the exact available tile IDs.');
   return value as string[];
+}
+function speechSegments(
+  partial: Readonly<Record<string, unknown>>,
+): readonly SpeechSegment[] | undefined {
+  if (!Object.hasOwn(partial, 'segments')) return undefined;
+  const value = partial['segments'];
+  if (!Array.isArray(value) || Object.keys(value).length !== value.length)
+    throw new LearningDataError('Malformed actual speech segments.');
+  return value.map((raw: unknown) => {
+    if (
+      raw === null ||
+      typeof raw !== 'object' ||
+      Array.isArray(raw) ||
+      Object.getPrototypeOf(raw) !== Object.prototype
+    )
+      throw new LearningDataError('Malformed actual speech segments.');
+    const row = raw as Record<string, unknown>,
+      keys = Object.keys(row);
+    if (
+      keys.length !== 4 ||
+      !['segment', 'startTimeMillis', 'endTimeMillis', 'confidence'].every((key) =>
+        Object.hasOwn(row, key),
+      ) ||
+      typeof row.segment !== 'string' ||
+      typeof row.startTimeMillis !== 'number' ||
+      !Number.isFinite(row.startTimeMillis) ||
+      row.startTimeMillis < 0 ||
+      typeof row.endTimeMillis !== 'number' ||
+      !Number.isFinite(row.endTimeMillis) ||
+      row.endTimeMillis < row.startTimeMillis ||
+      typeof row.confidence !== 'number' ||
+      !Number.isFinite(row.confidence) ||
+      row.confidence < -1 ||
+      row.confidence > 1
+    )
+      throw new LearningDataError('Malformed actual speech segments.');
+    return {
+      segment: row.segment,
+      startTimeMillis: row.startTimeMillis,
+      endTimeMillis: row.endTimeMillis,
+      confidence: row.confidence,
+    };
+  });
 }
 /** No accepted-answer fallback. All fields come from the repository's verified item;
  * the caller checks its exact exercise/pack receipt before entering this dispatcher. */
@@ -144,8 +191,25 @@ export function gradeRuntimeItem(
     case 'listen-and-respond':
       feedback = gradeOpenResponse({ ...base, reply: request.raw, path: 'keyword-length' });
       break;
-    case 'speaking':
-      throw new LearningDataError('Verified speech token grading is unavailable.');
+    case 'speaking': {
+      if (runtime.speech === undefined)
+        throw new LearningDataError('Verified speech token grading is unavailable.');
+      const segments = speechSegments(request.partialState);
+      const speech = gradeSpeech({
+        item: runtime.speech,
+        pack: runtime.grading.pack,
+        transcript: request.raw,
+        ...(segments === undefined ? {} : { segments }),
+      });
+      return {
+        session: {
+          kind: speech.outcome === 'no-audio' ? 'noVerdict' : speech.accepted ? 'correct' : 'wrong',
+        },
+        feedback: null,
+        speech,
+        responseSurfaceId: speech.matchedSurfaceId,
+      };
+    }
     case 'match':
     case 'character-trace':
       throw new LearningDataError(
