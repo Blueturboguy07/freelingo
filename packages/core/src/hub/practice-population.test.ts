@@ -32,6 +32,7 @@ function fixture(): HubInput {
         itemId: 'match-aggregate',
         targetItemIds: items.map((i) => i.itemId),
         modalities: ['text'],
+        practiceModes: ['today', 'mistakes', 'words', 'target', 'rewind'],
       },
     ],
     mistakes: [],
@@ -100,4 +101,45 @@ it('[INV-SCH-05] a spent aggregate is absent from Today while every introduced W
   expect(model.modes.find((m) => m.kind === 'today')!.offer).toBeNull();
   expect(model.modes.find((m) => m.kind === 'words')!.offer?.itemIds).toEqual(['match-aggregate']);
   expect(input.items).toHaveLength(5);
+});
+it('[INV-HUB-04][INV-HUB-09] an explicit typed-only source population cannot advertise a matching Words session', () => {
+  const input = fixture();
+  const typed = {
+    ...input.practiceItems![0]!,
+    practiceModes: ['today', 'target', 'rewind'] as const,
+  };
+  const model = buildHub({ ...input, practiceItems: [typed] });
+  expect(model.modes.find((m) => m.kind === 'words')!.offer).toBeNull();
+  expect(model.modes.find((m) => m.kind === 'today')!.offer?.itemIds).toEqual([typed.itemId]);
+  expect(
+    wordRows(input.items, { id: 'recent', label: 'Recently learned', comparator: 'introduced' }),
+  ).toHaveLength(5);
+});
+it('[INV-HUB-04][INV-HUB-09] an explicit physical source without mode proof is unavailable', () => {
+  const input = fixture();
+  const raw = { ...input.practiceItems![0]! };
+  delete raw.practiceModes;
+  const model = buildHub({ ...input, practiceItems: [raw] });
+  expect(model.modes.every((m) => m.offer === null)).toBe(true);
+});
+
+it('[INV-HUB-04][INV-HUB-09] an unavailable different-form source preserves the backlog without claiming it was reviewed', () => {
+  const input = fixture();
+  const model = buildHub({
+    ...input,
+    practiceItems: [{ ...input.practiceItems![0]!, practiceModes: ['today', 'words'] }],
+    mistakes: [
+      {
+        itemId: 'word-0',
+        lastMissedAtUtc: '2026-09-12T12:00:00Z',
+        lastMissedLocalDay: toLocalDay('2026-09-12'),
+        misses: 1,
+      },
+    ],
+  });
+  expect(model.mistakeBadge).toBe('1');
+  expect(model.modes.find((m) => m.kind === 'mistakes')).toMatchObject({
+    offer: null,
+    reason: 'No eligible exercises are available for these mistakes yet.',
+  });
 });

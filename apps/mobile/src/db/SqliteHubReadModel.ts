@@ -26,13 +26,8 @@ import { SqlitePoolStore } from './SqlitePoolStore';
 import { SqliteMistakeStore } from './SqliteMistakeStore';
 import { SqliteHubStateStore } from './SqliteHubStateStore';
 import { readLearningBoosts, persistLearningBoosts } from './learningBoosts';
-import {
-  declaredNodeSources,
-  sourceDeviceAllowed,
-  sourceIsKnownAndEligible,
-  sourceUnlockedAt,
-  type RuntimeSource,
-} from './learningSources';
+import { declaredNodeSources, type RuntimeSource } from './learningSources';
+import { readHubPracticeSources } from './learningHubSources';
 function fail(message: string): never {
   throw new LearningDataError('Practice Hub: ' + message);
 }
@@ -217,16 +212,16 @@ export class SqliteHubReadModel {
   ): readonly HubItem[] {
     const known = new Map(words.map((w) => [w.itemId, w]));
     const out = new Map<string, HubItem>();
-    for (const source of all) {
+    for (const { source, modes } of readHubPracticeSources(
+      this.db,
+      this.ports,
+      clock,
+      pack,
+      path,
+      scheduler,
+      all,
+    )) {
       const item = source.item;
-      if (
-        !sourceUnlockedAt(this.db, pack, path, source, clock.utcMs) ||
-        !sourceDeviceAllowed(this.db, this.ports, courseId, item) ||
-        !sourceIsKnownAndEligible(item, scheduler, clock)
-      )
-        continue;
-      // The runtime has no verified picture inventory yet; do not advertise an unavailable asset.
-      if (item.presentation.options?.some((o) => o.imageUri)) continue;
       const targets = [
         ...new Set(item.schedulerSurfaces.filter((s) => s.canonical).map((s) => s.itemId)),
       ];
@@ -245,6 +240,7 @@ export class SqliteHubReadModel {
         out.set(item.itemId, {
           ...previous,
           modalities: [...new Set([...previous.modalities, mode])],
+          practiceModes: [...new Set([...previous.practiceModes!, ...modes])],
         });
         continue;
       }
@@ -265,6 +261,7 @@ export class SqliteHubReadModel {
           .at(-1)!,
         dueAtUtc: new Date(Math.max(...rows.map((r) => Date.parse(r.dueAtUtc)))).toISOString(),
         modalities: [mode],
+        practiceModes: modes,
       });
     }
     return [...out.values()].sort(

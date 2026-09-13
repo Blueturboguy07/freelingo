@@ -8,7 +8,6 @@ Validation:8 SQLite/source read-model tests,15 durable Hub state tests,8 boost t
 
 Open requirements before complete Hub/App wiring:
 - `pathOffer` is intentionally null until a shared exact read-only launch preview supplies a genuinely launchable next path source and XP.
-- Practice candidates need explicit supported modes: Words must select actual untimed MATCH sources; Mistakes must choose a form different from the origin receipt. Existing physical counts alone do not prove these capabilities.
 - Serialize the existing nodePractice engine carrier with an explicit validated hub economy-flavour pairing and Hub config (target10/min1, no new items, padding or path-ring advance), used by generator, step, intent, completion, rewards and mistake code.
 - Actual Hub launch must bind its selected exact source variants and rollback pool reservation with session creation.
 - Language labels need the factory catalogue; this candidate returns the verified source language code.
@@ -17,3 +16,9 @@ Open requirements before complete Hub/App wiring:
 - Large-pack projection performance and native screen/kill/resume evidence remain unmeasured.
 
 The active learning-runtime lane owns completion of these source/mode/launch boundaries; the frozen WordStore/account rewards remain separate proven owners.
+
+## Reviewed source capabilities — 2026-09-13
+
+Explicit physical practice candidates now carry supported modes from the shared `readHubPracticeSources` resolver. It applies current reviewed source, introduction/delay, unlock, quarantine, input, audio/speech and screen-reader eligibility. Words accepts only actual MATCH exercises. Mistakes joins the exact normalized latest wrong encounter to its committed exercise type; all missed targets within a fixed exercise must admit that different format through the existing recycle map. A later accepted review cannot replace that source, and corrupted history rejects before offering practice. Whole grids remain whole; aggregate IDs still drive question count and XP ratio. The introduced Words list remains complete even when no matching source is available. A retained backlog without an eligible alternative says so instead of claiming it was reviewed.
+
+Seven source/test files passed independent parent review. Verification: 50 focused tests, no skips, one worker, `/private/tmp/p3-hub-source-green.xml`; root/mobile typecheck and lint exit 0, `/private/tmp/p3-hub-source-types.log`. Initial mode regressions are `/private/tmp/p3-hub-mode-red.xml` and `/private/tmp/p3-hub-source-contract-red.xml`. This proves source availability and the read-model consumer; actual Hub launch/restoration and engine/economy pairing remain the next integration slice. No new phase, pack, CI or native gate is claimed.
