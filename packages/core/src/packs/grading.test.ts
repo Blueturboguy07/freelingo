@@ -435,17 +435,13 @@ describe('production grading metadata', () => {
     expect(set.has('elsewhere')).toBe(false);
     expect(set.has("contar' OR 1=1 --")).toBe(false);
     const sorted = [...words].sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
-    expect([...set.values()]).toEqual(sorted);
-    expect([...set.keys()]).toEqual(sorted);
+    // Taking one word fetches only one bounded page; no Set algebra or eager copy.
+    const beforeFirst = calls.length;
+    const firstOnly = set[Symbol.iterator]();
+    expect(firstOnly.next()).toEqual({ value: sorted[0], done: false });
+    expect(calls.slice(beforeFirst)).toHaveLength(1);
+    firstOnly.return?.();
     expect([...set]).toEqual(sorted);
-    expect([...set.entries()]).toEqual(sorted.map((word) => [word, word]));
-    const receiver = { rows: [] as string[] };
-    set.forEach(function (this: typeof receiver, value, key, owner) {
-      expect(value).toBe(key);
-      expect(owner).toBe(set);
-      this.rows.push(value);
-    }, receiver);
-    expect(receiver.rows).toEqual(sorted);
     expect(original.words).toEqual(['cantar', 'contar', 'escribo', 'escribes']);
     expect(
       calls.filter((sql) => sql.includes('SELECT surface')).every((sql) => sql.includes('LIMIT')),

@@ -7,7 +7,13 @@
  * No grading fixture, language registry, morphology or default policy is consulted.
  */
 import { tier1Normalise } from '../grading/normalise.js';
-import type { GradingPack, GradingUnit, RegisterDetector, TypoGuards } from '../grading/types.js';
+import type {
+  GradingPack,
+  GradingUnit,
+  RegisterDetector,
+  TypoGuards,
+  WordDictionary,
+} from '../grading/types.js';
 import { sha256Hex } from './hashing.js';
 import { PackFormatError, type PackMeta, type PackReader } from './loader.js';
 
@@ -280,8 +286,7 @@ function dictionaryProvenance(value: unknown, where: string): DictionaryProvenan
  * declared content hash at build; this adapter verifies count and reads exact keys.
  * It does not claim to rehash millions of words whenever a lesson is opened.
  */
-class IndexedDictionary implements ReadonlySet<string> {
-  readonly [Symbol.toStringTag] = 'Set';
+class IndexedDictionary implements WordDictionary {
   private readonly reader: PackReader;
   private readonly profileId: string;
   readonly size: number;
@@ -298,7 +303,7 @@ class IndexedDictionary implements ReadonlySet<string> {
       ) !== undefined
     );
   }
-  *values(): SetIterator<string> {
+  *values(): IterableIterator<string> {
     let after: string | null = null;
     while (true) {
       const page = this.reader.all<{ surface: string }>(
@@ -319,23 +324,11 @@ class IndexedDictionary implements ReadonlySet<string> {
       }
     }
   }
-  keys(): SetIterator<string> {
+  [Symbol.iterator](): IterableIterator<string> {
     return this.values();
-  }
-  *entries(): SetIterator<[string, string]> {
-    for (const value of this.values()) yield [value, value];
-  }
-  [Symbol.iterator](): SetIterator<string> {
-    return this.values();
-  }
-  forEach(
-    callbackfn: (value: string, value2: string, set: ReadonlySet<string>) => void,
-    thisArg?: unknown,
-  ): void {
-    for (const value of this.values()) callbackfn.call(thisArg, value, value, this);
   }
 }
-function dictionary(value: unknown, profileId: string, reader: PackReader): ReadonlySet<string> {
+function dictionary(value: unknown, profileId: string, reader: PackReader): WordDictionary {
   const where = `dictionary ${profileId}`;
   if (value === null || typeof value !== 'object' || Array.isArray(value))
     invalid(where, 'expected discriminated declaration');

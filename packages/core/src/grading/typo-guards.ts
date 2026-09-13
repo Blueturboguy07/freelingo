@@ -15,7 +15,7 @@
  * session settles it, and when it does, the fix must be a pack edit and not a code change.
  */
 import { moraCount } from './ja.js';
-import type { TypoGuards } from './types.js';
+import type { TypoGuards, WordDictionary } from './types.js';
 
 /** Which guard refused. The three names are the three guards, in the spec's order. */
 export type TypoGuardName = 'real-target-word' | 'edit-on-target-lexeme' | 'minimum-length';
@@ -37,7 +37,7 @@ export interface TypoGuardInput {
   /** The surface of the lexeme this item teaches, or `null` when it teaches none. */
   readonly targetLexemeSurface: string | null;
   /** The pack's word list, for guard one. */
-  readonly targetLanguageWords: ReadonlySet<string>;
+  readonly targetLanguageWords: WordDictionary;
 }
 
 /** The decision, with every refusal named so a test can assert which guard fired. */
