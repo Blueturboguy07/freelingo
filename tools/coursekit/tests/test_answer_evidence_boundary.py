@@ -86,11 +86,16 @@ def analysis(text, sid):
     }
 
 
-def test_INV_PACK_08_approval_cannot_accept_overlength_spanish_surface(tmp_path):
+@pytest.mark.parametrize("canonical_overlength", [True, False])
+def test_INV_PACK_08_length_window_applies_to_canonical_source_not_reviewed_paraphrase(
+    tmp_path, canonical_overlength
+):
     canonical = "Hoy quiero ir a un restaurante con mi madre y hermana"
     alternate = "Yo hoy quiero ir a un restaurante con mi madre y mi hermana"
     english = "Today I want to go to a restaurant with my mother and sister"
     assert len(surface_tokens(canonical)) == 11 and len(surface_tokens(alternate)) == 13
+    if canonical_overlength:
+        canonical, alternate = alternate, canonical
     data = source_fixture()
     sid = sentence_id("es", canonical)
     a = analysis(canonical, sid)
@@ -99,7 +104,7 @@ def test_INV_PACK_08_approval_cannot_accept_overlength_spanish_surface(tmp_path)
         sentence_id=sid,
         text=canonical,
         translation=english,
-        token_count=11,
+        token_count=len(surface_tokens(canonical)),
         dedup_hash=dedup_hash(canonical),
     )
     data["analysed"] = [a]
@@ -155,12 +160,18 @@ def test_INV_PACK_08_approval_cannot_accept_overlength_spanish_surface(tmp_path)
         }
         if use == "forward":
             checks["length"]["detail"] = {
-                "minimum": sources[0].minimum_tokens,
-                "maximum": MAX_TOKENS,
+                "minimum": sources[0].minimum_tokens if text == canonical else 1,
+                "maximum": MAX_TOKENS if text == canonical else None,
                 "count": count_units(an),
                 "window_pos_digest": sources[0].window_pos_digest,
             }
         checks["pair"]["detail"] = {"score": 4, "review_hash": row["review"]["content_hash"]}
         proof.append({"use": use, "text": text, "analysis": an, "checks": checks})
-    with pytest.raises(AnswerEvidenceError, match="length window"):
-        build_answer_approval("es", sources, evidence, {sources[0].slot: proof}, run_id="r1")
+    if canonical_overlength:
+        with pytest.raises(AnswerEvidenceError, match="length window"):
+            build_answer_approval("es", sources, evidence, {sources[0].slot: proof}, run_id="r1")
+    else:
+        approval = build_answer_approval(
+            "es", sources, evidence, {sources[0].slot: proof}, run_id="r1"
+        )
+        assert approval["occurrences"][0]["surfaces"][1]["text"] == alternate
