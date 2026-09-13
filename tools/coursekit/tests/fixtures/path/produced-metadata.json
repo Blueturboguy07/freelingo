@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "packId": "fixture-pack",
+  "courseId": "en-es",
+  "packVersion": "1.0.0",
+  "languageName": "Spanish",
+  "scoreCeiling": 19,
+  "cefrChecked": true,
+  "declaredNodeTypes": [
+    "lesson",
+    "chest",
+    "unitReview"
+  ],
+  "legendaryDenominator": [
+    "lesson"
+  ],
+  "sections": [
+    {
+      "sectionIndex": 1,
+      "title": "Original section 1",
+      "band": "very early A1",
+      "units": [
+        {
+          "unitId": "u001",
+          "unitIndex": 1,
+          "title": "Original unit 1",
+          "colourIndex": 0,
+          "nodes": [
+            {
+              "nodeId": "u001:learn",
+              "type": "lesson",
+              "sessions": [
+                {
+                  "lessonIndex": 101,
+                  "exerciseIds": [
+                    "e101-1",
+                    "e101-2"
+                  ]
+                },
+                {
+                  "lessonIndex": 102,
+                  "exerciseIds": [
+                    "e102-1",
+                    "e102-2"
+                  ]
+                }
+              ],
+              "introducesScriptUnits": [],
+              "requiresScriptUnits": []
+            },
+            {
+              "nodeId": "u001:chest",
+              "type": "chest",
+              "sessions": [],
+              "introducesScriptUnits": [],
+              "requiresScriptUnits": []
+            },
+            {
+              "nodeId": "u001:review",
+              "type": "unitReview",
+              "sessions": [
+                {
+                  "lessonIndex": 102,
+                  "exerciseIds": [
+                    "e102-1",
+                    "e102-2"
+                  ]
+                }
+              ],
+              "introducesScriptUnits": [],
+              "requiresScriptUnits": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "sectionIndex": 2,
+      "title": "Original section 2",
+      "band": "early A1",
+      "units": [
+        {
+          "unitId": "u002",
+          "unitIndex": 2,
+          "title": "Original unit 2",
+          "colourIndex": 1,
+          "nodes": [
+            {
+              "nodeId": "u002:learn",
+              "type": "lesson",
+              "sessions": [
+                {
+                  "lessonIndex": 201,
+                  "exerciseIds": [
+                    "e201-1",
+                    "e201-2"
+                  ]
+                },
+                {
+                  "lessonIndex": 202,
+                  "exerciseIds": [
+                    "e202-1",
+                    "e202-2"
+                  ]
+                }
+              ],
+              "introducesScriptUnits": [],
+              "requiresScriptUnits": []
+            },
+            {
+              "nodeId": "u002:chest",
+              "type": "chest",
+              "sessions": [],
+              "introducesScriptUnits": [],
+              "requiresScriptUnits": []
+            },
+            {
+              "nodeId": "u002:review",
+              "type": "unitReview",
+              "sessions": [
+                {
+                  "lessonIndex": 202,
+                  "exerciseIds": [
+                    "e202-1",
+                    "e202-2"
+                  ]
+                }
+              ],
+              "introducesScriptUnits": [],
+              "requiresScriptUnits": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "lessonsPerLevel": 2,
+  "proof": {
+    "declarationSha256": "3151faa127d87f67411efe5e382808fe78b5e1bd59c0b7c1ad4273f8d57e3c47",
+    "unitRowsSha256": "8f98f91d9921d2ad94341866a80d522a1900a94cd36d0e8b8da3a5ffe531adfd",
+    "exerciseRowsSha256": "a452c79873d9d377000557f47a756aeb43cb169670345ee5bffd41e0be38b217"
+  }
+}
