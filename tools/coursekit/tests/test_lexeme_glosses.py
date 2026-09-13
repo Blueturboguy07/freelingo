@@ -10,14 +10,25 @@ from coursekit.lexeme_glosses import GlossaryError, gloss_content_hash, load_glo
 
 
 def authored(*, review: bool = True) -> dict:
-    row = {"schema_version": 1, "lang": "es", "lemma": "costa", "pos": "NOUN",
-           "citation_gloss": "coast", "valid_alternates": ["shore"],
-           "sense_evidence": "Singular noun for the land beside the sea.",
-           "author": "Original glossary author", "licence": "CC-BY-NC-SA-4.0", "review": None}
+    row = {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "costa",
+        "pos": "NOUN",
+        "citation_gloss": "coast",
+        "valid_alternates": ["shore"],
+        "sense_evidence": "Singular noun for the land beside the sea.",
+        "author": "Original glossary author",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": None,
+    }
     if review:
-        row["review"] = {"reviewer": "Independent reviewer", "verdict": "accepted",
-                         "note": "Checked meaning, POS, alternatives and citation form.",
-                         "content_hash": gloss_content_hash(row)}
+        row["review"] = {
+            "reviewer": "Independent reviewer",
+            "verdict": "accepted",
+            "note": "Checked meaning, POS, alternatives and citation form.",
+            "content_hash": gloss_content_hash(row),
+        }
     return row
 
 
@@ -29,7 +40,8 @@ def write_glossary(root: Path, rows: list[dict]) -> Path:
 
 
 def test_INV_PACK_40_reviewed_gloss_keeps_exact_lemma_pos_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path))
     write_glossary(tmp_path, [authored()])
@@ -43,7 +55,9 @@ def test_INV_PACK_40_reviewed_gloss_keeps_exact_lemma_pos_key(
 
 @pytest.mark.parametrize("status", ["missing", "pending", "rejected"])
 def test_INV_PACK_10_unreviewed_or_rejected_gloss_never_becomes_evidence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
 ) -> None:
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path))
     if status != "missing":
@@ -54,12 +68,21 @@ def test_INV_PACK_10_unreviewed_or_rejected_gloss_never_becomes_evidence(
     assert load_glossary("es") == {}
 
 
-@pytest.mark.parametrize(("field", "value"), [
-    ("citation_gloss", "west"), ("valid_alternates", ["west"]), ("pos", "VERB"),
-    ("lemma", "oeste"), ("sense_evidence", "Changed sense after review."),
-])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("citation_gloss", "west"),
+        ("valid_alternates", ["west"]),
+        ("pos", "VERB"),
+        ("lemma", "oeste"),
+        ("sense_evidence", "Changed sense after review."),
+    ],
+)
 def test_INV_PACK_10_gloss_review_cannot_be_reused_after_semantic_change(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
 ) -> None:
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path))
     row = authored()
@@ -69,14 +92,26 @@ def test_INV_PACK_10_gloss_review_cannot_be_reused_after_semantic_change(
         load_glossary("es")
 
 
-@pytest.mark.parametrize(("field", "value"), [
-    ("valid_alternates", "shore"), ("valid_alternates", [None]),
-    ("valid_alternates", ["coast"]), ("valid_alternates", ["shore", "SHORE"]),
-    ("pos", "PUNCT"), ("licence", "unknown"), ("citation_gloss", ""),
-    ("sense_evidence", ""), ("review", {}), ("lang", "fr"),
-])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("valid_alternates", "shore"),
+        ("valid_alternates", [None]),
+        ("valid_alternates", ["coast"]),
+        ("valid_alternates", ["shore", "SHORE"]),
+        ("pos", "PUNCT"),
+        ("licence", "unknown"),
+        ("citation_gloss", ""),
+        ("sense_evidence", ""),
+        ("review", {}),
+        ("lang", "fr"),
+    ],
+)
 def test_INV_PACK_10_malformed_gloss_is_a_named_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
 ) -> None:
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path))
     row = authored(review=False)
@@ -87,7 +122,8 @@ def test_INV_PACK_10_malformed_gloss_is_a_named_failure(
 
 
 def test_INV_PACK_10_self_review_and_duplicate_keys_are_refused(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path))
     row = authored()
@@ -101,7 +137,8 @@ def test_INV_PACK_10_self_review_and_duplicate_keys_are_refused(
 
 
 def test_INV_PACK_40_glossary_isolated_by_content_root_and_current_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     first, second = tmp_path / "first", tmp_path / "second"
     write_glossary(first, [authored()])
@@ -125,7 +162,8 @@ def test_INV_PACK_40_gloss_hash_binds_authored_fields_but_not_review_metadata() 
 
 
 def test_INV_PACK_40_reviewed_pos_grouping_preserves_ambiguity(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from coursekit.lexeme_glosses import load_glossary_by_lemma
 
