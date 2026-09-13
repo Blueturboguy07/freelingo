@@ -2536,3 +2536,58 @@ def test_INV_PACK_07_S039_nonsecond_person_opposite_numbers_keep_standalone_form
     assert draft.accepted_answers == (verb,)
     assert set(draft.distractors) == {surface for surface, _p, _n in forms}
     assert draft.source_sentence_id == slot.source_id
+
+
+@pytest.mark.parametrize("nonlexical_pos", ["PUNCT", "SYM", "SPACE", "X"])
+def test_INV_PACK_40_every_g7_index_uses_g1_lexical_pos_boundary(nonlexical_pos: str) -> None:
+    from coursekit.stages.g7_expand import _lemmas_for, _lexical_analysis_tokens
+
+    text = "¿Pan, queso?"
+    analysis = _quality_analysis(text, [
+        ("¿", "¿", "PUNCT", ""), ("Pan", "pan", "NOUN", ""),
+        (",", ",", nonlexical_pos, ""), ("queso", "queso", "NOUN", ""),
+        ("?", "?", "PUNCT", ""),
+    ])
+    # G1 excludes every NON_LEXICAL_POS even if the model calls punctuation SYM/X.
+    analysis["display_tokens"] = ["Pan", "queso"]
+    analysis["lemmas"] = ["pan", "queso"]
+    slot = ResolvedSlot(text, "Bread cheese?", "a" * 16, analysis, None)
+    assert [token["surface"] for token in _lexical_analysis_tokens(analysis)] == ["Pan", "queso"]
+    assert _target_tokens(slot) == ["Pan", "queso"]
+    assert _lemmas_for(slot) == ["pan", "queso"]
+    assert build_glosses(None, [(slot, [(0, 0), (1, 1)])]) == {"pan": "bread", "queso": "cheese"}
+    assert _gapped(slot, _target_tokens(slot), 1) == "¿Pan, ____?"
+
+
+def test_INV_PACK_06_reanalysed_real_quoted_dialogue_has_only_lexical_exercise_tags() -> None:
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _load, expand_item
+
+    text = "«¿Yo?» «¡Sí, tú!»"
+    analysis = _quality_analysis(text, [
+        ("«", "«", "PUNCT", "PunctType=Quot"), ("¿", "¿", "PUNCT", ""),
+        ("Yo", "yo", "PRON", "Case=Nom|Number=Sing|Person=1|PronType=Prs"),
+        ("?", "?", "PUNCT", ""), ("»", "»", "PUNCT", ""),
+        # Raw spaCy calls this PROPN. G1 now normalizes token.is_punct before storage.
+        ("«", "«", "PUNCT", ""), ("¡", "¡", "PUNCT", ""),
+        ("Sí", "sí", "INTJ", ""), (",", ",", "PUNCT", ""),
+        ("tú", "tú", "PRON", "Case=Nom|Number=Sing|Person=2|PronType=Prs"),
+        ("!", "!", "PUNCT", ""), ("»", "»", "PUNCT", "PunctType=Quot"),
+    ])
+    slot = ResolvedSlot(text, '\"Me?\" \"Yes, you!\"', "4d192ee8a1e0d5a7", analysis, None)
+    _write_ledger()
+    inputs = _load(LANG)
+    inputs.pos_of["yo"] = "PRON"
+    inputs.band_of["yo"] = "A1"
+    inputs.pool.by_pos_band[("PRON", "A1")] = ["cómo", "adonde", "alguien"]
+    item = {"unit_index": 1, "lesson_index": 3, "slot_index": 3,
+            "grammar_concept": "subject_pronouns"}
+    drafts = expand_item(inputs, item, slot=slot, alignment=[(0, 0), (1, 1), (2, 2)],
+                         register="tu", alternatives=AlternativesIndex())
+    assert {draft.shape_id for draft in drafts} == {
+        "complete_the_translation", "listen_for_the_missing_word"}
+    for draft in drafts:
+        assert draft.lemmas == ("yo", "sí", "tú")
+        assert draft.source_sentence_id == "4d192ee8a1e0d5a7"
+        assert draft.accepted_answers == ("Yo",)
+        assert "«¿____?» «¡Sí, tú!»" in draft.body

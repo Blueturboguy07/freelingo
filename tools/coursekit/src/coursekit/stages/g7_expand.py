@@ -114,7 +114,7 @@ from ..exercises.distractors import (
 )
 from ..exercises.shapes import ExerciseDraft, focus_for_item, shape
 from ..exercises.wordbank import Hint, build_hints, build_word_bank
-from ..ledger import surface_tokens
+from ..ledger import is_lexical_pos, surface_tokens
 from ..runlog import require_successful
 from ..tts.cast import Cast, CastError, load_cast, rebake_key
 from ..validators.exercise import check_pack_07, check_pack_50, check_v5, pos_sets
@@ -451,7 +451,7 @@ def _lexical_analysis_tokens(analysis: Mapping[str, Any]) -> list[Mapping[str, A
     """The same lexical sequence as G1 display_tokens, retaining morphology and spans."""
     return [
         token for token in analysis["tokens"]
-        if token.get("pos") != "PUNCT" and str(token["surface"]).strip()
+        if is_lexical_pos(str(token.get("pos", ""))) and str(token["surface"]).strip()
     ]
 
 
