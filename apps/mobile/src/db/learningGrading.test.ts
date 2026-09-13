@@ -56,6 +56,7 @@ function runtime(patch: Partial<VerifiedRuntimeItem> = {}): VerifiedRuntimeItem 
         canonical: true,
       },
     ],
+    lexicalBindings: [],
     introductions: [],
     explanation: 'A cat.',
     grading: { profileId: 'es', responseLanguage: 'es', pack: ES_PACK, unit: ES_UNIT },

@@ -65,6 +65,7 @@ function setup() {
         canonical: true,
       },
     ],
+    lexicalBindings: [],
     introductions: [
       { surfaceId: 'sf:en-cat', surface: 'the cat', language: 'en', when: 'prompt' },
       { surfaceId: 'sf:gato', surface: 'el gato', language: 'es', when: 'wrong-feedback' },

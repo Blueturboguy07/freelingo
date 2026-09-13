@@ -15,6 +15,7 @@ import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import { SqliteSessionStore } from './SqliteSessionStore';
 import { SqliteLearningContextStore } from './SqliteLearningContextStore';
 import { SqliteLearningRuntime } from './SqliteLearningRuntime';
+import { roleOfExerciseType } from '@freelingo/core/scheduler';
 import { gradeRuntimeItem } from './learningGrading';
 const opened: Db[] = [];
 afterEach(() => {
@@ -42,13 +43,13 @@ function wrongBanner(state: SessionState, item: VerifiedRuntimeItem): SessionSta
   next = step(next, { type: 'check' }, deps).state;
   return step(next, { type: 'graded' }, deps).state;
 }
-function setup() {
+function setup(transform: (item: VerifiedRuntimeItem) => VerifiedRuntimeItem = (item) => item) {
   const db = createNodeDb();
   opened.push(db);
   migrate(db);
   db.run("INSERT INTO course_progress(course_id,added_at) VALUES('en-es','2026-09-13')");
   db.run("INSERT INTO course_selection(course_id,is_active,is_selected) VALUES('en-es',1,1)");
-  const item: VerifiedRuntimeItem = {
+  const item: VerifiedRuntimeItem = transform({
     schemaVersion: 1,
     exerciseId: 'exercise-1',
     itemId: 'semantic-1',
@@ -88,13 +89,14 @@ function setup() {
         canonical: true,
       },
     ],
+    lexicalBindings: [],
     introductions: [
       { surfaceId: 'sf:en-cat', surface: 'the cat', language: 'en', when: 'prompt' },
       { surfaceId: 'sf:gato', surface: 'el gato', language: 'es', when: 'wrong-feedback' },
     ],
     explanation: 'cat',
     grading: { pack: ES_PACK, unit: ES_UNIT, profileId: 'es', responseLanguage: 'es' },
-  };
+  });
   let pack = {
     courseId: 'en-es',
     contentHash: 'a'.repeat(64),
@@ -157,7 +159,7 @@ function setup() {
         exerciseId: 'exercise-1',
         itemId: item.itemId,
         surface: 'el gato',
-        role: 'production',
+        role: roleOfExerciseType(item.presentation.type),
         rubyShown: false,
       },
     ],
@@ -338,3 +340,71 @@ it('[INV-SESS-21] the saved variant must still belong to its declared node and a
   });
   expect(() => runtime.readSession()).toThrow(/node/);
 });
+
+function picture(item: VerifiedRuntimeItem): VerifiedRuntimeItem {
+  return {
+    ...item,
+    gradable: { ...item.gradable, family: 'select' },
+    presentation: {
+      ...item.presentation,
+      type: 'pictureSelect',
+      introduction: 'word',
+      options: [
+        { id: 'correct', text: 'el gato' },
+        { id: 'wrong', text: 'el perro' },
+      ],
+    },
+    introductions: [
+      {
+        when: 'prompt',
+        location: 'option',
+        optionId: 'correct',
+        surfaceId: 'sf:gato',
+        surface: 'el gato',
+        language: 'es',
+      },
+    ],
+  };
+}
+it('[INV-SCH-11][INV-GRD-27] the actual NEW WORD option render introduces only that visible target', async () => {
+  const f = setup(picture);
+  expect(f.runtime.readSession()?.challenge?.options?.[0]?.text).toBe('el gato');
+  expect(f.db.all('SELECT * FROM course_surface_exposure')).toEqual([]);
+  await f.runtime.recordExposure({ ...f.request, when: 'prompt' });
+  expect(f.db.all('SELECT surface_id,surface,display_role FROM course_surface_exposure')).toEqual([
+    { surface_id: 'sf:gato', surface: 'el gato', display_role: 'prompt' },
+  ]);
+  expect(f.db.all('SELECT * FROM course_attempt')).toEqual([]);
+});
+it.each(['type', 'marker', 'option', 'text', 'accepted', 'target', 'language'] as const)(
+  '[INV-SCH-11] invalid current option witness cannot introduce a surface: %s',
+  async (fault) => {
+    const f = setup((item) => {
+      const p = picture(item),
+        i = p.introductions[0]!;
+      if (fault === 'type')
+        return { ...p, presentation: { ...p.presentation, type: 'meaningSelect' } };
+      if (fault === 'marker')
+        return { ...p, presentation: { ...p.presentation, introduction: 'phrase' } };
+      if (fault === 'option')
+        return {
+          ...p,
+          introductions: [{ ...i, when: 'prompt', location: 'option', optionId: 'wrong' }],
+        };
+      if (fault === 'text')
+        return {
+          ...p,
+          presentation: { ...p.presentation, options: [{ id: 'correct', text: 'el perro' }] },
+        };
+      if (fault === 'accepted') return { ...p, gradable: { ...p.gradable, accepted: [] } };
+      if (fault === 'target')
+        return {
+          ...p,
+          schedulerSurfaces: p.schedulerSurfaces.map((t) => ({ ...t, kind: 'grammarConcept' })),
+        };
+      return { ...p, presentation: { ...p.presentation, language: 'en' } };
+    });
+    await expect(f.runtime.recordExposure({ ...f.request, when: 'prompt' })).rejects.toThrow();
+    expect(f.db.all('SELECT * FROM course_surface_exposure')).toEqual([]);
+  },
+);
