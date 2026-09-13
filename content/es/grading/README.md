@@ -171,7 +171,7 @@ Output runtime rows are closed revision-1 payloads:
 ```text
 {schemaVersion:1,exerciseId,itemId,unitId,lessonIndex,profileId,responseLanguage,
  proof:{sourceId,sourceSha256,approvalId,approvalSha256,draftSha256},
- gradable,presentation,introductions:[{surfaceId,surface,language,when:'prompt'|'wrong-feedback'}],explanation:string}
+ gradable,presentation,schedulerSurfaces,introductions:[{surfaceId,surface,language,when:'prompt'|'wrong-feedback'}],explanation:string}
 ```
 
 Root chooses their shared SQL carrier. The producer also emits metadata/runtime/
@@ -212,3 +212,15 @@ hidden alternatives never count. The app records a witness only after that named
 surface is actually displayed, and only in the course target language. Decoding or
 loading an item never introduces any surface, and a correct answer does not imply
 that the wrong-answer feedback was shown.
+
+The draft must explicitly declare `schedulerSurfaces:[{itemId,surfaceId,canonical}]`
+using reviewed catalog IDs. The runtime expands each to
+`{itemId,surfaceId,surface,language,canonical}` in the target course language. Ordinary
+items have exactly one canonical for their actual SQL item ID and include every
+accepted target-language form, so a matched Spanish alternative is scheduled under
+its own exact surface. English reverse answers keep the explicit Spanish canonical.
+Wrong attempts and successful nonmatching open responses use that canonical; they do
+not imply that it was introduced. Match grids declare one canonical displayed target
+form for each of the five semantic left lexeme IDs. Extra unaccepted alternatives,
+missing current accepted forms, foreign-language targets, and unreviewed source
+bindings fail. These declarations never replace the independent display receipts.

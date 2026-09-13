@@ -53,6 +53,15 @@ function payload() {
       promptLanguage: 'en',
       acceptedAnswers: ['Quiero cantar.'],
     },
+    schedulerSurfaces: [
+      {
+        itemId: 'i_actual',
+        surfaceId: accepted[0]!.surfaceId,
+        surface: accepted[0]!.surface,
+        language: 'es',
+        canonical: true,
+      },
+    ],
     introductions: [
       {
         surfaceId: accepted[0]!.surfaceId,
@@ -455,6 +464,15 @@ function gapPayload() {
         { id: 'o2', text: 'contar' },
       ],
     },
+    schedulerSurfaces: [
+      {
+        itemId: 'i_actual',
+        surfaceId: form.surfaceId,
+        surface: form.surface,
+        language: 'es',
+        canonical: true,
+      },
+    ],
     introductions: [],
   };
 }
@@ -602,6 +620,13 @@ function matchPayload() {
         right: pair.right,
       })),
     },
+    schedulerSurfaces: pairs.map((pair) => ({
+      itemId: pair.leftLexemeId,
+      surfaceId: surfaceId('es', pair.left),
+      surface: pair.left,
+      language: 'es',
+      canonical: true,
+    })),
     introductions: [],
   };
 }
@@ -706,4 +731,102 @@ it('[INV-GRD-22] a speaking audio button does not hide the explicitly declared p
   const { reader, db } = listeningDatabase(value);
   db.exec("UPDATE exercise SET type='speak'");
   expect(readRuntimeItem(reader, identity, 'ex1').introductions).toEqual(value.introductions);
+});
+
+describe('explicit target-language scheduling forms', () => {
+  it('[INV-SCH-11] returns actual accepted alternates without canonical substitution', () => {
+    const value = payload(),
+      surface = 'Yo quiero cantar.';
+    value.gradable.accepted.push({ surfaceId: surfaceId('es', surface), surface, rank: 5 });
+    value.presentation.acceptedAnswers.push(surface);
+    value.schedulerSurfaces.push({
+      itemId: value.itemId,
+      surfaceId: surfaceId('es', surface),
+      surface,
+      language: 'es',
+      canonical: false,
+    });
+    const { reader, db } = database(value);
+    db.prepare('UPDATE exercise SET accepted_answers_json=?').run(
+      JSON.stringify(value.presentation.acceptedAnswers),
+    );
+    const item = readRuntimeItem(reader, identity, 'ex1');
+    expect(item.schedulerSurfaces).toEqual(value.schedulerSurfaces);
+  });
+  it.each([
+    'absent',
+    'empty',
+    'canonical-missing',
+    'two-canonicals',
+    'wrong-language',
+    'wrong-id',
+    'wrong-item',
+    'missing-alternate',
+    'unaccepted-alternate',
+  ])('[INV-SCH-11] rejects unverifiable scheduler mapping %s', (fault) => {
+    const value = payload();
+    if (fault === 'absent') Reflect.deleteProperty(value, 'schedulerSurfaces');
+    if (fault === 'empty') value.schedulerSurfaces = [];
+    if (fault === 'canonical-missing') value.schedulerSurfaces[0]!.canonical = false;
+    if (fault === 'two-canonicals')
+      value.schedulerSurfaces.push({ ...value.schedulerSurfaces[0]! });
+    if (fault === 'wrong-language') value.schedulerSurfaces[0]!.language = 'en';
+    if (fault === 'wrong-id') value.schedulerSurfaces[0]!.surfaceId = 'sf_bad';
+    if (fault === 'wrong-item') value.schedulerSurfaces[0]!.itemId = 'unknown';
+    const surface = 'Yo quiero cantar.';
+    if (fault === 'missing-alternate') {
+      value.gradable.accepted.push({ surfaceId: surfaceId('es', surface), surface, rank: 5 });
+      value.presentation.acceptedAnswers.push(surface);
+    }
+    if (fault === 'unaccepted-alternate')
+      value.schedulerSurfaces.push({
+        itemId: value.itemId,
+        surfaceId: surfaceId('es', surface),
+        surface,
+        language: 'es',
+        canonical: false,
+      });
+    const { reader, db } = database(value);
+    db.prepare('UPDATE exercise SET accepted_answers_json=?').run(
+      JSON.stringify(value.presentation.acceptedAnswers),
+    );
+    expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(
+      fault === 'absent' ? /payload/ : /scheduler/,
+    );
+  });
+  it('[INV-SCH-11] an English reverse response preserves the explicitly declared Spanish target', () => {
+    const value = payload(),
+      answer = 'I want to sing.';
+    value.responseLanguage = 'en';
+    value.presentation.language = 'en';
+    value.presentation.promptLanguage = 'es';
+    value.presentation.prompt = 'Quiero cantar.';
+    value.presentation.acceptedAnswers = [answer];
+    value.gradable.accepted = [{ surfaceId: surfaceId('en', answer), surface: answer, rank: 4 }];
+    value.introductions = [];
+    const { reader, db } = database(value),
+      meta = metadata();
+    meta.profiles[0]!.responseLanguage = 'en';
+    meta.exercises[0]!.responseLanguage = 'en';
+    db.prepare('UPDATE meta SET value=?').run(JSON.stringify(meta));
+    db.prepare('UPDATE exercise SET type=?,prompt=?,accepted_answers_json=?').run(
+      'reverse_translate',
+      value.presentation.instruction + '\n' + value.presentation.prompt,
+      JSON.stringify([answer]),
+    );
+    const item = readRuntimeItem(reader, identity, 'ex1');
+    expect(item.responseLanguage).toBe('en');
+    expect(item.schedulerSurfaces[0]).toMatchObject({
+      language: 'es',
+      surface: 'Quiero cantar.',
+      canonical: true,
+    });
+  });
+  it('[INV-SCH-11] a match maps each actual semantic target to its displayed target form', () => {
+    const value = matchPayload();
+    value.schedulerSurfaces[0]!.surface = 'unshown';
+    value.schedulerSurfaces[0]!.surfaceId = surfaceId('es', 'unshown');
+    const { reader } = matchDatabase(value);
+    expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(/scheduler/);
+  });
 });

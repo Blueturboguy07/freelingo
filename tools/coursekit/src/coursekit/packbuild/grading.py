@@ -79,6 +79,7 @@ DRAFT_FIELDS = {
     "profileId",
     "responseLanguage",
     "surfaceIds",
+    "schedulerSurfaces",
     "gradable",
     "presentation",
     "explanation",
@@ -1052,6 +1053,65 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             source,
             approval.get("pairs", []),
         )
+        # Authorship explicitly chooses canonical targets; response direction never
+        # infers a scheduling language or substitutes the first accepted answer.
+        targets = (
+            {pair["leftLexemeId"]: pair["left"] for pair in gradable["pairs"]}
+            if spec[0] == "match"
+            else {exercise["item_id"]: None}
+        )
+        require(
+            isinstance(draft["schedulerSurfaces"], list) and draft["schedulerSurfaces"],
+            "scheduler surfaces: explicit mappings missing",
+        )
+        scheduler_surfaces, scheduler_keys = [], set()
+        for binding in draft["schedulerSurfaces"]:
+            fields(binding, {"itemId", "surfaceId", "canonical"}, "scheduler surface binding")
+            row = catalog.get(binding["surfaceId"])
+            require(
+                row is not None
+                and binding["itemId"] in targets
+                and type(binding["canonical"]) is bool
+                and row["language"] == inputs.identity["lang"]
+                and draft["sourceId"] in row["sourceIds"],
+                "scheduler surface: missing/wrong source, target, or language",
+            )
+            key = (binding["itemId"], binding["surfaceId"])
+            require(key not in scheduler_keys, "scheduler surface: duplicate mapping")
+            scheduler_keys.add(key)
+            scheduler_surfaces.append(
+                {**binding, "surface": row["surface"], "language": row["language"]}
+            )
+        for target, displayed in targets.items():
+            mappings = [row for row in scheduler_surfaces if row["itemId"] == target]
+            require(
+                sum(row["canonical"] for row in mappings) == 1,
+                "scheduler surface: exactly one canonical required",
+            )
+            if spec[0] == "match":
+                require(
+                    len(mappings) == 1 and mappings[0]["surface"] == displayed,
+                    "scheduler surface: actual match target differs",
+                )
+            else:
+                expected_ids = (
+                    set(draft["surfaceIds"])
+                    if draft["responseLanguage"] == inputs.identity["lang"]
+                    else set()
+                )
+                require(
+                    expected_ids <= {row["surfaceId"] for row in mappings}
+                    and all(
+                        row["canonical"] or row["surfaceId"] in expected_ids for row in mappings
+                    ),
+                    "scheduler surface: accepted target mapping missing or unsupported",
+                )
+                canonical = next(row for row in mappings if row["canonical"])
+                require(
+                    canonical["surfaceId"] in expected_ids
+                    or canonical["surface"] in approval.get("spanish", []),
+                    "scheduler surface: canonical lacks current target-language approval",
+                )
         explanation = draft["explanation"]
         reviewed(explanation, {"exerciseId", "text", "sourceId"}, "explanation")
         require(
@@ -1107,6 +1167,7 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
                 },
                 "presentation": copy.deepcopy(presentation),
                 "introductions": introductions,
+                "schedulerSurfaces": scheduler_surfaces,
                 "explanation": explanation["text"],
             }
         )

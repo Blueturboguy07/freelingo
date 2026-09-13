@@ -164,6 +164,9 @@ def fixture():
         "profileId": "spanish",
         "responseLanguage": "es",
         "surfaceIds": [catalog[0]["surfaceId"]],
+        "schedulerSurfaces": [
+            {"itemId": "i_existing", "surfaceId": catalog[0]["surfaceId"], "canonical": True}
+        ],
         "gradable": {
             "family": "typed-translate",
             "targetLexemeId": "lx:cantar:VERB",
@@ -500,6 +503,10 @@ def rewrite_answers(inputs, answers, body, *, source=None):
         for answer in answers
     ]
     draft["surfaceIds"] = [row["surfaceId"] for row in inputs.surface_catalog]
+    draft["schedulerSurfaces"] = [
+        {"itemId": "i_existing", "surfaceId": row["surfaceId"], "canonical": i == 0}
+        for i, row in enumerate(inputs.surface_catalog)
+    ]
     draft["record"].update(accepted_answers=answers, prompt="Original exercise\n" + body)
     draft["presentation"].update(
         acceptedAnswers=answers, instruction="Original exercise", prompt=body
@@ -671,8 +678,8 @@ def test_INV_GRD_15_producer_policy_must_round_trip_the_closed_runtime_contract(
         build_grading_payload(inputs)
 
 
-def test_INV_GRD_15_english_reverse_profile_uses_its_own_answer_and_word_evidence():
-    from coursekit.packbuild.grading import DictionaryInput, build_grading_payload, surface_id
+def english_reverse_fixture():
+    from coursekit.packbuild.grading import DictionaryInput, surface_id
 
     inputs = fixture()
     rewrite_answers(inputs, ["I want to sing."], "Quiero cantar.")
@@ -691,8 +698,21 @@ def test_INV_GRD_15_english_reverse_profile_uses_its_own_answer_and_word_evidenc
             "sourceIds": ["s1"],
         }
     )
-    inputs.surface_catalog[:] = [surface]
+    canonical = reviewed(
+        {
+            "surfaceId": surface_id("es", "Quiero cantar."),
+            "language": "es",
+            "surface": "Quiero cantar.",
+            "rank": 4,
+            "introduction": None,
+            "sourceIds": ["s1"],
+        }
+    )
+    inputs.surface_catalog[:] = [surface, canonical]
     draft["surfaceIds"] = [surface["surfaceId"]]
+    draft["schedulerSurfaces"] = [
+        {"itemId": "i_existing", "surfaceId": canonical["surfaceId"], "canonical": True}
+    ]
     inputs.profiles[0].update(profileId="english", responseLanguage="en")
     inputs.profiles[0]["configuration"]["contrastiveDiacritics"] = []
     inputs.lessons[0]["profileId"] = "english"
@@ -713,7 +733,23 @@ def test_INV_GRD_15_english_reverse_profile_uses_its_own_answer_and_word_evidenc
             lambda: iter([raw]),
         )
     ]
+    return inputs
+
+
+def test_INV_GRD_15_english_reverse_profile_uses_its_own_answer_and_word_evidence():
+    from coursekit.packbuild.grading import build_grading_payload, surface_id
+
+    inputs = english_reverse_fixture()
     payload = build_grading_payload(inputs)
+    assert payload.runtime_items[0]["schedulerSurfaces"] == [
+        {
+            "itemId": "i_existing",
+            "surfaceId": surface_id("es", "Quiero cantar."),
+            "surface": "Quiero cantar.",
+            "language": "es",
+            "canonical": True,
+        }
+    ]
     assert payload.runtime_items[0]["responseLanguage"] == "en"
     assert payload.runtime_items[0]["gradable"]["accepted"][0]["surface"] == "I want to sing."
     assert list(payload.word_rows()) == [("english", "sing"), ("english", "want")]
@@ -833,6 +869,26 @@ def match_fixture():
             "sourceId": "s1",
         }
     )
+    from coursekit.packbuild.grading import surface_id
+
+    target_rows = [
+        reviewed(
+            {
+                "surfaceId": surface_id("es", pair["left"]),
+                "language": "es",
+                "surface": pair["left"],
+                "rank": 3,
+                "introduction": None,
+                "sourceIds": ["s1"],
+            }
+        )
+        for pair in pairs
+    ]
+    inputs.surface_catalog.extend(target_rows)
+    draft["schedulerSurfaces"] = [
+        {"itemId": pair["leftLexemeId"], "surfaceId": row["surfaceId"], "canonical": True}
+        for pair, row in zip(pairs, target_rows, strict=True)
+    ]
     return inputs
 
 
@@ -1006,4 +1062,110 @@ def test_INV_PACK_12_actual_SQL_fields_cannot_diverge_from_approved_runtime_draf
     if fault == "source":
         inputs.exercises[0]["source_sentence_id"] = "different-source"
     with pytest.raises(GradingBuildError, match="actual exercise"):
+        build_grading_payload(inputs)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "no-canonical",
+        "wrong-item",
+        "unknown-surface",
+        "wrong-language",
+        "wrong-source",
+        "unapproved-canonical",
+    ],
+)
+def test_INV_SCH_11_producer_requires_explicit_reviewed_target_surface_mapping(fault):
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload, surface_id
+
+    inputs = fixture()
+    if fault == "missing":
+        del inputs.drafts[0]["schedulerSurfaces"]
+    if fault == "no-canonical":
+        inputs.drafts[0]["schedulerSurfaces"][0]["canonical"] = False
+    if fault == "wrong-item":
+        inputs.drafts[0]["schedulerSurfaces"][0]["itemId"] = "unknown"
+    if fault == "unknown-surface":
+        inputs.drafts[0]["schedulerSurfaces"][0]["surfaceId"] = "sf_unknown"
+    if fault in {"wrong-language", "wrong-source", "unapproved-canonical"}:
+        row = {
+            "surfaceId": surface_id(
+                "en" if fault == "wrong-language" else "es", "Unapproved text."
+            ),
+            "language": "en" if fault == "wrong-language" else "es",
+            "surface": "Unapproved text.",
+            "rank": 4,
+            "introduction": None,
+            "sourceIds": ["s1"],
+        }
+        if fault == "wrong-source":
+            inputs.sources["reserve"] = copy.deepcopy(inputs.sources["s1"])
+            row["sourceIds"] = ["reserve"]
+        inputs.surface_catalog.append(reviewed(row))
+        inputs.drafts[0]["schedulerSurfaces"][0].update(surfaceId=row["surfaceId"])
+    with pytest.raises(GradingBuildError, match="scheduler|runtime draft"):
+        build_grading_payload(inputs)
+
+
+def test_INV_SCH_11_producer_keeps_match_semantic_surface_mappings():
+    from coursekit.packbuild.grading import build_grading_payload
+
+    row = build_grading_payload(match_fixture()).runtime_items[0]
+    assert [
+        (r["itemId"], r["surface"], r["language"], r["canonical"]) for r in row["schedulerSurfaces"]
+    ] == [
+        ("lx:" + word + ":NOUN", word, "es", True)
+        for word in ["gato", "perro", "casa", "libro", "mesa"]
+    ]
+
+
+def test_INV_SCH_11_reverse_canonical_must_have_current_target_language_approval():
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload, surface_id
+
+    inputs = english_reverse_fixture()
+    row = reviewed(
+        {
+            "surfaceId": surface_id("es", "Texto no aprobado."),
+            "surface": "Texto no aprobado.",
+            "language": "es",
+            "rank": 4,
+            "introduction": None,
+            "sourceIds": ["s1"],
+        }
+    )
+    inputs.surface_catalog.append(row)
+    inputs.drafts[0]["schedulerSurfaces"][0]["surfaceId"] = row["surfaceId"]
+    with pytest.raises(GradingBuildError, match="canonical lacks current target-language approval"):
+        build_grading_payload(inputs)
+
+
+@pytest.mark.parametrize("fault", ["language", "source"])
+def test_INV_SCH_11_reverse_canonical_keeps_its_exact_target_language_and_source(fault):
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload, surface_id
+
+    inputs = english_reverse_fixture()
+    language = "en" if fault == "language" else "es"
+    source = "s1"
+    if fault == "source":
+        inputs.sources["reserve"] = copy.deepcopy(inputs.sources["s1"])
+        source = "reserve"
+    row = reviewed(
+        {
+            "surfaceId": surface_id(language, "Quiero cantar."),
+            "surface": "Quiero cantar.",
+            "language": language,
+            "rank": 4,
+            "introduction": None,
+            "sourceIds": [source],
+        }
+    )
+    inputs.surface_catalog[:] = [
+        r for r in inputs.surface_catalog if r["surfaceId"] != row["surfaceId"]
+    ] + [row]
+    inputs.drafts[0]["schedulerSurfaces"][0]["surfaceId"] = row["surfaceId"]
+    with pytest.raises(
+        GradingBuildError, match="scheduler surface: missing/wrong source, target, or language"
+    ):
         build_grading_payload(inputs)
