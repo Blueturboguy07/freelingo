@@ -3,6 +3,24 @@
  * Neither migration nor source registration fabricates a display callback. */
 export const DISPLAY_SOURCE_COURSE_TABLES = ['course_source_exposure'] as const;
 const text = (name: string) => `${name} TEXT NOT NULL CHECK(length(trim(${name}))>0)`;
+// REPLACE deletes conflicting rows without firing their DELETE triggers when
+// recursive_triggers is off (the adapters' default). Reject all immutable identity
+// conflicts before INSERT, including the review table's alternate physical-answer key.
+const REPLACEMENT_GUARDS: readonly (readonly [string, string])[] = [
+  [
+    'course_source_exposure',
+    'course_id=NEW.course_id AND surface_id=NEW.surface_id AND exercise_id=NEW.exercise_id AND pack_content_hash=NEW.pack_content_hash',
+  ],
+  ['course_surface_exposure', 'course_id=NEW.course_id AND surface_id=NEW.surface_id'],
+  ['account_word_state', 'id=NEW.id'],
+  ['account_word', 'word_item_id=NEW.word_item_id'],
+  ['account_word_learning', 'word_item_id=NEW.word_item_id'],
+  [
+    'account_word_review',
+    '(word_item_id=NEW.word_item_id AND word_sequence=NEW.word_sequence) OR (source_session_id=NEW.source_session_id AND answer_ordinal=NEW.answer_ordinal AND target_position=NEW.target_position)',
+  ],
+];
+
 export const DISPLAY_SOURCE_SCHEMA_V13_DDL: readonly string[] = [
   `CREATE TABLE course_source_exposure (
  course_id TEXT NOT NULL REFERENCES course_progress(course_id) ON DELETE CASCADE,
@@ -18,4 +36,8 @@ export const DISPLAY_SOURCE_SCHEMA_V13_DDL: readonly string[] = [
  BEGIN SELECT RAISE(ABORT,'source observation changed surface identity'); END`,
   `CREATE TRIGGER course_source_exposure_immutable_update BEFORE UPDATE ON course_source_exposure BEGIN SELECT RAISE(ABORT,'source observation is immutable'); END`,
   `CREATE TRIGGER course_source_exposure_immutable_delete BEFORE DELETE ON course_source_exposure WHEN EXISTS(SELECT 1 FROM course_progress WHERE course_id=OLD.course_id) BEGIN SELECT RAISE(ABORT,'source observation is immutable'); END`,
+  ...REPLACEMENT_GUARDS.map(
+    ([table, identity]) =>
+      `CREATE TRIGGER ${table}_no_replacement BEFORE INSERT ON ${table} WHEN EXISTS(SELECT 1 FROM ${table} WHERE ${identity}) BEGIN SELECT RAISE(ABORT,'${table} identity is immutable'); END`,
+  ),
 ];
