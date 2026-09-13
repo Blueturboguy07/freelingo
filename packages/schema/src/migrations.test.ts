@@ -228,7 +228,10 @@ describe('migration atomicity', () => {
               inner.run(`PRAGMA user_version = ${migration.userVersion}`);
             });
           }
-          if (startVersion >= 1) inner.run('UPDATE account SET xp = ? WHERE id = 1', [xp]);
+          if (startVersion >= 1) {
+            const initialXpColumn = startVersion >= 2 ? 'lifetime_xp' : 'xp';
+            inner.run(`UPDATE account SET ${initialXpColumn} = ? WHERE id = 1`, [xp]);
+          }
 
           try {
             migrate(killingDb(inner, killAt));

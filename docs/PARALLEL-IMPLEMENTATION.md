@@ -36,3 +36,9 @@ The 300 fresh unit 1–10 candidate pairs are held at 143f120. The latest source
 SDK 57 packages were added with `npx expo install`: bundled Nunito/Noto Sans JP font assets, font/asset loading, linking/localization, local notifications, secure local key storage, document picker/sharing, safe-area/SVG rendering and the RN Web target. Browser verification uses Playwright; component interaction tests use React Testing Library through RN Web in the mobile Vitest project. This harness does not replace native evidence. No new SQLite schema or native generated source is included in this checkpoint.
 
 The notification adapter must report exact-alarm capability false until a declared platform permission and actual capability check are integrated; this retains the daily-only fallback. No push service is introduced. API details were checked against the [Expo font documentation](https://docs.expo.dev/versions/latest/sdk/font/), [local notifications API](https://docs.expo.dev/versions/latest/sdk/notifications/) and [web target guide](https://docs.expo.dev/workflow/web/).
+
+## Runtime integration contract — 2026-09-13
+
+Shared migration v3 separates a saved lesson’s graded kind from its active lease and adds the complete serialized runtime checkpoint. The database retains parked lessons across courses while allowing one active graded lesson. Historical v2 rows keep a null payload and are offered explicit recovery/start-over, never a fabricated restored state. Golden fixtures preserve all original rows and counters.
+
+P3 additionally owns the narrow existing session machine/match grading changes needed to charge incorrect pairs immediately without charging twice. P4 additionally owns the optional practice-pool proration in economy/xp.ts, applied before the daily cap. These are disjoint from the root SQLite adapter.
