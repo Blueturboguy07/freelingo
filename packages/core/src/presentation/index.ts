@@ -17,6 +17,14 @@ export interface LessonPair {
   readonly rightId: string;
   readonly right: string;
 }
+/** Actual rendered source identity. The runtime resolves approved surfaces itself. */
+export interface LessonExposure {
+  readonly sessionId: string;
+  readonly slotId: string;
+  readonly itemId: string;
+  readonly exerciseId: string;
+  readonly when: 'prompt' | 'wrong-feedback';
+}
 export interface LessonChallenge {
   readonly itemId: string;
   readonly type: ExerciseType;
