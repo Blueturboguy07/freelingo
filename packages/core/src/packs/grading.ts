@@ -8,6 +8,7 @@
  */
 import { tier1Normalise } from '../grading/normalise.js';
 import type { GradingPack, GradingUnit, RegisterDetector, TypoGuards } from '../grading/types.js';
+import { sha256Hex } from './hashing.js';
 import { PackFormatError, type PackMeta, type PackReader } from './loader.js';
 
 export const GRADING_METADATA_KEY = 'grading:v1';
@@ -18,7 +19,31 @@ export const GRADING_METADATA_READS = {
   unit: ['unit_id'],
   lexeme: ['lexeme_id'],
   exercise: ['exercise_id', 'unit_id', 'lesson_index'],
+  grading_word: ['profile_id', 'surface'],
 } as const;
+
+/** Contract frozen 2026-09-13. Dictionary assets retain their own licence/notices. */
+export interface DictionaryProvenance {
+  readonly sourceId: string;
+  readonly sourceSha256: string;
+  readonly sourceUrl: string;
+  readonly license: string;
+  readonly notice: string;
+  readonly normalizationId: string;
+  readonly normalizationSha256: string;
+  readonly policySha256: string;
+}
+export type GradingDictionaryDeclaration = {
+  readonly count: number;
+  /** SHA256 over UTF-8, BINARY-sorted unique surfaces, each followed by LF. */
+  readonly sha256: string;
+  readonly provenance: DictionaryProvenance;
+} & (
+  | { readonly kind: 'inline'; readonly words: readonly string[] }
+  | { readonly kind: 'table'; readonly table: 'grading_word'; readonly profileId: string }
+);
+/** Bounded keyset page size, an implementation setting, not a grading threshold. */
+export const GRADING_DICTIONARY_PAGE_SIZE = 256;
 
 export interface ExerciseGradingContext {
   readonly profileId: string;
@@ -201,7 +226,157 @@ function typoGuards(value: unknown, where: string): TypoGuards {
     preserveMoraCount: boolean(record.preserveMoraCount, where),
   });
 }
-function profile(value: unknown, meta: GradingPackIdentity): Profile {
+function digest(value: unknown, where: string): string {
+  const result = string(value, where);
+  if (!/^[a-f0-9]{64}$/u.test(result)) invalid(where, 'expected SHA256');
+  return result;
+}
+function dictionaryWord(value: unknown, where: string): string {
+  const result = string(value, where);
+  if (result.includes('\0') || /[\r\n\uD800-\uDFFF]/u.test(result))
+    invalid(where, 'invalid surface encoding');
+  return result;
+}
+/** UTF-8 SQLite BINARY order, including astral characters; never locale collation. */
+function binaryOrder(left: string, right: string): number {
+  const a = [...left],
+    b = [...right];
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const difference = a[i]!.codePointAt(0)! - b[i]!.codePointAt(0)!;
+    if (difference !== 0) return difference;
+  }
+  return a.length - b.length;
+}
+function dictionaryProvenance(value: unknown, where: string): DictionaryProvenance {
+  const row = object(
+    value,
+    [
+      'sourceId',
+      'sourceSha256',
+      'sourceUrl',
+      'license',
+      'notice',
+      'normalizationId',
+      'normalizationSha256',
+      'policySha256',
+    ],
+    where,
+  );
+  return Object.freeze({
+    sourceId: string(row.sourceId, where),
+    sourceSha256: digest(row.sourceSha256, where),
+    sourceUrl: string(row.sourceUrl, where),
+    license: string(row.license, where),
+    notice: string(row.notice, where),
+    normalizationId: string(row.normalizationId, where),
+    normalizationSha256: digest(row.normalizationSha256, where),
+    policySha256: digest(row.policySha256, where),
+  });
+}
+/**
+ * The signed, install-verified SQLite payload binds table contents. G9 verifies the
+ * declared content hash at build; this adapter verifies count and reads exact keys.
+ * It does not claim to rehash millions of words whenever a lesson is opened.
+ */
+class IndexedDictionary implements ReadonlySet<string> {
+  readonly [Symbol.toStringTag] = 'Set';
+  private readonly reader: PackReader;
+  private readonly profileId: string;
+  readonly size: number;
+  constructor(reader: PackReader, profileId: string, size: number) {
+    this.reader = reader;
+    this.profileId = profileId;
+    this.size = size;
+  }
+  has(value: string): boolean {
+    return (
+      this.reader.get<{ present: number }>(
+        'SELECT 1 AS present FROM grading_word WHERE profile_id = ? AND surface = ?',
+        [this.profileId, value],
+      ) !== undefined
+    );
+  }
+  *values(): SetIterator<string> {
+    let after: string | null = null;
+    while (true) {
+      const page = this.reader.all<{ surface: string }>(
+        after === null
+          ? 'SELECT surface FROM grading_word WHERE profile_id = ? ORDER BY surface COLLATE BINARY LIMIT ?'
+          : 'SELECT surface FROM grading_word WHERE profile_id = ? AND surface > ? COLLATE BINARY ORDER BY surface COLLATE BINARY LIMIT ?',
+        after === null
+          ? [this.profileId, GRADING_DICTIONARY_PAGE_SIZE]
+          : [this.profileId, after, GRADING_DICTIONARY_PAGE_SIZE],
+      );
+      if (page.length === 0) return;
+      for (const row of page) {
+        const word = dictionaryWord(row.surface, 'dictionary table');
+        if (after !== null && binaryOrder(word, after) <= 0)
+          invalid('dictionary table', 'unordered or duplicate surface');
+        after = word;
+        yield word;
+      }
+    }
+  }
+  keys(): SetIterator<string> {
+    return this.values();
+  }
+  *entries(): SetIterator<[string, string]> {
+    for (const value of this.values()) yield [value, value];
+  }
+  [Symbol.iterator](): SetIterator<string> {
+    return this.values();
+  }
+  forEach(
+    callbackfn: (value: string, value2: string, set: ReadonlySet<string>) => void,
+    thisArg?: unknown,
+  ): void {
+    for (const value of this.values()) callbackfn.call(thisArg, value, value, this);
+  }
+}
+function dictionary(value: unknown, profileId: string, reader: PackReader): ReadonlySet<string> {
+  const where = `dictionary ${profileId}`;
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    invalid(where, 'expected discriminated declaration');
+  const kind = (value as JsonObject).kind;
+  const row = object(
+    value,
+    kind === 'inline'
+      ? ['kind', 'words', 'count', 'sha256', 'provenance']
+      : ['kind', 'table', 'profileId', 'count', 'sha256', 'provenance'],
+    where,
+  );
+  const count = integer(row.count, where, 1);
+  const sha256 = digest(row.sha256, where);
+  dictionaryProvenance(row.provenance, where);
+  if (kind === 'inline') {
+    const words = strings(row.words, where, true).map((word) => dictionaryWord(word, where));
+    if (words.length !== count) invalid(where, 'count mismatch');
+    if (
+      sha256Hex(
+        [...words]
+          .sort(binaryOrder)
+          .map((word) => `${word}\n`)
+          .join(''),
+      ) !== sha256
+    )
+      invalid(where, 'content digest mismatch');
+    return new Set(words);
+  }
+  if (kind !== 'table' || row.table !== 'grading_word' || row.profileId !== profileId)
+    invalid(where, 'wrong table or profile');
+  let actual: unknown;
+  try {
+    actual = reader.get<{ count: number }>(
+      'SELECT count(*) AS count FROM grading_word WHERE profile_id = ?',
+      [profileId],
+    )?.count;
+  } catch {
+    invalid(where, 'missing or unreadable grading_word table');
+  }
+  if (actual !== count) invalid(where, 'table count mismatch');
+  return Object.freeze(new IndexedDictionary(reader, profileId, count));
+}
+function profile(value: unknown, meta: GradingPackIdentity, reader: PackReader): Profile {
   const row = object(value, PROFILE_FIELDS, 'profile');
   const profileId = string(row.profileId, 'profileId');
   const responseLanguage = string(row.responseLanguage, 'responseLanguage');
@@ -227,7 +402,7 @@ function profile(value: unknown, meta: GradingPackIdentity): Profile {
     diacriticsContrastive: boolean(config.diacriticsContrastive, where),
     contrastiveDiacritics: characters(config.contrastiveDiacritics, where),
     typoGuards: typoGuards(config.typoGuards, where),
-    targetLanguageWords: new Set(strings(config.targetLanguageWords, where, true)),
+    targetLanguageWords: dictionary(config.targetLanguageWords, profileId, reader),
     functionClassTokens: new Set(strings(config.functionClassTokens, where)),
     targetScriptRanges: Object.freeze(ranges),
     scriptOnlyAnswers: boolean(config.scriptOnlyAnswers, where),
@@ -314,7 +489,7 @@ export function readGradingMetadata(
   if (references.size === 0) invalid('exercise', 'no declared exercises');
   const profiles = new Map<string, Profile>();
   for (const value of array(root.profiles, 'profiles', true)) {
-    const parsed = profile(value, meta);
+    const parsed = profile(value, meta, reader);
     if (profiles.has(parsed.profileId)) invalid('profiles', 'duplicate profile');
     profiles.set(parsed.profileId, parsed);
   }
