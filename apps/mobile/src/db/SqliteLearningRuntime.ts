@@ -1,5 +1,8 @@
 import type { Db } from '@freelingo/schema';
 import {
+  planStartOver,
+  quitDecision,
+  type StartOverPlan,
   exerciseSpec,
   step,
   resumeDecision,
@@ -21,7 +24,7 @@ import {
   type LessonSlotBinding,
 } from './SqliteLearningContextStore';
 import { LearningDataError, SqliteSchedulerStore } from './SqliteSchedulerStore';
-import { type SchedulerState, asItemId } from '@freelingo/core/scheduler';
+import { type SchedulerState, asItemId, rowAt } from '@freelingo/core/scheduler';
 import { localDayOfStamp } from '@freelingo/core/day';
 import { SqliteDayStore, type PersistedDayState } from './SqliteDayStore';
 import { SqlitePreferences } from './SqlitePreferences';
@@ -509,186 +512,187 @@ export class SqliteLearningRuntime {
     return sourceBinding(item, slotId);
   }
   dispatch(event: SessionEvent): Promise<void> {
-    return this.serial(() => {
-      const source = this.activeSource();
-      if (!source) return;
-      const clock = this.clock();
-      let finalState: SessionState = source.state;
-      this.db.withExclusiveTransaction(() => {
-        const db = this.scopedDb(),
-          contexts = new SqliteLearningContextStore(db);
-        const scheduler = registerSources(
-          db,
-          source.state.courseId,
-          this.readScheduler(source.state.courseId),
-          [{ item: source.item }],
-          clock,
+    return this.serial(() => this.dispatchNow(event));
+  }
+  private dispatchNow(event: SessionEvent): void {
+    const source = this.activeSource();
+    if (!source) return;
+    const clock = this.clock();
+    let finalState: SessionState = source.state;
+    this.db.withExclusiveTransaction(() => {
+      const db = this.scopedDb(),
+        contexts = new SqliteLearningContextStore(db);
+      const scheduler = registerSources(
+        db,
+        source.state.courseId,
+        this.readScheduler(source.state.courseId),
+        [{ item: source.item }],
+        clock,
+      );
+      new SqliteSchedulerStore(db).save(source.state.courseId, scheduler);
+      const candidates = this.nodeItems(source);
+      const changes = new Map<string, VerifiedRuntimeItem>();
+      const choose = (item: QueuedItem): VerifiedRuntimeItem => {
+        if (
+          item.id === source.queued.id &&
+          item.itemId === source.item.itemId &&
+          item.type === source.item.presentation.type
+        )
+          return source.item;
+        const bound = source.context.slots.find((b) => b.slotId === item.id);
+        if (bound) {
+          const value = source.pack.runtimeItem(bound.exerciseId);
+          if (value.itemId === item.itemId && value.presentation.type === item.type) return value;
+        }
+        const found = candidates.filter(
+          (v) =>
+            v.itemId === item.itemId &&
+            v.presentation.type === item.type &&
+            this.eligible(v, source, scheduler),
         );
-        new SqliteSchedulerStore(db).save(source.state.courseId, scheduler);
-        const candidates = this.nodeItems(source);
-        const changes = new Map<string, VerifiedRuntimeItem>();
-        const choose = (item: QueuedItem): VerifiedRuntimeItem => {
-          if (
-            item.id === source.queued.id &&
-            item.itemId === source.item.itemId &&
-            item.type === source.item.presentation.type
-          )
-            return source.item;
-          const bound = source.context.slots.find((b) => b.slotId === item.id);
-          if (bound) {
-            const value = source.pack.runtimeItem(bound.exerciseId);
-            if (value.itemId === item.itemId && value.presentation.type === item.type) return value;
-          }
-          const found = candidates.filter(
-            (v) =>
-              v.itemId === item.itemId &&
-              v.presentation.type === item.type &&
-              this.eligible(v, source, scheduler),
-          );
-          if (!found.length) return fail('The required replay has no eligible authored source.');
-          return found[0]!;
-        };
-        let lastGrade: RuntimeGrade | null = null;
-        const deps: StepDeps = {
-          config: DEFAULT_FLAVOUR_MATRIX[source.state.flavour],
-          clock: { nowMs: () => clock.monotonicMs },
-          grading: {
-            grade: (request) => {
-              lastGrade = gradeRuntimeItem(choose(request.item), request, {
-                introducedSurfaceIds: new Set(
-                  this.db
-                    .all('SELECT surface_id FROM course_surface_exposure WHERE course_id=?', [
-                      source.state.courseId,
-                    ])
-                    .map((r) => String(r.surface_id)),
-                ),
-              });
-              return lastGrade.session;
-            },
-          },
-          isTypeEligible: (type) =>
-            candidates.some(
-              (v) => v.presentation.type === type && this.eligible(v, source, scheduler),
-            ),
-          stepUpTripped: (state) =>
-            shouldStepUp(state, (q) => {
-              try {
-                return this.eligible(choose(q), source, scheduler);
-              } catch {
-                return false;
-              }
-            }),
-          matchPairs: (q) => choose(q).presentation.pairs ?? [],
-          traceDefinition: (q) => choose(q).presentation.trace ?? null,
-          modalityReplacement: (target, ctx) => {
-            const found = candidates.find((v) => {
-              const spec = exerciseSpec(v.presentation.type),
-                canonical = v.schedulerSurfaces.filter((s) => s.canonical);
-              const concept = canonical.length === 1 ? canonical[0]!.itemRef : v.itemId;
-              return (
-                concept === target.conceptId &&
-                (source.state.currentReplay?.item.id !== target.id || v.itemId === target.itemId) &&
-                !ctx.excludedItemIds.includes(v.itemId) &&
-                (ctx.family !== 'speaking' || spec.family !== 'speaking') &&
-                (ctx.family !== 'listening' || !spec.requiresAudio) &&
-                this.eligible(v, source, scheduler)
-              );
+        if (!found.length) return fail('The required replay has no eligible authored source.');
+        return found[0]!;
+      };
+      let lastGrade: RuntimeGrade | null = null;
+      const deps: StepDeps = {
+        config: DEFAULT_FLAVOUR_MATRIX[source.state.flavour],
+        clock: { nowMs: () => clock.monotonicMs },
+        grading: {
+          grade: (request) => {
+            lastGrade = gradeRuntimeItem(choose(request.item), request, {
+              introducedSurfaceIds: new Set(
+                this.db
+                  .all('SELECT surface_id FROM course_surface_exposure WHERE course_id=?', [
+                    source.state.courseId,
+                  ])
+                  .map((r) => String(r.surface_id)),
+              ),
             });
-            if (!found) return null;
-            changes.set(target.id, found);
-            const spec = exerciseSpec(found.presentation.type);
-            return {
-              ...target,
-              itemId: found.itemId,
-              type: found.presentation.type,
-              family: spec.family,
-              requiresAudio: spec.requiresAudio,
-            };
+            return lastGrade.session;
           },
-        };
-        this.accrueActive(source.state, clock.monotonicMs, db);
-        let result = step(source.state, event, deps);
-        // The actual checker runs inside this same exclusive transaction; the controlled
-        // player does not emit fabricated verdicts or own a separate grading effect.
-        if (result.state.shellState === 'grading')
-          result = step(result.state, { type: 'graded' }, deps);
-        finalState = result.state;
-        if (result.suspendFamily)
-          new SqlitePreferences(db, this.ports.modalityClock).suspend(
-            source.state.courseId,
-            result.suspendFamily,
-          );
-        for (const [slotId, item] of changes) {
-          const q =
-            finalState.currentReplay?.item.id === slotId
-              ? finalState.currentReplay.item
-              : finalState.core.queue.find((q) => q.id === slotId);
-          if (q?.itemId === item.itemId)
-            contexts.replaceSlot(
-              source.state.courseId,
-              source.state.sessionId,
-              this.bindingFor(item, slotId),
-              { before: source.state, after: finalState },
+        },
+        isTypeEligible: (type) =>
+          candidates.some(
+            (v) => v.presentation.type === type && this.eligible(v, source, scheduler),
+          ),
+        stepUpTripped: (state) =>
+          shouldStepUp(state, (q) => {
+            try {
+              return this.eligible(choose(q), source, scheduler);
+            } catch {
+              return false;
+            }
+          }),
+        matchPairs: (q) => choose(q).presentation.pairs ?? [],
+        traceDefinition: (q) => choose(q).presentation.trace ?? null,
+        modalityReplacement: (target, ctx) => {
+          const found = candidates.find((v) => {
+            const spec = exerciseSpec(v.presentation.type),
+              canonical = v.schedulerSurfaces.filter((s) => s.canonical);
+            const concept = canonical.length === 1 ? canonical[0]!.itemRef : v.itemId;
+            return (
+              concept === target.conceptId &&
+              (source.state.currentReplay?.item.id !== target.id || v.itemId === target.itemId) &&
+              !ctx.excludedItemIds.includes(v.itemId) &&
+              (ctx.family !== 'speaking' || spec.family !== 'speaking') &&
+              (ctx.family !== 'listening' || !spec.requiresAudio) &&
+              this.eligible(v, source, scheduler)
             );
-        }
-        for (const answer of finalState.core.answers.slice(source.state.core.answers.length)) {
-          if (answer.slotId !== source.queued.id || answer.itemId !== source.item.itemId)
-            return fail('A grade changed its served source.');
-          contexts.recordReceipt(source.state.courseId, source.state.sessionId, {
-            ...source.binding,
-            exerciseIndex: answer.exerciseIndex,
-            answeredAtUtcMs: clock.utcMs,
-            answeredLocalDay: localDayOfStamp(new Date(clock.utcMs), clock.zone),
-            activeMs: contexts.load(source.state.courseId, source.state.sessionId)!.activeMs,
           });
-          const targets = targetsForRuntimeAnswer(source.item, answer, {
-            targetLanguage: source.pack.pack.meta.lang,
-            rubyShown: source.binding.rubyShown,
-            responseSurfaceId: (lastGrade as RuntimeGrade | null)?.responseSurfaceId ?? null,
-            partialState: finalState.inFlight.partialState,
-          });
-          if (targets.length)
-            contexts.recordTargets(
-              source.state.courseId,
-              source.state.sessionId,
-              answer.exerciseIndex,
-              targets,
-            );
-        }
-        const replay = finalState.currentReplay?.item;
-        if (replay && !source.context.slots.some((b) => b.slotId === replay.id)) {
-          const mistake = finalState.mistakes.find(
-            (m) => replay.id === `${m.slotId}#replay${m.recyclesServed}`,
-          );
-          if (!mistake) return fail('Replay source history is unavailable.');
-          const original = source.context.slots.find((b) => b.slotId === mistake.slotId);
-          if (!original) return fail('Replay base slot is unavailable.');
-          const originalItem = source.pack.runtimeItem(original.exerciseId);
-          contexts.addReplaySlot(
-            finalState,
-            mistake.slotId,
-            this.bindingFor(choose(replay), replay.id),
-            originalItem.presentation.pairs?.map((p) => p.leftItemId) ?? [],
-          );
-        }
-        new SqliteSessionStore(db, () => new Date(clock.utcMs).toISOString()).put(finalState);
-        const savedContext = contexts.load(source.state.courseId, source.state.sessionId)!;
-        const intent = completionIntentFor(
-          source.state,
-          finalState,
-          savedContext,
-          contexts.receipts(source.state.courseId, source.state.sessionId),
-          clock,
+          if (!found) return null;
+          changes.set(target.id, found);
+          const spec = exerciseSpec(found.presentation.type);
+          return {
+            ...target,
+            itemId: found.itemId,
+            type: found.presentation.type,
+            family: spec.family,
+            requiresAudio: spec.requiresAudio,
+          };
+        },
+      };
+      this.accrueActive(source.state, clock.monotonicMs, db);
+      let result = step(source.state, event, deps);
+      // The actual checker runs inside this same exclusive transaction; the controlled
+      // player does not emit fabricated verdicts or own a separate grading effect.
+      if (result.state.shellState === 'grading')
+        result = step(result.state, { type: 'graded' }, deps);
+      finalState = result.state;
+      if (result.suspendFamily)
+        new SqlitePreferences(db, this.ports.modalityClock).suspend(
+          source.state.courseId,
+          result.suspendFamily,
         );
-        if (intent !== null && savedContext.completion === null)
-          contexts.freezeCompletion(source.state.courseId, source.state.sessionId, intent);
-      });
-      if (finalState.exited !== null) this.completeNow();
-      this.activeClock =
-        this.foregrounded && finalState.exited === null
-          ? { sessionId: finalState.sessionId, monotonicMs: clock.monotonicMs }
-          : null;
+      for (const [slotId, item] of changes) {
+        const q =
+          finalState.currentReplay?.item.id === slotId
+            ? finalState.currentReplay.item
+            : finalState.core.queue.find((q) => q.id === slotId);
+        if (q?.itemId === item.itemId)
+          contexts.replaceSlot(
+            source.state.courseId,
+            source.state.sessionId,
+            this.bindingFor(item, slotId),
+            { before: source.state, after: finalState },
+          );
+      }
+      for (const answer of finalState.core.answers.slice(source.state.core.answers.length)) {
+        if (answer.slotId !== source.queued.id || answer.itemId !== source.item.itemId)
+          return fail('A grade changed its served source.');
+        contexts.recordReceipt(source.state.courseId, source.state.sessionId, {
+          ...source.binding,
+          exerciseIndex: answer.exerciseIndex,
+          answeredAtUtcMs: clock.utcMs,
+          answeredLocalDay: localDayOfStamp(new Date(clock.utcMs), clock.zone),
+          activeMs: contexts.load(source.state.courseId, source.state.sessionId)!.activeMs,
+        });
+        const targets = targetsForRuntimeAnswer(source.item, answer, {
+          targetLanguage: source.pack.pack.meta.lang,
+          rubyShown: source.binding.rubyShown,
+          responseSurfaceId: (lastGrade as RuntimeGrade | null)?.responseSurfaceId ?? null,
+          partialState: finalState.inFlight.partialState,
+        });
+        if (targets.length)
+          contexts.recordTargets(
+            source.state.courseId,
+            source.state.sessionId,
+            answer.exerciseIndex,
+            targets,
+          );
+      }
+      const replay = finalState.currentReplay?.item;
+      if (replay && !source.context.slots.some((b) => b.slotId === replay.id)) {
+        const mistake = finalState.mistakes.find(
+          (m) => replay.id === `${m.slotId}#replay${m.recyclesServed}`,
+        );
+        if (!mistake) return fail('Replay source history is unavailable.');
+        const original = source.context.slots.find((b) => b.slotId === mistake.slotId);
+        if (!original) return fail('Replay base slot is unavailable.');
+        const originalItem = source.pack.runtimeItem(original.exerciseId);
+        contexts.addReplaySlot(
+          finalState,
+          mistake.slotId,
+          this.bindingFor(choose(replay), replay.id),
+          originalItem.presentation.pairs?.map((p) => p.leftItemId) ?? [],
+        );
+      }
+      new SqliteSessionStore(db, () => new Date(clock.utcMs).toISOString()).put(finalState);
+      const savedContext = contexts.load(source.state.courseId, source.state.sessionId)!;
+      const intent = completionIntentFor(
+        source.state,
+        finalState,
+        savedContext,
+        contexts.receipts(source.state.courseId, source.state.sessionId),
+        clock,
+      );
+      if (intent !== null && savedContext.completion === null)
+        contexts.freezeCompletion(source.state.courseId, source.state.sessionId, intent);
     });
+    if (finalState.exited !== null) this.completeNow();
+    this.activeClock =
+      this.foregrounded && finalState.exited === null
+        ? { sessionId: finalState.sessionId, monotonicMs: clock.monotonicMs }
+        : null;
   }
   private completionError: string | null = null;
   complete(): Promise<void> {
@@ -808,7 +812,11 @@ export class SqliteLearningRuntime {
   start(courseId: string, request: LessonLaunch): Promise<void> {
     return this.serial(() => this.startNow(courseId, request));
   }
-  private startNow(courseId: string, request: LessonLaunch): void {
+  private startNow(
+    courseId: string,
+    request: LessonLaunch,
+    restart?: { plan: StartOverPlan; previousSessionId: string },
+  ): void {
     const clock = this.clock();
     let started: SessionState | null = null;
     this.db.withExclusiveTransaction(() => {
@@ -864,7 +872,16 @@ export class SqliteLearningRuntime {
         started = own;
         return;
       }
-      const prepared = prepareLearningLaunch(db, this.ports, clock, courseId, request);
+      const prepared = prepareLearningLaunch(
+        db,
+        this.ports,
+        clock,
+        courseId,
+        request,
+        restart?.plan,
+      );
+      if (prepared.state.sessionId === restart?.previousSessionId)
+        throw new LearningDataError('Regeneration requires a fresh session identity.');
       new SqliteLearningContextStore(db).create(prepared.launch, prepared.slots);
       sessions.activate(prepared.state);
       started = prepared.state;
@@ -914,9 +931,110 @@ export class SqliteLearningRuntime {
         this.activeClock = { sessionId: pending.value.sessionId, monotonicMs: clock.monotonicMs };
         return;
       }
-      throw new LearningUnavailableError(
-        'The old lesson must finish its durable quit commit before regeneration.',
-      );
+      if (
+        (pending.value.kind === 'resume' && decision !== 'start-over') ||
+        (pending.value.kind === 'collision' && decision !== 'end-and-start-new')
+      )
+        throw new LearningDataError('This decision does not match the saved session offer.');
+      let regenerated: SqliteLearningRuntime | null = null;
+      this.db.withExclusiveTransaction(() => {
+        const db = this.scopedDb(),
+          sessions = new SqliteSessionStore(db);
+        const old = sessions.all().find((state) => state.sessionId === pending.value.sessionId);
+        const context = old
+          ? new SqliteLearningContextStore(db).load(old.courseId, old.sessionId)
+          : null;
+        const pack = old ? this.ports.packs.get(old.courseId) : null;
+        if (!old || !context)
+          throw new LearningDataError('The saved session source is unavailable.');
+        const sourceAvailable = pack !== null && this.savedResolves(old);
+        const untouched =
+          quitDecision(old).kind === 'exitImmediately' &&
+          old.core.index === 0 &&
+          old.core.answers.length === 0 &&
+          old.mistakeRows.length === 0 &&
+          old.weakItemRows.length === 0 &&
+          context.completion === null &&
+          new SqliteLearningContextStore(db).receipts(old.courseId, old.sessionId).length === 0;
+        if (!sourceAvailable && !untouched)
+          throw new LearningUnavailableError(
+            'The original lesson source is unavailable. Restore its pack to recover the saved attempts.',
+          );
+        if (
+          old.exited !== null ||
+          db.get('SELECT course_id FROM course_selection WHERE is_active=1')?.course_id !==
+            pending.courseId ||
+          !db.get('SELECT course_id FROM course_selection WHERE course_id=?', [old.courseId])
+        )
+          throw new LearningDataError('The offered session or course selection changed.');
+        // This child uses the SAME transaction-scoped connection. Its real End-session
+        // completion and source-filtered regeneration either both commit or both roll back.
+        const runtime = new SqliteLearningRuntime(db, this.ports);
+        runtime.foregrounded = this.foregrounded;
+        runtime.activeClock = this.activeClock;
+        db.run('UPDATE course_selection SET is_active=0 WHERE is_active=1');
+        db.run('UPDATE course_selection SET is_active=1 WHERE course_id=?', [old.courseId]);
+        sessions.activate(old);
+        if (sourceAvailable) {
+          runtime.dispatchNow({ type: 'exit', route: 'closeButton' });
+          if (sessions.activeGraded())
+            runtime.dispatchNow({ type: 'endSession', route: 'closeButton' });
+        } else {
+          // The core first-unanswered quit contract writes no attempt or reward. An
+          // unavailable old source cannot strand this empty row, nor bless a due exception.
+          sessions.delete(old.courseId, old.sessionKind, old.nodeRef);
+          db.run('DELETE FROM course_session_context WHERE course_id=? AND session_id=?', [
+            old.courseId,
+            old.sessionId,
+          ]);
+        }
+        if (new SqliteCeremonyStore(db, () => new Date(this.clock().utcMs).toISOString()).pending())
+          throw new LearningUnavailableError(
+            'Resume and end this lesson to finish its earned celebration before starting another session.',
+          );
+        const clock = this.clock(),
+          scheduler = new SqliteSchedulerStore(db).load(old.courseId, clock.zone.tzId);
+        const plan = planStartOver(old, (itemId) => {
+          if (!sourceAvailable || !pack) return false;
+          const sources = context.slots
+            .filter((slot) => slot.itemId === itemId)
+            .map((slot) => pack.runtimeItem(slot.exerciseId));
+          return (
+            sources.length > 0 &&
+            sources.some(
+              (item) =>
+                sourceIsKnownAndEligible(item, scheduler, clock) &&
+                item.schedulerSurfaces
+                  .filter((surface) => surface.canonical)
+                  .every(
+                    (surface) =>
+                      (rowAt(
+                        scheduler,
+                        asItemId(surface.itemId),
+                        surface.surface,
+                      )?.card.due.getTime() ?? Infinity) <= clock.utcMs,
+                  ),
+            )
+          );
+        });
+        db.run('UPDATE course_selection SET is_active=0 WHERE is_active=1');
+        db.run('UPDATE course_selection SET is_active=1 WHERE course_id=?', [pending.courseId]);
+        runtime.startNow(
+          pending.courseId,
+          pending.request,
+          old.courseId === pending.courseId
+            ? { plan, previousSessionId: old.sessionId }
+            : undefined,
+        );
+        regenerated = runtime;
+      });
+      const result = regenerated as SqliteLearningRuntime | null;
+      if (result) {
+        this.offer = result.offer;
+        this.activeClock = result.activeClock;
+        this.foregrounded = result.foregrounded;
+        this.completionError = null;
+      }
     });
   }
 }

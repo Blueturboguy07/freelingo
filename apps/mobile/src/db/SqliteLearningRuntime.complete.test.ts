@@ -837,3 +837,239 @@ it.each(['accepted-omission', 'wrong-all-good', 'unfinished-subset'] as const)(
     expect(f.db.all('SELECT * FROM course_session_context')).toHaveLength(1);
   },
 );
+
+function restartSetup() {
+  const f = completionSetup();
+  let sequence = 0;
+  const ports = { ...f.ports, newSessionId: () => `restart-${++sequence}` };
+  return {
+    ...f,
+    ports,
+    runtime: new SqliteLearningRuntime(f.db, ports) as unknown as LearningRuntime,
+  };
+}
+async function answerOne(f: ReturnType<typeof restartSetup>, wrong = false) {
+  await f.runtime.dispatch({ type: 'rendered' });
+  await f.runtime.dispatch({
+    type: 'input',
+    text: wrong ? 'el perro' : 'el gato',
+    caret: 7,
+    partialState: {},
+    gradeable: true,
+  });
+  await f.runtime.dispatch({ type: 'check' });
+}
+async function offerRestart(f: ReturnType<typeof restartSetup>) {
+  await f.runtime.background();
+  f.setNow(at + 2 * 86400000);
+  await f.runtime.foreground();
+  await f.runtime.start('en-es', f.request);
+  expect(f.runtime.readOffer()?.kind).toBe('resume');
+}
+it('[INV-SESS-03][INV-PER-04] actual start-over commits the abandoned answer once and regenerates only genuinely due abandoned items', async () => {
+  const f = restartSetup();
+  await f.runtime.start('en-es', f.request);
+  await answerOne(f);
+  const old = f.runtime.readSession()!.state;
+  await offerRestart(f);
+  await f.runtime.resolveOffer('start-over');
+  const next = f.runtime.readSession()!.state;
+  expect(next.sessionId).not.toBe(old.sessionId);
+  expect(next.core.answers).toEqual([]);
+  expect(f.db.all('SELECT session_id,verdict FROM course_attempt')).toEqual([
+    { session_id: old.sessionId, verdict: 'correct' },
+  ]);
+  expect(f.db.get('SELECT outcome,xp_awarded FROM committed_session')).toEqual({
+    outcome: 'quit',
+    xp_awarded: 0,
+  });
+  expect(next.core.queue.length).toBeGreaterThan(0);
+  const rows = new SqliteSchedulerStore(f.db).load('en-es', 'UTC');
+  for (const q of next.core.queue) {
+    if (old.core.queue.some((o) => o.itemId === q.itemId))
+      expect(
+        [...rows.rows.values()]
+          .filter((r) => r.itemId === q.itemId)
+          .every((r) => r.card.due.getTime() <= at + 2 * 86400000),
+      ).toBe(true);
+  }
+  expect(f.db.all('SELECT * FROM course_session_context')).toHaveLength(1);
+  expect(f.runtime.readOffer()).toBeNull();
+});
+it('[INV-SESS-03][INV-PER-04] untouched non-due abandoned slots cannot be regenerated and failure retains the original checkpoint', async () => {
+  const f = restartSetup();
+  f.db.run('UPDATE course_item_surface SET due_utc_ms=?', [at + 30 * 86400000]);
+  await f.runtime.start('en-es', f.request);
+  const before = f.runtime.readSession()!.state;
+  await offerRestart(f);
+  await expect(f.runtime.resolveOffer('start-over')).rejects.toThrow(/eligible|available/i);
+  expect(f.runtime.readSession()!.state).toEqual(before);
+  expect(f.db.all('SELECT * FROM course_attempt')).toEqual([]);
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+});
+it('[INV-SESS-03][INV-PER-04] failed regeneration rolls back old attempts, WordStore reviews and staging deletion before exact retry', async () => {
+  const f = restartSetup();
+  await f.runtime.start('en-es', f.request);
+  await answerOne(f, true);
+  await offerRestart(f);
+  const state = f.runtime.readSession()!.state;
+  const before = f.db.all('SELECT * FROM course_item_surface ORDER BY item_id');
+  f.db.run(
+    `CREATE TRIGGER reject_regeneration BEFORE INSERT ON course_session_context WHEN NEW.session_id<>'${state.sessionId}' BEGIN SELECT RAISE(ABORT,'regeneration failed');END`,
+  );
+  await expect(f.runtime.resolveOffer('start-over')).rejects.toThrow('regeneration failed');
+  expect(f.runtime.readSession()!.state).toEqual(state);
+  expect(f.db.all('SELECT * FROM course_attempt')).toEqual([]);
+  expect(f.db.all('SELECT * FROM account_word_review')).toEqual([]);
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_item_surface ORDER BY item_id')).toEqual(before);
+  f.db.run('DROP TRIGGER reject_regeneration');
+  await f.runtime.resolveOffer('start-over');
+  expect(f.db.all('SELECT * FROM course_attempt')).toHaveLength(1);
+  expect(f.db.all('SELECT * FROM account_word_review')).toHaveLength(1);
+  expect(f.db.get('SELECT item_id FROM course_mistake_state')?.item_id).toBe(
+    state.core.answers[0]!.itemId,
+  );
+});
+it('[INV-SESS-21][INV-PER-04] start-over with unavailable original source retains graded history for recovery', async () => {
+  const f = restartSetup();
+  await f.runtime.start('en-es', f.request);
+  await answerOne(f);
+  const state = f.runtime.readSession()!.state;
+  f.setPack({ ...f.pack, contentHash: 'b'.repeat(64) });
+  await f.runtime.start('en-es', f.request);
+  await expect(f.runtime.resolveOffer('start-over')).rejects.toThrow(
+    /original|source|recover|pack/i,
+  );
+  expect(f.sessions.activeGraded()).toEqual(state);
+  expect(f.db.all('SELECT * FROM course_session_answer_receipt')).toHaveLength(1);
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+});
+it('[INV-SESS-03] regeneration refuses a reused identity even for an untouched abandoned session', async () => {
+  const f = completionSetup();
+  await f.runtime.start('en-es', f.request);
+  await offerRestart(f as ReturnType<typeof restartSetup>);
+  const state = f.runtime.readSession()!.state;
+  await expect(f.runtime.resolveOffer('start-over')).rejects.toThrow(/identity/i);
+  expect(f.runtime.readSession()!.state).toEqual(state);
+});
+it('[INV-SESS-09][INV-PER-04] actual cross-course End and start new preserves old attempts and restores the destination selection', async () => {
+  const f = restartSetup();
+  await f.runtime.start('en-es', f.request);
+  await answerOne(f);
+  const old = f.runtime.readSession()!.state;
+  const other = 'en-es-second';
+  f.db.run(
+    'INSERT INTO course_progress(course_id,added_at,pack_content_hash,score_unlocked,score_ceiling_beat_shown) VALUES(?,?,?,?,?)',
+    [other, '2026-09-13', f.pack.contentHash, 0, 0],
+  );
+  f.db.run('UPDATE course_selection SET is_active=0');
+  f.db.run('INSERT INTO course_selection(course_id,is_active,is_selected) VALUES(?,1,0)', [other]);
+  f.db.run('INSERT INTO course_path_state VALUES(?,100,0,0)', [other]);
+  f.db.run(
+    'INSERT INTO course_item(course_id,item_id,countable,quarantined) SELECT ?,item_id,countable,quarantined FROM course_item WHERE course_id=?',
+    [other, 'en-es'],
+  );
+  new SqliteSchedulerStore(f.db).save(other, new SqliteSchedulerStore(f.db).load('en-es', 'UTC'));
+  const path = f.pack.pack.path();
+  const second = {
+    ...f.pack,
+    courseId: other,
+    pack: {
+      ...f.pack.pack,
+      meta: { ...f.pack.pack.meta, courseId: other },
+      path: () => ({ ...path, manifest: { ...path.manifest, courseId: other } }),
+    },
+  } as unknown as VerifiedInstalledPack;
+  let id = 0;
+  const runtime = new SqliteLearningRuntime(f.db, {
+    ...f.ports,
+    packs: { get: (course) => (course === other ? second : f.pack) },
+    newSessionId: () => `second-${++id}`,
+  }) as unknown as LearningRuntime;
+  await runtime.start(other, f.request);
+  expect(runtime.readOffer()?.kind).toBe('collision');
+  await runtime.resolveOffer('end-and-start-new');
+  expect(runtime.readSession()!.state.courseId).toBe(other);
+  expect(f.db.get('SELECT course_id FROM course_selection WHERE is_active=1')?.course_id).toBe(
+    other,
+  );
+  expect(f.db.get('SELECT course_id FROM course_selection WHERE is_selected=1')?.course_id).toBe(
+    'en-es',
+  );
+  expect(f.db.all('SELECT course_id,session_id FROM course_attempt')).toEqual([
+    { course_id: 'en-es', session_id: old.sessionId },
+  ]);
+  expect(f.db.all('SELECT * FROM course_session_context')).toHaveLength(1);
+});
+it('[INV-SESS-12][INV-SESS-21] untouched stale-source start-over regenerates current verified sources without inventing past attempts', async () => {
+  const f = restartSetup();
+  await f.runtime.start('en-es', f.request);
+  const old = f.runtime.readSession()!.state;
+  const extra = f.population.map((p, i) =>
+    fixtureLexemes({
+      ...p,
+      itemId: `updated-${i}`,
+      exerciseId: `updated-ex-${i}`,
+      gradable: {
+        ...p.gradable,
+        itemId: `updated-${i}`,
+        accepted: [{ surface: 'el gato', surfaceId: `updated-sf-${i}`, rank: 1 }],
+      },
+      presentation: { ...p.presentation, itemId: `updated-${i}` },
+      schedulerSurfaces: p.schedulerSurfaces.map((s) => ({
+        ...s,
+        itemId: `updated-${i}`,
+        surfaceId: `updated-sf-${i}`,
+      })),
+    }),
+  );
+  let scheduler = new SqliteSchedulerStore(f.db).load('en-es', 'UTC');
+  for (const p of extra) {
+    observeFixtureLexemes(f.db, p, at - 86400000);
+    scheduler = registerRows(
+      scheduler,
+      p.schedulerSurfaces.map((s) => ({
+        itemId: asItemId(s.itemId),
+        surface: s.surface,
+        kind: s.kind,
+      })),
+    );
+    for (const s of p.schedulerSurfaces)
+      scheduler = introduce(scheduler, asItemId(s.itemId), s.surface, new Date(at - 86400000));
+  }
+  new SqliteSchedulerStore(f.db).save('en-es', scheduler);
+  const oldPath = f.pack.pack.path(),
+    node = {
+      ...oldPath.forNode('node-1').node,
+      sessions: [{ lessonIndex: 1, exerciseIds: extra.map((p) => p.exerciseId) }],
+    };
+  const path = {
+    ...oldPath,
+    sections: oldPath.sections.map((section) => ({
+      ...section,
+      units: section.units.map((unit) => ({ ...unit, nodes: [node] })),
+    })),
+    forNode: () => ({ node, unitId: 'u1', unitIndex: 0, sectionIndex: 0 }),
+  };
+  f.setPack({
+    ...f.pack,
+    contentHash: 'b'.repeat(64),
+    pack: { ...f.pack.pack, path: () => path },
+    runtimeItem: (id: string) => {
+      const item = extra.find((p) => p.exerciseId === id);
+      if (!item) throw Error('old source unavailable');
+      return item;
+    },
+  } as unknown as VerifiedInstalledPack);
+  f.db.run('UPDATE course_progress SET pack_content_hash=?', ['b'.repeat(64)]);
+  await f.runtime.start('en-es', f.request);
+  expect(f.runtime.readOffer()?.kind).toBe('resume');
+  await f.runtime.resolveOffer('start-over');
+  const current = f.runtime.readSession()!.state;
+  expect(current.sessionId).not.toBe(old.sessionId);
+  expect(current.core.queue.every((q) => extra.some((p) => p.itemId === q.itemId))).toBe(true);
+  expect(f.db.all('SELECT * FROM course_attempt')).toEqual([]);
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_session_context')).toHaveLength(1);
+});
