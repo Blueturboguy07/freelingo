@@ -1,0 +1,30 @@
+{"candidates": 11, "sources": 11, "surfaces": 48, "lexicalDeclarations": 7, "lexicalBindings": 13, "exactSourceHashes": "passed", "sourcePlacementAndResponseJoin": "passed", "surfaceRanksAndVisibleIntroductions": "passed", "wordSemanticIds": "passed", "recognitionOptionDisjointness": "passed", "sourceApprovalIssued": false, "assemblyReady": false}
+
+ RUN  v3.2.7 /private/tmp/p3-spanish-revision-review
+
+ ✓ first-session.test.ts (1 test) 2ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  13:57:28
+   Duration  214ms (transform 34ms, setup 0ms, collect 34ms, tests 2ms, environment 0ms, prepare 45ms)
+
+JUNIT report written to /private/tmp/p3-spanish-revision-review/first-session.xml
+{
+  "G6Approval": false,
+  "actualLocalAxisChecks": 13,
+  "assemblyReady": false,
+  "axisRejects": 0,
+  "candidateCount": 11,
+  "firstSessionRecognition": 3,
+  "pending": [
+    "independent-revision-and-runtime-component-reviews",
+    "current-complete-selected-source-answer-and-G6-proof",
+    "current-lexical-source-approval-adapter",
+    "reviewed-profile-dictionary-and-teaching-policy",
+    "G7-G9-proposed-row-and-source-approval-integration",
+    "complete-path-source-population-and-policy-approval"
+  ],
+  "productionInFirstSession": 0,
+  "realProductionShapeChecks": 11
+}
