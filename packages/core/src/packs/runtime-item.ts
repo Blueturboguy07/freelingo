@@ -228,7 +228,10 @@ function audio(reader: PackReader, value: unknown): string {
     bytes: number;
   }>('SELECT audio_id, clip_hash, path, duration_ms, bytes FROM audio WHERE audio_id = ?', [id]);
   if (row === undefined || row.audio_id !== id) fail('audio', 'missing built row');
-  digest(row.clip_hash, 'audio hash');
+  // G8 rebake_key is a 16-hex generation identity (config/g8.py, 2026-09-13),
+  // not a file SHA256. The installed-pack repository verifies signed asset digests.
+  if (!/^[0-9a-f]{16}$/u.test(text(row.clip_hash, 'audio generation identity')))
+    fail('audio', 'invalid generation identity');
   integer(row.duration_ms, 'audio duration');
   integer(row.bytes, 'audio bytes');
   const path = text(row.path, 'audio path');
