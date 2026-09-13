@@ -62,7 +62,8 @@ export function createAppController(services: FreelingoServices) {
   let invalidation = 0;
   let unsubscribe: (() => void) | null = null;
   let queue: Promise<void> = Promise.resolve();
-  const pending = new Map<string, Promise<void>>();
+  const coalesced = new Map<string, Promise<void>>();
+  let pendingCount = 0;
   const listeners = new Set<() => void>();
   function publish(patch: Partial<AppViewState>) {
     if (disposed && patch.status !== 'closed') return;
@@ -73,14 +74,18 @@ export function createAppController(services: FreelingoServices) {
     const snapshot = await active.readSnapshot();
     publish({ snapshot, status: 'ready', route: routeAfter(snapshot, state.route) });
   }
+  /** FIFO by default: two user intents with the same name are still two actions.
+   * Coalescing is explicit and reserved for idempotent refresh/completion requests. */
   function perform(
     key: string,
     action: (active: AppRuntime) => Promise<void>,
     reload = true,
+    coalesce = false,
   ): Promise<void> {
-    const duplicate = pending.get(key);
+    const duplicate = coalesce ? coalesced.get(key) : undefined;
     if (duplicate !== undefined) return duplicate;
     if (disposed) return Promise.reject(new Error('The app runtime is closed.'));
+    pendingCount += 1;
     publish({ busy: true, error: null });
     const task = queue
       .then(async () => {
@@ -98,12 +103,13 @@ export function createAppController(services: FreelingoServices) {
       () => finish(),
     );
     function finish() {
-      pending.delete(key);
-      publish({ busy: pending.size > 0 });
+      if (coalesce) coalesced.delete(key);
+      pendingCount -= 1;
+      publish({ busy: pendingCount > 0 });
     }
     // Keep the transport usable after a failed write; callers still receive its rejection.
     queue = settled;
-    pending.set(key, task);
+    if (coalesce) coalesced.set(key, task);
     return task;
   }
   function open(): Promise<void> {
@@ -131,6 +137,7 @@ export function createAppController(services: FreelingoServices) {
               } while (observed !== invalidation);
             },
             false,
+            true,
           ).catch(() => {});
         });
         await refresh(active);

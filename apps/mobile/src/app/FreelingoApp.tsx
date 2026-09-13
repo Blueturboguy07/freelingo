@@ -224,7 +224,9 @@ function Shell({
         {...snapshot.lesson}
         media={runtime.media}
         onEvent={event}
-        onComplete={() => ignore(controller.perform('lesson:complete', (r) => r.completeLesson()))}
+        onComplete={() =>
+          ignore(controller.perform('lesson:complete', (r) => r.completeLesson(), true, true))
+        }
         onReport={(item, reason) =>
           ignore(controller.perform('report', (r) => r.reportItem(item, reason)))
         }

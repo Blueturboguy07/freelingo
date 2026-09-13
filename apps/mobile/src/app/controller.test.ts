@@ -40,6 +40,41 @@ function fixture() {
   return { services, runtime, snapshot, unsubscribe };
 }
 describe('retained App runtime controller', () => {
+  it('[INV-MOD-01] rapid OFF then ON with the same mutation key preserves both durable actions', async () => {
+    const f = fixture();
+    const gate = deferred<void>();
+    const seen: boolean[] = [];
+    const app = createAppController(f.services);
+    await app.open();
+    const off = app.perform('preference:listening', async () => {
+      seen.push(false);
+      await gate.promise;
+    });
+    const on = app.perform('preference:listening', async () => {
+      seen.push(true);
+    });
+    await Promise.resolve();
+    expect(seen).toEqual([false]);
+    gate.resolve();
+    await Promise.all([off, on]);
+    expect(seen).toEqual([false, true]);
+    await app.dispose();
+  });
+  it('[INV-SESS-23] only an explicitly idempotent completion request coalesces while pending', async () => {
+    const f = fixture();
+    const gate = deferred<void>();
+    const commit = vi.fn(() => gate.promise);
+    const app = createAppController(f.services);
+    await app.open();
+    const first = app.perform('completion', commit, true, true);
+    const duplicate = app.perform('completion', commit, true, true);
+    await Promise.resolve();
+    expect(commit).toHaveBeenCalledTimes(1);
+    gate.resolve();
+    await Promise.all([first, duplicate]);
+    expect(f.runtime.readSnapshot).toHaveBeenCalledTimes(2);
+    await app.dispose();
+  });
   it('[INV-SESS-27] retains a second native invalidation arriving during an in-flight snapshot read', async () => {
     const f = fixture();
     const gate = deferred<AppSnapshot>();
@@ -67,13 +102,19 @@ describe('retained App runtime controller', () => {
     expect(f.unsubscribe).toHaveBeenCalledTimes(1);
     expect(f.runtime.close).toHaveBeenCalledTimes(1);
   });
-  it('[INV-SESS-01] does not publish optimistic lesson state or duplicate a pending durable event', async () => {
+  it('[INV-SESS-01] preserves repeated lesson input events in order without optimistic publication', async () => {
     const f = fixture();
     const gate = deferred<void>();
     vi.mocked(f.runtime.dispatchLesson).mockReturnValue(gate.promise);
     const app = createAppController(f.services);
     await app.open();
-    const event = { type: 'check' } as const;
+    const event = {
+      type: 'input',
+      text: 'hola',
+      caret: 4,
+      partialState: {},
+      gradeable: true,
+    } as const;
     const first = app.dispatchLesson(event);
     const duplicate = app.dispatchLesson(event);
     await Promise.resolve();
@@ -81,7 +122,8 @@ describe('retained App runtime controller', () => {
     expect(f.runtime.readSnapshot).toHaveBeenCalledTimes(1);
     gate.resolve();
     await Promise.all([first, duplicate]);
-    expect(f.runtime.readSnapshot).toHaveBeenCalledTimes(2);
+    expect(f.runtime.dispatchLesson).toHaveBeenCalledTimes(2);
+    expect(f.runtime.readSnapshot).toHaveBeenCalledTimes(3);
     expect(app.getState().busy).toBe(false);
     await app.dispose();
   });
