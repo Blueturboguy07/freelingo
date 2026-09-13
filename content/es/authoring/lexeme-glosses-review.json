@@ -1,0 +1,31 @@
+{
+  "note": "PROVISIONAL (unreviewed by a paid native speaker)",
+  "authored": 945,
+  "independently_reviewed": 945,
+  "authors": [
+    "Codex glossary author A",
+    "Codex glossary author B"
+  ],
+  "reviewers": [
+    "Codex glossary reviewer B",
+    "Codex root glossary reviewer"
+  ],
+  "original_content": true,
+  "language": "es",
+  "purpose": "Reviewed supported citation senses and conservative decoy exclusions; not a dictionary-wide or generated-exercise quality claim",
+  "source_census": "Current frozen first candidate G4 new_lemmas; regenerate census after G1/G4 changes",
+  "pos_corrections": [
+    "hola:INTJ",
+    "lápiz:NOUN",
+    "magdalena:NOUN",
+    "tos:NOUN",
+    "señor:NOUN",
+    "partir:VERB",
+    "pesar:VERB",
+    "salvo:ADP",
+    "cuándo:ADV",
+    "cómo:ADV",
+    "dónde:ADV",
+    "doña:NOUN"
+  ]
+}
