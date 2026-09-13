@@ -21,7 +21,7 @@ import {
   type ActiveBoost,
 } from '@freelingo/core/types';
 import type { EncounterRole } from '@freelingo/core/scheduler';
-import { LearningDataError } from './SqliteSchedulerStore';
+import { LearningDataError, type SchedulerTargetEvidence } from './SqliteSchedulerStore';
 
 export interface LearningLaunch {
   readonly courseId: string;
@@ -494,6 +494,86 @@ export class SqliteLearningContextStore {
       });
     }
     return result;
+  }
+  /** Complete frozen scheduler selection captured with the actual answer checkpoint.
+   * The runtime supplies verified target surfaces; this table never regrades saved text. */
+  targets(
+    courseId: string,
+    sessionId: string,
+    exerciseIndex: number,
+  ): readonly SchedulerTargetEvidence[] {
+    if (!this.receipts(courseId, sessionId).some((r) => r.exerciseIndex === exerciseIndex))
+      return fail('missing target parent');
+    return this.db
+      .all(
+        'SELECT * FROM course_session_answer_target WHERE session_id=? AND exercise_index=? ORDER BY position',
+        [sessionId, exerciseIndex],
+      )
+      .map((r, position) => {
+        if (r.course_id !== courseId || r.position !== position)
+          return fail('target course or position');
+        return {
+          itemId: text(r.target_item_id, 'target item'),
+          surfaceId: text(r.target_surface_id, 'target surface ID'),
+          surface: text(r.target_surface, 'target surface'),
+          role: oneOf(r.encounter_role, ['recognition', 'production'] as const, 'target role'),
+          rubyShown: oneOf(r.ruby_shown, [0, 1] as const, 'target ruby') === 1,
+          grade: oneOf(r.grade, [1, 2, 3, 4] as const, 'target grade'),
+        };
+      });
+  }
+  recordTargets(
+    courseId: string,
+    sessionId: string,
+    exerciseIndex: number,
+    targets: readonly SchedulerTargetEvidence[],
+  ): void {
+    this.db.withExclusiveTransaction(() => {
+      const c = this.require(courseId, sessionId),
+        old = this.targets(courseId, sessionId, exerciseIndex);
+      if (
+        !Array.isArray(targets) ||
+        targets.length === 0 ||
+        Object.keys(targets).length !== targets.length
+      )
+        return fail('empty or sparse target set');
+      const seen = new Set<string>();
+      const checked = targets.map((target) => {
+        const itemId = text(target.itemId, 'target item'),
+          surfaceId = text(target.surfaceId, 'target surface ID');
+        const key = JSON.stringify([itemId, surfaceId]);
+        if (seen.has(key)) return fail('duplicate target');
+        seen.add(key);
+        if (typeof target.rubyShown !== 'boolean') return fail('target ruby');
+        return {
+          itemId,
+          surfaceId,
+          surface: text(target.surface, 'target surface'),
+          role: oneOf(target.role, ['recognition', 'production'] as const, 'target role'),
+          rubyShown: target.rubyShown,
+          grade: oneOf(target.grade, [1, 2, 3, 4] as const, 'target grade'),
+        };
+      });
+      if (old.length) {
+        if (!same(old, checked)) return fail('changed target receipt');
+        return;
+      }
+      if (c.completion) return fail('completion is frozen');
+      checked.forEach((target, position) =>
+        insert(this.db, 'course_session_answer_target', {
+          course_id: courseId,
+          session_id: sessionId,
+          exercise_index: int(exerciseIndex, 'target index', -Number.MAX_SAFE_INTEGER),
+          target_item_id: target.itemId,
+          target_surface_id: target.surfaceId,
+          target_surface: target.surface,
+          encounter_role: target.role,
+          ruby_shown: Number(target.rubyShown),
+          grade: target.grade,
+          position,
+        }),
+      );
+    });
   }
   recordReceipt(courseId: string, sessionId: string, receipt: AnswerReceipt): void {
     this.db.withExclusiveTransaction(() => {
