@@ -1,5 +1,6 @@
 """Real first-build register/target counterexamples, tested at producer callers."""
 
+import re
 from copy import deepcopy
 from types import SimpleNamespace
 
@@ -13,7 +14,7 @@ from coursekit.inputs import MissingInput
 from coursekit.runlog import read_entries
 from coursekit.stages.g3_solve import CurriculumError, load_curriculum
 from coursekit.stages.g4_select import Candidate, select
-from coursekit.stages.g5_gapfill import _axis, ledger_digest
+from coursekit.stages.g5_gapfill import _axis, _candidate_analysis, ledger_digest
 
 
 def unit(index=18, concept="noun_number_agreement"):
@@ -45,7 +46,22 @@ def gap(index=18, new=()):
         "gap": True,
         "new_lemmas": list(new),
         "known_lemmas": [
-            x for x in ["tú", "hacer", "pan", "en", "su", "horno", "cuchara"] if x not in new
+            x
+            for x in [
+                "tú",
+                "hacer",
+                "pan",
+                "en",
+                "su",
+                "horno",
+                "cuchara",
+                "disculpar",
+                "la",
+                "molestia",
+                "mi",
+                "madre",
+            ]
+            if x not in new
         ],
         "grammar_concept": "noun_number_agreement",
         "accepted_alternates": [],
@@ -68,26 +84,39 @@ def authored(text, g, alternates=()):
 
 
 def analysis(text):
-    # The actual CI failure: Ustedes becomes lemma tú, so lemmas alone cannot guard V6.
-    pairs = [
-        (s, "tú" if s.casefold() in {"ustedes", "usted", "tú", "vosotros"} else s.casefold())
-        for s in text.strip().removesuffix(".").split()
-    ]
+    # Exact spans plus controlled finite morphology, including the measured Disculpa
+    # counterexample. Ustedes is still lemmatized tú; its pronoun Person=2 is not tuteo.
+    tokens = []
+    verbs = {
+        "disculpa": ("disculpar", "Mood=Imp|Number=Sing|Person=2|VerbForm=Fin"),
+        "disculpe": ("disculpar", "Mood=Imp|Number=Sing|Person=3|VerbForm=Fin"),
+        "haces": ("hacer", "Mood=Ind|Number=Sing|Person=2|VerbForm=Fin"),
+        "hace": ("hacer", "Mood=Ind|Number=Sing|Person=3|VerbForm=Fin"),
+    }
+    for match in re.finditer(r"\w+|[^\w\s]", text):
+        surface = match.group()
+        word = surface.casefold()
+        lemma, morph = verbs.get(word, (word, ""))
+        pos = "VERB" if word in verbs else "NOUN"
+        if word in {"ustedes", "usted", "tú", "vosotros"}:
+            lemma, pos, morph = "tú", "PRON", "Person=2|PronType=Prs"
+        elif not surface.isalnum():
+            pos = "PUNCT"
+        tokens.append(
+            {
+                "surface": surface,
+                "lemma": lemma,
+                "pos": pos,
+                "morph": morph,
+                "start": match.start(),
+                "end": match.end(),
+            }
+        )
     return {
         "adapter": {"name": "counterexample", "version": "1", "model": None, "split_mode": None},
-        "tokens": [
-            {
-                "surface": s,
-                "lemma": lemma,
-                "pos": "NOUN",
-                "morph": "",
-                "start": i * 10,
-                "end": i * 10 + len(s),
-            }
-            for i, (s, lemma) in enumerate(pairs)
-        ],
-        "lemmas": [lemma for _, lemma in pairs],
-        "display_tokens": [s for s, _ in pairs],
+        "tokens": tokens,
+        "lemmas": list(dict.fromkeys(t["lemma"] for t in tokens if t["pos"] != "PUNCT")),
+        "display_tokens": [t["surface"] for t in tokens if t["pos"] != "PUNCT"],
     }
 
 
@@ -115,11 +144,16 @@ def test_INV_PACK_08_g3_refuses_formal_unit_without_binary_declaration(tmp_path,
         ("formal_informal_address", "Tú haces pan en tu horno.", False),
         ("formal_informal_address", "Usted y tú hacen pan.", False),
         ("formal_informal_address", "El horno hace pan.", True),
+        ("formal_informal_address", "Disculpa la molestia, mi madre.", False),
+        ("formal_informal_address", "Disculpe la molestia, mi madre.", True),
+        ("noun_number_agreement", "Disculpa la molestia, mi madre.", True),
     ],
 )
 def test_INV_PACK_08_g4_register_is_surface_based_and_unit_derived(concept, text, accepted):
     a = analysis(text)
-    c = Candidate("a" * 16, frozenset(a["lemmas"]), tuple(a["tokens"]), len(a["display_tokens"]))
+    c = Candidate(
+        "a" * 16, frozenset(a["lemmas"]), tuple(a["tokens"]), len(a["display_tokens"]), text
+    )
     u = unit(concept=concept)
     u["target_lemmas"] = list(dict.fromkeys(a["lemmas"]))
     result = select(
@@ -141,6 +175,10 @@ def test_INV_PACK_08_g4_register_is_surface_based_and_unit_derived(concept, text
         ("usted", "Usted y tú pan.", (), "register"),
         ("usted", "Ustedes pan en horno.", (), None),
         ("tu", "Pan en horno.", (), None),
+        ("usted", "Disculpa la molestia, mi madre.", (), "register"),
+        ("usted", "Pan en horno.", ("Disculpa la molestia, mi madre.",), "register"),
+        ("usted", "Disculpe la molestia, mi madre.", (), None),
+        ("tu", "Disculpa la molestia, mi madre.", (), None),
     ],
 )
 def test_INV_PACK_08_g5_checks_preferred_and_every_alternate_register(
@@ -148,7 +186,17 @@ def test_INV_PACK_08_g5_checks_preferred_and_every_alternate_register(
 ):
     g = gap()
     a = authored(text, g, alternates)
-    reason, carried = _axis(a, g, Analyser(), set(), "a" * 16, 3, required_register=required)
+    reason, carried = _axis(
+        a,
+        g,
+        Analyser(),
+        set(),
+        "a" * 16,
+        3,
+        required_unit=unit(
+            concept="formal_informal_address" if required == "usted" else "noun_number_agreement"
+        ),
+    )
     assert reason == expected
     assert carried is not None
     assert a["text"] == text
@@ -167,7 +215,7 @@ def test_INV_PACK_06_gap_fill_must_carry_its_reserved_target_in_every_surface(
 ):
     g = gap(new=["cuchara"])
     reason, _ = _axis(
-        authored(text, g, alternates), g, Analyser(), set(), "a" * 16, 3, required_register="tu"
+        authored(text, g, alternates), g, Analyser(), set(), "a" * 16, 3, required_unit=unit()
     )
     assert reason == expected
 
@@ -219,6 +267,26 @@ def test_INV_PACK_06_actual_g5_caller_cannot_fill_a_target_with_unrelated_text(
     assert {r["reject_reason"] for r in read_records("candidate", lang="es")} == {"missing_target"}
 
 
+def g6_candidate(text, alternates):
+    return {
+        "schema_version": 1,
+        "lang": "es",
+        "candidate_id": "a" * 16,
+        "unit_index": 18,
+        "lesson_index": 107,
+        "slot_index": 0,
+        "text": text,
+        "translation": "You bake bread in your ovens.",
+        "accepted_alternates": alternates,
+        "author": "test",
+        "generated_at": "2026-09-13",
+        "accepted": True,
+        "reject_reason": None,
+        "provenance": "llm",
+        "analysis": _candidate_analysis(analysis(text)),
+    }
+
+
 @pytest.mark.parametrize(
     ("concept", "text", "alternates", "accepted"),
     [
@@ -233,6 +301,15 @@ def test_INV_PACK_06_actual_g5_caller_cannot_fill_a_target_with_unrelated_text(
         ("formal_informal_address", "El horno hace pan.", ["Tú haces pan."], False),
         ("formal_informal_address", "Ustedes hacen pan en sus hornos.", [], True),
         ("formal_informal_address", "Usted y tú hacen pan.", [], False),
+        ("formal_informal_address", "Disculpa la molestia, mi madre.", [], False),
+        (
+            "formal_informal_address",
+            "El horno hace pan.",
+            ["Disculpa la molestia, mi madre."],
+            False,
+        ),
+        ("formal_informal_address", "Disculpe la molestia, mi madre.", [], True),
+        ("noun_number_agreement", "Disculpa la molestia, mi madre.", [], True),
     ],
 )
 def test_INV_PACK_08_actual_g6_rechecks_unit_register_without_rewriting(
@@ -248,27 +325,12 @@ def test_INV_PACK_08_actual_g6_rechecks_unit_register_without_rewriting(
 
     u = unit(concept=concept)
     write_records("unit_assignment", [u], lang="es")
-    candidate = {
-        "schema_version": 1,
-        "lang": "es",
-        "candidate_id": "a" * 16,
-        "unit_index": 18,
-        "lesson_index": 107,
-        "slot_index": 0,
-        "text": text,
-        "translation": "You bake bread in your ovens.",
-        "accepted_alternates": alternates,
-        "author": "test",
-        "generated_at": "2026-09-13",
-        "accepted": True,
-        "reject_reason": None,
-        "provenance": "llm",
-        "analysis": None,
-    }
+    candidate = g6_candidate(text, alternates)
     write_records("candidate", [candidate], lang="es")
     with RunLog("es").stage("g5", tool="test", tool_version="1"):
         pass
     before = deepcopy(candidate)
+    monkeypatch.setattr(g6, "adapter_for", lambda _lang: Analyser(), raising=False)
     monkeypatch.setattr(g6, "_axis", lambda *_args, **_kwargs: (None, {}))
     run_g6({})
     after = list(read_records("candidate", lang="es"))[0]
@@ -294,3 +356,81 @@ def test_INV_PACK_08_g5_missing_unit_declaration_fails_closed(
     write_records("unit_assignment", [unit(index=19)], lang="es")
     with pytest.raises(MissingInput, match="unit|register"):
         run_g5()
+
+
+@pytest.mark.parametrize("bad_evidence", ["missing", "stale_span", "missing_punctuation"])
+def test_INV_PACK_08_g4_and_g5_reject_unbound_morphology(bad_evidence):
+    text = "Disculpe la molestia, mi madre."
+    a = analysis(text)
+    if bad_evidence == "missing":
+        a["tokens"] = []
+    elif bad_evidence == "stale_span":
+        a["tokens"][0]["start"] = 1
+    else:
+        a["tokens"] = [token for token in a["tokens"] if token["pos"] != "PUNCT"]
+    u = unit(concept="formal_informal_address")
+    u["target_lemmas"] = a["lemmas"]
+    c = Candidate(
+        "a" * 16, frozenset(a["lemmas"]), tuple(a["tokens"]), len(a["display_tokens"]), text
+    )
+    result = select(
+        [u],
+        [c],
+        {
+            "formal_informal_address": SimpleNamespace(
+                probe=SimpleNamespace(matches_sentence=lambda _: True)
+            )
+        },
+        {},
+    )
+    assert all(row["sentence_id"] is None for row in result.items)
+    g = gap()
+    analyser = SimpleNamespace(analyse=lambda **_: a)
+    reason, _ = _axis(authored(text, g), g, analyser, set(), "a" * 16, 3, required_unit=u)
+    assert reason == "register"
+
+
+@pytest.mark.parametrize(
+    "bad_evidence", ["preferred_missing", "preferred_stale", "alternate_stale"]
+)
+def test_INV_PACK_08_g6_rejects_missing_or_borrowed_sentence_analysis(
+    es_adapter,  # noqa: F811
+    monkeypatch,
+    bad_evidence,
+):
+    import coursekit.stages.g6_validate_language as g6
+    from coursekit.runlog import RunLog
+
+    text = "El horno hace pan."
+    alternates = ["Disculpe la molestia, mi madre."] if bad_evidence == "alternate_stale" else []
+    row = g6_candidate(text, alternates)
+    if bad_evidence == "preferred_missing":
+        row["analysis"] = None
+    elif bad_evidence == "preferred_stale":
+        row["analysis"]["tokens"][0]["start"] = 1
+    write_records("unit_assignment", [unit(concept="formal_informal_address")], lang="es")
+    write_records("candidate", [row], lang="es")
+    with RunLog("es").stage("g5", tool="test", tool_version="1"):
+        pass
+    # An alternate cannot reuse the preferred sentence's otherwise valid analysis.
+    monkeypatch.setattr(
+        g6, "adapter_for", lambda _: SimpleNamespace(analyse=lambda **_: analysis(text))
+    )
+    checked_by_engines = []
+
+    def checked(candidate, *_args):
+        checked_by_engines.append(candidate["text"])
+        return None, {}
+
+    monkeypatch.setattr(g6, "_axis", checked)
+    run_g6({})
+    narrowed = list(read_records("candidate", lang="es"))[0]
+    assert not narrowed["accepted"]
+    assert narrowed["reject_reason"] == "g6:register"
+    assert narrowed["text"] == text and narrowed["accepted_alternates"] == alternates
+    assert checked_by_engines == ([text] if bad_evidence == "alternate_stale" else [])
+    findings = read_entries("es", stage="g6")[-1]["notes"]["findings"]
+    assert findings[0]["answer_kind"] == (
+        "alternate" if bad_evidence == "alternate_stale" else "preferred"
+    )
+    assert findings[0]["analysis_error"]

@@ -115,9 +115,8 @@ from ..config.g5 import (
     min_tokens_for_slot,
 )
 from ..inputs import MissingInput
-from ..registers import RegisterPolicyError, unit_register
+from ..registers import RegisterPolicyError, sentence_register_matches, unit_register
 from ..runlog import require_successful
-from ..validators.exercise import register_of
 from . import StageContext, StageResult, register_stage
 
 __all__ = [
@@ -437,7 +436,7 @@ def _axis(
     sentence_id: str,
     min_tokens: int,
     *,
-    required_register: str,
+    required_unit: Mapping[str, Any],
 ) -> tuple[str | None, dict[str, Any] | None]:
     """The first axis this candidate fails (or `None`), and the analysis behind it.
 
@@ -473,7 +472,7 @@ def _axis(
     lemmas = list(analysis["lemmas"])
     token_count = _token_count(analysis)
 
-    if not register_of(authored["text"], str(gap["lang"])) <= {required_register}:
+    if not sentence_register_matches(str(gap["lang"]), required_unit, authored["text"], analysis):
         return "register", carried
 
     unknown = [lemma for lemma in lemmas if lemma not in allowed]
@@ -513,7 +512,7 @@ def _axis(
             seen_in_unit,
             sentence_id,
             min_tokens,
-            required_register=required_register,
+            required_unit=required_unit,
         )
         if alternate_axis is not None:
             return alternate_axis, carried
@@ -526,18 +525,24 @@ def _axis(
 # ---------------------------------------------------------------------------
 
 
-def unit_registers(lang: str) -> dict[int, str]:
+def unit_declarations(lang: str) -> dict[int, dict[str, Any]]:
     """Read G3's declaration once; absent or conflicting unit policies fail closed."""
-    out: dict[int, str] = {}
+    out: dict[int, dict[str, Any]] = {}
     try:
         for unit in read_records("unit_assignment", lang=lang):
             index = int(unit["unit_index"])
             if index in out:
                 raise MissingInput(f"duplicate unit {index} cannot establish one register")
-            out[index] = unit_register(lang, unit)
+            unit_register(lang, unit)
+            out[index] = dict(unit)
     except (FileNotFoundError, RegisterPolicyError) as exc:
         raise MissingInput(f"G3 unit register declaration is missing or invalid: {exc}") from exc
     return out
+
+
+def unit_registers(lang: str) -> dict[int, str]:
+    """Named policy summary for diagnostics; consumers retain the actual declaration."""
+    return {index: unit_register(lang, unit) for index, unit in unit_declarations(lang).items()}
 
 
 def _gaps(lang: str) -> Iterator[dict[str, Any]]:
@@ -572,8 +577,8 @@ def gapfill(ctx: StageContext) -> StageResult:
         by_slot.setdefault(Slot.of(row["slot"]), []).append(row)
 
     gaps = list(_gaps(ctx.lang))
-    registers = unit_registers(ctx.lang)
-    missing_units = {int(gap["unit_index"]) for gap in gaps} - registers.keys()
+    declarations = unit_declarations(ctx.lang)
+    missing_units = {int(gap["unit_index"]) for gap in gaps} - declarations.keys()
     if missing_units:
         raise MissingInput(f"G5 has gaps without a G3 unit register: {sorted(missing_units)}")
     lexicon_pos = pos_by_lemma(ctx.lang)
@@ -608,7 +613,7 @@ def gapfill(ctx: StageContext) -> StageResult:
                 seen,
                 candidate_id,
                 min_tokens,
-                required_register=registers[slot.unit_index],
+                required_unit=declarations[slot.unit_index],
             )
             accepted = axis is None
             if accepted:

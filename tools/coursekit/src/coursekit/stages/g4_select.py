@@ -68,9 +68,8 @@ from ..config.g4 import (
 )
 from ..ledger import surface_tokens
 from ..pair_quality import reviewed_pair
-from ..registers import unit_register
+from ..registers import sentence_register_matches, unit_register
 from ..runlog import require_successful
-from ..validators.exercise import register_of
 from . import StageContext, StageResult, register_stage
 from .g3_solve import GrammarConcept, curriculum_path, load_curriculum
 
@@ -99,6 +98,7 @@ class Candidate:
     lemmas: frozenset[str]
     tokens: tuple[Mapping[str, Any], ...]
     token_count: int
+    text: str
 
 
 def build_candidates(
@@ -119,7 +119,7 @@ def build_candidates(
         "not_analysed": 0,
         "candidates": 0,
     }
-    shippable: dict[str, int] = {}
+    shippable: dict[str, tuple[int, str]] = {}
     for row in ingested:
         census["ingested"] += 1
         if row["licence_verdict"] != SHIPPABLE_VERDICT:
@@ -132,7 +132,7 @@ def build_candidates(
         if not CANDIDATE_TOKENS_MIN <= token_count <= CANDIDATE_TOKENS_MAX:
             census["wrong_length"] += 1
             continue
-        shippable[str(row["sentence_id"])] = token_count
+        shippable[str(row["sentence_id"])] = (token_count, str(row["text"]))
 
     candidates: list[Candidate] = []
     seen: set[str] = set()
@@ -156,7 +156,8 @@ def build_candidates(
                 sentence_id=sentence_id,
                 lemmas=lemmas,
                 tokens=tokens,
-                token_count=shippable[sentence_id],
+                token_count=shippable[sentence_id][0],
+                text=shippable[sentence_id][1],
             )
         )
     census["not_analysed"] = len(shippable) - len(seen)
@@ -297,19 +298,22 @@ def select(
     """Fill every lesson slot of every unit, or mark it a gap for G5."""
     index = _Admissible(candidates)
     exhibits: dict[tuple[str, str], bool] = {}
-    carried_registers: dict[tuple[str, str], set[str]] = {}
+    permitted_registers: dict[tuple[str, str, str], bool] = {}
     register_excluded: set[tuple[int, str]] = set()
 
-    def in_register(candidate: Candidate, lang: str, required: str, unit_index: int) -> bool:
-        key = (lang, candidate.sentence_id)
-        if key not in carried_registers:
-            # Inspect lexical surfaces: G1 can lemmatise Ustedes as tú. Joining token
-            # surfaces for this marker check cannot alter the shipped corpus text.
-            surface = " ".join(str(token["surface"]) for token in candidate.tokens)
-            carried_registers[key] = register_of(surface, lang)
-        permitted = carried_registers[key] <= {required}
+    def in_register(candidate: Candidate, unit: Mapping[str, Any], required: str) -> bool:
+        lang = str(unit["lang"])
+        key = (lang, required, candidate.sentence_id)
+        if key not in permitted_registers:
+            # Original G0 text is needed to bind the stored G1 token spans exactly.
+            # Reconstructing it with spaces could conceal missing punctuation or use
+            # morphology from a different surface. Bare finite Person=2 also matters.
+            permitted_registers[key] = sentence_register_matches(
+                lang, unit, candidate.text, {"tokens": candidate.tokens}
+            )
+        permitted = permitted_registers[key]
         if not permitted:
-            register_excluded.add((unit_index, candidate.sentence_id))
+            register_excluded.add((int(unit["unit_index"]), candidate.sentence_id))
         return permitted
 
     def exhibited(candidate: Candidate, concept_id: str) -> bool:
@@ -357,7 +361,7 @@ def select(
             pool = [
                 candidate
                 for candidate in index.ready()
-                if in_register(candidate, lang, required_register, unit_index)
+                if in_register(candidate, unit, required_register)
             ]
 
             for slot_index in range(SLOTS_PER_LESSON):

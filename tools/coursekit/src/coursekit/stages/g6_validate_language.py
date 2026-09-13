@@ -77,9 +77,15 @@ from ..config.g6 import (
 from ..engines import ENGINES
 from ..inputs import MissingInput
 from ..pair_quality import reviewed_pair
+from ..registers import RegisterPolicyError, register_of, sentence_register_matches, unit_register
 from ..runlog import require_successful
-from ..stages.g5_gapfill import authored_candidates_path, authored_candidates_paths, unit_registers
-from ..validators.exercise import register_of
+from ..stages.g1_analyze import adapter_for
+from ..stages.g5_gapfill import (
+    _analyse,
+    authored_candidates_path,
+    authored_candidates_paths,
+    unit_declarations,
+)
 from . import StageContext, StageResult, register_stage
 
 __all__ = ["validate_language"]
@@ -162,8 +168,8 @@ def validate_language(ctx: StageContext) -> StageResult:
     ]
 
     rows = list(read_records("candidate", lang=ctx.lang))
-    registers = unit_registers(ctx.lang)
-    missing_units = {int(row["unit_index"]) for row in rows} - registers.keys()
+    declarations = unit_declarations(ctx.lang)
+    missing_units = {int(row["unit_index"]) for row in rows} - declarations.keys()
     if missing_units:
         raise MissingInput(f"G6 has candidates without a G3 unit register: {sorted(missing_units)}")
     rejected_by_axis = dict.fromkeys(G6_REJECT_AXES, 0)
@@ -173,6 +179,7 @@ def validate_language(ctx: StageContext) -> StageResult:
     findings: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
 
+    analyser = None
     for row in rows:
         if not row["accepted"] or broken:
             out.append(row)
@@ -188,13 +195,26 @@ def validate_language(ctx: StageContext) -> StageResult:
             checked_answers += 1
             checked_row = dict(row)
             checked_row["text"] = surface
-            carried = register_of(surface, ctx.lang)
-            required_register = registers[int(row["unit_index"])]
-            if not carried <= {required_register}:
-                axis, detail = (
-                    "register",
-                    {"required_register": required_register, "carried_registers": sorted(carried)},
-                )
+            required_unit = declarations[int(row["unit_index"])]
+            analysis = row.get("analysis")
+            if answer_kind == "alternate":
+                # G5 carries only the preferred analysis. An alternate must be
+                # freshly analyzed, never borrow that preferred sentence's spans.
+                if analyser is None:
+                    analyser = adapter_for(ctx.lang)
+                analysis = _analyse(analyser, str(row["candidate_id"]), surface)
+            if not sentence_register_matches(ctx.lang, required_unit, surface, analysis):
+                axis = "register"
+                detail = {"required_register": unit_register(ctx.lang, required_unit)}
+                if analysis is None:
+                    detail["analysis_error"] = "missing sentence analysis"
+                else:
+                    try:
+                        detail["carried_registers"] = sorted(
+                            register_of(surface, ctx.lang, analysis=analysis)
+                        )
+                    except RegisterPolicyError as exc:
+                        detail["analysis_error"] = str(exc)
             else:
                 axis, detail = _axis(
                     checked_row,

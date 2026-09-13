@@ -592,7 +592,16 @@ def test_INV_PACK_08_every_authored_alternate_runs_the_g5_axes(es_adapter: None)
     valid = next(
         row
         for row in rows
-        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0] is None
+        if _axis(
+            row,
+            gap,
+            analyser,
+            set(),
+            "0" * 16,
+            MIN_TOKENS,
+            required_unit={"grammar_concept": "fixture", "register_slot": "binary_t_v"},
+        )[0]
+        is None
     )
     with_bad_alternate = {
         **valid,
@@ -601,7 +610,13 @@ def test_INV_PACK_08_every_authored_alternate_runs_the_g5_axes(es_adapter: None)
         ],
     }
     axis, _analysis = _axis(
-        with_bad_alternate, gap, analyser, set(), "1" * 16, MIN_TOKENS, required_register="tu"
+        with_bad_alternate,
+        gap,
+        analyser,
+        set(),
+        "1" * 16,
+        MIN_TOKENS,
+        required_unit={"grammar_concept": "fixture", "register_slot": "binary_t_v"},
     )
     assert axis == "out_of_vocabulary"
 
@@ -2224,7 +2239,16 @@ def test_INV_PACK_08_g5_emits_explicit_surfaces_only_after_every_axis_passes(
     valid = [
         row
         for row in rows
-        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0] is None
+        if _axis(
+            row,
+            gap,
+            analyser,
+            set(),
+            "0" * 16,
+            MIN_TOKENS,
+            required_unit={"grammar_concept": "fixture", "register_slot": "binary_t_v"},
+        )[0]
+        is None
     ]
     assert len(valid) >= 2
     preferred, alternate = valid[:2]
@@ -2257,7 +2281,16 @@ def test_INV_PACK_08_every_alternate_obeys_length_and_uniqueness(
     valid = [
         row
         for row in rows
-        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0] is None
+        if _axis(
+            row,
+            gap,
+            analyser,
+            set(),
+            "0" * 16,
+            MIN_TOKENS,
+            required_unit={"grammar_concept": "fixture", "register_slot": "binary_t_v"},
+        )[0]
+        is None
     ]
     preferred = dict(valid[0])
     surface = valid[1]["text"]
@@ -2268,6 +2301,14 @@ def test_INV_PACK_08_every_alternate_obeys_length_and_uniqueness(
     alternate = {"text": surface, "backtranslation": preferred["backtranslation"]}
     preferred["accepted_alternates"] = [alternate] * (2 if bad_kind == "repeated" else 1)
     assert (
-        _axis(preferred, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0]
+        _axis(
+            preferred,
+            gap,
+            analyser,
+            set(),
+            "0" * 16,
+            MIN_TOKENS,
+            required_unit={"grammar_concept": "fixture", "register_slot": "binary_t_v"},
+        )[0]
         == expected
     )
