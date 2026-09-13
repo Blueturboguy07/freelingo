@@ -98,6 +98,8 @@ export type OnboardingEvent =
   | { readonly type: 'chooseLevel'; readonly level: SelfReportLevel }
   | { readonly type: 'chooseGoal'; readonly goal: GoalTierKey };
 export interface OnboardingScreenProps extends UiPreferences {
+  /** Supplied only by diagnostics-enabled native builds; the production brand stays inert. */
+  readonly onDiagnostics?: () => void;
   readonly state: OnboardingState;
   /** The host persists choices and handles network, import, native permission and navigation. */
   readonly onEvent: (event: OnboardingEvent) => void;
