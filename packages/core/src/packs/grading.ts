@@ -52,6 +52,8 @@ export interface ExerciseGradingContext {
   readonly unit: GradingUnit;
 }
 export interface LoadedGradingMetadata {
+  /** Cache belongs to this immutable reader and exact pack identity/version. */
+  isFor(reader: PackReader, meta: GradingPackIdentity): boolean;
   forExercise(exerciseId: string): ExerciseGradingContext;
 }
 export type GradingPackIdentity = Pick<PackMeta, 'packId' | 'courseId' | 'version' | 'lang'>;
@@ -445,6 +447,12 @@ export function readGradingMetadata(
   reader: PackReader,
   meta: GradingPackIdentity,
 ): LoadedGradingMetadata {
+  const identity = Object.freeze({
+    packId: meta.packId,
+    courseId: meta.courseId,
+    version: meta.version,
+    lang: meta.lang,
+  });
   const stored = reader.get<{ value: string }>('SELECT value FROM meta WHERE key = ?', [
     GRADING_METADATA_KEY,
   ]);
@@ -574,6 +582,15 @@ export function readGradingMetadata(
   }
   if (contexts.size !== references.size) invalid('exercise binding', 'incomplete pack population');
   return Object.freeze({
+    isFor(candidate: PackReader, target: GradingPackIdentity) {
+      return (
+        candidate === reader &&
+        target.packId === identity.packId &&
+        target.courseId === identity.courseId &&
+        target.version === identity.version &&
+        target.lang === identity.lang
+      );
+    },
     forExercise(exerciseId: string) {
       const result = contexts.get(exerciseId);
       if (result === undefined) invalid('exercise', `no grading metadata for ${exerciseId}`);

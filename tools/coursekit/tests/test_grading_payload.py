@@ -99,7 +99,7 @@ def fixture():
         "accepted_answers": ["Quiero cantar."],
         "source_sentence_id": "s1",
     }
-    intro = {"exerciseId": "ex1", "unitId": "u1", "lessonIndex": 1}
+    intro = {"exerciseId": "ex1", "unitId": "u1", "lessonIndex": 1, "when": "wrong-feedback"}
     catalog = [
         reviewed(
             {
@@ -256,7 +256,14 @@ def test_INV_GRD_22_producer_preserves_real_ids_catalog_rank_and_exact_taught_fo
     item = payload.runtime_items[0]
     assert item["itemId"] == "i_existing"
     assert item["gradable"]["accepted"][0]["rank"] == 4
-    assert item["introductions"] == [inputs.surface_catalog[0]["surfaceId"]]
+    assert item["introductions"] == [
+        {
+            "surfaceId": inputs.surface_catalog[0]["surfaceId"],
+            "surface": "Quiero cantar.",
+            "language": "es",
+            "when": "wrong-feedback",
+        }
+    ]
     assert item["presentation"]["prompt"] == "I want to sing."
     assert item["explanation"] == inputs.drafts[0]["explanation"]["text"]
     declaration = payload.metadata["profiles"][0]["configuration"]["targetLanguageWords"]
@@ -589,6 +596,7 @@ def gap_fixture():
         options=[{"id": "o1", "text": "cantar"}, {"id": "o2", "text": "contar"}],
     )
     draft["record"]["distractors"] = ["contar"]
+    inputs.exercises[0]["distractors_json"] = json.dumps(["contar"])
     return inputs
 
 
@@ -886,4 +894,116 @@ def test_INV_PACK_12_runtime_shape_cannot_disagree_with_actual_stored_exercise_t
     else:
         inputs.drafts[0]["record"]["type"] = "match"
     with pytest.raises(GradingBuildError, match="type"):
+        build_grading_payload(inputs)
+
+
+def set_intro(row, when):
+    return reviewed(
+        {key: value for key, value in row.items() if key not in {"author", "review"}}
+        | {"introduction": {"exerciseId": "ex1", "unitId": "u1", "lessonIndex": 1, "when": when}}
+    )
+
+
+def test_INV_GRD_22_prompt_exposure_may_be_outside_the_response_accepted_forms():
+    from coursekit.packbuild.grading import build_grading_payload, surface_id
+
+    inputs = fixture()
+    prompt = inputs.drafts[0]["presentation"]["prompt"]
+    row = {
+        "surfaceId": surface_id("en", prompt),
+        "language": "en",
+        "surface": prompt,
+        "rank": 0,
+        "sourceIds": ["s1"],
+    }
+    inputs.surface_catalog.append(set_intro(row, "prompt"))
+    payload = build_grading_payload(inputs)
+    assert payload.runtime_items[0]["introductions"][-1] == {
+        "surfaceId": surface_id("en", prompt),
+        "surface": prompt,
+        "language": "en",
+        "when": "prompt",
+    }
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "false-prompt",
+        "hidden-alternate",
+        "missing-when",
+        "unknown-event",
+        "missing-prompt-language",
+        "wrong-source",
+    ],
+)
+def test_INV_GRD_22_reviewed_catalog_cannot_claim_hidden_or_wrong_context_exposure(fault):
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload, surface_id
+
+    inputs = fixture()
+    row = inputs.surface_catalog[0]
+    if fault == "false-prompt":
+        row = set_intro(row, "prompt")
+    if fault == "hidden-alternate":
+        alt = "Yo quiero cantar."
+        rewrite_answers(inputs, ["Quiero cantar.", alt], "I want to sing.")
+        proof = inputs.approvals["a1"]
+        proof["spanish"].append(alt)
+        inputs.drafts[0]["approvalSha256"] = digest(proof)
+        expected = copy.deepcopy(proof)
+        inputs.approval_check = lambda source, actual: actual == expected
+        row = set_intro(inputs.surface_catalog[1], "wrong-feedback")
+        inputs.surface_catalog[1] = row
+    if fault == "missing-when":
+        del row["introduction"]["when"]
+    if fault == "unknown-event":
+        row["introduction"]["when"] = "load"
+    if fault == "missing-prompt-language":
+        prompt = inputs.drafts[0]["presentation"]["prompt"]
+        row = set_intro(
+            {
+                "surfaceId": surface_id("en", prompt),
+                "language": "en",
+                "surface": prompt,
+                "rank": 0,
+                "sourceIds": ["s1"],
+            },
+            "prompt",
+        )
+        del inputs.drafts[0]["presentation"]["promptLanguage"]
+        inputs.surface_catalog.append(row)
+    if fault == "wrong-source":
+        inputs.sources["reserve"] = copy.deepcopy(inputs.sources["s1"])
+        prompt = inputs.drafts[0]["presentation"]["prompt"]
+        row = set_intro(
+            {
+                "surfaceId": surface_id("en", prompt),
+                "language": "en",
+                "surface": prompt,
+                "rank": 0,
+                "sourceIds": ["reserve"],
+            },
+            "prompt",
+        )
+        inputs.surface_catalog.append(row)
+    if fault not in {"hidden-alternate", "missing-prompt-language", "wrong-source"}:
+        inputs.surface_catalog[0] = reviewed(
+            {k: v for k, v in row.items() if k not in {"author", "review"}}
+        )
+    with pytest.raises(GradingBuildError, match="introduction"):
+        build_grading_payload(inputs)
+
+
+@pytest.mark.parametrize("fault", ["distractors", "audio", "source"])
+def test_INV_PACK_12_actual_SQL_fields_cannot_diverge_from_approved_runtime_draft(fault):
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload
+
+    inputs = gap_fixture()
+    if fault == "distractors":
+        inputs.exercises[0]["distractors_json"] = "[]"
+    if fault == "audio":
+        inputs.exercises[0]["audio_id"] = "unexpected-clip"
+    if fault == "source":
+        inputs.exercises[0]["source_sentence_id"] = "different-source"
+    with pytest.raises(GradingBuildError, match="actual exercise"):
         build_grading_payload(inputs)

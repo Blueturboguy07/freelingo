@@ -144,7 +144,7 @@ A reviewed surface row is:
 ```text
 {surfaceId,language,surface,rank,introduction,sourceIds,author,
  review:{reviewer,verdict:'accepted',sha256}}
-introduction = null | {exerciseId,unitId,lessonIndex}
+introduction = null | {exerciseId,unitId,lessonIndex,when:'prompt'|'wrong-feedback'}
 ```
 
 The surface ID is `sf_` plus the first 32 hex characters of the canonical JSON hash
@@ -171,7 +171,7 @@ Output runtime rows are closed revision-1 payloads:
 ```text
 {schemaVersion:1,exerciseId,itemId,unitId,lessonIndex,profileId,responseLanguage,
  proof:{sourceId,sourceSha256,approvalId,approvalSha256,draftSha256},
- gradable,presentation,introductions:[surfaceId],explanation:string}
+ gradable,presentation,introductions:[{surfaceId,surface,language,when:'prompt'|'wrong-feedback'}],explanation:string}
 ```
 
 Root chooses their shared SQL carrier. The producer also emits metadata/runtime/
@@ -201,3 +201,14 @@ current G6/glossary approvals, structured G7 drafts, explicit ranks/introduction
 witnesses/explanations, source/credit integration and G9/LoadedPack runtime rows.
 Fixtures prove executable joins and failure behavior only. No RED pack is rebuilt
 or certified by this checkpoint.
+
+Introduction witnesses are independently reviewed full visible surfaces, bound to the
+same source and exact exercise placement. A `prompt` witness must equal the full
+presentation prompt with an explicit matching `promptLanguage` and must be visible
+under the actual player predicate (listening transcripts are hidden; chat and speaking
+prompts remain visible). It may be outside the response-language accepted forms.
+A `wrong-feedback` witness must equal `acceptedAnswers[0]` in the response language;
+hidden alternatives never count. The app records a witness only after that named
+surface is actually displayed, and only in the course target language. Decoding or
+loading an item never introduces any surface, and a correct answer does not imply
+that the wrong-answer feedback was shown.
