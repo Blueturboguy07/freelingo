@@ -1,0 +1,5 @@
+{
+  "status": "rejected-before-bundle-export",
+  "error": "phrase lexical target lacks actual G1 evidence",
+  "explanation": "Actual G1 tagged noches PROPN; phrase objective required NOUN. No stored analysis was changed."
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "xmlEvidence": {
+    "final": {
+      "xmlSha256": "96a20887a8c869d022a485dc47596f1a6b239670160cb3ab5d16a398f0e83954",
+      "gzipSha256": "2620ccd6974ae403d2a7a21ce947ce660806bd0e5409bf885be9ee60b2a2231c"
+    },
+    "generator": {
+      "xmlSha256": "212a1151e8c4ce0cb584d60289aa7ec91cd3b05fa0df24f4cb26ad9b4bfaab6f",
+      "gzipSha256": "0f6fd41f335d7c8daa6f329f521dd8b3ac6892a5e668e9ecaf48a287b6a6e332"
+    },
+    "reuse-red": {
+      "xmlSha256": "d89e66c4d09eb14629feef75019f33ce5a11c22876e50b24d810f0dd0d8eb516",
+      "gzipSha256": "e198a9d133b2ef828c602d798fb13a88466aa14cf266070a57a26b965a763bac"
+    },
+    "red": {
+      "xmlSha256": "1c841f9dc819da73a9bce91319d7d29c769652f6e91f25e3e4f2f2b2e71972c2",
+      "gzipSha256": "bf48a4ce694d91139774737ff1cc91e0a2db49fee7d599130fc091a730ada7e4"
+    }
+  },
+  "coreRoot": "/Users/mannbellani/freelingo-wt/p3-app",
+  "coreHeadAtVerification": "c77728b18de034c40fe8b3989f223e9c874d18d0",
+  "coreSourceSha256": {
+    "packages/core/src/session/generate.ts": "9fc5c5a3a471c7ec8a871b6d49da162af2a8c00dae30995924eb4b8d3b939645",
+    "packages/core/src/session/flavours.ts": "021063a7a7ab1ca65a0792bce700b918740996883d2316376f06b0bbd38e0009",
+    "packages/core/src/session/registry.ts": "81593b4525e67497c747911edba255ebb39726ef9c22f65c3c0c2873192b257c",
+    "packages/core/src/scheduler/introduction.ts": "5c53e9e28593dc341948c0bc07fe2f5404f075b8c6d238a7ead570baeabe26f9",
+    "packages/core/src/scheduler/config.ts": "ec5a059f050413f1391b7c5917a9955a27140b3f3dee57d8b021185273732164",
+    "packages/core/src/scheduler/types.ts": "53e0fe425a18c66040c7bf918c6fa3ef2a80721fdff4ec1e96b557c9d2dedff7"
+  },
+  "generatorWitnessSha256": "cab91c974bc4bb2634d893ec2d42931b0815b454a07d3357ef4b684d20ed4b01",
+  "generatorResultSha256": "dc310e44e9ab7e36d85dbc95a8afebcb55b6a9c88647a52616fb7d1203317beb",
+  "localAnalysisLog": "{\n  \"newLocalAxisChecks\": 3,\n  \"rejected\": 0,\n  \"G6Approval\": false\n}\n{\n  \"G6Approval\": false,\n  \"assemblyReady\": false,\n  \"axisRejects\": 0,\n  \"candidateCount\": 14,\n  \"displayedSpanishSurfaceCount\": 6,\n  \"distinctLexicalIdentities\": 5,\n  \"firstSessionRecognition\": 6,\n  \"newLocalAxisChecks\": 3,\n  \"pending\": [\n    \"independent-revision-and-runtime-component-reviews\",\n    \"current-complete-selected-source-answer-and-G6-proof\",\n    \"current-lexical-source-approval-adapter\",\n    \"reviewed-profile-dictionary-and-teaching-policy\",\n    \"G7-G9-proposed-row-and-source-approval-integration\",\n    \"complete-path-source-population-and-policy-approval\"\n  ],\n  \"productionInFirstSession\": 0,\n  \"realProductionShapeChecks\": 14\n}\n"
+}

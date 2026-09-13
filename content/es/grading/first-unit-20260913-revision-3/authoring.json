@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "author": "Codex Spanish revision author /root/review_g7_integration (2026-09-13)",
+  "licence": "CC-BY-NC-SA-4.0",
+  "baseCommit": "c0c5c5dd0741793bad19de362b7de96fdf2b0996",
+  "baseManifestSha256": "0697311d6e554d0ff6d5780f4448a58f9a2f1204e8280f6e917886a5d2984a09",
+  "baseCandidatesSha256": "645a3d0ed2aba53fdaa6fab83f344a5d9db3abc5c7d07ac4e6926d6f23e92b8b",
+  "englishRevisions": [
+    {
+      "exerciseId": "b03de7ed176e07a1",
+      "candidateSha256": "a1ef3f432254a28942a9cb15c684cedbeb5693e7f7cd5a9da3fdd12fa9bd9783",
+      "answers": [
+        {
+          "surface": "Fine, thank you. And you?",
+          "rank": 0
+        },
+        {
+          "surface": "Fine, thanks. And you?",
+          "rank": 1
+        },
+        {
+          "surface": "Good, thank you. And you?",
+          "rank": 2
+        },
+        {
+          "surface": "Good, thanks. And you?",
+          "rank": 3
+        },
+        {
+          "surface": "I'm fine, thank you. And you?",
+          "rank": 4
+        },
+        {
+          "surface": "I am fine, thank you. And you?",
+          "rank": 5
+        },
+        {
+          "surface": "I'm well, thank you. And you?",
+          "rank": 6
+        },
+        {
+          "surface": "I am well, thank you. And you?",
+          "rank": 7
+        },
+        {
+          "surface": "Well, thank you. And you?",
+          "rank": 8
+        },
+        {
+          "surface": "Well, thanks. And you?",
+          "rank": 9
+        },
+        {
+          "surface": "I'm fine, thanks. And you?",
+          "rank": 10
+        },
+        {
+          "surface": "I am fine, thanks. And you?",
+          "rank": 11
+        },
+        {
+          "surface": "I'm well, thanks. And you?",
+          "rank": 12
+        },
+        {
+          "surface": "I am well, thanks. And you?",
+          "rank": 13
+        },
+        {
+          "surface": "I'm good, thank you. And you?",
+          "rank": 14
+        },
+        {
+          "surface": "I am good, thank you. And you?",
+          "rank": 15
+        },
+        {
+          "surface": "I'm good, thanks. And you?",
+          "rank": 16
+        },
+        {
+          "surface": "I am good, thanks. And you?",
+          "rank": 17
+        }
+      ],
+      "rationale": "Explicit English reverse-only wellbeing replies, including the independent reviewer’s concrete well/good/thanks omissions. Canonical source, canonical answer and semantic item ID remain unchanged."
+    },
+    {
+      "exerciseId": "16f59b19698b62a0",
+      "candidateSha256": "098979bc068724b1891b82232cb4b95bb58f2a36c2d1c8b5849995f29d6d6d30",
+      "answers": [
+        {
+          "surface": "Fine. And you?",
+          "rank": 0
+        },
+        {
+          "surface": "Well. And you?",
+          "rank": 1
+        },
+        {
+          "surface": "Good. And you?",
+          "rank": 2
+        },
+        {
+          "surface": "I'm fine. And you?",
+          "rank": 3
+        },
+        {
+          "surface": "I am fine. And you?",
+          "rank": 4
+        },
+        {
+          "surface": "I'm well. And you?",
+          "rank": 5
+        },
+        {
+          "surface": "I am well. And you?",
+          "rank": 6
+        },
+        {
+          "surface": "I'm good. And you?",
+          "rank": 7
+        },
+        {
+          "surface": "I am good. And you?",
+          "rank": 8
+        }
+      ],
+      "rationale": "Explicit English reverse-only wellbeing replies, including the independent reviewer’s concrete well/good/thanks omissions. Canonical source, canonical answer and semantic item ID remain unchanged."
+    }
+  ],
+  "recognitionAdditions": [
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "bueno",
+      "translation": "good",
+      "lemma": "bueno",
+      "pos": "ADJ",
+      "lexemeId": "lx:bueno:ADJ",
+      "g4SlotIndex": 1,
+      "exerciseSlotIndex": 3,
+      "introduction": "word",
+      "instruction": "Select the meaning for “bueno”",
+      "answers": [
+        {
+          "surface": "good",
+          "rank": 0
+        }
+      ],
+      "options": [
+        {
+          "id": "option-good",
+          "text": "good"
+        },
+        {
+          "id": "option-late",
+          "text": "late"
+        },
+        {
+          "id": "option-night",
+          "text": "night"
+        }
+      ],
+      "explanation": "Bueno is the Spanish adjective good.",
+      "classification": "word",
+      "countable": true
+    },
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "tarde",
+      "translation": "late",
+      "lemma": "tarde",
+      "pos": "ADV",
+      "lexemeId": "lx:tarde:ADV",
+      "g4SlotIndex": 3,
+      "exerciseSlotIndex": 5,
+      "introduction": "word",
+      "instruction": "Select the meaning for “tarde”",
+      "answers": [
+        {
+          "surface": "late",
+          "rank": 0
+        }
+      ],
+      "options": [
+        {
+          "id": "option-late",
+          "text": "late"
+        },
+        {
+          "id": "option-good",
+          "text": "good"
+        },
+        {
+          "id": "option-hello",
+          "text": "hello"
+        }
+      ],
+      "explanation": "Tarde is the adverb late here. Its noun meaning afternoon is a different sense.",
+      "classification": "word",
+      "countable": true
+    },
+    {
+      "sourceKind": "existing-source-shape-variant",
+      "text": "Hola, buenas noches.",
+      "translation": "Hello, good evening.",
+      "lemma": "noche",
+      "pos": "NOUN",
+      "lexemeId": "lx:noche:NOUN",
+      "g4SlotIndex": 4,
+      "exerciseSlotIndex": 6,
+      "introduction": "phrase",
+      "instruction": "Select the meaning for “Hola, buenas noches.”",
+      "answers": [
+        {
+          "surface": "Hello, good evening.",
+          "rank": 0
+        },
+        {
+          "surface": "Hi, good evening.",
+          "rank": 1
+        }
+      ],
+      "options": [
+        {
+          "id": "option-evening",
+          "text": "Hello, good evening."
+        },
+        {
+          "id": "option-morning",
+          "text": "Hello, good morning."
+        },
+        {
+          "id": "option-afternoon",
+          "text": "Hello, good afternoon."
+        }
+      ],
+      "explanation": "Hola, buenas noches is an evening greeting. Here buenas noches follows hello, so English uses good evening. Buenas agrees with the feminine plural noches. This whole phrase teaches another surface of the existing word noche, not a second lexical word.",
+      "classification": "word",
+      "countable": true,
+      "existingSourceId": "34a30591894d99bc",
+      "existingSourceSha256": "145a2f5aea2345e9868f3560ef57774af4e02938c475b14d39b913e26d8175b5"
+    }
+  ],
+  "firstSession": {
+    "keepExerciseIds": [
+      "8180f214fcc79b40",
+      "05fb73a8c2f6c12d",
+      "04e7339237305ab0"
+    ],
+    "additionalSourceOrder": [
+      "bueno",
+      "tarde",
+      "Hola, buenas noches."
+    ],
+    "productionAllowed": false,
+    "rationale": "Five distinct lexical identities and six full displayed Spanish surfaces: three accepted introductions, two more current G2/glossary words, then a new recognition variant of the unchanged frozen phrase source, awaiting independent review using already displayed bueno and noche. No duplicate semantic exercise IDs, image/audio dependency, floor override or unseen production padding."
+  }
+}

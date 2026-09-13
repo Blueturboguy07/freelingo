@@ -1,0 +1,29 @@
+{
+  "kind": "four isolated guard-removal mutations; no source-file changes",
+  "mutations": [
+    {
+      "guard": "stale original candidate",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    },
+    {
+      "guard": "existing canonical and accepted ranks must remain",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    },
+    {
+      "guard": "production cannot pad first session",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    },
+    {
+      "guard": "reused source must match frozen source hash",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    }
+  ]
+}
