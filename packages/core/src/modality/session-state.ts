@@ -63,13 +63,13 @@ export function isSessionModalityState(value: unknown): value is SessionModality
     slots = value['unavailableSlotIds'];
   return (
     Array.isArray(observations) &&
-    observations.every(observation) &&
+    Array.from(observations).every(observation) &&
     new Set(observations.map((row) => row.id)).size === observations.length &&
     Array.isArray(families) &&
-    families.every(family) &&
+    Array.from(families).every(family) &&
     new Set(families).size === families.length &&
     Array.isArray(slots) &&
-    slots.every(text) &&
+    Array.from(slots).every(text) &&
     new Set(slots).size === slots.length
   );
 }

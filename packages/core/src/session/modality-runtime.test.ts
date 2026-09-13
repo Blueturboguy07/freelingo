@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isSessionModalityState } from '../modality/index.js';
 import { DEFAULT_FLAVOUR_MATRIX } from './flavours.js';
 import { freshSession, item } from './session-fixture.js';
 import { step } from './machine.js';
@@ -66,6 +67,20 @@ function answer(state: SessionState): SessionState {
   return step(next, { type: 'continue' }, deps).state;
 }
 describe('actual session modality replacement', () => {
+  it('[INV-SESS-01] external speech event IDs cannot invalidate the following persisted grade observation', () => {
+    const before = start();
+    const wrongDeps: StepDeps = { ...deps, grading: { grade: () => ({ kind: 'wrong' }) } };
+    let state = step(before, signal(before, 'speech-grade:slot-1:1', 'speech'), wrongDeps).state;
+    state = step(state, { type: 'check' }, wrongDeps).state;
+    state = step(state, { type: 'graded' }, wrongDeps).state;
+    expect(state.modality.observations.map((o) => o.reviewKind)).toEqual([
+      'speech_received',
+      'pronunciation_failure',
+    ]);
+    expect(isSessionModalityState(state.modality)).toBe(true);
+    expect(new Set(state.modality.observations.map((o) => o.id)).size).toBe(2);
+    expect(isSessionModalityState(JSON.parse(serialiseSession(state)).modality)).toBe(true);
+  });
   it('[INV-MOD-02] explicit skip replaces in place and completes the original number of graded slots', () => {
     const before = start();
     const result = step(before, signal(before, 'skip-1', 'skip'), deps);

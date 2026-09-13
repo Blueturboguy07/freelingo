@@ -6,6 +6,12 @@ import {
   MODALITY_POLICY,
 } from './index.js';
 describe('durable modality observations', () => {
+  it.each(['observations', 'blockedFamilies', 'unavailableSlotIds'])(
+    '[INV-SESS-01] rejects a sparse %s array at the shared unknown-value boundary',
+    (key) => {
+      expect(isSessionModalityState({ ...emptySessionModality(), [key]: Array(1) })).toBe(false);
+    },
+  );
   it('[INV-SESS-01] rejects malformed present records and duplicate observation IDs', () => {
     const base = emptySessionModality();
     expect(isSessionModalityState(base)).toBe(true);
