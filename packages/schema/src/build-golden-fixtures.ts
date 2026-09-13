@@ -269,6 +269,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
   3: seedV2,
+  4: seedV2,
 };
 
 /* ------------------------------------------------------------------------ build */

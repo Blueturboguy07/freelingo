@@ -24,7 +24,12 @@
       "weekend_pairs": 4,
       "stories_completed": 7,
       "night_lessons": 12,
-      "items_retired": 88
+      "items_retired": 88,
+      "appearance": "system",
+      "imported_at_utc": null,
+      "sound_effects_enabled": 1,
+      "animations_enabled": 1,
+      "motivational_messages_enabled": 1
     }
   ],
   "account_boost": [
