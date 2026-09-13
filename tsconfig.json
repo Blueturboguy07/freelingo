@@ -1,8 +1,21 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "jsx": "react-jsx"
   },
-  "include": ["packages/*/src/**/*.ts", "scripts/**/*.ts", "vitest.config.ts", "eslint.config.mjs"],
-  "exclude": ["**/node_modules", "**/dist", "apps/**"]
+  "include": [
+    "packages/*/src/**/*.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts",
+    "eslint.config.mjs",
+    "packages/*/src/**/*.tsx"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "apps/**"
+  ]
 }
