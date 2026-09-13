@@ -268,6 +268,7 @@ function seedV2(db: Db): void {
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
+  3: seedV2,
 };
 
 /* ------------------------------------------------------------------------ build */
