@@ -81,10 +81,33 @@ const SESSION_RUNTIME: Migration = {
   },
 };
 
+/** P4 settings, 2026-09-13. General lesson switches are account-scoped (deep07 §global split).
+ * Existing per-course modality choices and the global suspension record stay intact. */
+const DURABLE_SETTINGS: Migration = {
+  userVersion: 4,
+  name: 'durable-account-preferences',
+  up(db) {
+    db.run(
+      "ALTER TABLE account ADD COLUMN appearance TEXT NOT NULL DEFAULT 'system' CHECK (appearance IN ('light', 'dark', 'system'))",
+    );
+    db.run('ALTER TABLE account ADD COLUMN imported_at_utc TEXT');
+    db.run(
+      'ALTER TABLE account ADD COLUMN sound_effects_enabled INTEGER NOT NULL DEFAULT 1 CHECK (sound_effects_enabled IN (0, 1))',
+    );
+    db.run(
+      'ALTER TABLE account ADD COLUMN animations_enabled INTEGER NOT NULL DEFAULT 1 CHECK (animations_enabled IN (0, 1))',
+    );
+    db.run(
+      'ALTER TABLE account ADD COLUMN motivational_messages_enabled INTEGER NOT NULL DEFAULT 1 CHECK (motivational_messages_enabled IN (0, 1))',
+    );
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
   SESSION_RUNTIME,
+  DURABLE_SETTINGS,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -134,6 +157,26 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
   ],
 
   3: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+  ],
+  4: [
     'account',
     'account_boost',
     'account_cosmetic',
