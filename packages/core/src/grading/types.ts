@@ -244,6 +244,17 @@ export interface RegisterDetector {
 }
 
 /**
+ * Pack-owned word membership, with bounded iteration for diagnostics/export.
+ * This is not a JavaScript Set: indexed packs query SQLite and need not allocate
+ * the complete dictionary or support collection algebra (2026-09-13).
+ * Native Set remains structurally compatible for small inline declarations.
+ */
+export interface WordDictionary extends Iterable<string> {
+  readonly size: number;
+  has(value: string): boolean;
+}
+
+/**
  * Everything about grading that varies by pack.
  *
  * Read from the ACTIVE pack on every call. There is no default instance and no registry
@@ -293,8 +304,8 @@ export interface GradingPack {
   // --- tier 2 --------------------------------------------------------------
   /** The three guards (INV-GRD-02, INV-GRD-15). */
   readonly typoGuards: TypoGuards;
-  /** Words of the target language, for typo guard 1. A pack-shipped set. */
-  readonly targetLanguageWords: ReadonlySet<string>;
+  /** Words of the target language, for typo guard 1. Pack-owned membership. */
+  readonly targetLanguageWords: WordDictionary;
   /** Function-class tokens whose omission is soft (EC-GRD-03 ruling). */
   readonly functionClassTokens: ReadonlySet<string>;
 
