@@ -18,8 +18,8 @@ V1's parenthesis is the whole rule. A surface-token ledger passes on Spanish by 
 and breaks silently on every inflected and agglutinative language: `hablo` and `hablas`
 are one lemma and two surfaces, and a ledger that counts surfaces has already taught a
 word it thinks it has not. So these checks read `analysed_sentence.lemmas`, and fall back
-to `item_tags.lemmas` only for an exercise with no corpus sentence behind it (a
-G5-authored item before G6 has analysed it).
+to `item_tags.lemmas` only for an exercise with no independent source analysis.
+Selected authored sentences join their carried G5 analysis after G6.
 
 INV-PACK-06's second clause — "Japanese runs the ledger on Mode-A segmentation" — is
 ENFORCED by `_check_segmentation` rather than assumed. Under SudachiPy Mode C a compound
@@ -39,7 +39,7 @@ count**, and the same shortfall in a unit with no gaps left — a finished pack 
 
 The one thing that is a warning for a different reason is V2's inflection half. See
 `config/g4.py::MAX_NEW_INFLECTIONS_PER_EXERCISE`: the frozen `exercise` record carries no
-morphology, so the check reaches only corpus-sourced items, and a blocking rule that
+morphology, so the check reaches source-backed items but not derived lexical drills, and a rule that
 silently does not apply to half the pack is worse than a warning that says what it saw.
 """
 
@@ -49,7 +49,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..artifacts import read_records
+from ..artifacts import dedup_hash, first_accepted_candidates, read_records
 from ..config.g3 import RECYCLE_MIN_OCCURRENCES, RECYCLE_WINDOW_LESSONS
 from ..config.g4 import (
     CROSS_UNIT_REPEAT_CEILING,
@@ -61,6 +61,7 @@ from ..config.g4 import (
     MAX_USES_PER_SENTENCE_PER_UNIT,
 )
 from ..runlog import require_successful
+from ..teaching_order import OrderHints, order_exercises, selection_order_hints
 from . import Finding, ValidatorContext, register_validator
 
 __all__ = [
@@ -83,6 +84,17 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True)
+class SentenceUse:
+    """One resolved G4 slot, regardless of how many G7 formats it expands into."""
+
+    unit_index: int
+    lesson_index: int
+    slot_index: int
+    source_id: str
+    text_hash: str
+
+
+@dataclass(frozen=True, slots=True)
 class Ledger:
     """Everything V1-V4 and V9 read, joined once so five validators agree on the facts."""
 
@@ -97,7 +109,7 @@ class Ledger:
     concept_of: dict[int, str]
     #: unit index -> slots G4 could not fill and handed to G5.
     gaps: dict[int, int]
-    #: sentence id -> the lemmas actually in it (G1's answer, not the tags').
+    #: sentence id -> the lemmas actually in it (G1/G5's answer, not the tags').
     lemmas_of: dict[str, frozenset[str]]
     #: sentence id -> (lemma, morph) pairs, for V2's inflection half.
     forms_of: dict[str, frozenset[tuple[str, str]]] = field(default_factory=dict)
@@ -106,11 +118,20 @@ class Ledger:
     #: exactly the mixture V2 must refuse, and a single field would hide it.
     split_modes: frozenset[str | None] = frozenset()
 
+    #: Real selected sentence occurrences. Unfilled gaps do not enter V9's denominator.
+    sentence_uses: tuple[SentenceUse, ...] = ()
+    #: Chosen authored IDs may only supply evidence in their exact unit/lesson.
+    authored_contexts: dict[str, tuple[int, int]] = field(default_factory=dict)
+    order_hints: OrderHints = field(default_factory=lambda: ({}, {}))
+    source_contexts: dict[str, frozenset[tuple[int, int]]] = field(default_factory=dict)
+    selection_checked: bool = False
+
     def content_lemmas(self, exercise: Mapping[str, Any]) -> frozenset[str]:
         """What is really in an exercise.
 
-        G1's lemma set when the exercise came from a corpus sentence; the D1 tags when it
-        did not. V4 is the check that those two agree wherever both exist, so V1 reading
+        The exact G1/G5 lemma set for a source-backed exercise; D1 tags for a derived
+        exercise with no independent sentence analysis. V4 checks that those two agree
+        wherever both exist, so V1 reading
         the tags for an unanalysed item is not circular — it is the only statement of
         content that exists for it yet, and it is named as such.
         """
@@ -129,10 +150,7 @@ class Ledger:
         return max((int(ex["lesson_index"]) for ex in self.exercises), default=0)
 
     def in_course_order(self) -> list[Mapping[str, Any]]:
-        return sorted(
-            self.exercises,
-            key=lambda ex: (int(ex["unit_index"]), int(ex["lesson_index"]), str(ex["exercise_id"])),
-        )
+        return order_exercises(self.units, self.exercises, hints=self.order_hints)
 
 
 def build_ledger(
@@ -141,9 +159,16 @@ def build_ledger(
     exercises: Iterable[Mapping[str, Any]],
     *,
     analysed: Iterable[Mapping[str, Any]] = (),
-    selected: Iterable[Mapping[str, Any]] = (),
+    selected: Iterable[Mapping[str, Any]] | None = None,
+    candidates: Iterable[Mapping[str, Any]] = (),
+    ingested: Iterable[Mapping[str, Any]] = (),
 ) -> Ledger:
-    """Join G3's units, G4's gap list, G1's analyses and G7's exercises into one view."""
+    """Join selected slots to exact G1 or first surviving G5 analyses after G6.
+
+    G4's historical gap flag is resolved here; a filled slot cannot keep coverage
+    shortfalls at warning severity forever. Reserves and rejected candidates are not
+    evidence for what ships, even when their text happens to match an exercise.
+    """
     unit_rows = tuple(sorted(units, key=lambda unit: int(unit["unit_index"])))
     introduction_unit: dict[str, int] = {}
     target_lemmas: dict[int, tuple[str, ...]] = {}
@@ -156,30 +181,55 @@ def build_ledger(
         for lemma in lemmas:
             introduction_unit.setdefault(lemma, index)
 
+    selected_rows = tuple(selected or ())
+    analysis_rows = list(analysed)
+    analysed_ids = {str(row["sentence_id"]) for row in analysis_rows}
+    texts = {str(row["sentence_id"]): str(row["text"]) for row in ingested}
+    by_slot = first_accepted_candidates(candidates, lang=lang)
     gaps: dict[int, int] = {index: 0 for index in target_lemmas}
-    for item in selected:
+    uses: list[SentenceUse] = []
+    authored_contexts: dict[str, tuple[int, int]] = {}
+    for item in selected_rows:
+        coordinate = (int(item["unit_index"]), int(item["lesson_index"]), int(item["slot_index"]))
         if item["gap"]:
-            index = int(item["unit_index"])
-            gaps[index] = gaps.get(index, 0) + 1
+            candidate = by_slot.get(coordinate)
+            analysis = candidate.get("analysis") if candidate else None
+            if candidate is None or analysis is None or not _analysis_matches(candidate):
+                gaps[coordinate[0]] = gaps.get(coordinate[0], 0) + 1
+                continue
+            source_id = str(candidate["candidate_id"])
+            # A contextual candidate ID must not alias a corpus record or another slot.
+            if source_id in analysed_ids or source_id in authored_contexts:
+                raise ValueError(f"duplicate authored source identity {source_id}")
+            authored_contexts[source_id] = coordinate[:2]
+            analysis_rows.append(
+                {**analysis, "sentence_id": source_id, "adapter": analysis["analyser"]}
+            )
+            text_hash = dedup_hash(str(candidate["text"]))
+        else:
+            source_id = str(item["sentence_id"])
+            if source_id not in analysed_ids:
+                continue
+            # Production load_ledger supplies G0 texts. The ID-only path supports
+            # analysis-only callers; corpus IDs are already content-addressed.
+            text_hash = (
+                dedup_hash(texts[source_id]) if source_id in texts else f"source:{source_id}"
+            )
+        uses.append(SentenceUse(*coordinate, source_id, text_hash))
 
     lemmas_of: dict[str, frozenset[str]] = {}
     forms_of: dict[str, frozenset[tuple[str, str]]] = {}
     split_modes: set[str | None] = set()
-    for row in analysed:
+    for row in analysis_rows:
         sentence_id = str(row["sentence_id"])
         mode = row.get("adapter", {}).get("split_mode")
         split_modes.add(str(mode) if mode is not None else None)
         # Punctuation is not a ledger item. Counting it makes every sentence carry a
         # lemma no curriculum introduces, which reads as a V1 failure on every row.
-        items = [
-            token for token in row["tokens"] if str(token["pos"]) not in LEDGER_EXCLUDED_POS
-        ]
-        not_items = {
-            str(token["lemma"])
-            for token in row["tokens"]
-            if str(token["pos"]) in LEDGER_EXCLUDED_POS
-        }
-        lemmas_of[sentence_id] = frozenset(str(lemma) for lemma in row["lemmas"]) - not_items
+        items = [token for token in row["tokens"] if str(token["pos"]) not in LEDGER_EXCLUDED_POS]
+        # The token analysis is the independent evidence. The redundant lemmas list
+        # cannot inject a word which no analyzed token contains (V4 falsifier).
+        lemmas_of[sentence_id] = frozenset(str(token["lemma"]) for token in items)
         forms_of[sentence_id] = frozenset(
             (str(token["lemma"]), str(token.get("morph", ""))) for token in items
         )
@@ -195,7 +245,35 @@ def build_ledger(
         lemmas_of=lemmas_of,
         forms_of=forms_of,
         split_modes=frozenset(split_modes),
+        sentence_uses=tuple(uses),
+        authored_contexts=authored_contexts,
+        order_hints=selection_order_hints(selected_rows, by_slot),
+        source_contexts={
+            sid: frozenset(
+                (use.unit_index, use.lesson_index) for use in uses if use.source_id == sid
+            )
+            for sid in {use.source_id for use in uses}
+        },
+        selection_checked=selected is not None,
     )
+
+
+def _analysis_matches(candidate: Mapping[str, Any]) -> bool:
+    """Refuse an analysis copied from a different canonical surface.
+
+    Span checks use the carried adapter evidence, never the exercise's own tags.
+    Uncovered non-whitespace text also makes the evidence incomplete.
+    """
+    text = str(candidate["text"])
+    cursor = 0
+    for token in candidate["analysis"]["tokens"]:
+        start, end = int(token["start"]), int(token["end"])
+        if not (cursor <= start < end <= len(text)):
+            return False
+        if text[cursor:start].strip() or text[start:end] != str(token["surface"]):
+            return False
+        cursor = end
+    return not text[cursor:].strip()
 
 
 def load_ledger(lang: str) -> Ledger:
@@ -207,6 +285,8 @@ def load_ledger(lang: str) -> Ledger:
         read_records("exercise", lang=lang),
         analysed=read_records("analysed_sentence", lang=lang),
         selected=read_records("selected_item", lang=lang),
+        candidates=read_records("candidate", lang=lang),
+        ingested=read_records("ingested_sentence", lang=lang),
     )
 
 
@@ -285,9 +365,7 @@ def _check_segmentation(ledger: Ledger) -> list[Finding]:
     required = LEDGER_SPLIT_MODE.get(ledger.lang)
     if not ledger.split_modes:
         return []  # nothing analysed; V4 and the stage gates own the empty-pack case
-    wrong = sorted(
-        str(mode) for mode in ledger.split_modes if (mode or None) != required
-    )
+    wrong = sorted(str(mode) for mode in ledger.split_modes if (mode or None) != required)
     if not wrong:
         return []
     return [
@@ -367,7 +445,8 @@ def check_v2(ledger: Ledger) -> list[Finding]:
                             f"exercise ({', '.join(sorted(lemma for lemma, _ in new_forms))}); "
                             f"the budget is {MAX_NEW_INFLECTIONS_PER_EXERCISE}. Not blocking: "
                             f"the exercise record carries no morphology, so this reaches only "
-                            f"corpus-sourced items."
+                            f"source-backed items, not derived drills without "
+                            f"independent morphology."
                         ),
                         subject=str(exercise["exercise_id"]),
                     )
@@ -473,6 +552,21 @@ def check_v4(ledger: Ledger) -> list[Finding]:
         unit_index = int(exercise["unit_index"])
         tags = {str(lemma) for lemma in exercise["item_tags"]["lemmas"]}
         sentence_id = exercise.get("source_sentence_id")
+        context = (unit_index, int(exercise["lesson_index"]))
+        if (
+            sentence_id
+            and ledger.selection_checked
+            and context not in ledger.source_contexts.get(str(sentence_id), frozenset())
+        ):
+            findings.append(
+                Finding(
+                    validator_id="V4",
+                    severity="blocking",
+                    message=f"source {sentence_id} was not selected for this exercise's "
+                    f"unit/lesson {context}.",
+                    subject=str(exercise["exercise_id"]),
+                )
+            )
         if sentence_id and sentence_id in ledger.lemmas_of:
             present = ledger.lemmas_of[str(sentence_id)]
             unsound = tags - present
@@ -552,30 +646,29 @@ def check_v9(ledger: Ledger) -> list[Finding]:
     repeats = 0
     sourced = 0
 
-    for exercise in ledger.in_course_order():
-        sentence_id = exercise.get("source_sentence_id")
-        if not sentence_id:
-            continue
-        sentence_id = str(sentence_id)
+    for use in sorted(
+        ledger.sentence_uses, key=lambda row: (row.unit_index, row.lesson_index, row.slot_index)
+    ):
         sourced += 1
-        unit_index = int(exercise["unit_index"])
+        unit_index = use.unit_index
+        identity = use.text_hash
         counts = per_unit.setdefault(unit_index, {})
-        counts[sentence_id] = counts.get(sentence_id, 0) + 1
-        if counts[sentence_id] > MAX_USES_PER_SENTENCE_PER_UNIT:
+        counts[identity] = counts.get(identity, 0) + 1
+        if counts[identity] > MAX_USES_PER_SENTENCE_PER_UNIT:
             findings.append(
                 Finding(
                     validator_id="V9",
                     severity="blocking",
                     message=(
-                        f"sentence {sentence_id} is used {counts[sentence_id]} times inside unit "
-                        f"{unit_index}; the limit is {MAX_USES_PER_SENTENCE_PER_UNIT}."
+                        f"sentence {use.source_id} is used {counts[identity]} times inside "
+                        f"unit {unit_index}; the limit is {MAX_USES_PER_SENTENCE_PER_UNIT}."
                     ),
-                    subject=str(exercise["exercise_id"]),
+                    subject=f"unit {unit_index} lesson {use.lesson_index} slot {use.slot_index}",
                 )
             )
-        if sentence_id in first_unit and first_unit[sentence_id] != unit_index:
+        if identity in first_unit and first_unit[identity] != unit_index:
             repeats += 1
-        first_unit.setdefault(sentence_id, unit_index)
+        first_unit.setdefault(identity, unit_index)
 
     fraction = repeats / sourced if sourced else 0.0
     if fraction > CROSS_UNIT_REPEAT_CEILING:
@@ -584,7 +677,7 @@ def check_v9(ledger: Ledger) -> list[Finding]:
                 validator_id="V9",
                 severity="blocking",
                 message=(
-                    f"{fraction:.1%} of corpus-sourced exercises reuse a sentence from an "
+                    f"{fraction:.1%} of selected sentence slots reuse a sentence from an "
                     f"earlier unit ({repeats}/{sourced}); the ceiling is "
                     f"{CROSS_UNIT_REPEAT_CEILING:.0%}."
                 ),

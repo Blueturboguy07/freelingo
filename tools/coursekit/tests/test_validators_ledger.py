@@ -203,7 +203,7 @@ def test_a_clean_ledger_of_the_same_shape_produces_nothing_blocking() -> None:
         )
         for index, row in enumerate(analysed)
     ]
-    ledger = build_ledger("es", units, exercises, analysed=analysed, selected=[])
+    ledger = build_ledger("es", units, exercises, analysed=analysed)
     findings = run_ledger_checks(ledger)
     assert blocking(findings) == [], [finding.message for finding in blocking(findings)]
 

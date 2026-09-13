@@ -530,27 +530,19 @@ def unit_item_rows(inputs: PackInputs) -> list[dict[str, Any]]:
     return rows
 
 
-def _slot_indices(exercises: Sequence[Mapping[str, Any]]) -> dict[str, int]:
-    """Position within a lesson, derived — because the artefact contract has no slot.
+def _slot_indices(inputs: PackInputs) -> dict[str, int]:
+    """Number the actual lesson rows in the prerequisite order V2 validates."""
+    from ..artifacts import first_accepted_candidates
+    from ..teaching_order import order_exercises, selection_order_hints
 
-    The frozen `exercise` record (G7's, `artifacts.EXERCISE`) carries unit and lesson but
-    no slot index, and that contract is another lane's to change. So the order is derived
-    from the CONTENT-ADDRESSED exercise id, which makes it stable across rebuilds: a
-    rebuild that adds an exercise to a lesson may renumber the slots around it, and
-    nothing depends on a slot number — `item_id` is what an FSRS row resolves through
-    (INV-PACK-41), never a position.
-
-    Recorded as an escalation rather than hidden: a pack cannot express an AUTHORED
-    order until the artefact grows a `slot_index`.
-    """
+    chosen = first_accepted_candidates(inputs.candidates, lang=inputs.lang)
+    hints = selection_order_hints(inputs.selected, chosen)
     ordered: dict[str, int] = {}
-    grouped: dict[tuple[int, int], list[str]] = {}
-    for exercise in exercises:
+    counts: dict[tuple[int, int], int] = {}
+    for exercise in order_exercises(inputs.units, inputs.exercises, hints=hints):
         key = (int(exercise["unit_index"]), int(exercise["lesson_index"]))
-        grouped.setdefault(key, []).append(str(exercise["exercise_id"]))
-    for key in sorted(grouped):
-        for slot, exercise_id in enumerate(sorted(grouped[key])):
-            ordered[exercise_id] = slot
+        ordered[str(exercise["exercise_id"])] = counts.get(key, 0)
+        counts[key] = counts.get(key, 0) + 1
     return ordered
 
 
@@ -565,7 +557,7 @@ def exercise_rows(inputs: PackInputs) -> list[dict[str, Any]]:
     from .itemid import item_id
 
     unit_by_index = {int(unit["unit_index"]): _unit_id(unit) for unit in inputs.units}
-    slots = _slot_indices(inputs.exercises)
+    slots = _slot_indices(inputs)
     rows = []
     for exercise in sorted(inputs.exercises, key=lambda record: str(record["exercise_id"])):
         tags = exercise["item_tags"]
