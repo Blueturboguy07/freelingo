@@ -6,12 +6,12 @@ written contract before either side exists. This module is that contract: one
 JSON-Schema'd record per G-stage boundary, one file per record kind, and a run
 directory layout that says where each file lives.
 
-Nine record kinds over ten stages. G6 is the one stage that emits none: it *validates*
+Ten record kinds over ten stages. G6 is the one stage that emits none: it *validates*
 G5 candidates in place and writes a runlog entry (`coursekit.runlog`), which is what a
 downstream validator reads to know G6 ran and what it concluded.
 
     G0  ingest      -> ingested_sentence
-    G1  analyze     -> analysed_sentence
+    G1  analyze     -> analysed_sentence + japanese_script_analysis (ja)
     G2  band        -> banded_lemma
     G3  curriculum  -> unit_assignment
     G4  select      -> selected_item
@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 
@@ -58,6 +59,11 @@ from .config import (
     EXERCISE_TYPES,
     LANGUAGES,
     PACK_TABLES,
+)
+from .config.japanese_script import (
+    KANA_ALLOWED_PATTERN,
+    KANA_REQUIRED_PATTERN,
+    READING_REVIEW_STATUS,
 )
 from .ledger import is_lexical_pos
 
@@ -193,7 +199,7 @@ CANDIDATE_ANALYSIS = _object(
 
 
 # ---------------------------------------------------------------------------
-# The nine records
+# The ten records
 # ---------------------------------------------------------------------------
 
 INGESTED_SENTENCE = _object(
@@ -242,6 +248,51 @@ ANALYSED_SENTENCE = _object(
         "Japanese `lemmas` comes from SudachiPy Mode A so a compound cannot smuggle "
         "unseen morphemes past V1, while `display_tokens` carries Mode C, which is what "
         "the learner sees and what the audio unit is."
+    ),
+)
+
+# Surface readings are paired evidence, distinct from dictionary-linked Token.reading.
+_SCRIPT_SPAN_PROPERTIES = {
+    "surface": {"type": "string", "minLength": 1, "pattern": r"\S"},
+    "start": {"type": "integer", "minimum": 0},
+    "end": {"type": "integer", "minimum": 1},
+    "reading": {"type": "string", "minLength": 1, "pattern": r"\S"},
+}
+JAPANESE_SCRIPT_ANALYSIS = _object(
+    {
+        "schema_version": _SCHEMA_VERSION,
+        "lang": {"const": "ja"},
+        "sentence_id": _ID16,
+        "text": {"type": "string", "minLength": 1, "pattern": r"\S"},
+        "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "analysis_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "adapter": _ADAPTER,
+        "mode_c_tokens": {
+            "type": "array",
+            "minItems": 1,
+            "items": _object(
+                _SCRIPT_SPAN_PROPERTIES,
+                "ModeCScriptSpan",
+                "Exact source codepoint span and analyzer surface reading.",
+            ),
+        },
+        "mode_a_surface_readings": {
+            "type": "array",
+            "minItems": 1,
+            "items": _object(
+                {**_SCRIPT_SPAN_PROPERTIES, "token_index": {"type": "integer", "minimum": 0}},
+                "ModeASurfaceReading",
+                "One reading per paired G1 token, preserving original order.",
+            ),
+        },
+        "tts_reading": {"type": "string", "minLength": 1, "pattern": r"\S"},
+        "reading_review_status": {"const": READING_REVIEW_STATUS},
+    },
+    "JapaneseScriptAnalysis",
+    (
+        "G1 paired Japanese script evidence. Consumers must additionally validate the exact "
+        "source/analysis join with validate_script_analysis; schema acceptance never proves "
+        "language quality."
     ),
 )
 
@@ -502,6 +553,7 @@ ARTIFACTS: dict[str, Artifact] = {
     for art in (
         _artifact("ingested_sentence", "g0", "ingested", INGESTED_SENTENCE),
         _artifact("analysed_sentence", "g1", "analysed", ANALYSED_SENTENCE),
+        _artifact("japanese_script_analysis", "g1", "scripts", JAPANESE_SCRIPT_ANALYSIS),
         _artifact("banded_lemma", "g2", "banded", BANDED_LEMMA),
         _artifact("unit_assignment", "g3", "units", UNIT_ASSIGNMENT),
         _artifact("selected_item", "g4", "selected", SELECTED_ITEM),
@@ -565,6 +617,18 @@ def _validate_japanese_carrier(kind: str, record: Mapping[str, Any], *, where: s
     no analysis yet; once analysis exists every lexical token must carry evidence.
     No reading is inferred here, and this does not authorize a Japanese G2 merge.
     """
+    if kind == "japanese_script_analysis":
+        suffix = f" in {where}" if where else ""
+        if record["adapter"]["split_mode"] != "A":
+            raise ArtifactError(f"{kind}{suffix}: paired Japanese ledger requires Mode A")
+        reading = record["tts_reading"]
+        if not regex.fullmatch(KANA_ALLOWED_PATTERN, reading) or not regex.search(
+            KANA_REQUIRED_PATTERN, reading
+        ):
+            raise ArtifactError(
+                f"{kind}{suffix}: tts_reading requires kana without kanji/Latin/digits"
+            )
+        return
     if record.get("lang") != "ja" or kind not in {"analysed_sentence", "candidate"}:
         return
     analysis = record if kind == "analysed_sentence" else record["analysis"]
