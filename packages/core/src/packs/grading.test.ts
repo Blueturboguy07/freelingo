@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { gradeTypedAnswer, NO_SURFACES_INTRODUCED } from '../grading/grade.js';
@@ -14,6 +15,32 @@ const handles: DatabaseSync[] = [];
 afterEach(() => {
   for (const db of handles.splice(0)) db.close();
 });
+const provenance = {
+  sourceId: 'original-independent-fixture',
+  sourceSha256: '1'.repeat(64),
+  sourceUrl: 'https://example.test/original-fixture',
+  license: 'CC0-1.0',
+  notice: 'Original decoder fixture, not production linguistic evidence.',
+  normalizationId: 'core-grading-lookup-v1',
+  normalizationSha256: '2'.repeat(64),
+  policySha256: '3'.repeat(64),
+};
+function inlineDictionary(words: string[]) {
+  return {
+    kind: 'inline',
+    words,
+    count: words.length,
+    sha256: createHash('sha256')
+      .update(
+        [...words]
+          .sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)))
+          .map((w) => `${w}\n`)
+          .join(''),
+      )
+      .digest('hex'),
+    provenance: { ...provenance },
+  };
+}
 const identity = { packId: 'test-original', courseId: 'en-es', version: '0.1.0', lang: 'es' };
 function configuration() {
   return {
@@ -32,7 +59,7 @@ function configuration() {
       lengthUnit: 'characters',
       preserveMoraCount: false,
     },
-    targetLanguageWords: ['cantar', 'contar', 'escribo', 'escribes'],
+    targetLanguageWords: inlineDictionary(['cantar', 'contar', 'escribo', 'escribes']),
     functionClassTokens: ['el'],
     targetScriptRanges: [
       [65, 90],
@@ -75,7 +102,7 @@ function metadata() {
         responseLanguage: 'en',
         configuration: {
           ...configuration(),
-          targetLanguageWords: ['write', 'writes'],
+          targetLanguageWords: inlineDictionary(['write', 'writes']),
           contrastiveDiacritics: [],
         },
       },
@@ -243,8 +270,8 @@ describe('production grading metadata', () => {
   ])('[INV-GRD-15] refuses malformed declared policy: %s', (fault) => {
     const value = metadata();
     const config = value.profiles[0]!.configuration;
-    if (fault === 'empty-dictionary') config.targetLanguageWords = [];
-    if (fault === 'duplicate-word') config.targetLanguageWords.push('contar');
+    if (fault === 'empty-dictionary') config.targetLanguageWords = inlineDictionary([]);
+    if (fault === 'duplicate-word') config.targetLanguageWords.words.push('contar');
     if (fault === 'duplicate-profile') value.profiles.push({ ...value.profiles[0]! });
     if (fault === 'unknown-field') Object.assign(config, { fallback: true });
     if (fault === 'bad-boolean') Object.assign(config, { spaceless: 'false' });
@@ -361,6 +388,111 @@ describe('production grading metadata', () => {
     if (fault === 'invalid-spaceless-delimiter') config.spaceless = true;
     expect(() => load(value)).toThrow(PackFormatError);
   });
+  it('[INV-GRD-02] indexed dictionaries have lazy exact membership and truthful bounded iteration', () => {
+    const value = metadata();
+    const original = value.profiles[0]!.configuration.targetLanguageWords;
+    const words = [
+      'cantar',
+      'contar',
+      'escribo',
+      'escribes',
+      ...Array.from({ length: 600 }, (_, i) => `word${String(i).padStart(4, '0')}`),
+      '😀',
+      '\ue000',
+    ];
+    const declaration = {
+      ...inlineDictionary(words),
+      kind: 'table',
+      table: 'grading_word',
+      profileId: 'spanish',
+    };
+    Reflect.deleteProperty(declaration, 'words');
+    Object.assign(value.profiles[0]!.configuration, { targetLanguageWords: declaration });
+    const { db, reader } = database(value);
+    db.exec(
+      'CREATE TABLE grading_word(profile_id TEXT NOT NULL,surface TEXT NOT NULL,PRIMARY KEY(profile_id,surface)) WITHOUT ROWID;',
+    );
+    for (const word of words)
+      db.prepare('INSERT INTO grading_word VALUES (?,?)').run('spanish', word);
+    db.prepare('INSERT INTO grading_word VALUES (?,?)').run('english', 'elsewhere');
+    const calls: string[] = [];
+    const observed: PackReader = {
+      get: <T>(sql: string, params: readonly unknown[] = []) => {
+        calls.push(sql);
+        return reader.get<T>(sql, params);
+      },
+      all: <T>(sql: string, params: readonly unknown[] = []) => {
+        calls.push(sql);
+        return reader.all<T>(sql, params);
+      },
+    };
+    const runtime = readGradingMetadata(observed, identity);
+    const set = runtime.forExercise('ex-a').pack.targetLanguageWords;
+    expect(calls.filter((sql) => sql.includes('grading_word'))).toHaveLength(1);
+    expect(calls.find((sql) => sql.includes('grading_word'))).toContain('count(*)');
+    expect(set.size).toBe(606);
+    expect(set.has('contar')).toBe(true);
+    expect(set.has('elsewhere')).toBe(false);
+    expect(set.has("contar' OR 1=1 --")).toBe(false);
+    const sorted = [...words].sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+    expect([...set.values()]).toEqual(sorted);
+    expect([...set.keys()]).toEqual(sorted);
+    expect([...set]).toEqual(sorted);
+    expect([...set.entries()]).toEqual(sorted.map((word) => [word, word]));
+    const receiver = { rows: [] as string[] };
+    set.forEach(function (this: typeof receiver, value, key, owner) {
+      expect(value).toBe(key);
+      expect(owner).toBe(set);
+      this.rows.push(value);
+    }, receiver);
+    expect(receiver.rows).toEqual(sorted);
+    expect(original.words).toEqual(['cantar', 'contar', 'escribo', 'escribes']);
+    expect(
+      calls.filter((sql) => sql.includes('SELECT surface')).every((sql) => sql.includes('LIMIT')),
+    ).toBe(true);
+  });
+  it.each([
+    'table-missing',
+    'count-stale',
+    'profile-stale',
+    'digest-malformed',
+    'provenance-missing',
+  ])('[INV-PACK-12] indexed dictionary declaration fails by name: %s', (fault) => {
+    const value = metadata();
+    const declaration = {
+      ...inlineDictionary(['cantar']),
+      kind: 'table',
+      table: 'grading_word',
+      profileId: 'spanish',
+    };
+    Reflect.deleteProperty(declaration, 'words');
+    if (fault === 'count-stale') declaration.count = 2;
+    if (fault === 'profile-stale') declaration.profileId = 'english';
+    if (fault === 'digest-malformed') declaration.sha256 = 'not-a-sha';
+    if (fault === 'provenance-missing') Reflect.deleteProperty(declaration, 'provenance');
+    Object.assign(value.profiles[0]!.configuration, { targetLanguageWords: declaration });
+    const { db, reader } = database(value);
+    if (fault !== 'table-missing')
+      db.exec(
+        "CREATE TABLE grading_word(profile_id TEXT,surface TEXT); INSERT INTO grading_word VALUES('spanish','cantar');",
+      );
+    expect(() => readGradingMetadata(reader, identity)).toThrow(/grading:v1.*dictionary/u);
+  });
+  it.each(['hash', 'count', 'raw-array', 'source-hash', 'normalization-hash', 'newline'])(
+    '[INV-GRD-02] inline dictionary integrity is explicit: %s',
+    (fault) => {
+      const value = metadata();
+      const config = value.profiles[0]!.configuration;
+      if (fault === 'hash') config.targetLanguageWords.sha256 = 'f'.repeat(64);
+      if (fault === 'count') config.targetLanguageWords.count += 1;
+      if (fault === 'raw-array') Object.assign(config, { targetLanguageWords: ['cantar'] });
+      if (fault === 'source-hash') config.targetLanguageWords.provenance.sourceSha256 = 'bad';
+      if (fault === 'normalization-hash')
+        config.targetLanguageWords.provenance.normalizationSha256 = 'bad';
+      if (fault === 'newline') config.targetLanguageWords = inlineDictionary(['can\ntar']);
+      expect(() => load(value)).toThrow(PackFormatError);
+    },
+  );
   it('[INV-GRD-13] malformed JSON fails visibly', () => {
     expect(() => load('{')).toThrow(PackFormatError);
   });
