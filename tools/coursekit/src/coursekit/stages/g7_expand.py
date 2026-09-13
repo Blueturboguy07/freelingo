@@ -113,6 +113,7 @@ from ..exercises.distractors import (
 from ..exercises.shapes import ExerciseDraft, focus_for_item, shape
 from ..exercises.wordbank import Hint, build_hints, build_word_bank
 from ..ledger import is_lexical_pos, surface_tokens
+from ..lexeme_glosses import GlossaryError, ReviewedGloss, load_glossary_by_lemma
 from ..registers import RegisterPolicyError, unit_register
 from ..runlog import require_successful
 from ..tts.cast import Cast, CastError, load_cast, rebake_key
@@ -183,6 +184,7 @@ class ExpansionInputs:
     #: attested surface, and looking a surface up in a lemma table answers a different
     #: question — see `validators/exercise.py::pos_sets`.
     pos_sets: dict[str, set[str]] = field(default_factory=dict)
+    glossary: dict[str, tuple[ReviewedGloss, ...]] = field(default_factory=dict)
 
 
 def _audio_id(inputs: ExpansionInputs, text: str) -> str:
@@ -228,6 +230,7 @@ def _load(lang: str) -> ExpansionInputs:
         band_of={row["lemma"]: row["band"] for row in banded},
         pos_sets=pos_sets(banded, analysed.values()),
         cast=load_cast(lang),
+        glossary=load_glossary_by_lemma(lang),
     )
 
 
@@ -1079,19 +1082,22 @@ def _meaning_options(
     this before it commits to introducing a lemma, and `_lexeme_drafts` asks it again to
     build the record.
     """
-    gloss = glosses.get(lemma)
-    if gloss is None:
+    answer = _reviewed_gloss(inputs, lemma, glosses)
+    if answer is None:
         return None
     pos = inputs.pos_of.get(lemma, "")
     band = inputs.band_of.get(lemma, "unbanded")
-    options = [
-        glosses[other]
-        for other in _same_pos_band_lemmas(inputs, lemma, pos, band)
-        if other in glosses and glosses[other] != gloss
-    ]
-    if len(options) < count:
-        return None
-    return tuple(options[:count])
+    options: list[str] = []
+    seen: set[str] = set()
+    for other in _same_pos_band_lemmas(inputs, lemma, pos, band):
+        candidate = _reviewed_gloss(inputs, other, glosses)
+        if candidate is None or answer.meanings & candidate.meanings:
+            continue
+        key = normalise(candidate.citation_gloss)
+        if key not in seen:
+            options.append(candidate.citation_gloss)
+            seen.add(key)
+    return tuple(options[:count]) if len(options) >= count else None
 
 
 def _same_pos_band_lemmas(
@@ -1248,6 +1254,10 @@ def build_match_pairs(
     if len(glossed) < MATCH_PAIRS_PER_EXERCISE:
         return None
     rows = sorted(glossed)[:MATCH_PAIRS_PER_EXERCISE]
+    if any(_reviewed_gloss(inputs, lemma, glosses) is None for lemma in rows):
+        return None
+    if _conflicting_meanings(inputs, rows, glosses):
+        return None
     accepted = tuple(f"{lemma}{MATCH_PAIR_SEPARATOR}{glosses[lemma]}" for lemma in rows)
     return ExerciseDraft(
         lang=inputs.lang,
@@ -1331,6 +1341,7 @@ def _lexeme_pass(
         "lexemes_without_gloss_or_options": 0,
         "lexemes_in_a_unit_too_small_to_match": 0,
         "matches": 0,
+        "lexemes_without_safe_match": 0,
     }
 
     # One entry per eligible lemma, in course order: (unit, lesson, lemma).
@@ -1353,7 +1364,13 @@ def _lexeme_pass(
             # No match is possible, so no lemma here can reach two punitive forms.
             counts["lexemes_in_a_unit_too_small_to_match"] += len(entries)
             continue
+        conflicts = _conflicting_meanings(inputs, [lemma for _u, _l, lemma in entries], glosses)
+        cuts = _match_cuts(entries, conflicts=conflicts)
+        covered = {lemma for _lesson, rows in cuts for lemma in rows}
+        counts["lexemes_without_safe_match"] += len(entries) - len(covered)
         for _unit, lesson, lemma in entries:
+            if lemma not in covered:
+                continue
             introduction = _lexeme_drafts(
                 inputs,
                 lemma=lemma,
@@ -1368,7 +1385,7 @@ def _lexeme_pass(
                 continue
             drafts.extend(introduction)
             counts["lexemes_introduced"] += 1
-        for lesson, rows in _match_cuts(entries):
+        for lesson, rows in cuts:
             match = build_match_pairs(
                 inputs,
                 unit=unit,
@@ -1385,6 +1402,8 @@ def _lexeme_pass(
 
 def _match_cuts(
     entries: Sequence[tuple[int, int, str]],
+    *,
+    conflicts: frozenset[frozenset[str]] = frozenset(),
 ) -> list[tuple[int, list[str]]]:
     """`(lesson, five lemmas)` per match, covering every entry at least once.
 
@@ -1396,6 +1415,26 @@ def _match_cuts(
     """
     cuts: list[tuple[int, list[str]]] = []
     size = MATCH_PAIRS_PER_EXERCISE
+    if conflicts:
+        covered: set[str] = set()
+        for anchor in entries:
+            if anchor[2] in covered:
+                continue
+            group = [anchor]
+            for candidate in entries:
+                if candidate == anchor:
+                    continue
+                if any(frozenset({candidate[2], row[2]}) in conflicts for row in group):
+                    continue
+                group.append(candidate)
+                if len(group) == size:
+                    break
+            if len(group) == size:
+                group.sort()
+                rows = [lemma for _unit, _lesson, lemma in group]
+                cuts.append((max(lesson for _unit, lesson, _lemma in group), rows))
+                covered.update(rows)
+        return cuts
     full = len(entries) // size
     for index in range(full):
         chunk = list(entries[index * size : (index + 1) * size])
@@ -1411,81 +1450,45 @@ def _match_cuts(
 # ---------------------------------------------------------------------------
 
 
+def _reviewed_gloss(
+    inputs: ExpansionInputs, lemma: str, glosses: Mapping[str, str] | None = None,
+) -> ReviewedGloss | None:
+    """An exact reviewed intended POS, with ambiguous homographs left unresolved."""
+    entries = inputs.glossary.get(lemma, ())
+    if len(entries) != 1 or entries[0].pos != inputs.pos_of.get(lemma):
+        return None
+    entry = entries[0]
+    if glosses is not None and glosses.get(lemma) != entry.citation_gloss:
+        return None
+    return entry
+
+
+def _conflicting_meanings(
+    inputs: ExpansionInputs, lemmas: Sequence[str], glosses: Mapping[str, str],
+) -> frozenset[frozenset[str]]:
+    """Overlapping supported senses make a context-free matching choice ambiguous."""
+    meanings = {lemma: entry.meanings for lemma in lemmas
+                if (entry := _reviewed_gloss(inputs, lemma, glosses)) is not None}
+    return frozenset(frozenset({left, right})
+                     for index, left in enumerate(lemmas) for right in lemmas[index + 1:]
+                     if meanings.get(left, frozenset()) & meanings.get(right, frozenset()))
+
+
 def build_glosses(
     inputs: ExpansionInputs | None,
     aligned: Sequence[tuple[ResolvedSlot, Sequence[tuple[int, int]]]],
 ) -> dict[str, str]:
-    """`lemma -> English gloss`, taken from the alignment and nothing else.
+    """Standalone citation meanings require reviewed bilingual authoring evidence.
 
-    This is the one place the word alignment becomes learner-visible content rather
-    than a hint, so its quality note travels with it on the runlog. A lemma with no
-    alignment gets NO gloss, so it gets no `meaning_select` and no match row — and
-    `_lexeme_pass` then does not introduce it as a lexeme item at all, rather than
-    introducing it with one punitive form. The word is still taught inside the sentence
-    exercises; nothing invents a translation.
-
-    IT READS AUTHORED SLOTS TOO, and that is new. It used to be keyed by
-    `sentence_id`, so an authored slot — which has none — could never contribute a
-    gloss, and unit 1 of a course whose first lesson is entirely authored words and
-    fixed phrases (ruling B9(b)) therefore had no glosses, no `meaning_select`, no
-    match and no lexeme items: the lesson that exists to teach five words taught none of
-    them by name. An authored slot now carries G5's analysis (B16) and its own
-    translation, which is all this function ever needed.
+    Alignment remains positional evidence for word-bank hints. It is never a
+    dictionary authority: frequent votes for costa=west do not make that meaning true.
+    A missing, rejected, unsupported-POS or ambiguous glossary entry abstains.
     """
-    del inputs  # Reserved for language-specific gloss policies; no second oracle today.
-    votes: dict[str, dict[str, int]] = {}
-    for slot, pairs in aligned:
-        if slot.analysis is None:
-            continue
-        translation = list(surface_tokens(slot.translation))
-        tokens = _lexical_analysis_tokens(slot.analysis)
-        for source_index, target_index in pairs:
-            if not (0 <= source_index < len(translation) and 0 <= target_index < len(tokens)):
-                continue
-            lemma = tokens[target_index]["lemma"]
-            gloss = translation[source_index].strip(".,!?¿¡").casefold()
-            if not gloss or not _plausible_gloss(lemma, str(tokens[target_index]["pos"]), gloss):
-                continue
-            votes.setdefault(lemma, {})[gloss] = votes.setdefault(lemma, {}).get(gloss, 0) + 1
-    return {
-        lemma: max(sorted(counts), key=lambda gloss: (counts[gloss], gloss))
-        for lemma, counts in votes.items()
-    }
-
-
-_CONTENT_POS = frozenset({"ADJ", "ADV", "NOUN", "NUM", "PROPN", "VERB"})
-_ENGLISH_FUNCTION_WORDS = frozenset(
-    {"a", "an", "and", "is", "of", "that", "the", "this", "was", "while"}
-)
-_ENGLISH_IRREGULAR_PAST = frozenset(
-    {"had", "hung", "lost", "made", "ran", "spoke", "threw", "was", "were", "woke"}
-)
-
-
-def _plausible_gloss(lemma: str, pos: str, gloss: str) -> bool:
-    """Conservative form gate for learner-visible one-token alignment glosses.
-
-    Alignment is allowed to abstain. It is not allowed to teach a content lemma as a
-    function word, a Spanish infinitive as an English finite/past form, or a singular
-    noun as an English plural. This checks form compatibility only; it does not invent
-    semantics or repair a rejected gloss (INV-PACK-10).
-    """
-    del lemma  # Meaning is never guessed here; this gate only checks POS/form compatibility.
-    word = gloss.casefold()
-    if pos in _CONTENT_POS and word in _ENGLISH_FUNCTION_WORDS:
-        return False
-    if pos == "VERB" and (
-        word in _ENGLISH_IRREGULAR_PAST
-        or word.endswith("ed")
-        or (word.endswith("s") and not word.endswith(("ss", "us")))
-    ):
-        return False
-    return not (
-        pos in {"NOUN", "PROPN"}
-        and word.endswith("s")
-        and not word.endswith(("ss", "us"))
-        and word not in {"news", "series", "species"}
-    )
+    del aligned
+    if inputs is None:
+        return {}
+    return {lemma: entry.citation_gloss for lemma in inputs.pos_of
+            if (entry := _reviewed_gloss(inputs, lemma)) is not None}
 
 
 # ---------------------------------------------------------------------------
@@ -1511,6 +1514,8 @@ def expand(ctx: StageContext) -> StageResult:
     require_successful(lang, ["g1", "g2", "g3", "g4"])
     try:
         inputs = _load(lang)
+    except GlossaryError as exc:
+        return StageResult(ok=False, message=str(exc))
     except CastError as exc:
         # G7 names the clips G8 will bake, and a clip's id hashes the engine and the
         # voice (INV-AUD-08), so this stage cannot write an `audio_ref` without the
@@ -1574,7 +1579,9 @@ def expand(ctx: StageContext) -> StageResult:
 
         glosses = build_glosses(inputs, [(slot, pairs) for _item, slot, pairs in resolved])
         for lemma, gloss in glosses.items():
-            alternatives.add(f"lexeme:{lemma}", [lemma, gloss])
+            entry = _reviewed_gloss(inputs, lemma, glosses)
+            assert entry is not None
+            alternatives.add(f"lexeme:{lemma}", [lemma, gloss, *entry.valid_alternates])
 
         # Pass 2: the sentence and grammar drafts. A word or a fixed phrase produces
         # none — it is a lexeme-focus item and pass 3 is where it is taught.
@@ -1645,6 +1652,12 @@ def expand(ctx: StageContext) -> StageResult:
             shape_id: sum(1 for draft in drafts if draft.shape_id == shape_id)
             for shape_id in sorted({draft.shape_id for draft in drafts})
         },
+        glossary_entries_accepted=sum(len(entries) for entries in inputs.glossary.values()),
+        glossary_citation_meanings=len(glosses),
+        glossary_ambiguous_lemmas=sorted(lemma for lemma, entries in inputs.glossary.items()
+                                         if len(entries) != 1),
+        glossary_missing_lemmas=sorted({lemma for item in inputs.selected
+                                       for lemma in item["new_lemmas"]} - set(glosses)),
         types_emitted=sorted({record["type"] for record in records}),
         types_declared=list(EXERCISE_TYPES),
         registers_by_unit={str(index): value for index, value in registers.items()},

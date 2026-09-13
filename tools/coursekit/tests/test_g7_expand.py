@@ -70,7 +70,6 @@ from coursekit.stages.g7_expand import (
     StarvedSlot,
     _display_split,
     _gapped,
-    _plausible_gloss,
     _spanish_accepted_surfaces,
     _target_tokens,
     build_glosses,
@@ -87,51 +86,13 @@ def test_INV_GRD_03_subject_pronoun_surface_without_analysis_gains_no_variant(su
     assert _spanish_accepted_surfaces(surface) == (surface,)
 
 
-@pytest.mark.parametrize(
-    ("lemma", "pos", "gloss"),
-    [
-        ("solicitar", "VERB", "that"),
-        ("alcanzar", "VERB", "was"),
-        ("encargar", "VERB", "of"),
-        ("repetir", "VERB", "repeats"),
-        ("recibir", "VERB", "received"),
-        ("grado", "NOUN", "degrees"),
-        ("uno", "NUM", "a"),
-    ],
-)
-def test_INV_PACK_07_malformed_alignment_glosses_never_reach_match_rows(
-    lemma: str, pos: str, gloss: str
-) -> None:
-    """[INV-PACK-07] form-incompatible alignment guesses are not taught as meanings."""
-    assert _plausible_gloss(lemma, pos, gloss) is False
-
-
-@pytest.mark.parametrize(
-    ("lemma", "pos", "gloss"),
-    [
-        ("solicitar", "VERB", "request"),
-        ("enfocar", "VERB", "focus"),
-        ("autobús", "NOUN", "bus"),
-        ("noticia", "NOUN", "news"),
-        ("grado", "NOUN", "degree"),
-        ("mi", "DET", "my"),
-    ],
-)
-def test_INV_PACK_07_well_formed_glosses_remain_match_eligible(
-    lemma: str, pos: str, gloss: str
-) -> None:
-    assert _plausible_gloss(lemma, pos, gloss) is True
-
-
 def test_INV_PACK_07_build_glosses_discards_bad_alignment_votes_without_repair() -> None:
     analysis = {"tokens": [{"surface": "Solicitar", "lemma": "solicitar", "pos": "VERB"}]}
     bad = ResolvedSlot("Solicitar.", "That.", "bad", analysis, None)
     good = ResolvedSlot("Solicitar.", "Request.", "good", analysis, None)
 
     assert build_glosses(None, [(bad, [(0, 0)])]) == {}
-    assert build_glosses(None, [(good, [(0, 0)])]) == {
-        "solicitar": "request"
-    }
+    assert build_glosses(None, [(good, [(0, 0)])]) == {}
 
 
 def test_INV_PACK_07_initial_cloze_gap_reconstructs_the_source_byte_for_byte() -> None:
@@ -174,6 +135,49 @@ def g7_is_registered() -> None:
         import coursekit.stages.g7_expand as module
 
         importlib.reload(module)
+
+_REVIEWED_TEST_GLOSSES = (
+    ("perro", "NOUN", "dog"), ("casa", "NOUN", "house"), ("libro", "NOUN", "book"),
+    ("mesa", "NOUN", "table"), ("coche", "NOUN", "car"), ("parque", "NOUN", "park"),
+    ("pan", "NOUN", "bread"), ("cuarto", "NOUN", "room"), ("queso", "NOUN", "cheese"),
+    ("comer", "VERB", "eat"), ("beber", "VERB", "drink"), ("correr", "VERB", "run"),
+    ("mirar", "VERB", "look"), ("leer", "VERB", "read"), ("él", "PRON", "he"),
+    ("yo", "PRON", "I"), ("ella", "PRON", "she"), ("usted", "PRON", "you"),
+    ("amable", "ADJ", "kind"), ("educado", "ADJ", "polite"), ("formal", "ADJ", "formal"),
+    ("agradable", "ADJ", "pleasant"), ("permiso", "NOUN", "permission"),
+    ("respeto", "NOUN", "respect"), ("solicitar", "VERB", "request"),
+    ("costa", "NOUN", "coast"), ("servir", "VERB", "serve"), ("morado", "ADJ", "purple"),
+    ("conducir", "VERB", "drive"), ("colgar", "VERB", "hang"), ("mínimo", "ADJ", "minimum"),
+    ("competir", "VERB", "compete"), ("nevar", "VERB", "snow"),
+    ("llevar", "VERB", "carry"), ("vestir", "VERB", "put on"),
+)
+
+
+@pytest.fixture(autouse=True)
+def g7_reviewed_glossary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Original, independently reviewed fixture evidence; never the live authoring file."""
+    from shutil import copyfile
+
+    from coursekit.lexeme_glosses import gloss_content_hash
+
+    root = tmp_path / "content"
+    target = root / "es" / "authoring" / "lexeme-glosses.jsonl"
+    target.parent.mkdir(parents=True)
+    copyfile(Path(__file__).resolve().parents[3] / "content/es/cast.yaml", root / "es/cast.yaml")
+    rows = []
+    for lemma, pos, gloss in _REVIEWED_TEST_GLOSSES:
+        row = {"schema_version": 1, "lang": "es", "lemma": lemma, "pos": pos,
+               "citation_gloss": gloss, "valid_alternates": ["wear"] if lemma in {
+                   "llevar", "vestir"} else [],
+               "sense_evidence": "Explicit supported citation meaning for this test fixture.",
+               "author": "Fixture author", "licence": "CC-BY-NC-SA-4.0", "review": None}
+        row["review"] = {"reviewer": "Independent fixture reviewer", "verdict": "accepted",
+                         "note": "Verified lemma, POS, citation and supported senses.",
+                         "content_hash": gloss_content_hash(row)}
+        rows.append(row)
+    target.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
+    monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(root))
+
 
 FIXTURES = Path(__file__).parent / "fixtures" / "es-mini"
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src" / "coursekit"
@@ -1417,6 +1421,7 @@ def test_INV_PACK_07_a_match_is_only_built_over_lemmas_already_taught_twice() ->
 def test_build_match_pairs_returns_none_below_five_glossed_rows() -> None:
     """Four rows is a different exercise, so the builder declines rather than shrinks."""
     from coursekit.exercises.distractors import DistractorPool, L1DecoyPool
+    from coursekit.lexeme_glosses import load_glossary_by_lemma
     from coursekit.stages.g7_expand import ExpansionInputs, build_match_pairs
 
     inputs = ExpansionInputs(
@@ -1429,8 +1434,9 @@ def test_build_match_pairs_returns_none_below_five_glossed_rows() -> None:
         texts={},
         pool=DistractorPool(),
         l1_pool=L1DecoyPool(),
-        pos_of={},
+        pos_of={lemma: "NOUN" for lemma in ["casa", "libro", "mesa", "pan", "perro"]},
         band_of={},
+        glossary=load_glossary_by_lemma(LANG),
     )
     glosses = {"casa": "house", "libro": "book", "mesa": "table", "pan": "bread"}
     assert (
@@ -1920,7 +1926,7 @@ def test_INV_PACK_40_gloss_alignment_uses_the_same_lexical_indices_as_the_aligne
     )
     slot = ResolvedSlot(text, "Bread cheese?", "a" * 16, analysis, None)
     pairs = [(0, 0), (1, 1)]
-    assert build_glosses(None, [(slot, pairs)]) == {"pan": "bread", "queso": "cheese"}
+    assert build_glosses(None, [(slot, pairs)]) == {}
     hints = _hints_for(None, {"new_lemmas": ["pan", "queso"]}, slot, pairs)
     assert len(hints) == 2
 
@@ -2047,6 +2053,10 @@ def test_INV_PACK_41_every_required_match_row_contributes_to_identity() -> None:
     glosses = {"pan": "bread", "casa": "house", "libro": "book", "mesa": "table", "perro": "dog"}
     args = dict(unit=1, lesson=1, lemmas=list(glosses), register="tu")
     before = build_match_pairs(inputs, glosses=glosses, **args)
+    from dataclasses import replace
+
+    # A semantic change has separately reviewed evidence, unlike an arbitrary gloss edit.
+    inputs.glossary["perro"] = (replace(inputs.glossary["perro"][0], citation_gloss="hound"),)
     after = build_match_pairs(inputs, glosses={**glosses, "perro": "hound"}, **args)
     assert before is not None and after is not None
     assert before.accepted_answers[0] == after.accepted_answers[0]
@@ -2556,7 +2566,7 @@ def test_INV_PACK_40_every_g7_index_uses_g1_lexical_pos_boundary(nonlexical_pos:
     assert [token["surface"] for token in _lexical_analysis_tokens(analysis)] == ["Pan", "queso"]
     assert _target_tokens(slot) == ["Pan", "queso"]
     assert _lemmas_for(slot) == ["pan", "queso"]
-    assert build_glosses(None, [(slot, [(0, 0), (1, 1)])]) == {"pan": "bread", "queso": "cheese"}
+    assert build_glosses(None, [(slot, [(0, 0), (1, 1)])]) == {}
     assert _gapped(slot, _target_tokens(slot), 1) == "¿Pan, ____?"
 
 
@@ -2653,3 +2663,124 @@ def test_INV_PACK_08_formal_lexeme_match_keeps_usted_in_declared_unit() -> None:
     matches = [draft for draft in drafts if draft.shape_id == "match_pairs"]
     assert matches and any("usted = you" in draft.accepted_answers for draft in matches)
     assert all(draft.register == "usted" and draft.source_sentence_id is None for draft in drafts)
+
+
+
+@pytest.mark.parametrize(("lemma", "pos", "wrong", "correct"), [
+    ("costa", "NOUN", "west", "coast"), ("servir", "VERB", "it", "serve"),
+    ("morado", "ADJ", "shirt", "purple"), ("conducir", "VERB", "faster", "drive"),
+    ("colgar", "VERB", "me", "hang"), ("mínimo", "ADJ", "all", "minimum"),
+    ("competir", "VERB", "today", "compete"), ("nevar", "VERB", "snowing", "snow"),
+])
+def test_INV_PACK_40_actual_alignment_errors_cannot_author_standalone_meanings(
+    lemma: str, pos: str, wrong: str, correct: str,
+) -> None:
+    from coursekit.stages.g7_expand import _load
+
+    _write_ledger()
+    inputs = _load(LANG)
+    inputs.pos_of[lemma] = pos
+    slot = ResolvedSlot(lemma, wrong, "a" * 16,
+                        _quality_analysis(lemma, [(lemma, lemma, pos, "")]), None)
+    glosses = build_glosses(inputs, [(slot, [(0, 0)])])
+    assert glosses[lemma] == correct
+    assert glosses[lemma] != wrong
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _lexeme_drafts
+
+    siblings = [key for key, entries in inputs.glossary.items() if entries[0].pos == pos]
+    for sibling in siblings:
+        inputs.pos_of[sibling], inputs.band_of[sibling] = pos, "A1"
+    inputs.pool.by_pos_band[(pos, "A1")] = siblings
+    glosses = build_glosses(inputs, [(slot, [(0, 0)])])
+    drafts = _lexeme_drafts(inputs, lemma=lemma, unit=1, lesson=1, register="tu",
+                            alternatives=AlternativesIndex(), glosses=glosses)
+    assert len(drafts) == 1
+    assert drafts[0].body == lemma
+    assert drafts[0].accepted_answers == (correct,)
+    assert wrong not in drafts[0].accepted_answers
+    assert correct not in drafts[0].distractors
+
+
+def test_INV_PACK_10_unreviewed_alignment_cannot_create_a_dictionary_assertion() -> None:
+    text = "Objeto"
+    slot = ResolvedSlot(text, "Object", "a" * 16,
+                        _quality_analysis(text, [(text, "objeto", "NOUN", "")]), None)
+    assert build_glosses(None, [(slot, [(0, 0)])]) == {}
+
+
+def test_INV_PACK_40_reviewed_meaning_requires_the_intended_pos() -> None:
+    from coursekit.stages.g7_expand import _load
+
+    _write_ledger()
+    inputs = _load(LANG)
+    inputs.pos_of["costa"] = "VERB"
+    assert "costa" not in build_glosses(inputs, [])
+
+
+def test_INV_PACK_07_polysemous_sibling_cannot_supply_a_meaning_decoy() -> None:
+    from coursekit.stages.g7_expand import _load, _meaning_options
+
+    _write_ledger()
+    inputs = _load(LANG)
+    lemmas = ["llevar", "vestir", "correr", "beber", "leer"]
+    for lemma in lemmas:
+        inputs.pos_of[lemma], inputs.band_of[lemma] = "VERB", "A1"
+    inputs.pool.by_pos_band[("VERB", "A1")] = lemmas
+    glosses = build_glosses(inputs, [])
+    options = _meaning_options(inputs, "llevar", glosses, count=3)
+    assert options is not None
+    assert "put on" not in options and "wear" not in options
+    assert set(options) == {"run", "drink", "read"}
+
+
+def test_INV_PACK_07_ambiguous_match_pairs_cannot_create_single_form_items() -> None:
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _lexeme_pass, _load, build_match_pairs
+
+    _write_ledger()
+    inputs = _load(LANG)
+    lemmas = ["llevar", "vestir", "correr", "beber", "leer"]
+    inputs.selected = [{"unit_index": 1, "lesson_index": 1, "new_lemmas": lemmas}]
+    for lemma in lemmas:
+        inputs.pos_of[lemma], inputs.band_of[lemma] = "VERB", "A1"
+    inputs.pool.by_pos_band[("VERB", "A1")] = lemmas
+    glosses = build_glosses(inputs, [])
+    assert build_match_pairs(inputs, unit=1, lesson=1, lemmas=lemmas, glosses=glosses,
+                             register="tu") is None
+    drafts, counts = _lexeme_pass(inputs, glosses=glosses, alternatives=AlternativesIndex())
+    assert drafts == []
+    assert counts["lexemes_introduced"] == 0
+
+
+def test_INV_PACK_07_overlapping_senses_retain_two_forms_when_safe_groups_exist() -> None:
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _lexeme_pass, _load
+
+    _write_ledger()
+    inputs = _load(LANG)
+    lemmas = ["llevar", "vestir", "correr", "beber", "leer", "comer"]
+    inputs.selected = [{"unit_index": 1, "lesson_index": 1, "new_lemmas": lemmas}]
+    for lemma in lemmas:
+        inputs.pos_of[lemma], inputs.band_of[lemma] = "VERB", "A1"
+    inputs.pool.by_pos_band[("VERB", "A1")] = lemmas
+    drafts, counts = _lexeme_pass(inputs, glosses=build_glosses(inputs, []),
+                                 alternatives=AlternativesIndex())
+    assert counts["lexemes_introduced"] == 6
+    for lemma in lemmas:
+        forms = {draft.shape_id for draft in drafts if lemma in draft.lemmas}
+        assert forms == {"meaning_select", "match_pairs"}
+    assert not any({"llevar", "vestir"}.issubset(draft.lemmas) for draft in drafts)
+
+
+def test_INV_PACK_40_multiple_reviewed_pos_abstains_from_standalone_meaning() -> None:
+    from dataclasses import replace
+
+    from coursekit.stages.g7_expand import _load
+
+    _write_ledger()
+    inputs = _load(LANG)
+    entry = inputs.glossary["costa"][0]
+    inputs.pos_of["costa"] = "NOUN"
+    inputs.glossary["costa"] = (entry, replace(entry, pos="VERB", citation_gloss="cost"))
+    assert "costa" not in build_glosses(inputs, [])
