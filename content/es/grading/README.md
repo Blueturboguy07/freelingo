@@ -96,9 +96,10 @@ The normalization build must call the actual core `tier1Normalise` and
 preserve raw spellings and union every relevant lesson-policy lookup form. Empty
 normalized strings are excluded explicitly; the raw evidence is preserved.
 
-The runtime exposes a truthful `ReadonlySet`: exact parameterized indexed `has`,
-verified `size`, and keyset-paged values/keys/entries/iteration/forEach. Pages contain
-at most 256 rows; no complete multi-million-word Set is materialized.
+The runtime exposes `WordDictionary`: exact parameterized indexed `has`, verified
+`size`, and keyset-paged iteration. Pages contain at most 256 rows; no complete
+multi-million-word Set is materialized. The contract does not promise JavaScript
+Set algebra. Small inline Sets remain structurally compatible.
 
 ## Structured draft and runtime row
 
