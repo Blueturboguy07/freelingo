@@ -1624,7 +1624,10 @@ def expand(ctx: StageContext) -> StageResult:
         for finding in (
             *check_pack_07(records),
             *check_pack_50(records),
-            *check_v6(records, lang=lang, units=inputs.units),
+            *check_v6(records, lang=lang, units=inputs.units, source_contexts={
+                slot.source_id: {"text": slot.text, "analysis": slot.analysis}
+                for _item, slot, _pairs in resolved
+            }),
             *check_v5(records, pos_of=inputs.pos_of, attested_pos=inputs.pos_sets),
         )
         if finding.severity == "blocking"

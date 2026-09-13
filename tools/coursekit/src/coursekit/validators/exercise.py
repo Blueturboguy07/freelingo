@@ -36,9 +36,8 @@ import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from ..artifacts import read_records
+from ..artifacts import first_accepted_candidates, read_records
 from ..config.g7 import (
-    ES_REGISTER_MARKERS,
     MIN_FORMS_PER_MISSABLE_ITEM,
     REGISTERS,
     V6_IMPLEMENTED_LANGUAGES,
@@ -46,7 +45,7 @@ from ..config.g7 import (
 )
 from ..exercises.shapes import shape_of_record
 from ..ledger import surface_tokens
-from ..registers import RegisterPolicyError, unit_register
+from ..registers import RegisterPolicyError, register_of, unit_register
 from . import Finding, ValidatorContext, register_validator
 
 __all__ = [
@@ -59,25 +58,6 @@ __all__ = [
     "pos_sets",
     "register_of",
 ]
-
-
-def _fold(text: str) -> str:
-    """Case-folded, accent-stripped. Used only for register-marker matching."""
-    decomposed = unicodedata.normalize("NFD", text.casefold())
-    return "".join(char for char in decomposed if not unicodedata.combining(char))
-
-
-#: Everything that can sit against a word and is not part of it. Category-based rather
-#: than a hand-listed set: the previous version replaced `¿` and `?` and nothing else, so
-#: a sentence ENDING in the marker (`¿Cómo está usted.`) had its marker read as `usted.`
-#: and matched nothing — V6 silently missed every out-of-register answer that put the
-#: pronoun last, which in Spanish is where it usually goes.
-def _words(text: str) -> list[str]:
-    stripped = "".join(
-        " " if unicodedata.category(char).startswith(("P", "S")) else char
-        for char in _fold(text)
-    )
-    return list(surface_tokens(stripped))
 
 
 def item_keys(record: Mapping[str, Any]) -> tuple[str, ...]:
@@ -458,41 +438,20 @@ def _dominant_pos(answers: Sequence[str], pos_of: Mapping[str, str]) -> str | No
 # ---------------------------------------------------------------------------
 
 
-def register_of(text: str, lang: str) -> set[str]:
-    """Which registers this string carries markers for. Empty = register-neutral.
-
-    Lexical, not syntactic: a marker list rather than a parser, because the thing V6
-    has to catch is a `usted` sentence in a `tú` unit.
-
-    HIGH PRECISION, NOT HIGH RECALL, and the difference is the whole reason this
-    function is safe to block a pack with. The `usted` row used to carry `le`, `les`,
-    `su` and `sus` — the ordinary third-person clitic and possessive, which carry no
-    register at all — so `A él le gusta su casa.` was reported as `usted`, and any A1
-    Spanish pack containing `su casa` or `le gusta` inside a tuteo unit was blocked by a
-    finding that was not true. Those forms are ambiguous between ustedeo and plain third
-    person and cannot be separated lexically, so they are gone
-    (`ES_AMBIGUOUS_THIRD_PERSON_FORMS` keeps the list for the regression test). What is
-    left is only what can ONLY be register. The cost is stated rather than hidden: an
-    ustedeo sentence that never names the pronoun (`¿Cómo está?`) passes V6, and no
-    lexical table can catch that one.
-    """
-    if lang != "es":
-        raise ValueError(f"register_of has no marker table for {lang!r}")
-    present = set(_words(text))
-    return {
-        register
-        for register, markers in ES_REGISTER_MARKERS.items()
-        if present & {_fold(marker) for marker in markers}
-    }
-
-
 def check_v6(
     records: Iterable[Mapping[str, Any]],
     *,
     lang: str,
     units: Mapping[int, Mapping[str, Any]] | None = None,
+    source_contexts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[Finding]:
     """Every accepted answer sits in the unit's declared register.
+
+    Non-null source IDs require exact canonical text and complete stored analysis.
+    Morphology belongs to that complete source context, never to an isolated blank or
+    a synthetic gloss. Alternate answers retain their own lexical check here; their
+    fresh per-surface morphology is G6's responsibility. A chat's reply source proves
+    only its reply context; authored first-turn/wrong-reply joins are separate roles.
 
     For a language with no marker table this returns one blocking finding naming the
     gap, and no per-record findings at all — a run that reports zero problems because
@@ -546,6 +505,30 @@ def check_v6(
                 detail={"declared": declared, "expected": expected},
             ))
             continue
+        source_id = record.get("source_sentence_id")
+        if source_id is not None:
+            context = (source_contexts or {}).get(source_id)
+            role = ("reply_context" if shape_of_record(dict(record)).id == "complete_the_chat"
+                    else "source_context")
+            try:
+                if (not isinstance(context, Mapping) or not isinstance(context.get("text"), str)
+                        or not isinstance(context.get("analysis"), Mapping)):
+                    raise RegisterPolicyError(f"missing exact analysed source context {source_id}")
+                carried_context = register_of(context["text"], lang, analysis=context["analysis"])
+            except RegisterPolicyError as exc:
+                findings.append(Finding(
+                    validator_id="V6", severity="blocking", subject=record["exercise_id"],
+                    message=str(exc), detail={"source_id": source_id, "role": role},
+                ))
+            else:
+                if carried_context and carried_context != {expected}:
+                    findings.append(Finding(
+                        validator_id="V6", severity="blocking", subject=record["exercise_id"],
+                        message=(f"{role} {context['text']!r} carries "
+                                 f"{', '.join(sorted(carried_context))} in a {expected!r} unit"),
+                        detail={"source_id": source_id, "role": role,
+                                "carried": sorted(carried_context), "text": context["text"]},
+                    ))
         for answer in record["accepted_answers"]:
             carried = register_of(answer, lang)
             if not carried or declared in carried:
@@ -629,4 +612,25 @@ def v6_register(ctx: ValidatorContext) -> list[Finding]:
         v6_implemented_for=list(V6_IMPLEMENTED_LANGUAGES),
         v6_script_variants_checked=False,
     )
-    return check_v6(records, lang=ctx.lang, units=units)
+    source_ids = {record["source_sentence_id"] for record in records
+                  if record.get("source_sentence_id") is not None}
+    contexts: dict[str, Mapping[str, Any]] = {}
+    if source_ids:
+        try:
+            analyses = {row["sentence_id"]: row for row in
+                        read_records("analysed_sentence", lang=ctx.lang)}
+            contexts = {row["sentence_id"]: {"text": row["text"],
+                        "analysis": analyses.get(row["sentence_id"])}
+                        for row in read_records("ingested_sentence", lang=ctx.lang)
+                        if row["sentence_id"] in source_ids}
+            if source_ids - contexts.keys():
+                chosen = first_accepted_candidates(read_records("candidate", lang=ctx.lang),
+                                                   lang=ctx.lang)
+                contexts.update({row["candidate_id"]: {"text": row["text"],
+                                 "analysis": row.get("analysis")}
+                                 for row in chosen.values() if row["candidate_id"] in source_ids})
+        except FileNotFoundError as exc:
+            return [Finding(validator_id="V6", severity="blocking", message=str(exc),
+                            subject=ctx.lang)]
+    ctx.entry.note(v6_canonical_source_contexts=len(contexts))
+    return check_v6(records, lang=ctx.lang, units=units, source_contexts=contexts)

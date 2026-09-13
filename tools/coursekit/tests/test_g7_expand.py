@@ -843,6 +843,31 @@ def _with_offsets(
     return rows
 
 
+def _complete_source_analysis(text: str, analysis: dict | None) -> dict | None:
+    """Mock G1/G5 still stores every punctuation token at its exact source offset."""
+    import unicodedata
+
+    if analysis is None:
+        return None
+    rows = []
+    cursor = 0
+    for token in analysis["tokens"]:
+        start = text.index(token["surface"], cursor)
+        for offset in range(cursor, start):
+            if not text[offset].isspace():
+                assert unicodedata.category(text[offset]).startswith(("P", "S"))
+                rows.append({"surface": text[offset], "lemma": text[offset], "pos": "PUNCT",
+                             "morph": "", "start": offset, "end": offset + 1})
+        cursor = start + len(token["surface"])
+        rows.append({**token, "start": start, "end": cursor})
+    for offset in range(cursor, len(text)):
+        if not text[offset].isspace():
+            assert unicodedata.category(text[offset]).startswith(("P", "S"))
+            rows.append({"surface": text[offset], "lemma": text[offset], "pos": "PUNCT",
+                         "morph": "", "start": offset, "end": offset + 1})
+    return {**analysis, "tokens": rows}
+
+
 def _write_ledger(lang: str = LANG) -> None:
     """Write G0-G4's artefacts and their runlog entries into the isolated build root."""
     ingested = []
@@ -885,7 +910,9 @@ def _write_ledger(lang: str = LANG) -> None:
                 # read them — and then `_gapped` started cutting the gap out of the
                 # sentence by offset, so a fixture with fake offsets exercised only the
                 # fallback and hid the path the real ledger takes.
-                "tokens": _with_offsets(text, tokens),
+                "tokens": _complete_source_analysis(
+                    text, {"tokens": _with_offsets(text, tokens)}
+                )["tokens"],
                 "lemmas": [lemma for _surface, lemma, _pos in tokens],
                 "display_tokens": [surface for surface, _lemma, _pos in tokens],
             }
@@ -1008,7 +1035,11 @@ def test_INV_PACK_08_the_written_packs_answers_are_all_in_the_declared_register(
     runner.invoke(app, ["build", LANG, "--only", "g7", "--set", "align_engine=deterministic"])
     records = list(read_records("exercise", lang=LANG))
     assert {record["register"] for record in records} == {"tu"}
-    findings = check_v6(records, lang=LANG, units={1: UNIT})
+    source_texts = {row["sentence_id"]: row["text"]
+                    for row in read_records("ingested_sentence", lang=LANG)}
+    contexts = {row["sentence_id"]: {"text": source_texts[row["sentence_id"]], "analysis": row}
+                for row in read_records("analysed_sentence", lang=LANG)}
+    findings = check_v6(records, lang=LANG, units={1: UNIT}, source_contexts=contexts)
     assert [f for f in findings if f.severity == "blocking"] == []
 
 
@@ -1060,7 +1091,7 @@ def _write_gap_ledger(gaps: list[dict[str, Any]]) -> None:
                     "accepted": True,
                     "reject_reason": None,
                     "provenance": "llm",
-                    "analysis": gap.get("analysis"),
+                    "analysis": _complete_source_analysis(gap["text"], gap.get("analysis")),
                 }
             )
     write_records("selected_item", selected, lang=LANG)
@@ -2429,7 +2460,8 @@ def _add_agreement_ledger() -> None:
         ])
         ingested.append({**ingested[0], "sentence_id": sid, "text": text,
                          "translation": english, "token_count": 3})
-        analysed.append({**analysed[0], **analysis, "sentence_id": sid})
+        analysed.append({**analysed[0], **_complete_source_analysis(text, analysis),
+                         "sentence_id": sid})
         if subject == "Yo":
             selected.append({**selected[0], "slot_index": 8, "sentence_id": sid,
                              "new_lemmas": [], "known_lemmas": analysis["lemmas"]})
@@ -2784,3 +2816,34 @@ def test_INV_PACK_40_multiple_reviewed_pos_abstains_from_standalone_meaning() ->
     inputs.pos_of["costa"] = "NOUN"
     inputs.glossary["costa"] = (entry, replace(entry, pos="VERB", citation_gloss="cost"))
     assert "costa" not in build_glosses(inputs, [])
+
+
+
+def test_INV_PACK_08_g7_gate_checks_finite_register_before_writing() -> None:
+    _write_ledger()
+    ingested = list(read_records("ingested_sentence", lang=LANG))
+    analysed = list(read_records("analysed_sentence", lang=LANG))
+    selected = list(read_records("selected_item", lang=LANG))
+    # An exact neutral-marker sentence with a possible finite second-person reading.
+    text = "Come pan caliente."
+    sid = sentence_id(LANG, text)
+    analysis = _quality_analysis(text, [
+        ("Come", "comer", "VERB", "Mood=Imp|Person=2|Number=Sing|VerbForm=Fin"),
+        ("pan", "pan", "NOUN", ""), ("caliente", "caliente", "ADJ", ""),
+        (".", ".", "PUNCT", ""),
+    ])
+    ingested.append({**ingested[0], "sentence_id": sid, "text": text,
+                     "translation": "Eat warm bread.", "token_count": 3})
+    analysed.append({**analysed[0], **analysis, "sentence_id": sid})
+    write_records("ingested_sentence", ingested, lang=LANG)
+    write_records("analysed_sentence", analysed, lang=LANG)
+    write_records("unit_assignment", [{**UNIT, "unit_index": 23,
+                   "grammar_concept": "formal_informal_address"}], lang=LANG)
+    write_records("selected_item", [{**selected[0], "unit_index": 23,
+                   "sentence_id": sid, "slot_index": 1,
+                   "grammar_concept": "formal_informal_address"}], lang=LANG)
+    result = _build()
+    assert result.exit_code != EXIT_OK
+    assert "source_context" in result.output and "carries tu" in result.output
+    with pytest.raises(FileNotFoundError):
+        list(read_records("exercise", lang=LANG))

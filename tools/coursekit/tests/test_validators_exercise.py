@@ -405,24 +405,29 @@ def _record(*, register: str, accepted_answers: list[str]) -> dict[str, Any]:
 def test_INV_PACK_08_the_falsifier_is_caught() -> None:
     """[INV-PACK-08] an usted answer in a tú unit is blocked."""
     findings = blocking(check_v6(
-        load("INV-PACK-08", "falsifier"), lang="es", units=_UNIT_REGISTERS
+        load("INV-PACK-08", "falsifier"), lang="es", units=_UNIT_REGISTERS,
+        source_contexts=_v6_fixture_contexts("falsifier"),
     ))
-    assert len(findings) == 1, findings
-    assert findings[0].detail["carried"] == ["usted"]
+    answers = [f for f in findings if "answer" in f.detail]
+    assert len(answers) == 1, findings
+    assert answers[0].detail["carried"] == ["usted"]
 
 
 def test_INV_PACK_08_a_mixed_register_answer_is_caught() -> None:
     """[INV-PACK-08] one answer carrying both registers is blocked too."""
     findings = blocking(check_v6(
-        load("INV-PACK-08", "mixed_register"), lang="es", units=_UNIT_REGISTERS
+        load("INV-PACK-08", "mixed_register"), lang="es", units=_UNIT_REGISTERS,
+        source_contexts=_v6_fixture_contexts("mixed_register"),
     ))
-    assert len(findings) == 1, findings
-    assert "mixes registers" in findings[0].message
+    answers = [f for f in findings if "answer" in f.detail]
+    assert len(answers) == 1, findings
+    assert "mixes registers" in answers[0].message
 
 
 def test_INV_PACK_08_the_repair_passes() -> None:
     """[INV-PACK-08] both tú renderings of the same sentence are accepted."""
-    assert blocking(check_v6(load("INV-PACK-08", "repair"), lang="es", units=_UNIT_REGISTERS)) == []
+    assert blocking(check_v6(load("INV-PACK-08", "repair"), lang="es", units=_UNIT_REGISTERS,
+                             source_contexts=_v6_fixture_contexts("repair"))) == []
 
 
 def test_INV_PACK_08_japanese_is_refused_not_passed() -> None:
@@ -546,3 +551,143 @@ def test_INV_PACK_08_registered_validator_reads_unit_artifact(
     findings = blocking(exercise.v6_register(ctx))
     assert bool(findings) is (unit_index == 1)
     assert ("unit_assignment", "es") in reads
+
+
+
+def _v6_analysis(text: str, finite: dict[str, str] | None = None) -> dict:
+    """Exact mocked source analysis, retaining punctuation and original offsets."""
+    import re
+
+    finite = finite or {}
+    return {"tokens": [
+        {"surface": m.group(), "lemma": m.group().casefold(),
+         "pos": "VERB" if m.group() in finite else "NOUN" if m.group().isalnum() else "PUNCT",
+         "morph": finite.get(m.group(), ""), "start": m.start(), "end": m.end()}
+        for m in re.finditer(r"\w+|[^\w\s]", text)
+    ]}
+
+
+def _v6_source_record(shape_id: str, *, formal: bool = True) -> tuple[dict, dict]:
+    from coursekit.exercises.shapes import prompt_for, shape
+
+    text = "Disculpa la molestia, mi madre."
+    gap = "Disculpa la ____, mi madre."
+    reverse = shape(shape_id).direction == "l2_to_l1"
+    body = {
+        "complete_the_translation": "Sorry for the inconvenience, my mother.\n" + gap,
+        "fill_in_the_blank": gap,
+        "listen_for_the_missing_word": gap,
+        "typed_translate_forward": "Sorry for the inconvenience, my mother.",
+        "typed_translate_reverse": text,
+        "speak_this_sentence": text,
+    }[shape_id]
+    answer = ("Sorry for the inconvenience, my mother." if reverse else
+              "molestia" if "____" in body else text)
+    record = _record(register="usted" if formal else "tu", accepted_answers=[answer])
+    record.update(unit_index=23 if formal else 1, type=shape(shape_id).type,
+                  prompt=prompt_for(shape_id, body=body, lang="es"),
+                  source_sentence_id="aaaaaaaaaaaa0009")
+    contexts = {record["source_sentence_id"]: {"text": text, "analysis": _v6_analysis(
+        text, {"Disculpa": "Mood=Imp|Number=Sing|Person=2|VerbForm=Fin"})}}
+    return record, contexts
+
+
+@pytest.mark.parametrize("shape_id", ["complete_the_translation", "fill_in_the_blank",
+                                     "listen_for_the_missing_word", "typed_translate_forward",
+                                     "typed_translate_reverse", "speak_this_sentence"])
+def test_INV_PACK_08_v6_checks_actual_sentence_context_not_an_isolated_gap(shape_id: str) -> None:
+    record, contexts = _v6_source_record(shape_id)
+    findings = blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS,
+                                 source_contexts=contexts))
+    assert findings
+    assert any(f.detail.get("role") == "source_context" and
+               f.detail.get("carried") == ["tu"] for f in findings)
+    assert not any(f.detail.get("answer") == "molestia" for f in findings)
+    # The same exact source is within the default informal unit policy.
+    record.update(unit_index=1, register="tu")
+    assert blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS,
+                             source_contexts=contexts)) == []
+
+
+@pytest.mark.parametrize("context", [None, {}, {"text": "Hola.", "analysis": None},
+    {"text": "Disculpa la molestia, mi madre.", "analysis": {"tokens": []}},
+    {"text": "Disculpa la molestia, mi madre.", "analysis": _v6_analysis("Hola.")}])
+def test_INV_PACK_08_v6_missing_or_stale_source_analysis_is_blocking(context: dict | None) -> None:
+    record, _contexts = _v6_source_record("complete_the_translation")
+    contexts = {} if context is None else {record["source_sentence_id"]: context}
+    assert blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS,
+                             source_contexts=contexts))
+
+
+def test_INV_PACK_08_v6_does_not_apply_sentence_morphology_to_a_neutral_synthetic_gloss() -> None:
+    from coursekit.exercises.shapes import prompt_for
+
+    record = _record(register="usted", accepted_answers=["permission"])
+    record.update(unit_index=23, type="match",
+                  prompt=prompt_for("meaning_select", body="permiso", lang="es", hint="permiso"))
+    _sentence, contexts = _v6_source_record("complete_the_translation")
+    assert blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS,
+                             source_contexts=contexts)) == []
+
+
+def _v6_fixture_contexts(block: str) -> dict:
+    return {row["source_sentence_id"]: {"text": row["accepted_answers"][0],
+            "analysis": _v6_analysis(row["accepted_answers"][0])}
+            for row in load("INV-PACK-08", block)}
+
+
+
+@pytest.mark.parametrize("authored", [False, True])
+def test_INV_PACK_08_registered_v6_joins_actual_canonical_source_analysis(
+    monkeypatch: pytest.MonkeyPatch, authored: bool,
+) -> None:
+    from types import SimpleNamespace
+
+    from coursekit.validators import exercise
+
+    record, contexts = _v6_source_record("complete_the_translation")
+    sid = record["source_sentence_id"]
+    context = contexts[sid]
+    rows = {
+        "exercise": [record],
+        "unit_assignment": [{"unit_index": 23, **_UNIT_REGISTERS[23]}],
+        "ingested_sentence": [] if authored else [{"sentence_id": sid, "text": context["text"]}],
+        "analysed_sentence": [] if authored else [{"sentence_id": sid, **context["analysis"]}],
+        "candidate": [{"schema_version": 1, "lang": "es", "unit_index": 23,
+                       "lesson_index": 131, "slot_index": 0, "candidate_id": sid,
+                       "accepted": True, "author": "Fixture author", "generated_at": "2026-09-13",
+                       "reject_reason": None, "provenance": "llm", "translation": "Sorry.",
+                       **context, "analysis": {**context["analysis"],
+                           "analyser": {"name": "test", "version": "1", "model": "test",
+                                        "split_mode": None},
+                           "lemmas": [t["lemma"] for t in context["analysis"]["tokens"]
+                                      if t["pos"] != "PUNCT"],
+                           "display_tokens": [t["surface"] for t in context["analysis"]["tokens"]
+                                              if t["pos"] != "PUNCT"]}}],
+    }
+    monkeypatch.setattr(exercise, "read_records", lambda kind, *, lang: rows[kind])
+    ctx = SimpleNamespace(lang="es", entry=SimpleNamespace(note=lambda **kwargs: None))
+    findings = blocking(exercise.v6_register(ctx))
+    assert any(f.detail.get("role") == "source_context" and
+               f.detail.get("carried") == ["tu"] for f in findings)
+    # A nonpreferred accepted reserve cannot replace the chosen post-G6 source ID.
+    if authored:
+        rows["candidate"].insert(0, {**rows["candidate"][0], "candidate_id": "b" * 16})
+        assert any("missing exact analysed source context" in f.message
+                   for f in blocking(exercise.v6_register(ctx)))
+
+
+def test_INV_PACK_08_v6_formal_pronoun_with_third_person_predicate_passes() -> None:
+    text = "Usted habla."
+    analysis = _v6_analysis(text, {"habla": "Number=Sing|Person=3|VerbForm=Fin"})
+    analysis["tokens"][0].update(pos="PRON", morph="Person=2|Number=Sing|PronType=Prs")
+    record = _record(register="usted", accepted_answers=[text])
+    record.update(unit_index=23, source_sentence_id="a" * 16)
+    assert blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS,
+        source_contexts={"a" * 16: {"text": text, "analysis": analysis}})) == []
+
+
+def test_INV_PACK_08_v6_source_context_map_cannot_be_omitted() -> None:
+    record, _contexts = _v6_source_record("complete_the_translation")
+    assert any("missing exact analysed source context" in f.message for f in
+               blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS)))
