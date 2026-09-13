@@ -6,9 +6,9 @@ self-test corpus for the language, so the registry alone cannot certify readines
 
 from __future__ import annotations
 
-from ..config.g1 import ADAPTER_SELFTEST
+from ..config.g1 import ADAPTER_SELFTEST, P7_LATIN_SELFTEST_DIGESTS
 from ..inputs import MissingInput
-from .spacy_es import AdapterSelfTestFailed, SpacyEsAdapter
+from .spacy_es import AdapterSelfTestFailed, SpacyEsAdapter, selftest_digest
 
 
 class SpacyLatinAdapter(SpacyEsAdapter):
@@ -19,6 +19,11 @@ class SpacyLatinAdapter(SpacyEsAdapter):
             raise MissingInput(
                 f"{self.lang} has no measured nonempty adapter self-test corpus. "
                 "Freeze the pinned model's original probe output before G1."
+            )
+        expected_digest = P7_LATIN_SELFTEST_DIGESTS.get(self.lang)
+        if not expected_digest or selftest_digest(self.lang) != expected_digest:
+            raise AdapterSelfTestFailed(
+                f"{self.lang} adapter self-test digest does not match its frozen declaration."
             )
         return super().self_test()
 

@@ -50,9 +50,8 @@ from typing import Final
 #: adapter's licence row. Keeping them the same string is what stops a stage recording a
 #: licence for one analyser while running another.
 #:
-#: `fr` and `de` name adapters that do not exist yet and sources that are not registered
-#: yet; both land with P7, and until then G1 fails for those languages by name rather
-#: than by falling through to whatever is installed.
+#: P7 registers fr/de with their own exact model pins and measured self-tests.
+#: An unavailable model still fails by name, never by selecting another analyzer.
 ADAPTER_BY_LANGUAGE: Final[dict[str, str]] = {
     "es": "spacy_es",
     "fr": "spacy_fr",
@@ -395,8 +394,139 @@ ADAPTER_SELFTEST_ES_DIGEST: Final[str] = (
 
 #: The self-test corpora, keyed the way the adapters are. fr/de/ja land with P7 and each
 #: one needs its own frozen table — a corpus is not portable between lemmatisers.
+# P7 original probes measured 2026-09-13 on the installed locked spaCy3.8.16
+# fr/de model3.8.0. These record model behavior, including mistakes (fr Tu/NOUN,
+# de weiß/VERB and Fahrräder/fahrräd). They detect drift; they do not certify grammar.
+ADAPTER_SELFTEST_FR: Final[tuple[tuple[str, str], ...]] = (
+    (
+        "Bonjour, je m'appelle Léa.",
+        "Bonjour/bonjour/NOUN ,/,/PUNCT je/je/PRON m'/me/PRON appelle/appeler/VERB "
+        "Léa/léa/PROPN ././PUNCT",
+    ),
+    (
+        "L'amie de Paul habite près de l'école.",
+        "L'/le/DET amie/amie/NOUN de/de/ADP Paul/paul/PROPN habite/habiter/VERB "
+        "près/près/ADV de/de/ADP l'/le/DET école/école/NOUN ././PUNCT",
+    ),
+    (
+        "Les petites maisons sont blanches.",
+        "Les/le/DET petites/petit/ADJ maisons/maison/NOUN sont/être/AUX "
+        "blanches/blanc/ADJ ././PUNCT",
+    ),
+    (
+        "Nous allons au marché avec nos enfants.",
+        "Nous/nous/PRON allons/aller/VERB au/au/ADP marché/marché/NOUN avec/avec/ADP "
+        "nos/notre/DET enfants/enfant/NOUN ././PUNCT",
+    ),
+    (
+        "Tu n'as pas de pain aujourd'hui.",
+        "Tu/tu/NOUN n'/ne/ADV as/avoir/VERB pas/pas/ADV de/de/DET pain/pain/NOUN "
+        "aujourd'hui/aujourd'hui/ADV ././PUNCT",
+    ),
+    (
+        "Elle veut du café et de l'eau.",
+        "Elle/lui/PRON veut/vouloir/VERB du/de/ADP café/café/NOUN et/et/CCONJ de/de/ADP "
+        "l'/le/DET eau/eau/NOUN ././PUNCT",
+    ),
+    (
+        "Ils se lèvent tôt le matin.",
+        "Ils/il/PRON se/se/PRON lèvent/lever/VERB tôt/tôt/ADV le/le/DET matin/matin/NOUN ././PUNCT",
+    ),
+    (
+        "J'ai acheté deux pommes rouges.",
+        "J'/je/PRON ai/avoir/AUX acheté/acheter/VERB deux/deux/NUM pommes/pomme/NOUN "
+        "rouges/rouge/ADJ ././PUNCT",
+    ),
+    (
+        "Pouvez-vous ouvrir cette fenêtre ?",
+        "Pouvez/pouvoir/VERB -vous/vous/PRON ouvrir/ouvrir/VERB cette/ce/DET "
+        "fenêtre/fenêtre/NOUN ?/?/PUNCT",
+    ),
+    (
+        "Le livre est sur la table.",
+        "Le/le/DET livre/livre/NOUN est/être/VERB sur/sur/ADP la/le/DET table/table/NOUN ././PUNCT",
+    ),
+    (
+        "Mon frère prend le train demain.",
+        "Mon/mon/DET frère/frère/NOUN prend/prendre/VERB le/le/DET train/train/NOUN "
+        "demain/demain/ADV ././PUNCT",
+    ),
+    (
+        "Ces vieux vélos coûtent dix euros.",
+        "Ces/ce/DET vieux/vieux/ADJ vélos/vélo/NOUN coûtent/coûter/VERB dix/dix/NUM "
+        "euros/euro/NOUN ././PUNCT",
+    ),
+)
+
+ADAPTER_SELFTEST_DE: Final[tuple[tuple[str, str], ...]] = (
+    (
+        "Guten Morgen, ich heiße Anna.",
+        "Guten/gut/ADJ Morgen/morgen/NOUN ,/--/PUNCT ich/ich/PRON heiße/heißen/VERB "
+        "Anna/anna/PROPN ./--/PUNCT",
+    ),
+    (
+        "Die kleinen Häuser sind weiß.",
+        "Die/der/DET kleinen/klein/ADJ Häuser/haus/NOUN sind/sein/AUX weiß/weiß/VERB ./--/PUNCT",
+    ),
+    (
+        "Mein Bruder fährt mit dem Zug.",
+        "Mein/mein/DET Bruder/bruder/NOUN fährt/fahren/VERB mit/mit/ADP dem/der/DET "
+        "Zug/zug/NOUN ./--/PUNCT",
+    ),
+    (
+        "Wir gehen heute zum Markt.",
+        "Wir/wir/PRON gehen/gehen/VERB heute/heute/ADV zum/zu/ADP Markt/markt/NOUN ./--/PUNCT",
+    ),
+    (
+        "Du hast keinen Schlüssel dabei.",
+        "Du/du/PRON hast/haben/AUX keinen/kein/DET Schlüssel/schlüssel/NOUN "
+        "dabei/dabei/ADV ./--/PUNCT",
+    ),
+    (
+        "Sie trinkt gern kaltes Wasser.",
+        "Sie/sie/PRON trinkt/trinken/VERB gern/gern/ADV kaltes/kalt/ADJ "
+        "Wasser/wasser/NOUN ./--/PUNCT",
+    ),
+    (
+        "Die Kinder stehen früh auf.",
+        "Die/der/DET Kinder/kind/NOUN stehen/stehen/VERB früh/früh/ADV auf/auf/ADP ./--/PUNCT",
+    ),
+    (
+        "Ich habe zwei rote Äpfel gekauft.",
+        "Ich/ich/PRON habe/haben/AUX zwei/zwei/NUM rote/rot/ADJ Äpfel/äpfel/NOUN "
+        "gekauft/kaufen/VERB ./--/PUNCT",
+    ),
+    (
+        "Können Sie dieses Fenster öffnen?",
+        "Können/können/VERB Sie/sie/PRON dieses/dieser/DET Fenster/fenster/NOUN "
+        "öffnen/öffnen/VERB ?/--/PUNCT",
+    ),
+    (
+        "Das Buch liegt auf dem Tisch.",
+        "Das/der/DET Buch/buch/NOUN liegt/liegen/VERB auf/auf/ADP dem/der/DET "
+        "Tisch/tisch/NOUN ./--/PUNCT",
+    ),
+    (
+        "Morgen kommt meine ältere Schwester.",
+        "Morgen/morgen/ADV kommt/kommen/VERB meine/mein/DET ältere/alt/ADJ "
+        "Schwester/schwester/NOUN ./--/PUNCT",
+    ),
+    (
+        "Diese alten Fahrräder kosten zehn Euro.",
+        "Diese/dieser/DET alten/alt/ADJ Fahrräder/fahrräd/NOUN kosten/kosten/VERB "
+        "zehn/zehn/NUM Euro/euro/NOUN ./--/PUNCT",
+    ),
+)
+
+P7_LATIN_SELFTEST_DIGESTS: Final[dict[str, str]] = {
+    "fr": "2e0e8e43e21f427136e47a753f203d368a393c9474b2d37e338c7f395ee50b9c",
+    "de": "a6f01ea36fadd0a7801d4969ad0e75e9291a44be6773e61b9f74c5895b756b47",
+}
+
 ADAPTER_SELFTEST: Final[dict[str, tuple[tuple[str, str], ...]]] = {
     "es": ADAPTER_SELFTEST_ES,
+    "fr": ADAPTER_SELFTEST_FR,
+    "de": ADAPTER_SELFTEST_DE,
 }
 
 # ---------------------------------------------------------------------------

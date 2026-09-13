@@ -8,7 +8,7 @@ import pytest
 
 from coursekit.adapters import spacy_es
 from coursekit.artifacts import validate_record
-from coursekit.config.g1 import ADAPTER_SELFTEST
+from coursekit.config.g1 import ADAPTER_SELFTEST, P7_LATIN_SELFTEST_DIGESTS
 from coursekit.inputs import MissingInput, resolve
 from coursekit.ledger import count_units
 from coursekit.stages.g1_analyze import adapter_for
@@ -71,6 +71,7 @@ def case(request, monkeypatch):
     monkeypatch.setattr(spacy_es, "_pipeline", lambda model: pipeline)
     expected = " ".join(f"{surface}/{lemma.lower()}/{pos}" for surface, lemma, pos in rows)
     monkeypatch.setitem(ADAPTER_SELFTEST, lang, ((text, expected),))
+    monkeypatch.setitem(P7_LATIN_SELFTEST_DIGESTS, lang, spacy_es.selftest_digest(lang))
     return lang, text, rows, pipeline
 
 
@@ -125,3 +126,25 @@ def test_inv_pack_40_frequency_batch_uses_same_partition_without_spanish_rules(c
     surfaces = ["buenas", "Häuser", "amie"]
     assert adapter.lemmatise_surfaces(surfaces) == [adapter.lemmatise_surface(s) for s in surfaces]
     assert adapter.lemmatise_surface("buenas") == ("buenas", "NOUN")
+
+
+@pytest.mark.parametrize("lang", ["fr", "de"])
+def test_INV_PACK_06_installed_model_matches_nonempty_original_frozen_probes(lang):
+    adapter = adapter_for(lang)
+    assert len(ADAPTER_SELFTEST.get(lang, ())) == 12
+    adapter.require_self_test()
+    for index, (sentence, expected) in enumerate(ADAPTER_SELFTEST[lang]):
+        assert adapter._fingerprint_sentence(sentence) == expected
+        record = adapter.analyse(sentence_id=f"{index:016x}", text=sentence)
+        assert all(sentence[t["start"] : t["end"]] == t["surface"] for t in record["tokens"])
+        assert count_units(record) > 0
+
+
+def test_INV_PACK_06_declared_fingerprint_cannot_drift_silently(case, monkeypatch):
+    from coursekit.adapters import spacy_latin
+
+    lang, *_ = case
+    adapter = adapter_for(lang)
+    monkeypatch.setattr(spacy_latin, "selftest_digest", lambda value: "0" * 64, raising=False)
+    with pytest.raises(spacy_es.AdapterSelfTestFailed, match="digest"):
+        adapter.require_self_test()
