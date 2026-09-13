@@ -159,6 +159,9 @@ export interface AwardInput {
   readonly flavour: SessionFlavour;
   readonly outcome: SessionOutcomeKind;
   readonly maxCombo?: number;
+  /** EC-HUB-02/03: actual served items / normal practice target, in [0, 1].
+   * Captured at session start; proration precedes the daily cap. Omitted means a full pool. */
+  readonly practiceItemRatio?: number;
   readonly boostAtSessionStart: ActiveBoost | null;
   readonly committedAtUtc: string;
   readonly ladderStateToday: LadderStateToday;
@@ -248,6 +251,9 @@ export function baseXpFor(input: AwardInput): number {
  * what is left of the mode's daily cap.
  */
 export function awardForSession(input: AwardInput): SessionAward {
+  const practiceItemRatio = input.practiceItemRatio ?? 1;
+  if (!Number.isFinite(practiceItemRatio) || practiceItemRatio < 0 || practiceItemRatio > 1)
+    throw new RangeError('Practice item ratio must be finite and within [0, 1]');
   const ladderMode = FLAVOUR_XP[input.flavour].ladderMode;
   const baseXp = baseXpFor(input);
   const boost = resolveBoost({
@@ -257,7 +263,7 @@ export function awardForSession(input: AwardInput): SessionAward {
     committedAtUtc: input.committedAtUtc,
   });
   const reduced = ladderMultiplier(ladderMode, input.ladderStateToday.sessionsCompleted);
-  const gross = Math.floor(baseXp * reduced * boost.appliedMultiplier);
+  const gross = Math.floor(baseXp * reduced * boost.appliedMultiplier * practiceItemRatio);
   const remaining = Math.max(0, ladderDailyCap(ladderMode) - input.ladderStateToday.xpAwarded);
   const awardedXp = Math.max(0, Math.min(gross, remaining));
   return {
