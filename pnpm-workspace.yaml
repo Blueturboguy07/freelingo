@@ -14,3 +14,4 @@ allowBuilds:
 
 patchedDependencies:
   expo-modules-jsi@57.1.0: patches/expo-modules-jsi@57.1.0.patch
+  expo-speech-recognition@57.0.0: patches/expo-speech-recognition@57.0.0.patch

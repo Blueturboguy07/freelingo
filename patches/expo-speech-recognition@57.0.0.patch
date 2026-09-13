@@ -1,0 +1,65 @@
+diff --git a/ios/ExpoSpeechRecognizer.swift b/ios/ExpoSpeechRecognizer.swift
+index c474f805a250ace52347118ff7f94d24d46af91c..0d158cf3a2d4358be9fd93bd9c54707287553698 100644
+--- a/ios/ExpoSpeechRecognizer.swift
++++ b/ios/ExpoSpeechRecognizer.swift
+@@ -220,7 +220,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
+     }
+ 
+     do {
+-      let request = Self.prepareRequest(
++      let request = try Self.prepareRequest(
+         options: options,
+         recognizer: recognizer
+       )
+@@ -568,7 +568,12 @@ actor ExpoSpeechRecognizer: ObservableObject {
+   private static func prepareRequest(
+     options: SpeechRecognitionOptions,
+     recognizer: SFSpeechRecognizer
+-  ) -> SFSpeechRecognitionRequest {
++  ) throws -> SFSpeechRecognitionRequest {
++    // Freelingo local-only policy: test the requested locale's recognizer before
++    // allocating a request or preparing its microphone. Never fall back to a server.
++    guard !options.requiresOnDeviceRecognition || recognizer.supportsOnDeviceRecognition else {
++      throw RecognizerError.recognizerIsUnavailable
++    }
+     let request = SFSpeechAudioBufferRecognitionRequest()
+ 
+     // We also force-enable partial results on non-continuous mode,
+@@ -576,9 +581,7 @@ actor ExpoSpeechRecognizer: ObservableObject {
+     // These won't get emitted to the user, however
+     request.shouldReportPartialResults = options.interimResults || !options.continuous
+ 
+-    if recognizer.supportsOnDeviceRecognition {
+-      request.requiresOnDeviceRecognition = options.requiresOnDeviceRecognition
+-    }
++    request.requiresOnDeviceRecognition = options.requiresOnDeviceRecognition
+ 
+     if let taskHint = options.iosTaskHint {
+       request.taskHint = taskHint.sfSpeechRecognitionTaskHint
+@@ -1035,11 +1038,8 @@ actor ExpoSpeechRecognizer: ObservableObject {
+ 
+ extension SFSpeechRecognizer {
+   static func hasAuthorizationToRecognize() async -> Bool {
+-    await withCheckedContinuation { continuation in
+-      requestAuthorization { status in
+-        continuation.resume(returning: status == .authorized)
+-      }
+-    }
++    // Starting a lesson never requests permission; the explicit requester owns prompts.
++    return authorizationStatus() == .authorized
+   }
+ 
+   static func requestPermissions() async -> SFSpeechRecognizerAuthorizationStatus {
+@@ -1053,10 +1053,7 @@ extension SFSpeechRecognizer {
+ 
+ extension AVAudioSession {
+   func hasPermissionToRecord() async -> Bool {
+-    await withCheckedContinuation { continuation in
+-      requestRecordPermission { authorized in
+-        continuation.resume(returning: authorized)
+-      }
+-    }
++    // Recheck the current grant without opening a prompt after the JS capability probe.
++    return recordPermission == .granted
+   }
+ }
