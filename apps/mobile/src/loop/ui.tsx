@@ -1,25 +1,77 @@
-/** Temporary P4 wrapper; measured scope/10, web guest dark arm, 2026-09-10.
- * P3 replaces these atoms at integration. No gameplay rule lives here. */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-export const LOOP_TOKENS = {
-  background: '#131F24',
-  surface: '#202F36',
-  border: '#37464F',
-  text: '#F1F7FB',
-  muted: '#AFC1CA',
-  primary: '#93D333',
-  primaryLip: '#79B933',
-  macaw: '#49C0F8',
-  danger: '#EE5555',
-  gold: '#FFC700',
-  space: 16,
-  radius: 16,
-  cardRadius: 12,
-  font: 'Nunito',
-  maxWidth: 614,
-  buttonHeight: 50,
-} as const;
+/** P4 layout and persistence guard over the shared P3 atoms. */
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  BodyText,
+  Button3D,
+  Heading,
+  Panel,
+  BUTTON,
+  CARD,
+  FONT,
+  LAYOUT,
+  SPACE,
+  TYPE,
+  useUiTheme,
+} from '@freelingo/ui';
+export { Panel };
+export function useLoopUi() {
+  const { colors } = useUiTheme();
+  return useMemo(
+    () => ({
+      tokens: {
+        background: colors.snow,
+        surface: colors.polar,
+        border: colors.swan,
+        text: colors.eel,
+        muted: colors.wolf,
+        primary: colors.owl,
+        primaryLip: colors.owlLip,
+        macaw: colors.macaw,
+        danger: colors.cardinal,
+        gold: colors.bee,
+        space: SPACE.md,
+        radius: BUTTON.radiusPx,
+        cardRadius: CARD.radiusPx,
+        font: FONT.body,
+        maxWidth: LAYOUT.contentMaxWidthPx,
+        buttonHeight: BUTTON.minHeightPx,
+      },
+      styles: StyleSheet.create({
+        page: { flex: 1, backgroundColor: colors.snow },
+        content: {
+          width: '100%',
+          maxWidth: LAYOUT.contentMaxWidthPx,
+          alignSelf: 'center',
+          padding: SPACE.md,
+          gap: SPACE.md,
+          paddingBottom: SPACE.xl,
+          flexGrow: 1,
+        },
+        heading: {
+          fontFamily: FONT.heading,
+          fontSize: TYPE.heading.fontSizePx,
+          lineHeight: TYPE.heading.lineHeightPx,
+          color: colors.eel,
+        },
+        row: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: SPACE.sm,
+        },
+        title: {
+          fontFamily: FONT.strong,
+          fontSize: TYPE.subheading.fontSizePx,
+          lineHeight: TYPE.subheading.lineHeightPx,
+          color: colors.eel,
+          flexShrink: 1,
+        },
+      }),
+    }),
+    [colors],
+  );
+}
 export function Page({
   title,
   children,
@@ -29,23 +81,35 @@ export function Page({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const { styles } = useLoopUi();
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      {title !== '' && (
-        <Text accessibilityRole="header" style={styles.heading}>
-          {title}
-        </Text>
-      )}
+      {title !== '' && <Heading>{title}</Heading>}
       {children}
-      {footer}
+      {footer && (
+        <View style={{ marginTop: 'auto', paddingTop: SPACE.md, gap: SPACE.md }}>{footer}</View>
+      )}
     </ScrollView>
   );
 }
-export function Panel({ children }: { children: ReactNode }) {
-  return <View style={styles.panel}>{children}</View>;
-}
-export function Label({ children, muted = false }: { children: ReactNode; muted?: boolean }) {
-  return <Text style={[styles.body, muted && styles.muted]}>{children}</Text>;
+export function Label({
+  children,
+  muted = false,
+  language,
+}: {
+  children: ReactNode;
+  muted?: boolean;
+  language?: string;
+}) {
+  const { colors } = useUiTheme();
+  return (
+    <BodyText
+      {...(language === undefined ? {} : { language })}
+      style={muted ? { color: colors.wolf } : undefined}
+    >
+      {children}
+    </BodyText>
+  );
 }
 export function Action({
   label,
@@ -63,32 +127,14 @@ export function Action({
   hint?: string;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={hint}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+    <Button3D
+      label={label}
       onPress={onPress}
-      testID={testID}
-      style={({ pressed }) => [
-        styles.button,
-        {
-          backgroundColor: disabled || tone === 'neutral' ? LOOP_TOKENS.border : LOOP_TOKENS[tone],
-          borderBottomWidth: disabled || pressed ? 0 : 4,
-          borderBottomColor: tone === 'primary' ? LOOP_TOKENS.primaryLip : LOOP_TOKENS.border,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.buttonText,
-          { color: disabled || tone === 'neutral' ? LOOP_TOKENS.text : LOOP_TOKENS.background },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
+      disabled={disabled}
+      tone={tone}
+      {...(testID === undefined ? {} : { testID })}
+      {...(hint === undefined ? {} : { accessibilityHint: hint })}
+    />
   );
 }
 /** A ref guards taps synchronously, before React has committed its disabled render. */
@@ -129,53 +175,12 @@ export function useLoopAction(identity: string) {
   };
   return { pending, error, run };
 }
+
 export function ErrorNotice({ message }: { message: string | null }) {
+  const { colors } = useUiTheme();
   return message === null ? null : (
-    <Text accessibilityRole="alert" style={[styles.body, { color: LOOP_TOKENS.danger }]}>
-      {message}
-    </Text>
+    <View accessibilityRole="alert">
+      <BodyText style={{ color: colors.cardinal }}>{message}</BodyText>
+    </View>
   );
 }
-export const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: LOOP_TOKENS.background },
-  content: {
-    width: '100%',
-    maxWidth: LOOP_TOKENS.maxWidth,
-    alignSelf: 'center',
-    padding: LOOP_TOKENS.space,
-    gap: LOOP_TOKENS.space,
-    paddingBottom: 32,
-  },
-  heading: {
-    fontFamily: LOOP_TOKENS.font,
-    fontSize: 28,
-    fontWeight: '800',
-    color: LOOP_TOKENS.text,
-  },
-  body: { fontFamily: LOOP_TOKENS.font, fontSize: 17, lineHeight: 25, color: LOOP_TOKENS.text },
-  muted: { color: LOOP_TOKENS.muted },
-  panel: {
-    borderWidth: 2,
-    borderColor: LOOP_TOKENS.border,
-    borderRadius: LOOP_TOKENS.cardRadius,
-    padding: LOOP_TOKENS.space,
-    gap: 12,
-  },
-  button: {
-    minHeight: LOOP_TOKENS.buttonHeight,
-    borderRadius: LOOP_TOKENS.radius,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  buttonText: {
-    fontFamily: LOOP_TOKENS.font,
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textAlign: 'center',
-  },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontFamily: LOOP_TOKENS.font, fontSize: 22, fontWeight: '800', color: LOOP_TOKENS.text },
-});

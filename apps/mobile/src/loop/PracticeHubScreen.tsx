@@ -9,9 +9,10 @@ import {
 } from '@freelingo/core/hub';
 import { preferenceChange } from '@freelingo/core/course';
 import type { LoopPorts } from './contracts';
-import { Action, ErrorNotice, Label, LOOP_TOKENS, Page, Panel, styles, useLoopAction } from './ui';
+import { Action, ErrorNotice, Label, Page, Panel, useLoopAction, useLoopUi } from './ui';
 
 export function PracticeHubScreen({ input, ports }: { input: HubInput; ports: LoopPorts }) {
+  const { tokens: LOOP_TOKENS, styles } = useLoopUi();
   const model = buildHub(input);
   const action = useLoopAction(input.courseId);
   const hero = model.hero;
@@ -136,6 +137,7 @@ export function WordsScreen({
   onSort: (id: string) => void;
   ports: LoopPorts;
 }) {
+  const { styles } = useLoopUi();
   const action = useLoopAction(courseId);
   const rows = wordRows(items, sort);
   return (
