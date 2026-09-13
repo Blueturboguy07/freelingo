@@ -247,6 +247,30 @@ export const PACK_SCHEMA_DDL: readonly string[] = [
   `PRAGMA user_version = 1`,
 ];
 
+/** Revision-1 learning capability, 2026-09-13. The immutable base remains readable
+ * without grading data (credits/catalogue/recovery); starting a lesson requires the
+ * exact grading:v1 metadata and both carriers. Legacy packs are never rewritten. */
+export const PACK_LEARNING_TABLE_NAMES = ['grading_word', 'exercise_runtime'] as const;
+export const PACK_LEARNING_DDL: readonly string[] = [
+  `CREATE TABLE grading_word (
+     profile_id TEXT NOT NULL CHECK (length(trim(profile_id)) > 0),
+     surface TEXT NOT NULL CHECK (length(surface) > 0),
+     PRIMARY KEY (profile_id, surface)
+   ) WITHOUT ROWID`,
+  `CREATE TABLE exercise_runtime (
+     exercise_id TEXT PRIMARY KEY NOT NULL REFERENCES exercise(exercise_id) ON DELETE CASCADE,
+     payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+     payload_sha256 TEXT NOT NULL CHECK (
+       length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'
+     )
+   )`,
+];
+
+/** Build-time only. Full payload joins and byte hashing are validated by G9/decoder. */
+export function createPackLearningSchema(db: Db): void {
+  for (const statement of PACK_LEARNING_DDL) db.run(statement);
+}
+
 /* ======================================================== meta and credits keys */
 
 /** The `meta` keys every pack declares. A missing one fails `packSchemaViolations`. */
@@ -399,8 +423,20 @@ export function packSchemaViolations(db: Db, options: PackSchemaCheck = {}): str
     if (!actual.has(table)) violations.push(`pack table ${table} is missing`);
   }
   for (const name of actual.keys()) {
-    if (!(PACK_TABLE_NAMES as readonly string[]).includes(name)) {
+    if (
+      !(PACK_TABLE_NAMES as readonly string[]).includes(name) &&
+      !(PACK_LEARNING_TABLE_NAMES as readonly string[]).includes(name)
+    ) {
       violations.push(`pack carries an undeclared table ${name}`);
+    }
+  }
+
+  const hasLearning = PACK_LEARNING_TABLE_NAMES.some((name) => actual.has(name));
+  const declaresLearning =
+    actual.has('meta') && db.get(`SELECT key FROM meta WHERE key = 'grading:v1'`) !== undefined;
+  if (hasLearning || declaresLearning) {
+    for (const name of PACK_LEARNING_TABLE_NAMES) {
+      if (!actual.has(name)) violations.push(`pack learning table ${name} is missing`);
     }
   }
 

@@ -409,6 +409,8 @@ export interface PackCredit {
   readonly kind: PackCreditKind;
   readonly sourceId: string;
   readonly owner: string;
+  /** Full source-supplied notice, separate from the owner's name. Preserve in S152. */
+  readonly notice?: string;
   readonly licence: string;
   /** True where the licence is share-alike (CC BY-SA), which the surface must state. */
   readonly shareAlike: boolean;
@@ -420,6 +422,7 @@ export interface PackCredit {
 interface DerivedListCredit {
   readonly source_id?: unknown;
   readonly owner?: unknown;
+  readonly notice?: unknown;
   readonly licence?: unknown;
   readonly share_alike?: unknown;
   readonly url?: unknown;
@@ -694,6 +697,7 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
                 ? parsed.source_id
                 : row.key.slice(CREDITS_META_PREFIX.length),
             owner: typeof parsed.owner === 'string' ? parsed.owner : '',
+            ...(typeof parsed.notice === 'string' ? { notice: parsed.notice } : {}),
             licence,
             shareAlike:
               typeof parsed.share_alike === 'boolean' ? parsed.share_alike : isShareAlike(licence),
