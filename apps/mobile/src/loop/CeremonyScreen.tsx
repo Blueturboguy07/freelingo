@@ -11,7 +11,7 @@ import {
 } from '@freelingo/core/ceremony';
 import { LEGENDARY_XP } from '@freelingo/core/economy';
 import type { CeremonyAdvance, CeremonyPresentation, LoopPorts } from './contracts';
-import { Action, ErrorNotice, Label, LOOP_TOKENS, Page, Panel, styles, useLoopAction } from './ui';
+import { Action, ErrorNotice, Label, Page, Panel, useLoopAction, useLoopUi } from './ui';
 
 /** scope/02 scripted beat, chosen2026-09-13. It changes tiles, never the route. */
 export const CEREMONY_COMBO_BEAT_MS = 900;
@@ -77,6 +77,7 @@ function cardFor(p: Committed) {
   });
 }
 function Tile({ title, value }: { title: string; value: string }) {
+  const { tokens: LOOP_TOKENS, styles } = useLoopUi();
   return (
     <View
       style={{
@@ -141,6 +142,7 @@ function CommittedCeremony({
   presentation: Committed;
   ports: LoopPorts;
 }) {
+  const { tokens: LOOP_TOKENS, styles } = useLoopUi();
   const slot = p.result.chain[p.index];
   const headline = slot ? titleFor(p, slot) : 'Your progress is saved';
   const action = useLoopAction(p.state.session.sessionId + '/' + p.index);

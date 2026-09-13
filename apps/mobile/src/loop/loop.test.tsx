@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+import { UiProvider } from '@freelingo/ui';
 import { toLocalDay } from '@freelingo/core/day';
 import {
   runCeremony,
@@ -222,7 +223,11 @@ it('[INV-CRS-02] a course cannot be removed in the import undo window', () => {
   expect(screen.getByRole('button', { name: 'Remove Spanish' }).getAttribute('aria-disabled')).toBe(
     'true',
   );
-  expect(screen.getByText(/course removal is paused for 24 hours/i)).toBeDefined();
+  expect(
+    screen
+      .getAllByText(/course removal is paused for 24 hours/i)
+      .some((node) => getComputedStyle(node).opacity !== '0'),
+  ).toBe(true);
 });
 it('[INV-HUB-09] a failed preference save remains visible and never pretends the toggle changed', async () => {
   const p = ports();
@@ -316,7 +321,7 @@ it('[INV-CER-16] the actual Score CTA paints macaw blue', () => {
       ports={ports()}
     />,
   );
-  expect(getComputedStyle(screen.getByRole('button', { name: 'CONTINUE' })).backgroundColor).toBe(
+  expect(getComputedStyle(screen.getByTestId('ceremony-continue-face')).backgroundColor).toBe(
     'rgb(73, 192, 248)',
   );
 });
@@ -355,4 +360,23 @@ it('[INV-CER-02] three progressed quests do not falsely claim all three complete
   );
   expect(screen.queryByText('All Daily Quests complete!')).toBeNull();
   expect(screen.getByText('3 Daily Quests updated!')).toBeDefined();
+});
+
+it('[INV-TYP-04] loop typography follows both declared theme palettes rather than fixed dark ink', () => {
+  const { rerender } = render(
+    <UiProvider theme="light">
+      <PracticeHubScreen input={hub()} ports={ports()} />
+    </UiProvider>,
+  );
+  expect(getComputedStyle(screen.getByRole('heading', { name: 'Practice' })).color).toBe(
+    'rgb(75, 75, 75)',
+  );
+  rerender(
+    <UiProvider theme="dark">
+      <PracticeHubScreen input={hub()} ports={ports()} />
+    </UiProvider>,
+  );
+  expect(getComputedStyle(screen.getByRole('heading', { name: 'Practice' })).color).toBe(
+    'rgb(241, 247, 251)',
+  );
 });
