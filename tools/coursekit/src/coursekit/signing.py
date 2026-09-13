@@ -37,6 +37,8 @@ from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
 
 from .config.sample import (
+    ED25519_PKCS8_LENGTH,
+    ED25519_PKCS8_PREFIX_HEX,
     ED25519_SEED_LENGTH,
     ED25519_SIGNATURE_LENGTH,
     ED25519_SPKI_LENGTH,
@@ -103,17 +105,14 @@ def _looks_like_a_path(value: str) -> bool:
 def load_signing_key(env_var: str = PACK_SIGNING_KEY_ENV) -> SigningKey:
     """The ed25519 private key, from the CI secret and nowhere else.
 
-    Accepts base64 of either a 32-byte seed or libsodium's 64-byte secret key (seed
-    followed by the public key), because both are what a key-generation snippet hands
-    somebody pasting a secret into GitHub.
+    Accepts an unencrypted Ed25519 PKCS8 PEM, or base64 of a 32-byte seed or
+    libsodium's 64-byte seed-plus-public-key representation. PEM is decoded strictly:
+    the RFC 8410 version-zero DER envelope, absent algorithm parameters, Ed25519 OID,
+    nested OCTET STRING and exact 32-byte seed must all match. Optional attributes and
+    version-one public-key extensions are not accepted by this importer.
 
-    **The decode comes first.** An earlier version refused any value containing `os.sep`
-    on the grounds that it might be a path, which rejected ~53% of valid keys because
-    `"/"` is in the base64 alphabet — a coin flip that `pack-ci.yml` would have
-    discovered on the first real signing run, under `set -euo pipefail`, as a failed es
-    build. So the only unconditional refusal is a PEM armour line, whose `-----` cannot
-    occur in standard base64 at all; a path is named in the error message only once the
-    value has already failed to be a key.
+    No format reads a path. A path-like raw value is named only after base64 decoding
+    fails, because `/` is also part of the base64 alphabet.
     """
     raw = os.environ.get(env_var)
     if raw is None or not raw.strip():
@@ -124,11 +123,8 @@ def load_signing_key(env_var: str = PACK_SIGNING_KEY_ENV) -> SigningKey:
             f"from `pack-ci.yml`, or generate a throwaway key for a test."
         )
     value = raw.strip()
-    if "-----BEGIN" in value:
-        raise MissingSigningKey(
-            f"{env_var} must be base64 of the raw ed25519 key, not a PEM block. Pass "
-            f"the 32-byte seed (or the 64-byte secret key) base64-encoded."
-        )
+    if "-----" in value:
+        return _load_pkcs8_pem(value, env_var)
     compact = re.sub(r"\s+", "", value)
     try:
         material = base64.b64decode(compact, validate=True)
@@ -142,7 +138,40 @@ def load_signing_key(env_var: str = PACK_SIGNING_KEY_ENV) -> SigningKey:
             f"{ED25519_SEED_LENGTH} (seed) or {ED25519_SEED_LENGTH * 2} "
             f"(seed followed by the public key).{_path_hint(env_var, compact)}"
         )
-    return SigningKey(material[:ED25519_SEED_LENGTH])
+    key = SigningKey(material[:ED25519_SEED_LENGTH])
+    if len(material) == ED25519_SEED_LENGTH * 2 and material[ED25519_SEED_LENGTH:] != bytes(
+        key.verify_key
+    ):
+        raise MissingSigningKey(f"{env_var}: the supplied public key does not match its seed")
+    return key
+
+
+def _load_pkcs8_pem(value: str, env_var: str) -> SigningKey:
+    """Import the standard Ed25519 PrivateKeyInfo; never echo private material.
+
+    The fixed DER prefix is RFC 8410 section 10.3's version-zero encoding:
+    https://www.rfc-editor.org/rfc/rfc8410.html#section-10.3
+    An X25519 key has the same length but a different OID, so slicing off a seed
+    without checking the entire envelope would sign with the wrong algorithm's key.
+    """
+    label = "PRIVATE" + " KEY"
+    match = re.fullmatch(
+        rf"-----BEGIN {label}-----\s+([A-Za-z0-9+/=\s]+)-----END {label}-----",
+        value,
+    )
+    if match is None:
+        raise MissingSigningKey(f"{env_var}: malformed or unsupported private-key PEM")
+    try:
+        der = base64.b64decode(re.sub(r"\s+", "", match.group(1)), validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise MissingSigningKey(f"{env_var}: malformed private-key PEM base64") from exc
+    prefix = bytes.fromhex(ED25519_PKCS8_PREFIX_HEX)
+    if len(der) != ED25519_PKCS8_LENGTH or not der.startswith(prefix):
+        raise MissingSigningKey(
+            f"{env_var}: expected a standard unencrypted Ed25519 PKCS8 key; "
+            "the DER version, algorithm OID, lengths and seed envelope must match"
+        )
+    return SigningKey(der[len(prefix) :])
 
 
 def _path_hint(env_var: str, value: str) -> str:
@@ -250,8 +279,7 @@ def verify_manifest(manifest: Mapping[str, Any], *, trusted_spki: bytes) -> None
         )
     if block.get("algorithm") != PACK_SIGNING_ALGORITHM:
         raise SignatureInvalid(
-            f"algorithm is {block.get('algorithm')!r}; only "
-            f"{PACK_SIGNING_ALGORITHM!r} is accepted."
+            f"algorithm is {block.get('algorithm')!r}; only {PACK_SIGNING_ALGORITHM!r} is accepted."
         )
     try:
         embedded = base64.b64decode(block["public_key"], validate=True)

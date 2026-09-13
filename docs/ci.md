@@ -1,143 +1,96 @@
 # CI
 
-Four workflows. `ci.yml` is the fast one every change waits on; `native-e2e.yml` is the
-slow one that proves the app exists on real devices; `mutation.yml` is nightly and
-`pack-ci.yml` is content-only.
+Four workflows provide build evidence; `cla.yml` runs the CLA bot on pull requests.
 
-| Workflow         | Runner                 | What it proves                                                                |
-| ---------------- | ---------------------- | ----------------------------------------------------------------------------- |
-| `ci.yml`         | ubuntu-latest          | lint, typecheck, `pnpm test`, registry digest, coverage map, gitleaks         |
-| `native-e2e.yml` | ubuntu + macos-15      | flows exist, they pass on a simulator and an emulator, INV-PLAT-02            |
-| `mutation.yml`   | ubuntu-latest, nightly | Stryker, reporting only — no score has ever printed; see below                |
-| `pack-ci.yml`    | ubuntu-latest          | coursekit lint+tests. build-es/validate-es have never got past G5 — see below |
+| Workflow         | Runner                 | What it proves                                                                                               |
+| ---------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ci.yml`         | ubuntu-latest          | lint, typecheck, property tests, registry digest, coverage map, gitleaks                                     |
+| `native-e2e.yml` | ubuntu + macos-15      | the persistence flow runs on both platforms; native trees are generated reproducibly                         |
+| `mutation.yml`   | ubuntu-latest, nightly | Stryker reporting only; no gating score yet                                                                  |
+| `pack-ci.yml`    | ubuntu-latest          | pipeline tests, a real Spanish build, validators, current reviewer sample, trusted signature and pack loader |
 
-(`cla.yml` is the CLA bot on pull requests and proves nothing about the code.)
-
-What each **job** of `pack-ci.yml` proves, since the workflow row above is one line for
-four jobs. "Never run" means exactly that; the reasons are in `docs/P2-BLOCKERS.md`.
-
-| Job              | Proves                                                                                                                                                                                     | Has it ever been green?             |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
-| `coursekit`      | ruff + the whole pytest suite, with `opus-tools` installed so the INV-AUD-08 clip guard runs instead of skipping, and `coursekit --help` reaching every verb                               | yes, every push                     |
-| `pipeline-ready` | every id in `VALIDATOR_IDS` and `BUILD_STAGE_IDS` is registered — and while it says `false`, the two jobs below **skip**, which is green                                                   | yes; `ready=true` since `281b623`   |
-| `build-es`       | G0–G9 on a real corpus with a real LanguageTool 6.6 sidecar and all four dependency groups; the bank inside the 120 MB budget; the sheet drawn; the manifest signed when the secret exists | **no — fails at G5** (B1/B1a)       |
-| `validate-es`    | `coursekit validate es` exits 0, V1–V4 at 100%, no validator unregistered or skipped, **the built pack opens in `packages/core`'s loader**, and `es-pack-<sha>` is complete                | **no — skips on `needs: build-es`** |
-
-Two things `validate-es` now asserts that it did not before, both because the previous
-round found the assertion missing rather than failing:
-
-- **The pack the gate built is the pack the loader opens.** The gate clause is "the pack
-  loads in `packages/core`'s pack loader tests", and it was discharged against the
-  committed `packages/core/src/packs/__fixtures__/es-mini` pack. That fixture is a real
-  `coursekit` G9 output and the right thing for a unit test, and it is 30 rows built by a
-  different invocation on a different day; the pack `build-es` produces was uploaded and
-  never opened. So the job now sets `FREELINGO_REAL_PACK` to
-  `build/es/g9/pack.sqlite` and runs `packages/core/src/packs/real-pack.test.ts` over it:
-  meta a device can read, unit 1 lesson 1 non-empty, item ids that resolve to exercises,
-  `creditsViolations()` empty, the manifest's hard gate at 100% with a V8 engine record
-  that is neither `none` nor a mock, `payloadSha256` equal to the real file's digest, and
-  the install gate mapping a bad signature to `unverified` rather than installing.
-- **That test fails rather than skips when the pack is absent.** With
-  `FREELINGO_REAL_PACK` unset the whole file is skipped, so `pnpm test`, `ci.yml` and
-  every developer run are unaffected — there is no 90-minute build tree on a laptop. With
-  it set and the pack missing, the first assertion is red and names the path it wanted.
-  An env-gated test that skipped in both cases would be `flows-present`'s failure one
-  workflow over: a green tick over nothing.
-
-## `pack-bake.yml` was deleted, and why that is the honest option
-
-**Decision, 2026-09-12: `pack-bake.yml` is deleted.** The brief offered two ways out —
-give it an upstream download of `build-es`'s `es-build-<sha>` artefact, or delete it —
-and deletion is the one that leaves nothing that can lie.
-
-What it was: `workflow_dispatch` on a fresh checkout, running `coursekit bake es`. G8
-reads **G7's exercises**, a fresh checkout has no `build/` tree, so every possible
-dispatch exits 3/4 naming the missing upstream stage. It was never dispatched and **no
-`es-audio-<sha>` artefact has ever existed**. A workflow that cannot succeed is worse
-than no workflow: the row above used to read "rebuilds one language's audio bank and
-hands back the artefact", which is bake coverage nobody had.
-
-Why not the artefact download:
-
-- `es-build-<sha>` is uploaded by `build-es` with **`retention-days: 1`**. A dispatch
-  more than a day after the matching `pack-ci` run finds nothing, so the workflow's
-  success would depend on a 24-hour window.
-- Downloading an artefact produced by a **different workflow run** needs
-  `actions/download-artifact@v4` with `run-id:` plus a `github-token:`, and the run id
-  would have to be a dispatch input the operator looks up by hand. That is not "rebuild
-  the bank", it is "rebuild the bank if you can find yesterday's run".
-- The bake already happens where it has its inputs. `build-es` syncs the `tts` group,
-  caches the same pinned Kokoro weights at the same `COURSEKIT_KOKORO_WEIGHTS` path, and
-  runs G8 as part of `coursekit build es`, on every push to `main` that touches
-  `tools/coursekit/**` or `content/**`. `es-build-<sha>` (`path: build/es`) already
-  carries `g8/bank/`, `g8/clips.jsonl` and the run's `runlog.jsonl` — everything
-  `es-audio-<sha>` promised, produced by a job that has G7's output.
-
-So the bank travels in `es-build-<sha>`, and the manifest F2 validates travels in
-`es-pack-<sha>`. If a language ever needs a bake without a build, the workflow to write
-then is one that runs the upstream stages itself, not one that hopes an artefact is still
-around.
-
-The one thing the deletion did not fix was the window: `es-build-<sha>` had
-`retention-days: 1`, so a bank was downloadable for a day after the run that made it and
-then only re-derivable by re-running `build-es`. **Raised to 7 at the P2 fix
-integration**, which is the cheapest of the three options the paragraph above listed and
-leaves the other two (a bank inside `es-pack-<sha>`, or a bake workflow that runs its own
-upstream stages) available if a bank ever needs to outlive a week.
-
-## `pack-ci.yml` and the job that was green because it never ran
+## Spanish pack workflow
 
 ```
 coursekit lint + tests
-pipeline-ready ──> build-es (G0-G9) ──> validate-es (V1-V12 + F1-F5)
+pipeline-ready -> build-es -> immutable candidate artifact -> validate-es
+                                                            validate -> H1 review
+                                                            -> repackage -> sign/verify
+                                                            -> loader -> collect audio
+                                                            -> loader -> final artifact
 ```
 
-**`pipeline-ready` decides whether the two pack jobs run at all**, by asking whether every
-id in `config.VALIDATOR_IDS` and `config.BUILD_STAGE_IDS` is registered. That gate is right
-— a pack built over an empty registry is not a pack — and it has the failure mode every
-conditional job has: while `ready=false`, `build-es` and `validate-es` **skip**, and a
-skipped job is green.
+| Job              | Required result                                                                                                                                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coursekit`      | Ruff and pytest pass, including the real Opus measurement test. `COURSEKIT_REQUIRE_OPUS_TOOLS=1` makes a missing executable fail.                                                                                                                                   |
+| `pipeline-ready` | Every G0–G9 stage and all V1–V12/F1–F5 validators are registered. Missing registrations prevent pack jobs from running; the ordinary tests also assert registry completeness.                                                                                       |
+| `build-es`       | G0–G9 complete against the real corpus, LanguageTool 6.6 and pinned Kokoro weights; the audio budget passes; a 300-item sample is drawn; the build tree is uploaded.                                                                                                |
+| `validate-es`    | All validators run and pass, V1–V4 are 100%, the complete current sample passes H1, G9 republishes the fresh report and measured review, signing verifies against the committed public key, and the shipping loader opens both the pack and the collected artifact. |
 
-Measured at P2 integration: F1, F3, F4 and F5 were declared in the ledger and registered
-nowhere, so for the whole phase both jobs skipped, the run was green, and the pack the
-phase exists to produce had never been built. The lesson is the same one `flows-present`
-teaches one workflow over: when a job can be skipped, something must fail if it is skipped
-for the wrong reason. Here that something is `pnpm test` — `test_validators_freelingo.py`
-asserts `VALIDATORS.missing(VALIDATOR_IDS) == ()`, on every push, with no conditional in
-front of it.
+The last measured gate before the round-5 repair was
+[`65e1f81`, run 34724358433](https://github.com/Blueturboguy07/freelingo/actions/runs/34724358433).
+G0–G9 completed, the G8 directory measured **6,998,636 bytes** against **120,000,000**,
+and sample drawing succeeded. Signing then rejected the CI secret's PEM format. The
+build upload and validator job did not run; no validator result or final pack artifact
+exists for that run. These measurements do not assert that the repaired workflow has run.
 
-**Neither pack job has ever succeeded, and the table says so rather than describing the
-design.** At P2 integration (`281b623`) `pipeline-ready` went green for the first time —
-10/10 stages, 17/17 validators — both jobs went live, and `build-es` **failed at G5**:
-G4 emitted 918 gap slots and `content/es/candidates.jsonl` covers a handful. `validate-es`
-then skipped on `needs:`. Reproduced locally 2026-09-12 outside CI (920 gaps, 918 at
-zero), so it is not a runner artefact. Two consequences worth stating plainly:
+### Candidate artifacts and reviewer input
 
-- `coursekit validate es` **has never run in CI**. V1–V4 at 100%, V5–V12, the licence
-  sweep, the 120 MB bank measured on real bytes, `coursekit sample es` and
-  `coursekit sign es` are all unproven on real data. (It has been run once locally on a
-  diagnostic tree, which is where B17's 13 falling unit boundaries were measured.)
-- **The two things that would have stopped it one stage later are now in the workflow.**
-  B8: `build-es` named no grammar engine and no KenLM model, so V8 would have blocked on
-  "zero errors from nothing" for any content whatsoever — it now starts a LanguageTool 6.6
-  sidecar, probes it for `MORFOLOGIK_RULE_ES` (Spanish has a spell checker as well as
-  grammar rules, so a `spellcheck_engine: none` on es is a broken sidecar and not a
-  property of the language) and passes the **server base**, because
-  `LanguageToolEngine` appends `/v2/languages` and `/v2/check` itself and a URL ending in
-  an endpoint fails on a 404 for `/v2/check/v2/languages`. KenLM stays absent on purpose:
-  the pip package ships the query module only, so G6 degrades to `grammar_only`, names
-  what it lost, and V8 does not block. B13: the `align` group was missing and G7 exits 3
-  without it, with no fallback, because a degraded aligner produces word-bank hints that
-  are wrong in a way no row-level validator can see.
-  `tools/coursekit/tests/test_validate_runner.py` and `test_g6_validate_language.py` read
-  the YAML and fail if either regresses — a regression there is a _skipped_ `validate-es`,
-  and a skipped job is a green job.
+`es-build-<sha>` contains the entire `build/es` tree, including G7 exercises, the
+300-item sheet, its summary, G8 clips and bank, the candidate database/manifest and
+runlog. It is uploaded before validation, H1 and signing, so a rejected review or a
+signing failure leaves the exact candidate available. `ci-source.json` records the
+source SHA, workflow run ID/attempt, sheet digest and selected stage measurements.
+The artifact belongs to that run; its contents are immutable. Retention is seven days.
 
-`build-es` carries the `tts` dependency group and the cached Kokoro weights, unlike the
-`coursekit` job. A stage whose group is absent exits 3 rather than degrading, G8 needs
-`tts`, and G9 needs G8 — so without it the build stops before the pack exists. The
-`coursekit` job keeps the light default groups and its 20-minute budget; `build-es` has 60
-minutes and its product is a pack.
+The sheet uses paths such as `g8/bank/<id>.opus`, relative to the downloaded language
+build directory. Reviewers score those exact rows and clips. Current-population and
+per-row content fingerprints prevent committed scores from silently applying to altered
+exercises, source text or audio. The final H1 check calls `derive_review("es")` and
+`gate_passed`: the complete 300-item sample must join to its scores with a measured
+wrong-item rate of at most 2%. Agent review remains labelled
+`PROVISIONAL (unreviewed by a paid native speaker)`; paid native review is still a
+release prerequisite in `docs/RELEASE.md`.
+
+`es-gap-brief-<sha>` is diagnostic and may be incomplete when an early build stage
+fails. G0 reads a live Tatoeba export, so the committed gap brief is not asserted equal
+to each new run's brief. `es-validation-<sha>` preserves the report and runlog after a
+validation, H1 or signing failure. Neither diagnostic artifact is a final pack.
+
+### Validation, signing and publication order
+
+Validation precedes the final `coursekit pack es`. That second G9 invocation embeds the
+fresh full validator report and measured review, then recomputes the database digest.
+Only then does `coursekit sign es` sign the manifest and verify against
+`packages/schema/keys/pack-signing.pub`. No command after signing edits the manifest.
+
+The CI secret accepts the standard unencrypted, version-zero Ed25519 PKCS8 PEM encoding
+specified in [RFC 8410](https://www.rfc-editor.org/rfc/rfc8410.html#section-10.3), as well as
+the existing base64 32-byte seed or 64-byte seed-plus-public-key encoding. The PEM importer
+requires the exact DER lengths, Ed25519 OID and nested seed envelope; optional attributes,
+version-one extensions, encrypted keys and other algorithms are refused. A 64-byte raw
+key must contain the matching public half. Private material is read only from the CI
+environment. Tests generate ephemeral keys in memory and never use the release secret.
+
+`packages/core/src/packs/real-pack.test.ts` opens the actual SQLite file named by
+`FREELINGO_REAL_PACK`. A missing named file fails; with no variable, ordinary developer
+runs skip this expensive-build test. The checks cover first-lesson content, resolvable
+item IDs, credits, the full hard-gate report, a real V8 engine, payload digest, trusted
+signature, and every declared audio file's measured size. The test runs again after
+collection against `es-pack/pack.sqlite`, proving that copying preserved a usable pack.
+
+`es-pack-<sha>` contains the signed manifest, database, complete `audio/` directory,
+validator report, reviewer sheet/summary/scores, runlog and CI source record. An empty or
+missing bank fails collection. Final upload requires successful gates and an available
+signing secret. Fork pull requests without that secret can retain an unsigned candidate
+marked `unverified`; they publish no final `es-pack` artifact.
+
+The separate bake-only workflow was removed because a fresh checkout has no G7 input.
+G8 runs inside `build-es`, where its upstream exercises exist. That job installs all four
+optional groups (`nlp`, `lm`, `align`, `tts`); the lighter test job keeps the default
+groups. LanguageTool is supplied as a server base URL and probed for Spanish spelling
+rules. KenLM remains unavailable without a trained model, so G6 records `grammar_only`
+when appropriate; it never claims an engine ran when none did.
 
 ## The property floor
 

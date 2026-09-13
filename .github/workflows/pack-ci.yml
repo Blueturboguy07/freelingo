@@ -331,23 +331,45 @@ jobs:
       - name: Draw the reviewer sample (300 items, recorded seed)
         run: uv run coursekit sample es
 
-      - name: Sign the manifest
-        env:
-          PACK_SIGNING_KEY: ${{ secrets.PACK_SIGNING_KEY }}
+      - name: Record the candidate source and stage measurements
         run: |
-          set -euo pipefail
-          if [ -z "${PACK_SIGNING_KEY:-}" ]; then
-            echo "::notice::PACK_SIGNING_KEY is not available to this run (it is not exposed to pull requests from forks); the pack is built unsigned and a device would report it as \`unverified\`."
-            exit 0
-          fi
-          uv run coursekit sign es
+          uv run python - <<'PYTHON'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
 
-      # `retention-days: 7`, raised from 1 at the P2 fix integration. This artefact is
-      # `validate-es`'s input AND the only place the baked voice bank (`g8/bank/`,
-      # `g8/clips.jsonl`) is downloadable from, because the bake happens here and nowhere
-      # else. One day made a bank re-derivable only by re-running the build; docs/ci.md
-      # named that as the one thing the dispatch job's deletion did not fix, and this is
-      # the fix.
+          root = Path(os.environ["GITHUB_WORKSPACE"]) / "build/es"
+          latest = {}
+          for line in (root / "runlog.jsonl").read_text().splitlines():
+              entry = json.loads(line)
+              latest[entry["stage"]] = entry
+          measurements = {}
+          for stage in ("g5", "g7", "g8", "g9", "sample"):
+              entry = latest[stage]
+              notes = entry.get("notes", {})
+              measurements[stage] = {
+                  "status": entry["status"],
+                  "counts": entry["counts"],
+                  "measurements": {key: notes[key] for key in (
+                      "filled_slots", "gap_slots", "clips", "bytes", "audio_bytes",
+                      "pack_bytes", "item_ids", "drawn", "population", "seed",
+                  ) if key in notes},
+              }
+          record = {
+              "source_sha": os.environ["GITHUB_SHA"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "measurements": measurements,
+              "sample_sha256": hashlib.sha256((root / "sample-300.jsonl").read_bytes()).hexdigest(),
+          }
+          (root / "ci-source.json").write_text(json.dumps(record, indent=2) + "\n")
+          print(json.dumps(record, indent=2))
+          PYTHON
+
+      # Immutable candidate/reviewer input, uploaded BEFORE validation, H1 or signing.
+      # The sheet's portable clip paths resolve inside this tree's g8/bank directory.
+      # A failed later gate leaves the exact sample and audio available for review.
       - name: Upload the build tree for validate-es
         uses: actions/upload-artifact@v4
         with:
@@ -362,6 +384,8 @@ jobs:
     if: needs.pipeline-ready.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PACK_SIGNING_AVAILABLE: ${{ secrets.PACK_SIGNING_KEY != '' && '1' || '0' }}
     defaults:
       run:
         working-directory: tools/coursekit
@@ -417,6 +441,43 @@ jobs:
           sys.exit(1 if problems else 0)
           PY
 
+      - name: Require the complete current reviewer sample (H1)
+        run: |
+          uv run python - <<'PYTHON'
+          import json
+          from coursekit.sample import derive_review, gate_passed
+
+          review = derive_review("es")
+          print(json.dumps(review, indent=2))
+          if not gate_passed(review or {}):
+              raise SystemExit("H1 failed: the current 300-item sample must be fully reviewed at <=2% wrong.")
+          PYTHON
+
+      - name: Repackage with the fresh validator report and measured review
+        run: uv run coursekit pack es
+
+      - name: Sign the manifest and verify the committed public key
+        env:
+          PACK_SIGNING_KEY: ${{ secrets.PACK_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PACK_SIGNING_KEY:-}" ]; then
+            echo "::notice::Signing secret unavailable: candidate is unverified; no final es-pack artifact will be published."
+            exit 0
+          fi
+          uv run coursekit sign es
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: es-validation-${{ github.sha }}
+          path: |
+            build/es/validator-report.json
+            build/es/runlog.jsonl
+          if-no-files-found: warn
+          retention-days: 7
+
       # THE GATE CLAUSE THIS STEP EXISTS FOR: "the pack loads in `packages/core`'s pack
       # loader tests". Until now that was discharged against the committed
       # `packages/core/src/packs/__fixtures__/es-mini` pack — a real G9 output, and the
@@ -447,7 +508,7 @@ jobs:
         env:
           FREELINGO_REAL_PACK: ${{ github.workspace }}/build/es/g9/pack.sqlite
           # Turns "this manifest carries no signature block" from an accepted state into a
-          # failure, but only where the secret exists. `build-es` signs when
+          # failure, but only where the secret exists. `validate-es` signs when
           # `PACK_SIGNING_KEY` is available and prints a notice when it is not (it is not
           # exposed to pull requests from forks), and an unsigned pack is legitimately
           # `unverified` — so the assertion is conditional on the same secret rather than
@@ -456,25 +517,15 @@ jobs:
         run: pnpm vitest run --project core src/packs/real-pack.test.ts
 
       - name: Collect the pack artefacts
+        if: env.PACK_SIGNING_AVAILABLE == '1'
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/es-pack"
           mkdir -p "$out"
-          # `build/` is at the repository root: `coursekit.artifacts.build_root()`
-          # resolves it from the package's own path, not from the working directory.
-          #
-          # CROSS-LANE CONTRACT, RESOLVED AT P2 INTEGRATION. This lane wrote down
-          # `g9/es.pack` as a guess and recorded the guess in
-          # docs/owned/p2-validate-ci.json -> crossLaneContracts, because
-          # config/package.py was empty and p2-g9-package-loader had not landed. G9
-          # calls it `pack.sqlite` (config/g9.py PACK_DB_FILENAME), so the name is
-          # corrected here rather than left to fail this step on the first real build.
-          # `g9/manifest.json` was already safe: MANIFEST_FILENAME and PACK_STAGE_ID are
-          # both real constants.
           root="$GITHUB_WORKSPACE/build/es"
           for file in "$root/g9/pack.sqlite" "$root/g9/manifest.json" \
                       "$root/validator-report.json" "$root/sample-300.jsonl" \
-                      "$root/sample-summary.json" "$root/runlog.jsonl"; do
+                      "$root/sample-summary.json" "$root/runlog.jsonl" "$root/ci-source.json"; do
             if [ -f "$file" ]; then
               cp "$file" "$out/"
             else
@@ -482,9 +533,24 @@ jobs:
               exit 1
             fi
           done
+          if [ ! -d "$root/g9/audio" ] || [ -z "$(find "$root/g9/audio" -type f -name '*.opus' -print -quit)" ]; then
+            echo "::error::the pack audio bank is absent or empty"
+            exit 1
+          fi
+          cp -R "$root/g9/audio" "$out/audio"
+          cp "$GITHUB_WORKSPACE/content/es/review/scores.jsonl" "$out/review-scores.jsonl"
           ls -l "$out"
 
+      - name: The collected archive opens with every audio file present
+        if: env.PACK_SIGNING_AVAILABLE == '1'
+        working-directory: ${{ github.workspace }}
+        env:
+          FREELINGO_REAL_PACK: ${{ github.workspace }}/es-pack/pack.sqlite
+          FREELINGO_REAL_PACK_SIGNED: '1'
+        run: pnpm vitest run --project core src/packs/real-pack.test.ts
+
       - name: Upload es-pack-<sha>
+        if: env.PACK_SIGNING_AVAILABLE == '1'
         uses: actions/upload-artifact@v4
         with:
           name: es-pack-${{ github.sha }}

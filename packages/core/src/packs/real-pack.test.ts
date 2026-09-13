@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { createPublicKey } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { canonicalJson, isContentHashItemId } from './items.js';
@@ -70,6 +71,7 @@ function committedPublicKey(repoRoot: string): Uint8Array {
   expect(body, 'the committed key is not a PEM PUBLIC KEY block').toBeDefined();
   const spki = Uint8Array.from(atob((body as string).replace(/\s+/g, '')), (c) => c.charCodeAt(0));
   expect(spki.length, 'an ed25519 SPKI is 44 bytes').toBe(44);
+  expect(createPublicKey(pem).asymmetricKeyType).toBe('ed25519');
   return spki.slice(12);
 }
 
@@ -118,6 +120,31 @@ describe.skipIf(REAL_PACK === undefined)('the pack this build produced', () => {
       const ids = loaded.itemIds();
       expect(ids.length).toBeGreaterThan(0);
       expect(loaded.exercisesForItem(ids[0]!).length).toBeGreaterThan(0);
+    } finally {
+      reader.close();
+    }
+  });
+
+  it('[INV-PACK-15] every declared audio clip has the bytes the shipping player opens', () => {
+    const reader = open(pack);
+    try {
+      const loaded = openPack(reader, { packRoot: pack.replace(/\/[^/]+$/, '') });
+      expect(loaded.unresolvedAudio(existsSync)).toEqual([]);
+      const clips = reader.all<{ audio_id: string }>('SELECT audio_id FROM audio');
+      expect(clips.length, 'the pack has no baked audio').toBeGreaterThan(0);
+      let measuredBytes = 0;
+      for (const row of clips) {
+        const clip = loaded.resolveAudio(row.audio_id);
+        expect(clip, `audio ${row.audio_id} does not resolve`).not.toBeNull();
+        const size = statSync(clip!.uri).size;
+        expect(size).toBeGreaterThan(0);
+        expect(size, `audio ${row.audio_id} declares the wrong byte count`).toBe(clip!.bytes);
+        measuredBytes += size;
+      }
+      const manifest = JSON.parse(readFileSync(manifestPath(pack), 'utf8')) as {
+        audioBytes: number;
+      };
+      expect(measuredBytes).toBe(manifest.audioBytes);
     } finally {
       reader.close();
     }
@@ -234,7 +261,12 @@ describe.skipIf(REAL_PACK === undefined)('the pack this build produced', () => {
     // The embedded key is compared with the committed one FIRST. A manifest that verifies
     // against the key it carries proves only that somebody owned a key, which is what an
     // attacker re-signing a modified pack also has.
-    expect([...embedded.slice(12)]).toEqual([...publicKey]);
+    expect(signature.length).toBe(64);
+    expect(embedded.length).toBe(44);
+    const trustedDer = createPublicKey(
+      readFileSync(`${REPO_ROOT}/packages/schema/keys/pack-signing.pub`, 'utf8'),
+    ).export({ format: 'der', type: 'spki' });
+    expect([...embedded]).toEqual([...trustedDer]);
     expect(verifyEd25519(signature, utf8(canonicalJson(signed)), publicKey)).toBe(true);
   });
 });

@@ -429,9 +429,8 @@ def test_INV_PACK_18_the_pack_artefacts_cannot_be_an_empty_archive() -> None:
     collect = _job("validate-es")
     assert "g9/manifest.json" in collect
     assert "g9/pack.sqlite" in collect
-    build = _job("build-es")
-    assert "uv run coursekit sign es" in build
-    assert "unverified" in build
+    assert "uv run coursekit sign es" in collect
+    assert "unverified" in collect
 
 
 def test_INV_PACK_13_the_frequency_list_is_fetched_through_the_allow_list() -> None:

@@ -76,14 +76,14 @@ def a_pem_private_key_header() -> str:
     return "-----BEGIN " + "PRIVATE KEY" + "-----"
 
 
-def test_a_pem_block_in_the_secret_is_refused(monkeypatch) -> None:
+def test_a_malformed_pem_block_in_the_secret_is_refused(monkeypatch) -> None:
     monkeypatch.setenv(PACK_SIGNING_KEY_ENV, f"{a_pem_private_key_header()}\nabc\n-----END")
-    with pytest.raises(MissingSigningKey, match="not a PEM block"):
+    with pytest.raises(MissingSigningKey, match="malformed.*PEM"):
         load_signing_key()
 
 
 def test_a_path_in_the_secret_is_refused(monkeypatch) -> None:
-    """"It also reads a file" is how a release key reaches a developer's laptop."""
+    """ "It also reads a file" is how a release key reaches a developer's laptop."""
     monkeypatch.setenv(PACK_SIGNING_KEY_ENV, "/Users/someone/.freelingo/pack-signing.key")
     with pytest.raises(MissingSigningKey, match="will not read one"):
         load_signing_key()
