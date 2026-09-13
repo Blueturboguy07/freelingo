@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -9,6 +10,9 @@ import { defineConfig } from 'vitest/config';
  */
 
 /** Named config: the packages that hold tests. One project each, same settings. */
+const mobileRequire = createRequire(new URL('./apps/mobile/package.json', import.meta.url));
+const RN_WEB_ENTRY = mobileRequire.resolve('react-native-web');
+
 const PROJECTS = ['core', 'schema', 'ui', 'testkit'] as const;
 
 /**
@@ -80,7 +84,7 @@ export default defineConfig({
         },
       })),
       {
-        resolve: { alias: [{ find: /^react-native$/, replacement: 'react-native-web' }] },
+        resolve: { alias: [{ find: /^react-native$/, replacement: RN_WEB_ENTRY }] },
         esbuild: { jsx: 'automatic' },
         test: {
           name: 'mobile',
