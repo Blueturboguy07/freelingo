@@ -1423,6 +1423,8 @@
       "legendary_awarded_at": null
     }
   ],
+  "course_path_jump": [],
+  "course_path_state": [],
   "course_progress": [
     {
       "course_id": "en-es",
@@ -1505,6 +1507,7 @@
       "item_id": "it_es_00"
     }
   ],
+  "course_script_introduction": [],
   "course_selection": [
     {
       "course_id": "en-es",
