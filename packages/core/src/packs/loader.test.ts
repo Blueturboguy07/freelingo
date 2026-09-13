@@ -665,3 +665,22 @@ describe('path joining', () => {
     expect(joinPackPath('', 'audio/a.opus')).toBe('audio/a.opus');
   });
 });
+
+describe('production grading capability on a legacy installed pack', () => {
+  it('[INV-GRD-02][INV-PACK-25] preserves browsing but rejects grading when authored policy is absent', () => {
+    const reader = openFixture();
+    try {
+      const pack = openPack(reader, { packRoot: PACK_ROOT });
+      const units = pack.units();
+      expect(units.length).toBeGreaterThan(0);
+      const exercises = pack.lesson(units[0]!.unitId, 1);
+      expect(exercises.length).toBeGreaterThan(0);
+      expect(pack.exercise(exercises[0]!.exerciseId)).toEqual(exercises[0]);
+      expect(pack.exercise('unknown-exercise')).toBeNull();
+      expect(() => pack.gradingForExercise(exercises[0]!.exerciseId)).toThrow(PackFormatError);
+      expect(() => pack.credits()).not.toThrow();
+    } finally {
+      reader.close();
+    }
+  });
+});

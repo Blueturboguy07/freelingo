@@ -12,3 +12,4 @@ export * from './items.js';
 export * from './ed25519.js';
 export * from './hashing.js';
 export * from './loader.js';
+export * from './grading.js';
