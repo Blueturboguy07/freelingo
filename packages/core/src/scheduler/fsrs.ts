@@ -191,6 +191,34 @@ function retrievabilityAfter(card: Card, elapsedMs: number): number {
   );
 }
 
+/** Current Words strength and due display, without applying an encounter. The same
+ * library, honest elapsed clamp and exact hold measure used by reviewRow are reused.
+ * Returning a value never changes the card, its introduction, review history or Score. */
+export function projectStrengthAt(
+  row: FsrsRow,
+  now: Date,
+  holds: readonly HoldWindow[],
+): {
+  readonly retrievability: number;
+  readonly dueAt: Date;
+} {
+  if (!Number.isFinite(now.getTime())) throw new RangeError('Invalid strength clock');
+  const base = row.card.last_review ?? row.introducedAt ?? row.card.due;
+  const elapsed = resolveElapsed({
+    lastReviewAt: base,
+    now,
+    rowKey: row.key,
+    heldMs: heldMsBetween(row, holds, base, now),
+  });
+  return {
+    retrievability:
+      row.card.last_review === undefined
+        ? 0
+        : retrievabilityAfter(row.card, elapsed.effectiveElapsedMs),
+    dueAt: new Date(row.card.due.getTime() + elapsed.heldMs),
+  };
+}
+
 /**
  * Apply one encounter to one row.
  *
