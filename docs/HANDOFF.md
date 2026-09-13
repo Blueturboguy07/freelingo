@@ -15,8 +15,33 @@ retained for recovery and must not be mistaken for current branch/integration st
 |---|---|---|
 | P0 Foundation | **GREEN** | `docs/P0-REPORT.md`. Monorepo, CI on the public repo, testkit, six invariants at 10k+ cases, pack-signing key custody, persistence gate proven on the Android emulator and the iOS simulator (Maestro flow `e2e/flows/p0-db-path.yaml`; iOS needed the pnpm patch for `expo-modules-jsi` and the CI pin to Xcode 26.2). |
 | P1 Engine | **GREEN** | `docs/P1-REPORT.md`. `packages/core` complete for §1–§10, §13, §14 engine parts and SEC-01/02; 1,258 tests, 230 fast-check properties; 13 ids deferred to P3–P5 by design (listed in `docs/owned/journey.json`). Mutation job produces no score yet (non-gating, see B7). |
-| P2 Spanish pack | **RED; authorized round 5 in progress** | `docs/P2-TAKEOVER.md`. G0–G9 produced a local pack; the latest completed CI build reached signing and failed on the key format. The historical draw measured 51/300 wrong, PROVISIONAL (unreviewed by a paid native speaker). Current repairs cover content quality, review/source identity and signed CI artifacts. |
+| P2 Spanish pack | **RED; first round-5 attempt reviewed, fixes held** | `docs/P2-REPORT.md`. Source `fca9a57`: CI G0–G9 succeeded, validation failed (11/17 green; 6,517 blocking findings). The immutable 300-item review measured 101 wrong (33.67%), PROVISIONAL (unreviewed by a paid native speaker). Core and native smoke CI passed. No second full attempt has run. |
 | P3–P8 | not started | briefs in `docs/phases/P3.md … P8.md` |
+
+## Current round-5 checkpoint — 2026-09-13
+
+Main and origin/main are `fca9a57bb0203fc52084c97f09aec5d582bc8d6e`. The fresh CI
+candidate contains 5,763 exercises and 1,229 audio clips. It is an unsigned failing
+candidate, not a releasable course. The current review is 101 wrong, 17 awkward and
+182 OK; all 300 rows join the frozen CI population, and no audio was listened to.
+The complete evidence and CI URLs are in `docs/P2-REPORT.md`. Earlier rates below
+belong to older draws and cannot be compared as a progress trend.
+
+All findings belong to the **first** authorized round-5 attempt. Isolated repairs now
+cover source/placement joins, real lesson ordering, conservative cloze choices,
+punctuation, required target words, unit register and exact morphology, reviewed
+lexical meanings, and transport of the current audio manifest into CI. Glossary data
+contains 945 independently reviewed citation-sense rows (`e8f0a6e`); these are original
+agent-authored inputs, not evidence that regenerated exercises pass. Additional work
+addresses complete answer sets, genuine conversational roles, recycling windows and
+cross-section difficulty. Shared contract consumers wait for their explicit interface
+freeze. No thresholds, dependency manifests or section maps have changed.
+
+The mobile app still renders P0 Diagnostics. Remaining product phases are P3 lesson
+player, P4 loop surfaces, P5 native surfaces, P6 Stories + Radio, P7 French/German/
+Japanese packs and P8 release. Continue the held repair batch, independently review it,
+then integrate and run the next full gate. If that post-fix gate is RED again, apply
+the founder stop condition before any third silent attempt.
 
 ## Historical round-4 branch table (original handoff)
 

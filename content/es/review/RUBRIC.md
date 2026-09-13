@@ -9,11 +9,10 @@ S137 About.
 ## Who is scoring, and what that means
 
 **This run has no paid native reviewer.** The scores in `scores.jsonl` are produced by
-the phase's Opus reviewer agent. That is a real second pass over content the pipeline
+Codex reviewer agents in this desktop repair round. That is a real second pass over content the pipeline
 authored, and it is not the thing `scope2/00` H1 describes. So every number derived from
 this file carries, verbatim — as do `docs/pack-provenance.md` and
-`tools/coursekit/README.md` today, and the pack manifest's `review` block and the S001
-card once G9 and P3 build them:
+`tools/coursekit/README.md` today, the pack manifest's `review` block, and the S001 card when P3 builds it:
 
 > PROVISIONAL (unreviewed by a paid native speaker)
 
@@ -37,16 +36,17 @@ only prerequisite that can invalidate work already done (plan §Risks 7).
 
 Replacing the agent pass with a paid native pass is a change of **one field**:
 `reviewer_kind` becomes `paid-native-speaker` and the note becomes empty. Nothing else
-in the pipeline moves. The draw is deterministic under its recorded seed, so the 300 rows
-a paid reviewer scores later are the same 300 rows the agent scored.
+in the pipeline moves. The same population and recorded seed reproduce the same 300 rows. A rebuilt
+population must be checked again; score fingerprints prevent an older review from
+approving changed content or audio bytes.
 
 ## How to draw the sheet
 
 ```sh
 cd tools/coursekit
 uv run coursekit build es          # G0-G9
-uv run coursekit sample es         # 300 items, seed 20260912
-# or: uv run coursekit sample es --set n=300 --set seed=20260912
+uv run coursekit sample es         # 300 items, seed 20260913
+# or: uv run coursekit sample es --set n=300 --set seed=20260913
 ```
 
 The draw is stratified over `(unit_index, exercise_type, provenance)` and deterministic
@@ -69,6 +69,12 @@ dimensions or the text into the accent dimension; they are scored separately and
 different reasons.
 
 Score the six dimensions, then give one verdict.
+
+Respect the actual input shape when judging an obvious missing answer. A free typed
+translation needs its common valid alternatives. A word bank constrains the available
+tiles; a cloze grades only the blank within the fixed stem. A full-sentence paraphrase
+that cannot fit those constraints is not evidence of a wrong answer set. A standalone
+cloze must make every offered distractor wrong without assuming an unstated tense.
 
 | Dimension            | Ask                                                                                            |
 | -------------------- | ---------------------------------------------------------------------------------------------- |
@@ -194,7 +200,7 @@ gate mean two things at once — the same reason `awkward` is published separate
 
 Round 4 joins each exercise's `audio_ref` through G8's baked-clip records and
 `cast.yaml`. A reviewer uses `clip_path` to play the exact packed bytes and
-`voice_role`/`voice_name` to group Plumas, Diego, Rosa, and Nico. A row with
+`voice_role`/`voice_name` to group Plumas, Mateo, Rosa, and Nico. A row with
 `has_audio: false` remains unscoreable and takes `accent_consistency: null`.
 
 ### If the constant does not carry it yet
@@ -232,7 +238,7 @@ Score `wrong` when **any** of these is true:
 - `meaning` fails — the pair does not mean the same thing;
 - `grammar` fails in a way a teacher would correct;
 - `answer_set` fails because a listed accepted answer is **not** acceptable (the learner
-  is taught an error) **or** because the single most obvious correct answer is missing
+  is taught an error) **or** because an ordinary, clearly valid correct answer is missing
   (the learner is marked wrong for being right — the reference product gives no typo
   grace, so the enumerated set _is_ the whole tolerance budget);
 - a distractor is in fact a valid answer.
@@ -250,6 +256,7 @@ the values:
 ```json
 {
   "exercise_id": "3f0c1a2b4d5e6f70",
+  "content_fingerprint": "COPY_THE_EXACT_FINGERPRINT_FROM_THE_SAMPLED_ROW",
   "verdict": "ok",
   "dimensions": {
     "meaning": "pass",
@@ -259,19 +266,23 @@ the values:
     "answer_set": "pass",
     "accent_consistency": null
   },
-  "reviewer": "opus-agent-reviewer",
-  "reviewed_at": "2026-09-12",
+  "reviewer": "codex-agent-reviewer",
+  "reviewed_at": "2026-09-13",
   "note": ""
 }
 ```
 
-`exercise_id`, `verdict` and `reviewer` are required. `dimensions` keys must all be in
+`exercise_id`, `verdict` and `reviewer` are required. Copy `content_fingerprint`
+exactly from the drawn row: a missing or changed fingerprint cannot join the current
+review gate. Never compute it from score notes or substitute the exercise ID. `dimensions` keys must all be in
 `REVIEW_DIMENSIONS`; a key outside it is a hard error on the whole file, never a dropped
 row. `note` is free text and is what a maintainer reads when a rate moves.
 
 `accent_consistency` is present and null in the canonical form because the example does
 not point at a real drawn row. On a row with `has_audio: true`, listen to `clip_path` and
-replace null with `pass` or `fail`. `read_scores` accepts only those values (or null) and
+replace null with `pass` or `fail`. If no reviewer actually heard the clip, retain
+null and record that limitation; file existence or an audio decoder is not listening.
+`read_scores` accepts only those values (or null) and
 refuses arbitrary truthy strings such as `"yes"`.
 
 For example, a row whose clip was played and failed the accent check is:
@@ -279,6 +290,7 @@ For example, a row whose clip was played and failed the accent check is:
 ```json
 {
   "exercise_id": "3f0c1a2b4d5e6f70",
+  "content_fingerprint": "COPY_THE_EXACT_FINGERPRINT_FROM_THE_SAMPLED_ROW",
   "verdict": "awkward",
   "dimensions": {
     "meaning": "pass",

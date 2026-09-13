@@ -1,0 +1,13 @@
+{
+  "reviewer_kind": "codex-agent-reviewer",
+  "sample_size": 300,
+  "scored": 300,
+  "joined": 300,
+  "unjoined": 0,
+  "wrong_item_rate": 0.33666666666666667,
+  "awkward_rate": 0.056666666666666664,
+  "note": "PROVISIONAL (unreviewed by a paid native speaker)",
+  "gate_passed": false,
+  "audio_rows": 87,
+  "accent_scored": 0
+}

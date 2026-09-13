@@ -1,0 +1,73 @@
+{
+  "artifact_id": 10311725249,
+  "name": "es-build-fca9a57bb0203fc52084c97f09aec5d582bc8d6e",
+  "path": "/private/tmp/p2r5-ci-fca9/candidate",
+  "build_root": "/private/tmp/p2r5-ci-fca9/candidate",
+  "source_sha": "fca9a57bb0203fc52084c97f09aec5d582bc8d6e",
+  "workflow_run_id": "34734954606",
+  "run_attempt": "1",
+  "sample_sha256": "f114eb4965a37dedd43141a6914e8074f0a1ba5a27e5cc48758bb07e29fab613",
+  "sample_rows": 300,
+  "ci_source_verified": true,
+  "measurements": {
+    "g5": {
+      "status": "ok",
+      "counts": {
+        "read": 10269,
+        "rejected": 3919,
+        "written": 10269
+      },
+      "measurements": {
+        "filled_slots": 500,
+        "gap_slots": 500
+      }
+    },
+    "g7": {
+      "status": "ok",
+      "counts": {
+        "read": 1584,
+        "rejected": 0,
+        "written": 5763
+      },
+      "measurements": {}
+    },
+    "g8": {
+      "status": "ok",
+      "counts": {
+        "read": 5763,
+        "rejected": 0,
+        "written": 1229
+      },
+      "measurements": {
+        "clips": 1229,
+        "bytes": 6572672
+      }
+    },
+    "g9": {
+      "status": "ok",
+      "counts": {
+        "read": 316906,
+        "rejected": 0,
+        "written": 71739
+      },
+      "measurements": {
+        "audio_bytes": 6572672,
+        "pack_bytes": 8863744,
+        "item_ids": 5763
+      }
+    },
+    "sample": {
+      "status": "ok",
+      "counts": {
+        "read": 5763,
+        "rejected": 0,
+        "written": 300
+      },
+      "measurements": {
+        "drawn": 300,
+        "population": 5763,
+        "seed": 20260913
+      }
+    }
+  }
+}

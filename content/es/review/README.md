@@ -1,41 +1,27 @@
-# `content/es/review/`
+# Spanish pack review
 
-The H1 human-review pass for the Spanish pack.
+`RUBRIC.md` defines the six dimensions and the `ok`, `awkward`, `wrong` verdicts.
+`scores.jsonl` holds one score per current sampled exercise and stays empty until that
+review is performed. An empty, incomplete, duplicate or stale review does not pass H1.
+Historical material is preserved under `history/`; it is not current score input.
 
-| File           | What it is                                                                    |
-| -------------- | ----------------------------------------------------------------------------- |
-| `RUBRIC.md`    | how a row is scored, what counts as a defect, and who is scoring in this run  |
-| `scores.jsonl` | one JSON object per scored sheet row; **empty until the reviewer agent runs** |
+Draw exactly 300 rows with `coursekit sample es`; round 5 uses seed 20260913, selected
+before scoring. The local output is `build/es/sample-300.jsonl`. For CI review, download
+the immutable `es-build-<sha>` artifact and verify `ci-source.json` and its sample hash.
+Copy each row's `exercise_id` and exact `content_fingerprint` into the score. The complete
+population fingerprint also binds unsampled exercises and actual audio bytes.
 
-`scores.jsonl` is committed empty on purpose rather than omitted. `coursekit` treats an
-absent file and an empty one the same way — no rows, so `wrong_item_rate` is `None` and
-`gate_passed()` is `false` — and `None` is not 0%: an unscored sample does not pass the
-2% gate by having no numerator. The file exists so the path a reviewer writes to is the
-path CI reads from, and so a reviewer never has to guess where it goes.
+A valid clip is linked through `clip_id`, `clip_path`, `clip_sha256`, `voice_role`,
+`voice_name`, `clip_engine` and `clip_text`. Portable paths resolve under the candidate
+artifact's `g8/bank/`; final runtime artifacts place audio under `audio/`. Score accent
+only after actually hearing the clip. Otherwise retain null and report that limitation.
 
-The sheet to score is `build/es/sample-300.jsonl`, drawn by `coursekit sample es`. It is
-not committed: it is reproducible output of a recorded seed, and `build/` is gitignored.
+Round 5 uses `reviewer_kind: codex-agent-reviewer`; historical Opus records retain
+`opus-agent-reviewer`. The gate accepts a complete current agent review at <=2% wrong
+under founder ruling B3. Every such rate is labelled verbatim:
 
-Read `RUBRIC.md` before scoring, and read the paragraph headed "Who is scoring, and what
-that means" before quoting any number that comes out of this directory.
+> PROVISIONAL (unreviewed by a paid native speaker)
 
-## Two things founder rulings changed on 2026-09-12
-
-**An agent-scored rate unblocks P3 and does not unblock a release** (ruling B3). The gate
-`coursekit` enforces accepts `reviewer_kind: opus-agent-reviewer` at ≤ 2%; the paid
-native pass is item 1 of [`docs/RELEASE.md`](../../../docs/RELEASE.md), ahead of every
-other release prerequisite, because it is the only one that can invalidate work already
-done.
-
-**The rubric now has a sixth dimension, `accent_consistency`** (ruling B6). Spanish is
-baked on Kokoro, whose Spanish voices declare no regional accent, so the manifest says
-`language: es` + `accent_claim: unverified` and nothing in `coursekit` can falsify the
-accent of a shipped bank. This sample is the only check there is. Two caveats a scorer
-needs before starting:
-
-- the drawn sheet carries **no clip reference and no voice role** today, so the dimension
-  is unscoreable — `docs/P2-BLOCKERS.md` **B18**;
-- the key must be in `REVIEW_DIMENSIONS` (`config/sample.py`) before it appears in a
-  `dimensions` object. `read_scores` raises on an unknown key and the whole file then
-  produces **no rate**, so `RUBRIC.md` §"If the constant does not carry it yet" gives the
-  note-only fallback.
+The paid native review remains a prerequisite in `docs/RELEASE.md`. An agent pass may
+unblock P3; it does not authorize a release. Written Spanish is judged against the
+rubric's peninsular variety. Audio retains `accent_claim: unverified`.

@@ -1,16 +1,71 @@
 GATE: RED
 
-# P2 takeover checkpoint — 2026-09-12
+# P2 takeover checkpoint — current status 2026-09-13
 
 The founder asked this desktop task to stop the previous Codex CLI and continue here.
 PID 51836 and its launcher/helper exited after SIGTERM. Existing code, worktrees,
 review material and the generated audio-manifest change were preserved.
 
-This checkpoint supplements the frozen round-3 `P2-REPORT.md`; it does not claim that
-P2 passed or that P3 began. `HANDOFF.md` describes the earlier handoff and is stale
-about round-4 implementation progress.
+The current `P2-REPORT.md` records the completed first round-5 attempt; the prior
+round-3 report is preserved as `P2-REPORT-round3.md`. P2 remains RED and P3 has not
+begun. `HANDOFF.md` now points to current evidence. Sections below preserve the
+takeover chronology and do not supersede this current checkpoint.
 
-## Source and integration state
+
+## Current first-attempt result and held repair batch
+
+Source `fca9a57bb0203fc52084c97f09aec5d582bc8d6e` is pushed. Core CI
+[34734954579](https://github.com/Blueturboguy07/freelingo/actions/runs/34734954579)
+and native smoke CI
+[34734954572](https://github.com/Blueturboguy07/freelingo/actions/runs/34734954572)
+passed. Pack CI
+[34734954606](https://github.com/Blueturboguy07/freelingo/actions/runs/34734954606)
+completed G0–G9 and uploaded the immutable candidate, then failed validation:
+11/17 checks green, 6,517 blocking findings and 316 warnings. Final signing/loader
+were not reached. Fresh native artifacts contain one P0 fresh-install smoke case per
+platform; no lesson UI or restart-persistence test is claimed.
+
+The independently reconciled, exact-fingerprint 300-item review is **101 wrong
+(33.67%), 17 awkward, 182 OK**. **PROVISIONAL (unreviewed by a paid native speaker)**.
+All 87 audio-bearing sample rows were unlistened; all accent scores remain null.
+Full review, original draft and adjudication evidence are preserved under
+`content/es/review/history/p2-round5-attempt1/`. These results belong to one frozen
+population and will become historical when the next source population is generated.
+
+The same first attempt exposed all current repairs. No second full gate has run.
+Six existing worktree tasks retain disjoint lanes, with these bounded extensions:
+
+- Sole deps/contracts lane: shared register, glossary and occurrence-bound answer
+  evidence contracts, their config/tests and pipeline documentation. The latest answer
+  contract is in `codex/p2r5-evidence-contract` using the existing deps worktree; no
+  dependency changed. Consumers wait for the shared interface freeze.
+- Upstream lane: G1 punctuation normalization coordinated with G7, G2 intended POS,
+  G3 unit declaration, G4 full known-lemma windows, target/register guards in G4–G6,
+  and real-source recurrence/difficulty repair. No threshold or section-map change.
+- G7 lane: safe clozes, independently reviewed standalone meanings, exact source-context
+  V6, shape-specific approved answer consumption and reviewed conversational roles.
+- Signing/CI lane: current-manifest artifact snapshot/restore with exact file/hash joins.
+- Sample/G9 lane: exact selected-source ledger joins, V9 selected-slot accounting and
+  shared actual lesson order. Commit `500e8a6` passed 1,191 Python tests (8 skipped,
+  one optional live SimAlign test deselected), 1,317 JavaScript tests (7 skipped),
+  lint/typecheck/ownership/Ruff, independent falsifiers and six guard mutations.
+- Review/integration lane: complete frozen review, report/method/history, original
+  glossary assembly and ownership mappings. Glossary commit `e8f0a6e` contains 945
+  explicit citation-sense rows with independent hashed review. Conversations remain
+  feasibility proposals until all three roles have destination and G6 proof.
+
+Known real producer deficits include 50 first-attempt gap slots that starve under the
+correct required-target guard, 51 lemmas owing 69 appearances inside unchanged V3
+windows, and the u10→u11 difficulty decrease (10.1152→9.3045). A corrected-join/order
+probe fixes V2/V9 findings but is not a regenerated pack gate. The next preparation
+must regenerate G1 onward to apply punctuation and lexeme/POS changes; cached text,
+old reviews and old audio fingerprints cannot be patched into current proof.
+
+P0/P1 are GREEN. P2 is RED. P3–P8 remain unstarted; App.tsx is still Diagnostics.
+The authorized next full post-fix attempt must meet the unchanged gate. A second RED
+after these fixes requires a founder decision before any third silent attempt.
+
+## Historical source and integration state
 
 At takeover, local `main` was `e2f25cd`, one commit ahead of `origin/main` (`65e1f81`),
 and was cherry-picking `3e47e79`. The conflict in

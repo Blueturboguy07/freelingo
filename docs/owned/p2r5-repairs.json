@@ -10,20 +10,29 @@
     "codex/p2r5-g7",
     "codex/p2r5-signing",
     "codex/p2r5-sample",
-    "codex/p2r5-integration"
+    "codex/p2r5-integration",
+    "codex/p2r5-evidence-contract"
   ],
   "additionalTests": {
     "INV-GRD-03": [
       "tools/coursekit/tests/test_artifacts.py",
-      "tools/coursekit/tests/test_g7_expand.py"
+      "tools/coursekit/tests/test_g7_expand.py",
+      "tools/coursekit/tests/test_answer_evidence.py"
     ],
     "INV-PACK-06": [
       "tools/coursekit/tests/test_g4_select.py",
-      "tools/coursekit/tests/test_pair_quality.py"
+      "tools/coursekit/tests/test_pair_quality.py",
+      "tools/coursekit/tests/test_ledger_source_slots.py",
+      "tools/coursekit/tests/test_teaching_order.py",
+      "tools/coursekit/tests/test_g2_band.py",
+      "tools/coursekit/tests/test_registers.py",
+      "tools/coursekit/tests/test_selected_sources.py"
     ],
     "INV-PACK-08": [
       "tools/coursekit/tests/test_g5_gapfill.py",
-      "tools/coursekit/tests/test_g6_validate_language.py"
+      "tools/coursekit/tests/test_g6_validate_language.py",
+      "tools/coursekit/tests/test_answer_evidence.py",
+      "tools/coursekit/tests/test_registers.py"
     ],
     "INV-PACK-14": [
       "tools/coursekit/tests/test_review_integrity.py",
@@ -39,16 +48,20 @@
     "INV-PACK-41": [
       "tools/coursekit/tests/test_artifacts.py",
       "tools/coursekit/tests/test_g7_expand.py",
-      "tools/coursekit/tests/test_review_integrity.py"
+      "tools/coursekit/tests/test_review_integrity.py",
+      "tools/coursekit/tests/test_selected_sources.py",
+      "tools/coursekit/tests/test_answer_evidence.py"
     ],
     "INV-AUD-08": [
-      "tools/coursekit/tests/test_review_freshness.py"
+      "tools/coursekit/tests/test_review_freshness.py",
+      "tools/coursekit/tests/test_ci_audio.py"
     ],
     "INV-PACK-07": [
       "tools/coursekit/tests/test_g7_expand.py"
     ],
     "INV-PACK-40": [
-      "tools/coursekit/tests/test_g7_expand.py"
+      "tools/coursekit/tests/test_g7_expand.py",
+      "tools/coursekit/tests/test_lexeme_glosses.py"
     ],
     "INV-PACK-10": [
       "tools/coursekit/tests/test_g5_gapfill.py",

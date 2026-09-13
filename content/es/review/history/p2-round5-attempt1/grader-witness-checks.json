@@ -1,0 +1,846 @@
+{
+  "method": "Actual gradeTypedAnswer source transpiled without semantic edits. ES fixture configuration plus a second probe relaxing typo/omission guards; this is core evidence, not a rendered P3 or configured pack-to-grader adapter claim.",
+  "results": [
+    {
+      "row_index": 4,
+      "answer": "It is not us.",
+      "reason": "Ordinary uncontracted English equivalent.",
+      "exercise_id": "866580071384c31d",
+      "content_fingerprint": "3e99ddd21cb772e84cae93bff9a19687882875afc9ac39095343b68912836ffe",
+      "prompt": "Translate this sentence\nNo somos nosotros.",
+      "accepted_answers": [
+        "It's not us."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 8,
+      "answer": "Ma'am, please.",
+      "reason": "Common address equivalent; investigate whether typo normalization already accepts it.",
+      "exercise_id": "2555d1a2ffc1bfc6",
+      "content_fingerprint": "debd98617fdae5a8bd510605b2169d626eff3dfef6caa760185614564b49a69d",
+      "prompt": "Translate this sentence\nSeñora, por favor.",
+      "accepted_answers": [
+        "Madam, please."
+      ],
+      "es_fixture": {
+        "tier": 2,
+        "wrong": false,
+        "channel": "typo"
+      },
+      "most_permissive_guard_probe": {
+        "tier": 2,
+        "wrong": false,
+        "channel": "typo"
+      }
+    },
+    {
+      "row_index": 9,
+      "answer": "Tu nombre, por favor.",
+      "reason": "Ordinary tú-register request for the person's name.",
+      "exercise_id": "bd96be2777bca890",
+      "content_fingerprint": "62e91876106eade2773a8179c9a868b5c359cec63b4655186e879189e10a6644",
+      "prompt": "Translate this sentence\nName, please.",
+      "accepted_answers": [
+        "Nombre, por favor."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 10,
+      "answer": "Estoy bien, gracias. ¿Y tú?",
+      "reason": "Ordinary complete equivalent of Fine, thank you. And you?",
+      "exercise_id": "8844061cfdcc221d",
+      "content_fingerprint": "638f102a170f26487e5ca2852b37e963117a5dae9c45e1ef77390e566ca1fcfa",
+      "prompt": "Translate this sentence\nFine, thank you. And you?",
+      "accepted_answers": [
+        "Bien, gracias. ¿Y tú?"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 21,
+      "answer": "Dos más dos es igual a cuatro.",
+      "reason": "Ordinary arithmetic equivalent with es igual a.",
+      "exercise_id": "04f99e3492124e3b",
+      "content_fingerprint": "e32e6f895f66e0218b4c0667b3c7e9a9d011ea5bd53efe1ce53aab11c4e1cb49",
+      "prompt": "Translate this sentence\nTwo plus two makes four.",
+      "accepted_answers": [
+        "Dos más dos son cuatro."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 22,
+      "answer": "Four plus three equals seven.",
+      "reason": "Ordinary arithmetic equivalent with equals.",
+      "exercise_id": "c7eda9c389e038fc",
+      "content_fingerprint": "c04f963416a89135e8f795908f5f20813b7e3823961d05112f3453594b521083",
+      "prompt": "Translate this sentence\nCuatro más tres son siete.",
+      "accepted_answers": [
+        "Four plus three is seven."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 27,
+      "answer": "¿Eres inglés?",
+      "reason": "Ordinary singular tú-register answer to ungendered/unnumbered English you; formal plural alone is insufficient.",
+      "exercise_id": "35c2766b588f1346",
+      "content_fingerprint": "57d3d0727bdcd792f0d05ab10530d0d98e432aa2c917cc6ba1a6d12e4c3f5edc",
+      "prompt": "Translate this sentence\nAre you English?",
+      "accepted_answers": [
+        "¿Son ustedes ingleses?"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 37,
+      "answer": "I am from the West Coast.",
+      "reason": "Ordinary uncontracted English equivalent.",
+      "exercise_id": "21c83f18b1aad797",
+      "content_fingerprint": "27ae4ff1f10d0c3262e906dcb94f3c828019c895557aba3e8c5a8460f9538034",
+      "prompt": "Translate this sentence\nSoy de la costa oeste.",
+      "accepted_answers": [
+        "I'm from the West Coast."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 38,
+      "answer": "Por favor, las llaves.",
+      "reason": "Ordinary request order with the same definite keys.",
+      "exercise_id": "607c366ed11495be",
+      "content_fingerprint": "42470fa6ea309ed52fc55a00e7db1b6309352ccc732f89f54f92f323c7379ff9",
+      "prompt": "Translate this sentence\nThe keys, please.",
+      "accepted_answers": [
+        "Las llaves, por favor."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 39,
+      "answer": "The lamp's Italian.",
+      "reason": "Ordinary noun plus is contraction, with unambiguous predicate adjective.",
+      "exercise_id": "1756233e251073bc",
+      "content_fingerprint": "aff0698d7bf4340116769246df54584a147bacf38b776bc967e7f5c613f060a1",
+      "prompt": "Translate this sentence\nLa lámpara es italiana.",
+      "accepted_answers": [
+        "The lamp is Italian."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 45,
+      "answer": "¿Hablan francés tus padres?",
+      "reason": "Ordinary Spanish interrogative inversion with the same parents and language.",
+      "exercise_id": "9415c0629be4fe93",
+      "content_fingerprint": "579b634ca94a8e3bfdf43efb6ae769ff03b3f268381271120413f1c4ed29cb75",
+      "prompt": "Translate this sentence\nDo your parents speak French?",
+      "accepted_answers": [
+        "¿Tus padres hablan francés?"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 52,
+      "answer": "It's a pleasure, my friend.",
+      "reason": "Ordinary contracted English equivalent; retain original naturalness failure.",
+      "exercise_id": "a19bb527f8963c82",
+      "content_fingerprint": "aeddc28292be4061c41bec0e799b665634204d2522c83a0991f3d9f3ac386d27",
+      "prompt": "Translate this sentence\nEs un gusto, mi amigo.",
+      "accepted_answers": [
+        "It is a pleasure, my friend."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 59,
+      "answer": "My birthday's in January.",
+      "reason": "Ordinary contraction of birthday is.",
+      "exercise_id": "fbfbc073f7733bc0",
+      "content_fingerprint": "7c1ea273319f38a9bd88db1d38cd56376df5a2b2f37e250cf1144ad6997f1b9a",
+      "prompt": "Translate this sentence\nMi cumpleaños es en enero.",
+      "accepted_answers": [
+        "My birthday is in January."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 63,
+      "answer": "Yo tengo las llaves.",
+      "reason": "Ordinary explicit first-person subject, matching identical findings in later strata.",
+      "exercise_id": "d148c3895568f9c7",
+      "content_fingerprint": "97601d0ff034d87ad19f4fbf5a28e4ac7d672834b4d12bec793618440daa41db",
+      "prompt": "Translate this sentence\nI've got the keys.",
+      "accepted_answers": [
+        "Tengo las llaves."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 64,
+      "answer": "They have four kids: three boys and a girl.",
+      "reason": "Kids is an ordinary equivalent of children here; count and gender unchanged.",
+      "exercise_id": "dec4e7c3cad31a18",
+      "content_fingerprint": "8a326833a5b5963e1499a50bb879630cdfdc3751585505656ef3bb4e86785497",
+      "prompt": "Translate this sentence\nTienen cuatro hijos: tres niños y una niña.",
+      "accepted_answers": [
+        "They have four children: three boys and a girl."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 67,
+      "answer": "My grandma lives in the village.",
+      "reason": "Grandma is an ordinary family-word equivalent of abuela.",
+      "exercise_id": "224e4cc193b2363b",
+      "content_fingerprint": "425b717dd51f379ae22610197f7ecfd7f21335b5ba17d5b9670b11adc330eb10",
+      "prompt": "Translate this sentence\nMi abuela vive en el pueblo.",
+      "accepted_answers": [
+        "My grandmother lives in the village."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 68,
+      "answer": "cuestión",
+      "reason": "Ordinary question/issue equivalent fits the fixed feminine stem exactly.",
+      "exercise_id": "69ebf44654a396d5",
+      "content_fingerprint": "c2099e81c3b4ee5aa444b35e3e853490b0590e906637f306439dc5a5c0fab519",
+      "prompt": "Complete the translation\nMy sister explains the question.\nMi hermana explica la ____.",
+      "accepted_answers": [
+        "pregunta"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 71,
+      "answer": "Mi prima explica su lengua.",
+      "reason": "Lengua is an ordinary equivalent of language; retain the original naturalness concern.",
+      "exercise_id": "e7c3a27d1ffd89e3",
+      "content_fingerprint": "ede4285482043c363a1083c515cab71be2d9ff24f60505bbd71aaf55671ecd2e",
+      "prompt": "Translate this sentence\nMy cousin explains her language.",
+      "accepted_answers": [
+        "Mi prima explica su idioma."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 100,
+      "answer": "The window to the left is wide.",
+      "reason": "Ordinary to the left / on the left location equivalent.",
+      "exercise_id": "ee213aa3bb22fe10",
+      "content_fingerprint": "52656663c0883ebcbb1939aec3da48b23b409cf376c0bf5cfb8445af945acc25",
+      "prompt": "Translate this sentence\nLa ventana de la izquierda es ancha.",
+      "accepted_answers": [
+        "The window on the left is wide."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 102,
+      "answer": "My bag's empty.",
+      "reason": "Ordinary contraction of bag is.",
+      "exercise_id": "bf5f662307b7da2b",
+      "content_fingerprint": "17d0c4d22d6b2991acded4347b6695d99869443895fa8360865a988de1089527",
+      "prompt": "Translate this sentence\nMi bolsa está vacía.",
+      "accepted_answers": [
+        "My bag is empty."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 103,
+      "answer": "Yo estoy cerrando mi tienda.",
+      "reason": "Check existing explicit-subject finding consistently.",
+      "exercise_id": "ec60f8a993badd57",
+      "content_fingerprint": "3ae3ee32f522174f3969b38a1ed459a1ba4308dca77cb712c37585c4ad535f5f",
+      "prompt": "Translate this sentence\nI'm closing my store.",
+      "accepted_answers": [
+        "Estoy cerrando mi tienda."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 126,
+      "answer": "Había un montón de parejas jóvenes en el parque.",
+      "reason": "Un montón de is an ordinary a lot of equivalent; time, couples and place unchanged.",
+      "exercise_id": "dc961f78f5742df6",
+      "content_fingerprint": "1619a0014e0f55a5332637eb8af8244a1a418fedc8de49b9aaad50f98861bdb5",
+      "prompt": "Translate this sentence\nThere were a lot of young couples in the park.",
+      "accepted_answers": [
+        "Había muchas parejas jóvenes en el parque."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 137,
+      "answer": "mamá",
+      "reason": "Ordinary family-word equivalent fits Mi ____ mira una serie; retain naturalness concern.",
+      "exercise_id": "e8f7ff6ee3c409f2",
+      "content_fingerprint": "3dc544aa17c7b7e76abec4e1a837e21547c70d3803e162643555cfe3287c6510",
+      "prompt": "Complete the translation\nMy mother watches a series.\nMi ____ mira una serie.",
+      "accepted_answers": [
+        "madre"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 140,
+      "answer": "A ella le gusta cocinar para su familia.",
+      "reason": "Check existing explicit-subject finding consistently.",
+      "exercise_id": "2e5c34737a85e442",
+      "content_fingerprint": "f437013f03ae11988a6b528e181d1ab56c8c8c5770006989192b3d1a41bcba33",
+      "prompt": "Translate this sentence\nShe likes to cook for her family.",
+      "accepted_answers": [
+        "Le gusta cocinar para su familia."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 155,
+      "answer": "mientras que",
+      "reason": "Ordinary while conjunction fits the exact fixed stem without changing it.",
+      "exercise_id": "04b18f4c6a5a4215",
+      "content_fingerprint": "797b61050f297064f9c79f2657c3f5b7c8dc9aa0b3dfb54a07b89520562dbd53",
+      "prompt": "Complete the translation\nMy daughter writes while the boy buys.\nMi hija escribe ____ el niño compra.",
+      "accepted_answers": [
+        "mientras"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 170,
+      "answer": "It is raining today. Where is my umbrella?",
+      "reason": "Check existing contraction-expansion finding consistently.",
+      "exercise_id": "3b3e5fdf557a2d57",
+      "content_fingerprint": "f8576d1492fc0f8078fc092e6d50af7991bd9fb6e42d1d88753dba2374434e9c",
+      "prompt": "Translate this sentence\nEstá lloviendo hoy, ¿dónde está mi paraguas?",
+      "accepted_answers": [
+        "It's raining today. Where is my umbrella?"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 173,
+      "answer": "The sky's clear here.",
+      "reason": "Ordinary contraction of sky is.",
+      "exercise_id": "b5be26a511b61890",
+      "content_fingerprint": "2a38f72bbad22c0c902ece41eda7b71a0fb537004ec6f30082a480ce4bb5a074",
+      "prompt": "Translate this sentence\nEl cielo está claro aquí.",
+      "accepted_answers": [
+        "The sky is clear here."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 182,
+      "answer": "It is my umbrella.",
+      "reason": "Check existing contraction-expansion finding consistently.",
+      "exercise_id": "b0438cb0f62156e9",
+      "content_fingerprint": "e564ea677ac79680f7528f1663756f41460a7ddbf4743f8e852ba25f7c4ec878",
+      "prompt": "Translate this sentence\nEs mi paraguas.",
+      "accepted_answers": [
+        "It's my umbrella."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 184,
+      "answer": "Tú sabes arreglar ordenadores.",
+      "reason": "Check existing explicit-subject finding consistently.",
+      "exercise_id": "e7aef7fb87ea3ac6",
+      "content_fingerprint": "6a54284f84462444f82121e4b2531344594753a655de4e2cb33133b8a07729fe",
+      "prompt": "Translate this sentence\nYou know how to fix computers.",
+      "accepted_answers": [
+        "Sabes arreglar ordenadores."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 194,
+      "answer": "Decidió no ir.",
+      "reason": "Positive control: explicit and omitted subject already enumerated.",
+      "exercise_id": "55f59dcd43cf3e99",
+      "content_fingerprint": "83b9310fac2b7b82581af325e23d09c97abd4526efab4c9e205b8801be0ed427",
+      "prompt": "Translate this sentence\nHe decided not to go.",
+      "accepted_answers": [
+        "Él decidió no ir.",
+        "Decidió no ir."
+      ],
+      "es_fixture": {
+        "tier": 1,
+        "wrong": false,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 1,
+        "wrong": false,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 199,
+      "answer": "Yo no te mentí.",
+      "reason": "Check existing explicit-subject finding consistently.",
+      "exercise_id": "06f555cd54f057d0",
+      "content_fingerprint": "fec0ce5f1b9135aa2a3f7acbf2b6033eb6fc01ab25354d8aafa5df2477e977ae",
+      "prompt": "Translate this sentence\nI didn't lie to you.",
+      "accepted_answers": [
+        "No te mentí."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 242,
+      "answer": "The medicine's in the kitchen.",
+      "reason": "Ordinary contraction of medicine is.",
+      "exercise_id": "74ebe423b317d167",
+      "content_fingerprint": "8c09806c630f9742e47099f1767b50015baddfa5291357faaeb224c4115ac290",
+      "prompt": "Translate this sentence\nLa medicina está en la cocina.",
+      "accepted_answers": [
+        "The medicine is in the kitchen."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 253,
+      "answer": "He showed an interest in the plan.",
+      "reason": "Showed interest / showed an interest are ordinary equivalent collocations.",
+      "exercise_id": "e1b3b1c9bc02e8d4",
+      "content_fingerprint": "1322e757845c8daba66f19260a8052435c4d9825ccdd69150faa1969a452b658",
+      "prompt": "Translate this sentence\nÉl mostró interés en el plan.",
+      "accepted_answers": [
+        "He showed interest in the plan."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 262,
+      "answer": "I am so bored.",
+      "reason": "Check existing contraction-expansion finding consistently.",
+      "exercise_id": "4bbe6cd60ea53c14",
+      "content_fingerprint": "aa5415001142136ad19fff4540ff372ca44ca99599dd88ddb50f3deabe805b85",
+      "prompt": "Translate this sentence\nEstoy tan aburrido.",
+      "accepted_answers": [
+        "I'm so bored."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 266,
+      "answer": "The average's high today.",
+      "reason": "Ordinary contraction of average is.",
+      "exercise_id": "7278281711850159",
+      "content_fingerprint": "869d73224e2d89f34bc36194b3b39c7815fb5a535d129e1b06c8e1188d684680",
+      "prompt": "Translate this sentence\nEl promedio es alto hoy.",
+      "accepted_answers": [
+        "The average is high today."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 270,
+      "answer": "Yo como con las manos.",
+      "reason": "Check existing explicit-subject finding consistently.",
+      "exercise_id": "c1af5cf584578f12",
+      "content_fingerprint": "c59ddc35da34745e0b55797a846a6cb0302241fd649dd8890efc54af20300868",
+      "prompt": "Translate this sentence\nI eat with my hands.",
+      "accepted_answers": [
+        "Como con las manos."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 279,
+      "answer": "My son jumps really high.",
+      "reason": "Really high is an ordinary degree equivalent of muy alto.",
+      "exercise_id": "e4bfbaacb4f1a31a",
+      "content_fingerprint": "7f807895422af9447486a1585e5e63e557b796c554435a8c920b2ad12c69827c",
+      "prompt": "Translate this sentence\nMi hijo salta muy alto.",
+      "accepted_answers": [
+        "My son jumps very high."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 280,
+      "answer": "¿Cuántos nietos tienes tú?",
+      "reason": "Check existing explicit-subject finding consistently.",
+      "exercise_id": "e96705d907152543",
+      "content_fingerprint": "185862571dc3960e7a8179c55a935914836bbfb4d5d1a258b6084e45b5ea959a",
+      "prompt": "Translate this sentence\nHow many grandchildren do you have?",
+      "accepted_answers": [
+        "¿Cuántos nietos tienes?"
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 288,
+      "answer": "The bread's sliced today.",
+      "reason": "Ordinary contraction of bread is; retain original naturalness concern.",
+      "exercise_id": "44c97549d9dfa1a9",
+      "content_fingerprint": "7c0484ca4b9171fbacc30e5a705acd5343fd8fc34f63e8996bd53721328e9602",
+      "prompt": "Translate this sentence\nEl pan está cortado hoy.",
+      "accepted_answers": [
+        "The bread is sliced today."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    },
+    {
+      "row_index": 300,
+      "answer": "The village street party's tonight.",
+      "reason": "Ordinary contraction of party is.",
+      "exercise_id": "95e6f1a664b17474",
+      "content_fingerprint": "ddeb64a1b12125868e15420ae17a4d9c2c466ff2e724e9931eb3acbf487f2892",
+      "prompt": "Translate this sentence\nLa verbena del pueblo es esta noche.",
+      "accepted_answers": [
+        "The village street party is tonight."
+      ],
+      "es_fixture": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      },
+      "most_permissive_guard_probe": {
+        "tier": 3,
+        "wrong": true,
+        "channel": null
+      }
+    }
+  ]
+}
