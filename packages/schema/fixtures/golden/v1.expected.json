@@ -77,9 +77,16 @@
   ],
   "course_attempt": [],
   "course_display": [],
+  "course_introduction": [],
   "course_item": [],
+  "course_item_surface": [],
+  "course_item_surface_modality": [],
   "course_mistake": [],
   "course_node": [],
   "course_progress": [],
+  "course_scheduler_anomaly": [],
+  "course_scheduler_hold": [],
+  "course_scheduler_mastery": [],
+  "course_session_answer_receipt": [],
   "course_session_state": []
 }

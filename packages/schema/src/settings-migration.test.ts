@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createNodeDb } from '@freelingo/testkit';
-import { MIGRATIONS, currentUserVersion, migrate } from './migrations.js';
+import { LATEST_USER_VERSION, MIGRATIONS, currentUserVersion, migrate } from './migrations.js';
 import { columnNames, regionViolations } from './progress-schema.js';
 import type { Db } from './db.js';
 
@@ -74,7 +74,7 @@ describe('P4 durable settings migration', () => {
       expect(columnNames(db, 'course_display')).toEqual(before);
       expect(db.get('SELECT * FROM account')).toEqual(row);
       migrate(db);
-      expect(currentUserVersion(db)).toBe(4);
+      expect(currentUserVersion(db)).toBe(LATEST_USER_VERSION);
     } finally {
       db.close();
     }
