@@ -8,6 +8,7 @@
  * Kept in `src/` (not a test folder) so falsifier inputs under `__falsifiers__/` can be
  * replayed by anything, including a debug build of the app.
  */
+import { emptySessionModality } from '../modality/index.js';
 import type { SessionState } from './resume.js';
 import type { SessionFlavour, ItemFamily, QueuedItem, SessionKind } from './types.js';
 import { EMPTY_IN_FLIGHT } from './types.js';
@@ -88,6 +89,7 @@ export function freshSession(options: FixtureOptions = {}): SessionState {
     },
     shellState: 'loading',
     inFlight: EMPTY_IN_FLIGHT,
+    modality: emptySessionModality(),
     mistakes: [],
     progress: initialProgress(queue.length),
     checkpointMonotonicMs: startedMonotonicMs,

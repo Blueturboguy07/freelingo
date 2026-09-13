@@ -12,3 +12,5 @@ export type {
   ModalitySuspensions,
   FamilySuspension,
 } from './suspension.js';
+export { MODALITY_POLICY } from './config.js';
+export * from './session-state.js';

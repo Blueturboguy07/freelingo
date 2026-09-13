@@ -16,6 +16,9 @@
  * attempt ledger stays injective on `exerciseIndex` and that the index only ever advances
  * out of a state that was showing a challenge or its banner.
  */
+import { applyModalityEvent, requiresModality, retrySpeechVerdict } from './modality-runtime.js';
+import type { SessionModalityEvent, ModalityReplacementContext } from './modality-runtime.js';
+import type { ModalityFamily } from '../modality/index.js';
 import { TRACE_RUNTIME_KEY, preserveTraceRuntime, traceRuntime } from '../grading/trace.js';
 import type { TraceDefinition, TracePoint } from '../grading/trace.js';
 import type { SessionFlavourConfig } from './flavours.js';
@@ -77,12 +80,17 @@ export interface StepDeps {
   readonly stepUpTripped: (state: RuntimeState) => boolean;
   /** Exact pairs supplied by the current pack row; absent evidence cannot complete a grid. */
   readonly matchPairs?: (item: QueuedItem) => readonly RuntimeMatchPair[];
+  readonly modalityReplacement?: (
+    item: QueuedItem,
+    context: ModalityReplacementContext,
+  ) => QueuedItem | null;
   readonly traceDefinition?: (item: QueuedItem) => TraceDefinition | null;
 }
 
 /* ==================================================================== 2. events */
 
 export type SessionEvent =
+  | SessionModalityEvent
   | { readonly type: 'showTips' }
   | { readonly type: 'tipsContinue' }
   | { readonly type: 'rendered' }
@@ -117,6 +125,8 @@ export type SessionEvent =
   | { readonly type: 'endSession'; readonly route: ExitRoute };
 
 export interface StepResult {
+  /** Host writes this account suspension atomically with the returned session checkpoint. */
+  readonly suspendFamily?: ModalityFamily;
   readonly state: RuntimeState;
   readonly writes: readonly ProgressWrite[];
   /** Non-null when the player must pop back to the path. */
@@ -219,6 +229,10 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
   if (state.exited !== null) return none;
 
   switch (event.type) {
+    case 'modalitySkip':
+    case 'speechResult':
+    case 'speechError':
+      return applyModalityEvent(state, event, deps);
     case 'showTips':
       if (state.shellState !== 'loading' && !isChallengeState(state.shellState)) return none;
       return { state: { ...state, shellState: 'tips' }, writes: [], exit: null };
@@ -436,6 +450,12 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
             partialState: state.inFlight.partialState,
             hardMode: state.core.hardMode,
           });
+
+  if (
+    requiresModality(item, 'speaking') &&
+    (verdict.kind === 'wrong' || verdict.kind === 'noVerdict')
+  )
+    return retrySpeechVerdict(state, deps, verdict.kind === 'wrong');
 
   const spec = exerciseSpec(item.type);
   const wrong = verdict.kind === 'wrong';
