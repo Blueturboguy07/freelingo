@@ -1,0 +1,7 @@
+# Ordered word review evidence — implementation checkpoint, 2026-09-13
+
+Migration v11 adds immutable, account-wide review evidence keyed by the introduced semantic word and a chronological sequence. A physical committed session/answer ordinal/target position is unique. Source course, actual receipt, reviewed item and FSRS before/after values belong in the evidence JSON; the account table has no course-owned foreign key and survives course removal. Replay exercise indices are identities, never chronology.
+
+This migration neither reconstructs past reviews nor declares words learned. The runtime must validate exact staged/committed answer targets, continuous per-word order, actual FSRS results and the two qualifying review rule before writing the permanent learned claim. The global committed session must exist first inside the same exclusive completion transaction.
+
+Validation: four new falsifiers were RED before implementation and GREEN afterward. Full schema suite, typecheck, lint and owned-invariant coverage map exit 0 in `/private/tmp/p4-v11-review-all.*`. Eleven prior database fixtures remain byte-identical; every prior expected row is unchanged with only the new empty table added (`/private/tmp/p4-v11-golden-audit.json`). The new v11 fixture explicitly labels its JSON as a schema-shape fixture rather than production FSRS evidence. Separate agent read found no remaining schema defect. This is local evidence, not a P4 phase or device gate.

@@ -42,6 +42,8 @@ import {
   WORD_EVIDENCE_SCHEMA_V10_DDL,
 } from './word-evidence-schema.js';
 
+import { WORD_REVIEW_ACCOUNT_TABLES, WORD_REVIEW_SCHEMA_V11_DDL } from './word-review-schema.js';
+
 export interface Migration {
   readonly userVersion: number;
   readonly name: string;
@@ -175,6 +177,14 @@ const DURABLE_WORD_EVIDENCE: Migration = {
   },
 };
 
+const DURABLE_WORD_REVIEWS: Migration = {
+  userVersion: 11,
+  name: 'permanent-ordered-lexical-review-evidence',
+  up(db) {
+    for (const statement of WORD_REVIEW_SCHEMA_V11_DDL) db.run(statement);
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
@@ -186,6 +196,7 @@ export const MIGRATIONS: readonly Migration[] = [
   DURABLE_LEARNING_EVIDENCE,
   DURABLE_PATH_STATE,
   DURABLE_WORD_EVIDENCE,
+  DURABLE_WORD_REVIEWS,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -427,6 +438,35 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
     ...LEARNING_EVIDENCE_COURSE_TABLES,
     ...PATH_STATE_COURSE_TABLES,
     ...WORD_EVIDENCE_ACCOUNT_TABLES,
+  ],
+  11: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+    ...WORD_EVIDENCE_ACCOUNT_TABLES,
+    ...WORD_REVIEW_ACCOUNT_TABLES,
   ],
 };
 
