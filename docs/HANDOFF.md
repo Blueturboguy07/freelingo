@@ -1,3 +1,5 @@
+> **Current scheduling instruction (2026-09-13):** the founder authorized P3–P8 implementation in parallel with the Spanish audit. Read [PARALLEL-IMPLEMENTATION.md](PARALLEL-IMPLEMENTATION.md) first. P2 remains red; later phase gates are pending. The sequential-only instructions and “not started” statements below are historical.
+
 # Handoff — desktop takeover, 2026-09-13 UTC
 
 The original Claude handoff was superseded by a Codex CLI run and then this desktop
