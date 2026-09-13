@@ -29,6 +29,8 @@ import {
   LEARNING_CONTEXT_ACCOUNT_TABLES,
 } from './learning-context-schema.js';
 
+import { DAY_REWARD_ACCOUNT_TABLES, DAY_REWARD_COURSE_TABLES } from './day-reward-schema.js';
+
 export type SchemaRegion = 'account' | 'course_progress';
 
 export interface TableSpec {
@@ -157,6 +159,18 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     name,
     region: 'account',
     purpose: 'Global onboarding step, independent of removed courses (INV-ECO-04).',
+  })),
+  ...DAY_REWARD_ACCOUNT_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'account',
+    purpose:
+      'Normalized day, freeze and recovery facts; monotone global reward claims (INV-DAY-06, INV-FRZ-03, INV-CER-01).',
+  })),
+  ...DAY_REWARD_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Per-course completion references and frozen ceremony presentation (INV-CER-01, INV-CER-02).',
   })),
 ] as const;
 

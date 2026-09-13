@@ -30,9 +30,22 @@
       "sound_effects_enabled": 1,
       "animations_enabled": 1,
       "motivational_messages_enabled": 1,
-      "selection_seed": 123456
+      "selection_seed": 123456,
+      "last_processed_day": null,
+      "last_processed_month": null,
+      "clock_unreliable": 0,
+      "freeze_cap": 2,
+      "last_completed_at_utc_ms": null,
+      "last_tz_id": null,
+      "last_utc_offset_minutes": null,
+      "last_tz_source": null,
+      "streak_goal_value": null,
+      "streak_goal_declined": 0,
+      "streak_goal_presentations": 0,
+      "streak_goal_last_picked": null
     }
   ],
+  "account_achievement_award": [],
   "account_boost": [
     {
       "grant_id": "bg_1",
@@ -82,7 +95,11 @@
       "goal_met": 1,
       "chest_granted_at": "2026-09-10T21:04:00Z",
       "freeze_consumed": 0,
-      "day_source": "lived"
+      "day_source": "lived",
+      "disposition": null,
+      "grace_credited": 0,
+      "streak_satisfied": 0,
+      "goal_xp_at_grant": null
     }
   ],
   "account_freeze": [
@@ -91,23 +108,32 @@
       "acquired_on_day": "2026-09-01",
       "acquired_via": "streak_freeze_refill",
       "subtype": "standard",
-      "consumed_for_day": null
+      "consumed_for_day": null,
+      "grant_key": null,
+      "consumed_on_day": null
     },
     {
       "freeze_id": "fz_2",
       "acquired_on_day": "2026-08-20",
       "acquired_via": "milestone_grant",
       "subtype": "standard",
-      "consumed_for_day": "2026-08-29"
+      "consumed_for_day": "2026-08-29",
+      "grant_key": null,
+      "consumed_on_day": null
     },
     {
       "freeze_id": "fz_3",
       "acquired_on_day": "2026-08-10",
       "acquired_via": "reward_chest",
       "subtype": "one_time",
-      "consumed_for_day": null
+      "consumed_for_day": null,
+      "grant_key": null,
+      "consumed_on_day": null
     }
   ],
+  "account_freeze_grant": [],
+  "account_long_absence": [],
+  "account_month_settlement": [],
   "account_monthly_badge": [
     {
       "month_key": "2026-09",
@@ -142,7 +168,11 @@
       "completed_at": "2026-09-10T21:04:00Z"
     }
   ],
+  "account_recovery_challenge": [],
+  "account_streak_break": [],
+  "account_streak_break_day": [],
   "account_streak_repair": [],
+  "account_streak_repair_day": [],
   "committed_session": [
     {
       "session_id": "s_golden_1",
@@ -150,7 +180,30 @@
       "active_ms": 214000,
       "xp_awarded": 14,
       "local_day": "2026-09-10",
-      "flavour": "lesson"
+      "flavour": "lesson",
+      "started_at_utc_ms": null,
+      "start_tz_id": null,
+      "start_utc_offset_minutes": null,
+      "start_tz_source": null,
+      "started_local_day": null,
+      "completed_at_utc_ms": null,
+      "completion_tz_id": null,
+      "completion_utc_offset_minutes": null,
+      "completion_tz_source": null,
+      "completed_local_day": null,
+      "derived_completion_utc_ms": null,
+      "credited_local_day": null,
+      "reward_local_day": null,
+      "credited_by_grace": null,
+      "day_keying_deferred": null,
+      "gems_awarded": null,
+      "base_xp": null,
+      "multiplier_recorded": null,
+      "multiplier_applied": null,
+      "ladder_mode": null,
+      "award_explanation": null,
+      "outcome": null,
+      "graded_attempts": null
     }
   ],
   "course_attempt": [
@@ -337,6 +390,8 @@
       "pack_content_hash": null
     }
   ],
+  "course_ceremony": [],
+  "course_checkpoint_claim": [],
   "course_daily_refresh_item": [
     {
       "course_id": "en-es",
@@ -1304,7 +1359,11 @@
       "pack_content_hash": "hash_en-es_v1",
       "pack_state": "installed",
       "added_at": "2026-08-01T09:00:00Z",
-      "mastery_high_water_points": 17
+      "mastery_high_water_points": 17,
+      "legendary_takeover_declines": 0,
+      "exposure_fraction": 0,
+      "score_unlocked": null,
+      "score_ceiling_beat_shown": null
     },
     {
       "course_id": "en-fr",
@@ -1314,7 +1373,11 @@
       "pack_content_hash": "hash_en-fr_v1",
       "pack_state": "installed",
       "added_at": "2026-08-01T09:00:00Z",
-      "mastery_high_water_points": 0
+      "mastery_high_water_points": 0,
+      "legendary_takeover_declines": 0,
+      "exposure_fraction": 0,
+      "score_unlocked": null,
+      "score_ceiling_beat_shown": null
     }
   ],
   "course_review_pool_day": [
@@ -1396,6 +1459,7 @@
       "active_ms": 1200
     }
   ],
+  "course_session_commit_link": [],
   "course_session_context": [
     {
       "session_id": "s_pending",
