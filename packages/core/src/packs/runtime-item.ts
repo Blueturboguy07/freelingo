@@ -41,6 +41,7 @@ export const RUNTIME_ITEM_READS = {
 export type {
   RuntimeItemProof,
   RuntimeIntroduction,
+  RuntimeSchedulerSurface,
   VerifiedRuntimeItem,
   RuntimeItemReader,
 } from './runtime-item-types.js';
@@ -95,6 +96,7 @@ const ROOT_FIELDS = [
   'gradable',
   'presentation',
   'introductions',
+  'schedulerSurfaces',
   'explanation',
 ] as const;
 const PRESENTATION_REQUIRED = [
@@ -288,6 +290,7 @@ function decodePayload(
   exercise: ActualExercise,
   grading: ExerciseGradingContext,
   reader: PackReader,
+  targetLanguage: string,
 ): VerifiedRuntimeItem {
   const row = object(value, ROOT_FIELDS, 'payload');
   if (row.schemaVersion !== RUNTIME_ITEM_VERSION) fail('payload', 'unsupported revision');
@@ -490,6 +493,58 @@ function decodePayload(
         fail('open response', 'required keyword was not taught in this lesson view');
     }
   }
+  const schedulerRows = entries(
+    row.schedulerSurfaces,
+    ['itemId', 'surfaceId', 'surface', 'language', 'canonical'],
+    'scheduler surfaces',
+  );
+  const targets =
+    shape.family === 'match'
+      ? new Map(
+          (gradable.pairs as ObjectValue[]).map((pair) => [
+            text(pair.leftLexemeId, 'scheduler target'),
+            text(pair.left, 'scheduler target surface'),
+          ]),
+        )
+      : new Map([[itemId, null]]);
+  const schedulerKeys = new Set<string>();
+  for (const mapping of schedulerRows) {
+    const target = text(mapping.itemId, 'scheduler target');
+    const surface = text(mapping.surface, 'scheduler surface');
+    const id = text(mapping.surfaceId, 'scheduler surface ID');
+    if (
+      !targets.has(target) ||
+      mapping.language !== targetLanguage ||
+      typeof mapping.canonical !== 'boolean' ||
+      id !== 'sf_' + sha256Hex(JSON.stringify([targetLanguage, surface])).slice(0, 32)
+    )
+      fail('scheduler surfaces', 'wrong target/language/identity');
+    const key = JSON.stringify([target, id]);
+    if (schedulerKeys.has(key)) fail('scheduler surfaces', 'duplicate target surface');
+    schedulerKeys.add(key);
+  }
+  for (const [target, displayed] of targets) {
+    const mappings = schedulerRows.filter((mapping) => mapping.itemId === target);
+    if (mappings.filter((mapping) => mapping.canonical === true).length !== 1)
+      fail('scheduler surfaces', 'exactly one canonical target surface required');
+    if (shape.family === 'match') {
+      if (mappings.length !== 1 || mappings[0]!.surface !== displayed)
+        fail('scheduler surfaces', 'match target differs from actual displayed semantic surface');
+    } else {
+      const expected = new Set(
+        responseLanguage === targetLanguage ? forms.map((form) => form.surfaceId) : [],
+      );
+      if (
+        [...expected].some((id) => !mappings.some((mapping) => mapping.surfaceId === id)) ||
+        mappings.some(
+          (mapping) =>
+            mapping.canonical !== true &&
+            !expected.has(text(mapping.surfaceId, 'scheduler surface ID')),
+        )
+      )
+        fail('scheduler surfaces', 'accepted target-language form mapping missing or unsupported');
+    }
+  }
   const hasOptions =
     shape.family === 'select' || type === 'gapFillSelect' || type === 'listenMissingWord';
   if (hasOptions) {
@@ -601,7 +656,7 @@ export function readRuntimeItem(
     if (grading !== undefined && !grading.isFor(reader, meta))
       fail('grading cache', 'belongs to another reader or pack identity/version');
     const context = (grading ?? readGradingMetadata(reader, meta)).forExercise(exerciseId);
-    return decodePayload(parse(raw, 'payload'), exercise, context, reader);
+    return decodePayload(parse(raw, 'payload'), exercise, context, reader, meta.lang);
   } catch (error) {
     if (error instanceof PackFormatError) throw error;
     throw new PackFormatError(
