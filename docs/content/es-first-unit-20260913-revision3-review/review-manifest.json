@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "Codex independent Spanish revision reviewer /root",
+  "reviewedAt": "2026-09-13",
+  "sourceCommit": "ec80ac6d8b10b2a990d64a63ff2a0e4aae0aa71f",
+  "priorReviewCommit": "f4bc2f9",
+  "scope": "Independent proposed linguistic/component and actual-generator population review; no G6/source issuance, pack or phase gate",
+  "nativeReviewLabel": "PROVISIONAL (unreviewed by a paid native speaker)",
+  "assemblyReady": false,
+  "candidateDecisions": {
+    "accepted": 14,
+    "rejected": 0
+  },
+  "preservedExactCandidateDecisions": 9,
+  "changedOrNewCandidateDecisions": 5,
+  "decisionCounts": {
+    "candidate": 14,
+    "explanation": 14,
+    "schedulerObjective": 14,
+    "lexicalBinding": 16,
+    "sourceLanguagePair": 13,
+    "lexicalDeclaration": 8,
+    "surfaceDeclaration": 66,
+    "firstSessionDeclaration": 1
+  },
+  "files": {
+    "README.md": "39724a59acddc5bb185044f9408b0ac6bc729d4220a1e40ad3f2edc2c9e18b24",
+    "authoring.json": "ada65ad9073f32218d76d5ea5b7a46ce3a56bc0671b94555cfa336c940be3d04",
+    "bundle/candidates.jsonl": "eca01929059186f589529108d62e40b7d81a1ec473b6bd8d118c99e4862dd30e",
+    "bundle/changes.json": "a55cd144a9c94485346a91b5f81210a91c384ffc1e9ff32392b8afbfe110f8bc",
+    "bundle/checks.json": "ccc479af9a4bff8d4534275dd4e459de759d0742025145b3da6d28bb928c8156",
+    "bundle/first-session.json": "605bc8b20bc7b76a238a4b9931cacd53a4e090874b5e9e2f20d8204659fcd259",
+    "bundle/lexical-catalog.jsonl": "c058a2c5103df5f6f15c0cae330758f78dec49adddab74b7904176c7070d566f",
+    "bundle/manifest.json": "6ff7d702c4f87dbd77b62c3f83b82b73b331e1e3a1a8745bfdc7df0d03729d0a",
+    "bundle/sources.json": "4190e9223692d04be586a248ebb9551d040298a607c70306774939ba99bc7095",
+    "bundle/surface-catalog.jsonl": "547244ace63d5402432af41aa3e29ad0ab40c1bad3b58b18c887752faa49e4d2",
+    "inputs/glosses.jsonl": "f9ba03f0da31664e2e484c156681e907d9dd4f610fe5f23d849198a0b9015f61",
+    "inputs/local-analysis.json": "373b235f5b4ef357dd3c2aaae0b1ee7e7225b4f50942245d7854ed7602eb6e60",
+    "inputs/provenance.json": "ce1977cf7cd04a376f1e5a732d171255d3996d046573aefb61db6e620cfed47e",
+    "verification/duplicate-source-draft/local-analysis.json": "601b45f6ec027e66a5d6c5ea1ab3af80126667ba84eb36d683ff9c1b9a77b88d",
+    "verification/final.xml.gz": "2620ccd6974ae403d2a7a21ce947ce660806bd0e5409bf885be9ee60b2a2231c",
+    "verification/first-session.test.ts": "cab91c974bc4bb2634d893ec2d42931b0815b454a07d3357ef4b684d20ed4b01",
+    "verification/generation.json": "dc310e44e9ab7e36d85dbc95a8afebcb55b6a9c88647a52616fb7d1203317beb",
+    "verification/generator.xml.gz": "0f6fd41f335d7c8daa6f329f521dd8b3ac6892a5e668e9ecaf48a287b6a6e332",
+    "verification/guard-mutations.json": "73932c387097b63bb4a970b6cfbfd0da34d50f911905dbef6e6434c8bd5b74eb",
+    "verification/guard_mutations.py": "bffa3079110e9f157114bdf43f9bbba560435c7a01accfd67c38470fdd259b87",
+    "verification/provenance.json": "44a690b031c8e08900460710d6766704a89257186701fd0972f25276e830a06e",
+    "verification/red.xml.gz": "bf48a4ce694d91139774737ff1cc91e0a2db49fee7d599130fc091a730ada7e4",
+    "verification/rejected-first-draft/authoring.json": "336d1cd55b58870f50b715a9689b7d692b705fd8c6a5acff57182d021394462b",
+    "verification/rejected-first-draft/local-analysis.json": "2557c045beda6dc76896da9447d476a3b66350bf0aa642198cf0707c9b59bc37",
+    "verification/rejected-first-draft/outcome.json": "1235a5670a44dd5117a6c3c32df081606b250e729655f939c455db02cc495ac8",
+    "verification/reuse-red.xml.gz": "e198a9d133b2ef828c602d798fb13a88466aa14cf266070a57a26b965a763bac",
+    "verification/review-request.json": "482ac5eb82ab544915a14bdf135bc9f40d71049c581aa821bc5b50a9b2cc463f",
+    "verification/vitest.config.mts": "c2cf925e3c93f89ef4c4429ac1ceff8c184f5164d42c5c8144f4586a57043ccb"
+  },
+  "decisionsSha256": "db40de28b5900fb47f5111ba896dbea34c21e00d0b2e1c823e9906b8e08385a4",
+  "checksSha256": "64a063d9f461bd2bf21d2b5ffdf74e2810eaf748592df1ac3a00a3e9ff68fbb0",
+  "pending": [
+    "Current G0-G6 complete source approvals and source issuance",
+    "Reviewed lexical-source adapter, response profiles/dictionaries and teaching policy",
+    "Full preserved three-level/six-session path source-population reconciliation",
+    "Actual installed signed pack decoder and native introduction/production flows",
+    "G7-G9 integration, full validators and new 300-item scoring",
+    "Paid native reviewer before release"
+  ],
+  "generationWitnessSha256": "4e2ee58611de6fc513a6e70941d007a182394836c2e36a84334b89f50bcf5409",
+  "generationResultSha256": "5935c6e0376fb940219edab5f8f8d5aa250b40f5efc83e9d9e5973f415a3b229",
+  "independentGeneratorTest": {
+    "passed": 1,
+    "failed": 0,
+    "counterfactualFiveItemPopulations": 6,
+    "offered": true
+  },
+  "coreSourceSha256": {
+    "packages/core/src/session/generate.ts": "9fc5c5a3a471c7ec8a871b6d49da162af2a8c00dae30995924eb4b8d3b939645",
+    "packages/core/src/session/flavours.ts": "021063a7a7ab1ca65a0792bce700b918740996883d2316376f06b0bbd38e0009",
+    "packages/core/src/session/registry.ts": "81593b4525e67497c747911edba255ebb39726ef9c22f65c3c0c2873192b257c"
+  }
+}
