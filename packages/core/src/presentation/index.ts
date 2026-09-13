@@ -1,4 +1,5 @@
 /** P3 view data only. Session state, grading and persistence remain in their existing engines. */
+import type { TraceDefinition } from '../grading/trace.js';
 import type { ExerciseType } from '../session/types.js';
 export interface BankTile {
   readonly id: string;
@@ -10,6 +11,7 @@ export interface LessonOption extends BankTile {
   readonly imageDescription?: string;
 }
 export interface LessonPair {
+  readonly leftItemId: string;
   readonly leftId: string;
   readonly left: string;
   readonly rightId: string;
@@ -27,6 +29,10 @@ export interface LessonChallenge {
   readonly bank?: readonly BankTile[];
   readonly pairs?: readonly LessonPair[];
   readonly audioRef?: string;
+  /** Pack supplied TTS text/reading; display orthography is not a Japanese reading. */
+  readonly audioText?: string;
+  readonly trace?: TraceDefinition;
+  readonly hints?: readonly { readonly token: string; readonly meanings: readonly string[] }[];
   readonly slowAudioRef?: string;
   readonly requiresIme?: boolean;
   readonly accentCharacters?: readonly string[];
@@ -75,3 +81,5 @@ export function insertAtSelection(
 export function rubyVisible(type: ExerciseType, role: 'prompt' | 'answer' | 'feedback'): boolean {
   return !(role === 'answer' && (type === 'characterSelect' || type === 'characterBuild'));
 }
+
+export * from './lesson-copy.js';
