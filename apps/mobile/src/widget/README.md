@@ -2,9 +2,9 @@
 
 2026-09-13 bounded P5 implementation. The existing core widget engine owns the
 states, threshold ladder, draw-time civil-boundary calculation and timeline. This
-leaf adds source, transport, routing and durable publication boundaries. It does
-not claim a built WidgetKit/Glance view, a device reload measurement, or a passing
-P5 phase gate.
+leaf adds source, transport, routing and durable publication boundaries. The native
+follow-up below has a built WidgetKit simulator extension and compiled Android
+module. Device rendering, reload measurements and the P5 phase gate remain open.
 
 The five file lanes are:
 
@@ -85,15 +85,16 @@ at draw and pass cross-language fixtures before a rendering claim. Precomputed
 `WidgetTimelineEntry.render` values must never be reused as current countdowns
 after a throttled delay or zone change.
 
-## Native integration still required
+## Native target integration
 
-The P5 worktree has installed @bacons/apple-targets 5.0.0 and expo-file-system
-57.0.7, but no widget target or App Group entitlement is declared in app.json.
-No dependency or entitlement is added here. Root's deps/integration task must bind
-an actual atomic App Group store on iOS and DataStore on Android, implement the
-serialized app publisher and native reload adapters, and build the WidgetKit and
-Glance targets. Widget target dependency graphs must contain no SQLite symbol;
-only this app-side SQL projector can read the database.
+The follow-up native implementation uses installed @bacons/apple-targets 5.0.0.
+Root's sole deps commit 79a0749 supplies Glance 1.2.0, DataStore preferences 1.1.7,
+the Compose plugin matching Expo's root Kotlin version, and the iOS pod declaration.
+The widget-only config plugin now declares `group.<app bundle id>.widget`, and the
+source-managed `targets/widget` directory declares the WidgetKit extension. Expo
+prebuild generates the app targets; generated `ios`/`android` files are never edited.
+The Glance receiver lives in the local module source manifest. Both platform targets
+consume only the snapshot wire. The app-only SQL projector remains outside them.
 
 INV-WID-07 remains a native layout gate: at maximum font scale the streak numeral
 must retain layout priority and its declared font floor while words truncate first.
@@ -112,3 +113,83 @@ and the real rollover engine, then tests original SQL fixtures against this read
 It checks source joins, exact-day/previous-day freeze eligibility and no mutations.
 The first private fixture used an incorrect today marker; the corrected actual
 rollover witness first failed and is preserved as `marker-red.xml` before the fix.
+
+## Native publication and target follow-up
+
+`modules/widget-publication` is a real local Expo module, loaded by
+`nativeWidgetPorts`. `createNativeWidgetPorts` implements the existing publisher
+ports with the native methods `acquire`, `read`, `write`, `reload`, and `release`.
+Each operation after acquire carries its opaque lease. The lease encloses the
+entire app source read, durable write, reload request and receipt write. It is
+released in finally; callbacks used outside the lease fail. A malformed saved
+record raises an error and cannot become a fresh empty reload budget.
+
+On iOS, `AtomicWidgetPublication` holds an advisory file lock in the App Group,
+validates the whole record, writes and fsyncs a temporary file, atomically renames
+it, and fsyncs its directory. Process death releases the OS lock; module destruction
+invalidates pending/active leases. The target reads the single published file
+without taking an app writer lease. The containing directory is excluded from
+backup. WidgetKit's synchronous `reloadTimelines` is a request acknowledgement,
+not proof of a rendered frame.
+
+Android uses a process-wide lease shared by all module instances and one DataStore
+instance. One atomic DataStore edit replaces the whole publication JSON string;
+there are no separate snapshot/budget writes. The store lives in `noBackupFilesDir`.
+The Glance provider and Expo module run in the app process and use the same
+DataStore singleton; the external launcher hosts the resulting widget view. No
+extra `android:process` is declared. Glance `updateAll` is awaited after the durable
+reservation. Module destruction releases the lease without changing saved budget.
+
+Swift and Kotlin implement the same closed snapshot parser, complete state table,
+course URI encoding and current-zone civil-day boundary calculation. Forty-two
+original fixtures compare both real native model implementations with the core
+contract, including DST, half-hour zones, stale snapshots, cold/satisfied days and
+malformed fields. `nativeWidgetFixtures.test.ts` also catches later drift of the
+frozen fixtures from the current core implementation.
+
+The platform content evaluation reads current time and device zone. WidgetKit
+receives threshold timeline entries carrying raw snapshots, never baked rendered
+models. Because WidgetKit and Glance may cache an already evaluated view, the
+native UI uses non-time practice copy for NUDGE/DANGER instead of presenting a
+cached numeric countdown as live. This is the conservative non-time alternative
+allowed by INV-WID-03; the native model retains the exact full state/time result.
+OS throttling and changes while a view is cached still require real device QA.
+Apple documents the host-driven rendering model in
+[Displaying dynamic dates](https://developer.apple.com/documentation/widgetkit/displaying-dynamic-dates),
+and Android documents Glance's cached remote views in
+[Manage and update GlanceAppWidget](https://developer.android.com/develop/ui/compose/glance/glance-app-widget).
+
+The authoritative account-read/boot-chain factory binding is still an integration
+step: construct WidgetPublisher with the real committed source, nativeWidgetPorts
+and current device clock. This implementation does not fabricate initialized
+account history, a rendered state, a screenshots baseline, or a completed phase.
+The current native layouts are initial target wiring; mascot/token pixel parity,
+maximum-font numeral fit, native cold/restore/timezone flows, measured reloads and
+real course-route handling remain device/visual gates.
+
+## Recorded native verification
+
+The unsigned `FreelingoWidget` target built through the Expo-generated Xcode
+project for the iOS simulator. The actual product is
+`/private/tmp/p5-widget-ios/products/FreelingoWidget.appex`; `build.exit` is 0.
+`target-proof.json` records bundle `org.freelingo.app.widget`, App Group
+`group.org.freelingo.app.widget`, version `0.1.0`, build `1`, and no SQLite linkage.
+This is an extension build; the app's Swift Expo bridge still needs a whole-app
+build with its generated Pods integration.
+
+The Expo-generated Android project compiled the complete `:widget-publication`
+module, including its Expo bridge, DataStore storage and Glance provider, against
+the installed dependencies. `/private/tmp/p5-widget-android/compile2.exit` is 0.
+The initial Android compile caught incorrect Glance alignment API names and the
+initial standalone Swift type check caught an iOS availability boundary; those
+failed logs are preserved alongside the corrected actual outputs.
+
+Actual Swift and Kotlin snapshot harnesses each passed 42 shared conformance
+fixtures. Native lease/storage controls also passed. Six isolated native guard
+removals failed their assertions: lock serialization, duplicate reload on each
+platform, stale current-zone boundary on each platform, and the Android budget
+cap. `/private/tmp/p5-widget-native-mutations/results.json` preserves the initial
+run; `p5-widget-native-mutations-retake/results.json` records the corrected
+test-only waiter lifecycle and the final two Kotlin failures. The original final
+Kotlin compile timed out during measured host pressure and was not treated as a
+mutation verdict. No mutation was made in the active worktree source.
