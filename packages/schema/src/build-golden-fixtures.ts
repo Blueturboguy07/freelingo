@@ -448,6 +448,25 @@ function seedV11(db: Db): void {
   ]);
 }
 
+function seedV12(db: Db): void {
+  seedV11(db);
+  db.run(
+    "INSERT INTO course_attempt(course_id,session_id,exercise_index,item_id,exercise_type,verdict,first_try,answered_at,active_ms,slot_id,queue,soft_corrected,cost_paid,skipped,scorable,note,attempt_sequence,exercise_id,pack_content_hash) VALUES('en-es','s_mistake',0,'it_es_mistake','typedTranslate','wrong',1,'2026-09-13T12:00:00.000Z',2000,'mistake-slot','main',0,1,0,1,NULL,99,'mistake-exercise',?)",
+    ['f'.repeat(64)],
+  );
+  db.run(
+    "INSERT INTO course_attempt_target VALUES('en-es','s_mistake',0,'it_es_mistake','sf-mistake','gato','production',0,1,0,'scheduled',1789300800000)",
+  );
+  db.run(
+    "INSERT INTO course_mistake_encounter VALUES('en-es','it_es_mistake',0,'s_mistake',0,'sf-mistake','mistake-exercise',?,'lx:gato',0,1,1789300800000,'2026-09-13')",
+    ['f'.repeat(64)],
+  );
+  db.run(
+    "INSERT INTO course_mistake_state VALUES('en-es','it_es_mistake','lx:gato','s_mistake',0,'mistake-exercise',?,0,1,1789300800000,'2026-09-13',NULL,0)",
+    ['f'.repeat(64)],
+  );
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -460,6 +479,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   9: seedV9,
   10: seedV10,
   11: seedV11,
+  12: seedV12,
 };
 
 /* ------------------------------------------------------------------------ build */
