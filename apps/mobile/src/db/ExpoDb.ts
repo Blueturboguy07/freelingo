@@ -10,6 +10,7 @@
  * either declaration moves.
  */
 import { openDatabaseSync, type SQLiteBindParams, type SQLiteDatabase } from 'expo-sqlite';
+import { SqliteWordStore } from './SqliteWordStore';
 import { Directory, File, Paths } from 'expo-file-system';
 import type { Db, DbRow } from '@freelingo/core';
 import { preMigrationCopiesToDelete, preMigrationCopyName } from '@freelingo/core';
@@ -139,7 +140,11 @@ function takePreMigrationCopy(
  * `journal_mode` is set first and outside any transaction: SQLite refuses to change the
  * journal mode from inside one.
  */
-async function onInit(handle: SQLiteDatabase, now: Date): Promise<PreMigrationBackup> {
+async function onInit(
+  handle: SQLiteDatabase,
+  now: Date,
+  databaseWasCreated: boolean,
+): Promise<PreMigrationBackup> {
   handle.execSync(`PRAGMA journal_mode = ${JOURNAL_MODE}`);
   handle.execSync('PRAGMA foreign_keys = ON');
 
@@ -151,7 +156,10 @@ async function onInit(handle: SQLiteDatabase, now: Date): Promise<PreMigrationBa
   const backup = current > 0 ? takePreMigrationCopy(handle, LATEST_USER_VERSION, now) : NO_BACKUP;
 
   await handle.withExclusiveTransactionAsync(async (txn) => {
-    migrate(createExpoDb(txn));
+    const db = createExpoDb(txn);
+    migrate(db);
+    if (databaseWasCreated)
+      new SqliteWordStore(db).initializeFreshHistory(now.getTime(), { databaseWasCreated: true });
   });
 
   return backup;
@@ -159,20 +167,31 @@ async function onInit(handle: SQLiteDatabase, now: Date): Promise<PreMigrationBa
 
 /** Open the progress DB in `Paths.document`, in WAL, migrated to the latest schema. */
 export async function openProgressDb(now: Date = new Date()): Promise<OpenedProgressDb> {
+  // Read the real file state before SQLite can create it. A pre-existing empty or
+  // legacy file has unknown vocabulary history, even when all scalar counters are zero.
+  const databaseWasCreated = !progressDbFile().exists;
   const handle = openDatabaseSync(PROGRESS_DB_FILENAME, {}, Paths.document.uri);
-  const backup = await onInit(handle, now);
+  try {
+    const backup = await onInit(handle, now, databaseWasCreated);
 
-  const journalMode =
-    handle.getFirstSync<{ journal_mode: string }>('PRAGMA journal_mode')?.journal_mode ?? 'unknown';
-  const userVersion =
-    handle.getFirstSync<{ user_version: number }>('PRAGMA user_version')?.user_version ?? -1;
+    const journalMode =
+      handle.getFirstSync<{ journal_mode: string }>('PRAGMA journal_mode')?.journal_mode ??
+      'unknown';
+    const userVersion =
+      handle.getFirstSync<{ user_version: number }>('PRAGMA user_version')?.user_version ?? -1;
 
-  return {
-    db: createExpoDb(handle),
-    handle,
-    dbPath: progressDbFile().uri,
-    journalMode: journalMode.toLowerCase(),
-    userVersion,
-    backup,
-  };
+    return {
+      db: createExpoDb(handle),
+      handle,
+      dbPath: progressDbFile().uri,
+      journalMode: journalMode.toLowerCase(),
+      userVersion,
+      backup,
+    };
+  } catch (error) {
+    // Preserve the file and its rolled-back schema for recovery; release the native
+    // handle even if migration or the first permanent history write fails.
+    handle.closeSync();
+    throw error;
+  }
 }
