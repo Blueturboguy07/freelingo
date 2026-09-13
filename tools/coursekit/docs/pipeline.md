@@ -298,3 +298,27 @@ cannot be fixed after release.
 is unregistered, which is why `coursekit build es` exits **2** today. The wave-2 lanes
 register them; nothing in `cli.py`, `commands/`, `artifacts.py`, `runlog.py` or
 `inputs.py` needs to change for that to work.
+
+
+### Japanese source readings (P7 shared contract, 2026-09-13)
+
+The shared Token permits `reading` and `normalized_form`, each a nonblank string.
+Existing Latin records retain their exact shape. `validate_record` requires both
+fields on Japanese lexical tokens in G1 and non-null G5 candidate analyses, and
+requires their adapter's split mode to be A. Punctuation and whitespace need no
+reading; candidates rejected before analysis may still carry null. Read and write
+use the same validation boundary. The schema digest is now
+`46dfbe17b700e4c1a0c86ed856389e121b52ffce61c7811d7446e49fdde0319c`.
+
+`reading` preserves the dictionary-linked lemma reading used for ledger identity.
+Sudachi's surface reading can differ under inflection and belongs in the paired
+script artifact. The adapter must resolve dictionary-form entries by their exact
+dictionary and word IDs; choosing the first homograph or analyzing an isolated
+lemma is not permitted. Ambiguous or missing/OOV links fail by name. The raw
+`normalized_form` is retained, and the shared ledger normalization determines
+`lemma`. Exact identity linkage does not certify the analyzer's contextual reading.
+
+Japanese G2 remains unready until the strict linked-identity extraction and paired
+source witnesses pass independent review. Mode C display spans, full-sentence TTS
+readings and licensed ruby evidence remain separately bound source-analysis work;
+this carrier change does not certify their correctness or a Japanese pack.

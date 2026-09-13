@@ -82,7 +82,9 @@ from coursekit.runlog import (
 #: Re-pinned 2026-09-12 by `codex/p2r5-deps`: optional authored alternate sets,
 #: preferred-answer ordering and exact chosen-source obligations. Previous digest:
 #: `1e743a0c70077d64dcaae319a8763b909d8fa8a5ad01d6e0bba17a45a5102c7d`.
-FROZEN_CONTRACT_DIGEST = "c3a1f00dfaaa4e4fac117eb9d865d70421afc72ebadfacddc592283144dec72e"
+#: Re-pinned 2026-09-13 by codex/p3-p8-deps for explicit Japanese source readings.
+#: Previous: c3a1f00dfaaa4e4fac117eb9d865d70421afc72ebadfacddc592283144dec72e.
+FROZEN_CONTRACT_DIGEST = "46dfbe17b700e4c1a0c86ed856389e121b52ffce61c7811d7446e49fdde0319c"
 
 
 def test_the_contract_digest_is_frozen() -> None:
@@ -143,6 +145,8 @@ def test_every_object_in_the_contract_is_closed_all_the_way_down() -> None:
         for path, schema in _closed_objects(art.schema, kind):
             assert schema.get("additionalProperties") is False, f"{path} is open"
             optional = {"accepted_alternates"} if path in {"candidate", "selected_item"} else set()
+            if schema.get("title") == "Token":
+                optional |= {"reading", "normalized_form"}
             assert sorted(set(schema["properties"]) - optional) == schema["required"], path
             walked[path] = schema.get("title")
 

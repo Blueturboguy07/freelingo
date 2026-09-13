@@ -59,6 +59,7 @@ from .config import (
     LANGUAGES,
     PACK_TABLES,
 )
+from .ledger import is_lexical_pos
 
 __all__ = [
     "ARTIFACTS",
@@ -149,9 +150,17 @@ _TOKEN = _object(
         "morph": {"type": "string"},
         "start": {"type": "integer", "minimum": 0},
         "end": {"type": "integer", "minimum": 1},
+        "reading": {"type": "string", "minLength": 1, "pattern": r"\S"},
+        "normalized_form": {"type": "string", "minLength": 1, "pattern": r"\S"},
     },
     "Token",
-    "One morpheme-or-word with its UD POS tag and morph feature bundle.",
+    (
+        "One morpheme-or-word with its UD POS tag and morph feature bundle. "
+        "Japanese lexical tokens also carry the analyzer's dictionary-linked lemma reading and "
+        "raw normalized form. Surface readings remain in the paired script analysis; "
+        "no isolated reanalysis or first homograph lookup supplies a lemma reading."
+    ),
+    optional=("reading", "normalized_form"),
 )
 
 #: The G1-shaped analysis of an AUTHORED sentence, carried on the G5 record so that G7
@@ -542,10 +551,38 @@ def validate_record(kind: str, record: Mapping[str, Any], *, where: str = "") ->
     """
     error = best_match(_validator_for(kind).iter_errors(dict(record)))
     if error is None:
+        _validate_japanese_carrier(kind, record, where=where)
         return
     location = "/".join(str(part) for part in error.absolute_path) or "<root>"
     suffix = f" in {where}" if where else ""
     raise ArtifactError(f"{kind}{suffix}: {location}: {error.message}") from error
+
+
+def _validate_japanese_carrier(kind: str, record: Mapping[str, Any], *, where: str) -> None:
+    """The language on the outer row governs its shared nested Token contract.
+
+    Source punctuation/space needs no pronunciation. A rejected candidate may have
+    no analysis yet; once analysis exists every lexical token must carry evidence.
+    No reading is inferred here, and this does not authorize a Japanese G2 merge.
+    """
+    if record.get("lang") != "ja" or kind not in {"analysed_sentence", "candidate"}:
+        return
+    analysis = record if kind == "analysed_sentence" else record["analysis"]
+    if analysis is None:
+        return
+    adapter = analysis["adapter" if kind == "analysed_sentence" else "analyser"]
+    suffix = f" in {where}" if where else ""
+    if adapter["split_mode"] != "A":
+        raise ArtifactError(f"{kind}{suffix}: Japanese ledger tokens require Mode A")
+    for index, token in enumerate(analysis["tokens"]):
+        if not is_lexical_pos(token["pos"]):
+            continue
+        for field in ("reading", "normalized_form"):
+            if field not in token:
+                raise ArtifactError(
+                    f"{kind}{suffix}: tokens/{index}/{field}: "
+                    "Japanese lexical tokens require stored analyzer evidence"
+                )
 
 
 # ---------------------------------------------------------------------------
