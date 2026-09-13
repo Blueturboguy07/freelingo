@@ -24,6 +24,10 @@
  */
 import type { Db } from './db.js';
 import { SCHEDULER_TABLES } from './scheduler-schema.js';
+import {
+  LEARNING_CONTEXT_COURSE_TABLES,
+  LEARNING_CONTEXT_ACCOUNT_TABLES,
+} from './learning-context-schema.js';
 
 export type SchemaRegion = 'account' | 'course_progress';
 
@@ -142,6 +146,17 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     region: 'course_progress',
     purpose:
       'Complete surface cards, ordered learning evidence and staged answer receipts (INV-SCH-11, INV-SESS-07).',
+  })),
+  ...LEARNING_CONTEXT_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Frozen session source, daily choices and current course selection (INV-SESS-07, INV-SCH-05, INV-CRS-03).',
+  })),
+  ...LEARNING_CONTEXT_ACCOUNT_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'account',
+    purpose: 'Global onboarding step, independent of removed courses (INV-ECO-04).',
   })),
 ] as const;
 

@@ -18,6 +18,11 @@
 import type { Db } from './db.js';
 import { PROGRESS_SCHEMA_V2_DDL } from './progress-schema.js';
 import { SCHEDULER_SCHEMA_V5_DDL, SCHEDULER_TABLES } from './scheduler-schema.js';
+import {
+  LEARNING_CONTEXT_SCHEMA_V6_DDL,
+  LEARNING_CONTEXT_COURSE_TABLES,
+  LEARNING_CONTEXT_ACCOUNT_TABLES,
+} from './learning-context-schema.js';
 
 export interface Migration {
   readonly userVersion: number;
@@ -112,12 +117,21 @@ const DURABLE_SCHEDULER: Migration = {
   },
 };
 
+const DURABLE_LEARNING_CONTEXT: Migration = {
+  userVersion: 6,
+  name: 'frozen-session-bindings-pools-and-onboarding',
+  up(db) {
+    for (const statement of LEARNING_CONTEXT_SCHEMA_V6_DDL) db.run(statement);
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
   SESSION_RUNTIME,
   DURABLE_SETTINGS,
   DURABLE_SCHEDULER,
+  DURABLE_LEARNING_CONTEXT,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -227,6 +241,30 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
     'course_progress',
     'course_session_state',
     ...SCHEDULER_TABLES,
+  ],
+
+  6: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
   ],
 };
 
