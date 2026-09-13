@@ -38,8 +38,20 @@ never a fallback to display kanji. All these script rows have
 review. Independent contextual review and actual speech evidence remain separate.
 
 The paired script artifact registration and G1 population persistence are pending
-shared-contract integration. The actual Sudachi Mode A/C adapter and frozen self-test
-are the next slice. G2 still groups by lemma/POS without reading and cannot yet preserve
+shared-contract integration. The actual `adapters.sudachi_ja.SudachiJaAdapter` now exposes
+`analyse_with_script(sentence_id=..., text=...) -> JapaneseAnalysis(analysed, script)`.
+It uses Sudachi's two explicit split modes and the installed spaCy3.8.16 Japanese
+`resolve_pos` mapping, including contextual bigram rules. That POS dependency is part
+of the stored model fingerprint. Native inflection metadata is preserved using the
+installed spaCy MorphAnalysis representation; no guessed universal tense/person
+features are added. Fifteen original probes are frozen as complete paired-output
+hashes in `config.japanese_adapter`, with a separate corpus digest guard. Measurement
+is recorded in `/private/tmp/p7-measured-japanese-probes.json`. Each runtime dependency
+version is checked before producing a row. `tts_reading` is assembled from Mode C
+readings and exact whitespace gaps; no missing reading falls back to source kanji.
+
+The adapter deliberately remains unregistered with G1 until that stage persists and
+checks both paired outputs. Direct analysis is preparation evidence only. G2 still groups by lemma/POS without reading and cannot yet preserve
 Japanese homograph identities. Do not run Japanese G2 or infer kit readiness from these
 helpers. French/German measured adapter probes likewise freeze observed model output;
 they do not certify a language pack or cure known linguistic tagging errors.
