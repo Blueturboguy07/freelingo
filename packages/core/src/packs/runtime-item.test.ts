@@ -401,7 +401,7 @@ function listeningDatabase(value: unknown = listeningPayload()) {
   result.db.exec("UPDATE exercise SET type='listen',audio_id='a1'");
   result.db
     .prepare('INSERT INTO audio VALUES(?,?,?,?,?)')
-    .run('a1', 'a'.repeat(64), 'audio/a1.opus', 1200, 4096);
+    .run('a1', 'a'.repeat(16), 'audio/a1.opus', 1200, 4096);
   return result;
 }
 it('[INV-PACK-12] listening uses the exact built audio row without claiming to play it', () => {
