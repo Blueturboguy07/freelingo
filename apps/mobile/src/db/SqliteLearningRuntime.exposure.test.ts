@@ -13,6 +13,9 @@ import { ES_PACK, ES_UNIT } from '../../../../packages/core/src/grading/packs/es
 import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/runtime-item-types';
 import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import { SqliteSessionStore } from './SqliteSessionStore';
+import { SqliteWordStore } from './SqliteWordStore';
+import { SqliteSchedulerStore } from './SqliteSchedulerStore';
+import { contentHashItemId } from '../../../../packages/core/src/packs/items';
 import { SqliteLearningContextStore } from './SqliteLearningContextStore';
 import { SqliteLearningRuntime } from './SqliteLearningRuntime';
 import { roleOfExerciseType } from '@freelingo/core/scheduler';
@@ -47,7 +50,11 @@ function setup(transform: (item: VerifiedRuntimeItem) => VerifiedRuntimeItem = (
   const db = createNodeDb();
   opened.push(db);
   migrate(db);
-  db.run("INSERT INTO course_progress(course_id,added_at) VALUES('en-es','2026-09-13')");
+  new SqliteWordStore(db).initializeFreshHistory(at - 1000, { databaseWasCreated: true });
+  db.run(
+    "INSERT INTO course_progress(course_id,added_at,pack_content_hash) VALUES('en-es','2026-09-13',?)",
+    ['a'.repeat(64)],
+  );
   db.run("INSERT INTO course_selection(course_id,is_active,is_selected) VALUES('en-es',1,1)");
   const item: VerifiedRuntimeItem = transform({
     schemaVersion: 1,
@@ -59,10 +66,10 @@ function setup(transform: (item: VerifiedRuntimeItem) => VerifiedRuntimeItem = (
     responseLanguage: 'es',
     proof: {
       sourceId: 'source',
-      sourceSha256: 'a',
+      sourceSha256: 'a'.repeat(64),
       approvalId: 'review',
-      approvalSha256: 'b',
-      draftSha256: 'c',
+      approvalSha256: 'b'.repeat(64),
+      draftSha256: 'c'.repeat(64),
     },
     gradable: {
       itemId: 'semantic-1',
@@ -85,11 +92,45 @@ function setup(transform: (item: VerifiedRuntimeItem) => VerifiedRuntimeItem = (
         surface: 'el gato',
         language: 'es',
         kind: 'lexeme',
-        itemRef: 'gato',
+        itemRef: 'lx:gato:NOUN',
         canonical: true,
       },
     ],
-    lexicalBindings: [],
+    lexicalBindings: [
+      {
+        schedulerItemId: 'semantic-1',
+        surfaceId: 'sf:gato',
+        surface: 'el gato',
+        language: 'es',
+        lexemeId: 'lx:gato:NOUN',
+        lemma: 'gato',
+        pos: 'NOUN',
+        wordItemId: contentHashItemId({
+          prompt: 'a domestic feline',
+          preferredSurface: 'gato',
+          register: 'neutral',
+          lexemes: ['gato'],
+          grammarConcepts: [],
+          graphemes: [],
+        }),
+        semantic: {
+          prompt: 'a domestic feline',
+          preferredSurface: 'gato',
+          register: 'neutral',
+          lexemes: ['gato'],
+          grammarConcepts: [],
+          graphemes: [],
+        },
+        countable: true,
+        classification: 'word',
+        proof: {
+          sourceId: 'source',
+          sourceSha256: 'a'.repeat(64),
+          declarationSha256: 'd'.repeat(64),
+          bindingSha256: 'e'.repeat(64),
+        },
+      },
+    ],
     introductions: [
       { surfaceId: 'sf:en-cat', surface: 'the cat', language: 'en', when: 'prompt' },
       { surfaceId: 'sf:gato', surface: 'el gato', language: 'es', when: 'wrong-feedback' },
@@ -225,7 +266,11 @@ it('[INV-GRD-27] only a current wrong banner records its actual visible target-l
   await new SqliteLearningRuntime(db, ports).recordExposure(request);
   expect(db.all('SELECT * FROM course_surface_exposure')).toEqual(first);
   expect(db.all('SELECT * FROM course_attempt')).toEqual([]);
-  expect(db.all('SELECT * FROM course_item_surface')).toEqual([]);
+  expect(
+    [...new SqliteSchedulerStore(db).load('en-es', 'UTC').rows.values()].map((r) =>
+      r.introducedAt?.getTime(),
+    ),
+  ).toEqual([at]);
 });
 it('[INV-GRD-27] actual Spanish reverse prompt can be introduced but English prompts and wrong answers cannot', async () => {
   const { db, item, runtime, request, getPack, setPack } = setup();
@@ -408,3 +453,66 @@ it.each(['type', 'marker', 'option', 'text', 'accepted', 'target', 'language'] a
     expect(f.db.all('SELECT * FROM course_surface_exposure')).toEqual([]);
   },
 );
+
+it('[INV-ECO-27][INV-SCH-11] actual display persists word and scheduler introduction before another answer or process reopen', async () => {
+  const f = setup();
+  expect(new SqliteWordStore(f.db).readCounters()).toEqual({ wordsIntroduced: 0, wordsLearned: 0 });
+  f.runtime.readSession();
+  expect(f.db.all('SELECT * FROM course_item_surface')).toEqual([]);
+  f.sessions.put(wrongBanner(f.initial, f.item));
+  await f.runtime.recordExposure(f.request);
+  expect(new SqliteWordStore(f.db).readCounters()).toEqual({ wordsIntroduced: 1, wordsLearned: 0 });
+  const rows = [...new SqliteSchedulerStore(f.db).load('en-es', 'UTC').rows.values()];
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.introducedAt?.getTime()).toBe(at);
+  await new SqliteLearningRuntime(f.db, f.ports).recordExposure(f.request);
+  expect(new SqliteWordStore(f.db).readCounters().wordsIntroduced).toBe(1);
+  expect(f.db.all('SELECT * FROM course_attempt')).toEqual([]);
+});
+it('[INV-ECO-27][INV-SCH-11] a later actual source gets its own receipt while the first full-surface introduction stays immutable', async () => {
+  const f = setup();
+  f.db.run('INSERT INTO course_surface_exposure VALUES(?,?,?,?,?,?,?,?,?,?)', [
+    'en-es',
+    'sf:gato',
+    'el gato',
+    'es',
+    'earlier-session',
+    'earlier-slot',
+    'earlier-grammar-source',
+    'a'.repeat(64),
+    'prompt',
+    at - 500,
+  ]);
+  const first = f.db.get('SELECT * FROM course_surface_exposure');
+  f.sessions.put(wrongBanner(f.initial, f.item));
+  await f.runtime.recordExposure(f.request);
+  expect(new SqliteWordStore(f.db).readCounters().wordsIntroduced).toBe(1);
+  expect(f.db.get('SELECT * FROM course_surface_exposure')).toEqual(first);
+  expect(
+    f.db.get('SELECT exercise_id,display_role,observed_at_utc_ms FROM course_source_exposure'),
+  ).toEqual({ exercise_id: 'exercise-1', display_role: 'wrong-feedback', observed_at_utc_ms: at });
+  expect(
+    [
+      ...new SqliteSchedulerStore(f.db).load('en-es', 'UTC').rows.values(),
+    ][0]!.introducedAt?.getTime(),
+  ).toBe(at - 500);
+});
+it('[INV-ECO-27][INV-PER-04] a failed word identity write rolls back the actual display and scheduler introduction together', async () => {
+  const f = setup();
+  f.sessions.put(wrongBanner(f.initial, f.item));
+  const broken: Db = {
+    ...f.db,
+    run(sql, p) {
+      if (sql.startsWith('INSERT INTO account_word VALUES')) throw new Error('SQLITE_FULL word');
+      f.db.run(sql, p);
+    },
+  };
+  await expect(
+    new SqliteLearningRuntime(broken, f.ports).recordExposure(f.request),
+  ).rejects.toThrow('SQLITE_FULL word');
+  expect(f.db.all('SELECT * FROM course_surface_exposure')).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_item_surface')).toEqual([]);
+  expect(new SqliteWordStore(f.db).readCounters().wordsIntroduced).toBe(0);
+  await f.runtime.recordExposure(f.request);
+  expect(new SqliteWordStore(f.db).readCounters().wordsIntroduced).toBe(1);
+});

@@ -171,6 +171,7 @@ const WORD_READ_TABLES = [
   'account_word_learning',
   'account_word_review',
   'course_surface_exposure',
+  'course_source_exposure',
   'course_item',
   'course_item_surface',
   'course_session_state',
@@ -739,10 +740,18 @@ export class SqliteWordStore {
         ?.pack_content_hash !== packContentHash
     )
       return fail('observed pack identity');
-    const observed = this.db.get(
-      'SELECT * FROM course_surface_exposure WHERE course_id=? AND surface_id=?',
-      [courseId, surfaceId],
-    );
+    // Later exercises can teach the same full surface under another lexical source.
+    // Prefer that exact actual callback receipt. The first observation remains usable
+    // only when its own exercise and pack match below; migration never backfills it.
+    const observed =
+      this.db.get(
+        'SELECT * FROM course_source_exposure WHERE course_id=? AND surface_id=? AND exercise_id=? AND pack_content_hash=?',
+        [courseId, surfaceId, item.exerciseId, packContentHash],
+      ) ??
+      this.db.get('SELECT * FROM course_surface_exposure WHERE course_id=? AND surface_id=?', [
+        courseId,
+        surfaceId,
+      ]);
     if (
       !observed ||
       observed.exercise_id !== item.exerciseId ||

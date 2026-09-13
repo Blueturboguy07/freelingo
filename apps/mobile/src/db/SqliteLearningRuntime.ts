@@ -14,6 +14,7 @@ import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/runtime-item-types';
 import type { LearningRuntimePorts, LearningSessionView } from './learningRuntimePorts';
 import { SqliteSessionStore } from './SqliteSessionStore';
+import { SqliteWordStore } from './SqliteWordStore';
 import {
   SqliteLearningContextStore,
   type LearningContext,
@@ -245,7 +246,9 @@ export class SqliteLearningRuntime {
           )
             return;
         } else return fail('Unknown lesson display role.');
-        const at = this.ports.clock().utcMs;
+        const clock = this.clock(),
+          at = clock.utcMs;
+        const observedSurfaceIds: string[] = [];
         if (!Number.isSafeInteger(at) || !Number.isFinite(new Date(at).getTime()))
           return fail('Invalid observation clock.');
         const language = pack.pack.meta.lang;
@@ -303,24 +306,67 @@ export class SqliteLearningRuntime {
           if (old) {
             if (old.surface !== exposure.surface || old.language !== exposure.language)
               return fail('Observed surface identity changed.');
-            continue;
-          }
-          this.db.run(
-            'INSERT INTO course_surface_exposure(course_id,surface_id,surface,language,session_id,slot_id,exercise_id,pack_content_hash,display_role,observed_at_utc_ms) VALUES(?,?,?,?,?,?,?,?,?,?)',
-            [
+          } else
+            this.db.run(
+              'INSERT INTO course_surface_exposure(course_id,surface_id,surface,language,session_id,slot_id,exercise_id,pack_content_hash,display_role,observed_at_utc_ms) VALUES(?,?,?,?,?,?,?,?,?,?)',
+              [
+                state.courseId,
+                exposure.surfaceId,
+                exposure.surface,
+                exposure.language,
+                state.sessionId,
+                request.slotId,
+                request.exerciseId,
+                pack.contentHash,
+                request.when,
+                at,
+              ],
+            );
+          const exact = this.db.get(
+            'SELECT * FROM course_source_exposure WHERE course_id=? AND surface_id=? AND exercise_id=? AND pack_content_hash=?',
+            [state.courseId, exposure.surfaceId, item.exerciseId, pack.contentHash],
+          );
+          if (exact) {
+            if (exact.surface !== exposure.surface || exact.language !== exposure.language)
+              return fail('Observed source identity changed.');
+          } else
+            this.db.run('INSERT INTO course_source_exposure VALUES(?,?,?,?,?,?,?,?,?,?)', [
               state.courseId,
               exposure.surfaceId,
               exposure.surface,
               exposure.language,
               state.sessionId,
               request.slotId,
-              request.exerciseId,
+              item.exerciseId,
               pack.contentHash,
               request.when,
               at,
-            ],
-          );
+            ]);
+          observedSurfaceIds.push(exposure.surfaceId);
         }
+        if (!observedSurfaceIds.length) return;
+        // Display, first teaching instant, and semantic vocabulary identity survive
+        // together even when the process dies before the next answer callback.
+        const db = this.scopedDb(),
+          scheduler = new SqliteSchedulerStore(db);
+        scheduler.save(
+          state.courseId,
+          registerSources(
+            db,
+            state.courseId,
+            scheduler.load(state.courseId, clock.zone.tzId),
+            [{ item }],
+            clock,
+          ),
+        );
+        const words = new SqliteWordStore(db);
+        for (const surfaceId of observedSurfaceIds)
+          words.recordIntroduction({
+            courseId: state.courseId,
+            packContentHash: pack.contentHash,
+            item,
+            surfaceId,
+          });
       }),
     );
   }
