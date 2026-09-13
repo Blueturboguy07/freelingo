@@ -15,15 +15,11 @@
     "test": "vitest run --project ui"
   },
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-native": {
-      "optional": true
-    }
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-svg": "15.15.4",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1",
+    "@shopify/react-native-skia": "2.6.2"
   }
 }
