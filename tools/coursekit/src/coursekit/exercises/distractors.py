@@ -187,6 +187,9 @@ class DistractorPool:
     forms: dict[str, dict[str, str]] = field(default_factory=dict)
     pos_of_lemma: dict[str, str] = field(default_factory=dict)
     band_of_lemma: dict[str, str] = field(default_factory=dict)
+    # S039 agreement proof needs ALL analyses of a surface. `forms` above keeps only
+    # the first surface per morph key, which can hide a valid syncretic attestation.
+    form_analyses: dict[str, dict[str, set[tuple[str, str]]]] = field(default_factory=dict)
 
     @classmethod
     def build(
@@ -214,6 +217,10 @@ class DistractorPool:
             for token in sentence["tokens"]:
                 bucket = pool.forms.setdefault(token["lemma"], {})
                 bucket.setdefault(token.get("morph", ""), token["surface"])
+                surfaces = pool.form_analyses.setdefault(token["lemma"], {})
+                surfaces.setdefault(token["surface"], set()).add(
+                    (token["pos"], token.get("morph", ""))
+                )
         return pool
 
     def wrong_forms(self, lemma: str, correct_surface: str, pos: str, band: str) -> list[Candidate]:

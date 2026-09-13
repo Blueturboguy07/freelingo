@@ -916,6 +916,7 @@ def _write_ledger(lang: str = LANG) -> None:
 
 def test_the_stage_runs_end_to_end_with_the_declared_fallback_aligner() -> None:
     _write_ledger()
+    _add_agreement_ledger()
     result = runner.invoke(
         app, ["build", LANG, "--only", "g7", "--set", "align_engine=deterministic"]
     )
@@ -1152,14 +1153,14 @@ def test_B16_the_gap_distractors_come_from_the_analysis_lemma_not_the_surface() 
     records = [dict(record) for record in read_records("exercise", lang=LANG)]
     clozes = [
         record
-        for record in _of_shape(records, "fill_in_the_blank")
+        for record in _of_shape(records, "listen_for_the_missing_word")
         if record["source_sentence_id"] == sentence_id(LANG, _AUTHORED["text"])
     ]
     assert len(clozes) == 1, [record["prompt"] for record in clozes]
     cloze = clozes[0]
     assert cloze["accepted_answers"] == ["libros"]
     assert GAP_MARKER in cloze["prompt"]
-    assert len(cloze["distractors"]) == shape("fill_in_the_blank").distractor_count
+    assert len(cloze["distractors"]) == shape("listen_for_the_missing_word").distractor_count
     # Same POS as the ANSWER'S LEMMA, which is the guarantee the surface could not give.
     pos_of = {row["lemma"]: row["pos"] for row in _banded()}
     assert pos_of["libro"] == "NOUN"
@@ -1826,7 +1827,7 @@ def test_the_slot_is_expanded_from_the_candidate_G5_filled_it_with_not_the_last_
     records = [dict(record) for record in read_records("exercise", lang=LANG)]
     clozes = [
         record
-        for record in _of_shape(records, "fill_in_the_blank")
+        for record in _of_shape(records, "listen_for_the_missing_word")
         if record["source_sentence_id"] == sentence_id(LANG, _AUTHORED["text"])
     ]
     assert len(clozes) == 1, [record["prompt"] for record in clozes]
@@ -2110,7 +2111,10 @@ def test_INV_PACK_07_cloze_builders_never_offer_an_attested_same_lemma_form(
         )
     assert draft is not None
     assert draft.accepted_answers == ("tarjeta",)
-    assert len(draft.distractors) == shape(common["shape_id"]).distractor_count
+    assert len(draft.distractors) == shape(draft.shape_id).distractor_count
+    if shape_id != "listen_for_the_missing_word":
+        assert draft.shape_id == "complete_the_translation"
+        assert draft.body.startswith(slot.translation + "\n")
     assert "tarjetas" not in draft.distractors
 
 
@@ -2229,3 +2233,223 @@ def test_INV_PACK_41_changing_only_bank_distractors_preserves_identity() -> None
     assert first.distractors != second.distractors
     assert first.accepted_answers == second.accepted_answers
     assert first.exercise_id == second.exercise_id
+
+
+# S039 / deep01 §S8: a source translation disambiguates lexical clozes.
+def _cloze_inputs(slot: ResolvedSlot, forms: dict[str, str] | None = None) -> Any:
+    from coursekit.exercises.distractors import DistractorPool
+    from coursekit.stages.g7_expand import _load
+
+    _write_ledger()
+    inputs = _load(LANG)
+    inputs.pool = DistractorPool.build([], [{"tokens": [
+        {"lemma": "comer", "surface": surface, "pos": "VERB", "morph": morph}
+        for morph, surface in (forms or {}).items()
+    ]}])
+    inputs.pool.by_pos_band = {
+            ("NOUN", "A1"): ["pan", "queso", "arroz", "deporte", "tarjeta"],
+            ("ADJ", "A1"): ["alta", "alegre", "ocupada"],
+            ("VERB", "A1"): ["correr", "beber", "mirar"],
+    }
+    inputs.pos_of = {row["lemma"]: row["pos"] for row in slot.analysis["tokens"]}
+    inputs.band_of = dict.fromkeys(inputs.pos_of, "A1")
+    inputs.pos_sets = {}
+    return inputs
+
+
+def _cloze_draft(inputs: Any, slot: ResolvedSlot, builder: str) -> Any:
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _grammar_draft, _sentence_draft
+
+    common = dict(shape_id="fill_in_the_blank", unit=1, lesson=1, concept="agreement",
+                  slot=slot, target_tokens=_target_tokens(slot), lemmas=slot.analysis["lemmas"],
+                  register="tu", alternatives=AlternativesIndex())
+    if builder == "grammar":
+        return _grammar_draft(inputs, **common)
+    return _sentence_draft(inputs, **common, text=slot.text, translation=slot.translation,
+                           source_tokens=slot.translation.split(), audio="c" * 16)
+
+
+@pytest.mark.parametrize("builder", ["sentence", "grammar"])
+@pytest.mark.parametrize(("text", "translation", "rows", "answer"), [
+    ("Hay tarjetas aquí.", "There are cards here.",
+     [("Hay", "haber", "AUX", ""), ("tarjetas", "tarjeta", "NOUN", "Number=Plur"),
+      ("aquí", "aquí", "ADV", "")], "tarjetas"),
+    ("Hay deportes aquí.", "There are sports here.",
+     [("Hay", "haber", "AUX", ""), ("deportes", "deporte", "NOUN", "Number=Plur"),
+      ("aquí", "aquí", "ADV", "")], "deportes"),
+    ("Está invitada hoy.", "She is invited today.",
+     [("Está", "estar", "AUX", ""), ("invitada", "invitado", "ADJ", "Number=Sing"),
+      ("hoy", "hoy", "ADV", "")], "invitada"),
+])
+def test_INV_PACK_07_S039_lexical_cloze_keeps_meaning_and_exact_source(
+    builder: str, text: str, translation: str, rows: list[tuple[str, str, str, str]],
+    answer: str,
+) -> None:
+    """[INV-PACK-07][INV-PACK-40] old-review nouns/adjectives need a meaning constraint."""
+    slot = ResolvedSlot(text, translation, None, _quality_analysis(text, rows), "b" * 16,
+                        accepted_alternates=("A validated whole-sentence alternative.",))
+    draft = _cloze_draft(_cloze_inputs(slot), slot, builder)
+    assert draft.shape_id == "complete_the_translation"
+    assert draft.body == translation + "\n" + text.replace(answer, GAP_MARKER)
+    assert draft.accepted_answers == (answer,)
+    assert draft.distractors == ()
+    assert draft.audio_ref is None
+    assert draft.source_sentence_id == "b" * 16
+
+
+@pytest.mark.parametrize("builder", ["sentence", "grammar"])
+def test_INV_PACK_07_S039_standalone_cloze_only_offers_proven_disagreement(builder: str) -> None:
+    """[INV-PACK-07] same-lemma tense changes are valid; person/number conflicts are not."""
+    slot = _quality_slot()
+    forms = {
+        "Mood=Ind|Number=Sing|Person=1|VerbForm=Fin": "como",
+        "Mood=Ind|Number=Plur|Person=3|VerbForm=Fin": "comen",
+        "Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin": "comió",
+        "Mood=Cnd|Number=Sing|Person=3|VerbForm=Fin": "comería",
+        "Mood=Ind|Number=Sing|Person=1|Tense=Imp|VerbForm=Fin": "comía",
+        "Mood=Ind|Number=Sing|Person=3|Tense=Imp|VerbForm=Fin": "comía",
+        "VerbForm=Inf": "comer",
+    }
+    draft = _cloze_draft(_cloze_inputs(slot, forms), slot, builder)
+    assert draft.shape_id == "fill_in_the_blank"
+    assert draft.body == "Ella ____ pan."
+    assert draft.accepted_answers == ("come",)
+    assert set(draft.distractors) == {"como", "comen"}
+    assert draft.source_sentence_id == slot.source_id
+
+
+@pytest.mark.parametrize("builder", ["sentence", "grammar"])
+@pytest.mark.parametrize("failure", ["no_subject", "coordinated", "punctuation", "adverb",
+                                     "nonfinite", "disagreeing", "no_morph", "syncretic",
+                                     "same_agreement", "one_safe", "unknown_form", "bad_span",
+                                     "nonfinite_form", "missing_person", "missing_number"])
+def test_INV_PACK_07_S039_unproven_agreement_cloze_uses_translation(
+    builder: str, failure: str,
+) -> None:
+    """[INV-PACK-07] missing proof never borrows a noun, adjective, tense or another lemma."""
+    slot = _quality_slot()
+    forms = {"Number=Sing|Person=1|VerbForm=Fin": "como",
+             "Number=Plur|Person=3|VerbForm=Fin": "comen"}
+    if failure in {"no_subject", "coordinated", "punctuation", "adverb"}:
+        prefix = {"no_subject": "", "coordinated": "Ella y yo ",
+                  "punctuation": "Ella, ", "adverb": "Ella también "}[failure]
+        text = prefix + "come pan."
+        rows = []
+        if prefix:
+            rows.append(("Ella", "él", "PRON", "Number=Sing|Person=3|PronType=Prs"))
+        if failure == "coordinated":
+            rows.extend([("y", "y", "CCONJ", ""),
+                         ("yo", "yo", "PRON", "Number=Sing|Person=1|PronType=Prs")])
+        if failure == "punctuation":
+            rows.append((",", ",", "PUNCT", ""))
+        if failure == "adverb":
+            rows.append(("también", "también", "ADV", ""))
+        rows.extend([("come", "comer", "VERB", "Number=Sing|Person=3|VerbForm=Fin"),
+                     ("pan", "pan", "NOUN", "Number=Sing")])
+        slot = ResolvedSlot(text, "She eats bread.", "a" * 16,
+                            _quality_analysis(text, rows), None)
+    elif failure == "nonfinite":
+        slot.analysis["tokens"][1]["morph"] = "Number=Sing|Person=3|VerbForm=Inf"
+    elif failure == "disagreeing":
+        slot.analysis["tokens"][1]["morph"] = "Number=Plur|Person=3|VerbForm=Fin"
+    elif failure == "no_morph":
+        slot.analysis["tokens"][0]["morph"] = ""
+    elif failure == "bad_span":
+        slot.analysis["tokens"][1]["start"] = 0
+    elif failure == "syncretic":
+        forms["Number=Sing|Person=3|VerbForm=Fin"] = "como"
+    elif failure == "same_agreement":
+        forms = {"Number=Sing|Person=3|Tense=Past|VerbForm=Fin": "comió",
+                 "Number=Sing|Person=3|Tense=Imp|VerbForm=Fin": "comía"}
+    elif failure == "one_safe":
+        forms.pop("Number=Sing|Person=1|VerbForm=Fin")
+    elif failure == "unknown_form":
+        forms[""] = "como"
+    elif failure in {"nonfinite_form", "missing_person", "missing_number"}:
+        forms.pop("Number=Sing|Person=1|VerbForm=Fin")
+        morph = {"nonfinite_form": "Number=Sing|Person=1|VerbForm=Inf",
+                 "missing_person": "Number=Sing|VerbForm=Fin",
+                 "missing_number": "Person=1|VerbForm=Fin"}[failure]
+        forms[morph] = "como"
+    draft = _cloze_draft(_cloze_inputs(slot, forms), slot, builder)
+    assert draft.shape_id == "complete_the_translation"
+    assert draft.body.startswith(slot.translation + "\n")
+    assert draft.body.split("\n", 1)[1].replace(GAP_MARKER, draft.accepted_answers[0]) == slot.text
+    assert draft.distractors == ()
+
+
+def test_INV_PACK_07_S039_fallback_deduplicates_siblings_and_keeps_two_punitive_forms() -> None:
+    """[INV-PACK-07] fallback and an existing translation cloze are one rendered exercise."""
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import expand_item
+
+    text = "Hay tarjetas aquí."
+    slot = ResolvedSlot(text, "There are cards here.", "a" * 16, _quality_analysis(text, [
+        ("Hay", "haber", "AUX", ""), ("tarjetas", "tarjeta", "NOUN", "Number=Plur"),
+        ("aquí", "aquí", "ADV", "")]), None)
+    drafts = expand_item(_cloze_inputs(slot), dict(unit_index=1, lesson_index=1,
+                         slot_index=3, grammar_concept="number"), slot=slot, alignment=(),
+                         register="tu", alternatives=AlternativesIndex())
+    assert [d.shape_id for d in drafts] == [
+        "complete_the_translation", "listen_for_the_missing_word",
+    ]
+    assert len({d.exercise_id for d in drafts if d.missable}) >= MIN_FORMS_PER_MISSABLE_ITEM
+    assert all(d.source_sentence_id == slot.source_id for d in drafts)
+
+
+def _add_agreement_ledger() -> None:
+    """Keep full shape coverage with actual person/number evidence in a selected source."""
+    ingested = list(read_records("ingested_sentence", lang=LANG))
+    analysed = list(read_records("analysed_sentence", lang=LANG))
+    selected = list(read_records("selected_item", lang=LANG))
+    for subject, verb, person, number, english in [
+        ("Yo", "corro", "1", "Sing", "I run today."),
+        ("Tú", "corres", "2", "Sing", "You run today."),
+        ("Ellos", "corren", "3", "Plur", "They run today."),
+    ]:
+        text = f"{subject} {verb} hoy."
+        sid = sentence_id(LANG, text)
+        analysis = _quality_analysis(text, [
+            (subject, subject.casefold(), "PRON", f"Number={number}|Person={person}|PronType=Prs"),
+            (verb, "correr", "VERB", f"Number={number}|Person={person}|VerbForm=Fin"),
+            ("hoy", "hoy", "ADV", ""),
+        ])
+        ingested.append({**ingested[0], "sentence_id": sid, "text": text,
+                         "translation": english, "token_count": 3})
+        analysed.append({**analysed[0], **analysis, "sentence_id": sid})
+        if subject == "Yo":
+            selected.append({**selected[0], "slot_index": 8, "sentence_id": sid,
+                             "new_lemmas": [], "known_lemmas": analysis["lemmas"]})
+    write_records("ingested_sentence", ingested, lang=LANG)
+    write_records("analysed_sentence", analysed, lang=LANG)
+    write_records("selected_item", selected, lang=LANG)
+    banded = _banded()
+    template = next(row for row in banded if row["pos"] == "VERB")
+    write_records("banded_lemma", [*banded, {**template, "lemma": "correr"}], lang=LANG)
+
+
+@pytest.mark.parametrize("builder", ["sentence", "grammar"])
+def test_INV_PACK_07_S039_morph_key_collision_cannot_hide_an_agreeing_attestation(
+    builder: str,
+) -> None:
+    """[INV-PACK-07] first surface per morphology is a pool shortcut, not complete proof."""
+    from coursekit.exercises.distractors import DistractorPool
+
+    slot = _quality_slot()
+    inputs = _cloze_inputs(slot)
+    inputs.pool = DistractorPool.build([], [{"tokens": [
+        {"lemma": "comer", "surface": "comió", "pos": "VERB",
+         "morph": "Number=Sing|Person=3|VerbForm=Fin"},
+        {"lemma": "comer", "surface": "comía", "pos": "VERB",
+         "morph": "Number=Sing|Person=3|VerbForm=Fin"},
+        {"lemma": "comer", "surface": "comía", "pos": "VERB",
+         "morph": "Number=Sing|Person=1|VerbForm=Fin"},
+        {"lemma": "comer", "surface": "comen", "pos": "VERB",
+         "morph": "Number=Plur|Person=3|VerbForm=Fin"},
+    ]}])
+    # Retain a lexical pool so the pre-fix builder can emit an actual wrong exercise.
+    inputs.pool.by_pos_band[("PRON", "A1")] = ["alguien", "nadie"]
+    draft = _cloze_draft(inputs, slot, builder)
+    assert draft.shape_id == "complete_the_translation"
+    assert draft.distractors == ()

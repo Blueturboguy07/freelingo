@@ -568,11 +568,22 @@ def expand_item(
                 lemmas=lemmas,
                 register=register,
                 alternatives=alternatives,
+                alignment=pairs,
             )
             if draft is not None:
                 drafts.append(draft)
 
-    return drafts
+    # S039's translation fallback may already be a sibling in the form plan.
+    # Count the rendered task once even when a grammar-focused route found it too.
+    unique: list[ExerciseDraft] = []
+    seen: set[tuple[Any, ...]] = set()
+    for draft in drafts:
+        identity = (draft.shape_id, draft.body, draft.accepted_answers[0],
+                    draft.source_sentence_id, draft.grammar_concepts)
+        if identity not in seen:
+            seen.add(identity)
+            unique.append(draft)
+    return unique
 
 
 def _sentence_draft(
@@ -599,6 +610,14 @@ def _sentence_draft(
     key = f"sentence:{sid}" if sid else f"authored:{unit}:{lesson}:{text}"
     # The validator indexes both corpus and authored records by their exact source ID.
     item_key = f"sentence:{sid}" if sid else f"concept:{concept}"
+    agreement_cloze = None
+    if chosen.id == "fill_in_the_blank":
+        agreement_cloze = _agreement_cloze(
+            inputs, slot, target_tokens, alternatives, key, item_key,
+            count=chosen.distractor_count,
+        )
+        if agreement_cloze is None:
+            chosen = shape("complete_the_translation")
     reverse = chosen.direction == "l2_to_l1"
     body = translation if chosen.direction == "l1_to_l2" else text
     accepted = (translation,) if reverse else (text,)
@@ -626,7 +645,12 @@ def _sentence_draft(
         )
         bank = build_word_bank(answer_tokens, decoys, key=f"{key}:{chosen.id}")
         distractors = bank.extra_tiles
-    elif chosen.id in {"fill_in_the_blank", "listen_for_the_missing_word"}:
+    elif chosen.id == "fill_in_the_blank":
+        assert agreement_cloze is not None
+        gap_index, distractors = agreement_cloze
+        body = _gapped(slot, target_tokens, gap_index)
+        accepted = (target_tokens[gap_index],)
+    elif chosen.id == "listen_for_the_missing_word":
         gap_index = _gap_index(target_tokens)
         # The gapped sentence stays ON THE RECORD for both shapes. It used to be blanked
         # for `listen_for_the_missing_word`, which contradicts the product map — S038 is
@@ -750,6 +774,76 @@ def _spanish_accepted_surfaces(
     remainder = surface[last:].lstrip()
     dropped = opening + remainder[:1].upper() + remainder[1:]
     return (surface, dropped)
+
+
+def _agreement_cloze(
+    inputs: ExpansionInputs,
+    slot: ResolvedSlot,
+    target_tokens: Sequence[str],
+    alternatives: AlternativesIndex,
+    key: str,
+    item_key: str,
+    *,
+    count: int,
+) -> tuple[int, tuple[str, ...]] | None:
+    """S039 standalone gaps need proof that every displayed option is wrong.
+
+    An immediate Spanish personal subject and agreeing finite verb establish the
+    required person/number. Only attested forms of that same verb whose every stored
+    analysis contradicts the subject qualify. Tense, mood, lexical plausibility and
+    unknown or syncretic analyses establish no disagreement. Without enough proven
+    options, the caller uses deep01 §S8's translation scaffold to constrain the gap.
+    """
+    if inputs.lang != "es" or slot.analysis is None:
+        return None
+    tokens = _lexical_analysis_tokens(slot.analysis)
+    if len(tokens) < 2 or [t["surface"] for t in tokens] != list(target_tokens):
+        return None
+    subject, predicate = tokens[:2]
+    agreement = SPANISH_SUBJECT_AGREEMENT.get(str(subject["surface"]).casefold())
+    personal, finite = _morph_features(subject), _morph_features(predicate)
+    if (agreement is None or subject["pos"] != "PRON"
+            or personal.get("PronType") != "Prs"
+            or (personal.get("Person"), personal.get("Number")) != agreement
+            or predicate["pos"] not in VERB_POS or finite.get("VerbForm") != "Fin"
+            or (finite.get("Person"), finite.get("Number")) != agreement):
+        return None
+    first, last = int(subject["start"]), int(subject["end"])
+    start, end = int(predicate["start"]), int(predicate["end"])
+    if (slot.text[:first] not in {"", "¿", "¡"}
+            or slot.text[first:last] != subject["surface"]
+            or start <= last or not slot.text[last:start].isspace()
+            or slot.text[start:end] != predicate["surface"]):
+        return None
+
+    # Group by displayed surface before judging: a surface attested as both first and
+    # third person (comía) remains valid for either, regardless of iteration order.
+    attestations: dict[str, list[tuple[str, dict[str, str]]]] = {}
+    surfaces: dict[str, str] = {}
+    for surface, analyses in sorted(
+        inputs.pool.form_analyses.get(predicate["lemma"], {}).items()
+    ):
+        folded = normalise(surface)
+        attestations.setdefault(folded, []).extend(
+            (pos, _morph_features({"morph": morph})) for pos, morph in sorted(analyses)
+        )
+        surfaces.setdefault(folded, surface)
+    forbidden = {normalise(t) for t in target_tokens}
+    forbidden.update(alternatives.forbidden_for(key))
+    forbidden.update(alternatives.forbidden_for(item_key))
+    options = [
+        surfaces[folded] for folded, analyses in sorted(attestations.items())
+        if folded not in forbidden and all(
+            pos == predicate["pos"] and form.get("VerbForm") == "Fin"
+            and form.get("Person") in {"1", "2", "3"}
+            and form.get("Number") in {"Sing", "Plur"}
+            and (form["Person"], form["Number"]) != agreement
+            for pos, form in analyses
+        )
+    ]
+    if len(options) < count:
+        return None
+    return 1, tuple(options[:count])
 
 
 def _gap_index(tokens: Sequence[str]) -> int:
@@ -1007,6 +1101,7 @@ def _grammar_draft(
     lemmas: Sequence[str],
     register: str,
     alternatives: AlternativesIndex,
+    alignment: tuple[tuple[int, int], ...] = (),
 ) -> ExerciseDraft | None:
     """A grammar concept drilled, never quoted. INV-PACK-50's positive case.
 
@@ -1038,20 +1133,19 @@ def _grammar_draft(
         accepted: tuple[str, ...] = (ending,)
         distractors: tuple[str, ...] = ()
     else:
-        gap_index = _gap_index(target_tokens)
-        body = _gapped(slot, target_tokens, gap_index)
-        accepted = (target_tokens[gap_index],)
-        distractors = _decoys(
-            inputs,
-            lemmas=[_anchor_lemma(lemmas, gap_index, target_tokens[gap_index])],
+        agreement_cloze = _agreement_cloze(
+            inputs, slot, target_tokens, alternatives, key, key,
             count=shape(shape_id).distractor_count,
-            key=key,
-            accepted=list(accepted),
-            alternatives=alternatives,
-            prompt_tokens=list(surface_tokens(body)),
-            item_key=key,
-            allow_wrong_forms=False,
         )
+        if agreement_cloze is None:
+            shape_id = "complete_the_translation"
+            gap_index = _gap_index(target_tokens)
+            body = slot.translation + "\n" + _gapped(slot, target_tokens, gap_index)
+            distractors = ()
+        else:
+            gap_index, distractors = agreement_cloze
+            body = _gapped(slot, target_tokens, gap_index)
+        accepted = (target_tokens[gap_index],)
     return ExerciseDraft(
         lang=lang,
         exercise_id=_exercise_id(
@@ -1065,6 +1159,7 @@ def _grammar_draft(
         body=body,
         accepted_answers=accepted,
         distractors=distractors,
+        alignment=alignment if shape(shape_id).needs_alignment else (),
         lemmas=tuple(lemmas),
         grammar_concepts=(concept,),
         audio_ref=None,
