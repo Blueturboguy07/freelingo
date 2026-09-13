@@ -9,3 +9,9 @@ Eight real SQLite falsifiers first failed before migration, then passed: indepen
 The golden generator retains every existing historical database byte rather than regenerating old evidence. All v0–v4 SHA256 comparisons are identical (`/private/tmp/p3-scheduler-golden-byte-audit.json`); only their forward expectations add the declared defaults/nulls/empty tables. New v5 includes two surfaces, an exact variant receipt, an ordered replay, mastery and closed hold/anomaly evidence. All golden forward checks passed.
 
 The iOS stable-boot-clock decision remains pending. These SQL carriers do not relax that policy or assert native timing evidence.
+
+## v6 launch, completion intent and daily pools
+
+Six new SQLite falsifiers reproduced RED and passed after implementation. Migration v6 retains immutable original economy flavour, practice ratio, exact pack hash, start zone/clock and captured boost. A complete first-write completion stamp freezes its active time too; retry cannot silently shift the reward day. Slots bind the exact source exercise and semantic item, with a composite owner FK. Committed attempts gain nullable legacy-safe source exercise/pack hash columns. Daily review has an explicit empty-day marker, serve-time spent state, and separate Hub offers/completions. Global onboarding and selection seed remain account facts; course selectors cascade and enforce at most one active/selected row. Startup reconciliation and actual adapter actions remain separate implementation work.
+
+Evidence: `/private/tmp/p3-context-schema-{red,green,all}.xml`. All94 schema checks, typecheck, scoped lint and diff checks passed. v0–v5 committed DB bytes remain identical (`/private/tmp/p3-context-golden-byte-audit.json`); v6 fixture includes an active exact-variant binding, empty and spent pools, fallback Hub completion and account/course selectors. No native/UI gate is implied.

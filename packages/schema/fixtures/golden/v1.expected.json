@@ -29,7 +29,8 @@
       "imported_at_utc": null,
       "sound_effects_enabled": 1,
       "animations_enabled": 1,
-      "motivational_messages_enabled": 1
+      "motivational_messages_enabled": 1,
+      "selection_seed": null
     }
   ],
   "account_boost": [],
@@ -38,6 +39,7 @@
   "account_day": [],
   "account_freeze": [],
   "account_monthly_badge": [],
+  "account_onboarding": [],
   "account_personal_record": [],
   "account_quest": [],
   "account_streak_repair": [],
@@ -76,7 +78,11 @@
     }
   ],
   "course_attempt": [],
+  "course_daily_refresh_item": [],
   "course_display": [],
+  "course_hub_choice": [],
+  "course_hub_completion": [],
+  "course_hub_day": [],
   "course_introduction": [],
   "course_item": [],
   "course_item_surface": [],
@@ -84,9 +90,14 @@
   "course_mistake": [],
   "course_node": [],
   "course_progress": [],
+  "course_review_pool_day": [],
+  "course_review_pool_item": [],
   "course_scheduler_anomaly": [],
   "course_scheduler_hold": [],
   "course_scheduler_mastery": [],
+  "course_selection": [],
   "course_session_answer_receipt": [],
+  "course_session_context": [],
+  "course_session_slot": [],
   "course_session_state": []
 }
