@@ -401,6 +401,35 @@ function seedV9(db: Db): void {
   db.run("INSERT INTO course_script_introduction VALUES ('en-ja','kana-a','sf:golden-a')");
 }
 
+function seedV10(db: Db): void {
+  seedV9(db);
+  db.run('INSERT INTO account_word_state VALUES(1,1789214400000)');
+  db.run('INSERT INTO account_word VALUES(?,?,?,?,?,1)', [
+    'i_1722fc00ca0afa93',
+    '{"grammarConcepts":[],"graphemes":[],"lexemes":["gato"],"preferredSurface":"gato","prompt":"cat","register":"neutral"}',
+    1,
+    1789214400000,
+    JSON.stringify({
+      language: 'es',
+      lexemeId: 'lx:gato:NOUN',
+      exerciseId: 'ex-cat',
+      surfaceId: 'sf-cat',
+      packContentHash: 'a'.repeat(64),
+    }),
+  ]);
+  db.run('INSERT INTO account_word_learning VALUES(?,?,?,?)', [
+    'i_1722fc00ca0afa93',
+    1789300800000,
+    's_path_jump',
+    JSON.stringify({
+      reviews: [
+        { sessionId: 's_golden_1', strength: 0.96 },
+        { sessionId: 's_path_jump', strength: 0.97 },
+      ],
+    }),
+  ]);
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -411,6 +440,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   7: seedV7,
   8: seedV8,
   9: seedV9,
+  10: seedV10,
 };
 
 /* ------------------------------------------------------------------------ build */

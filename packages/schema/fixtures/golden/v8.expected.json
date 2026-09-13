@@ -238,6 +238,9 @@
       "local_day": "2026-08-19"
     }
   ],
+  "account_word": [],
+  "account_word_learning": [],
+  "account_word_state": [],
   "committed_session": [
     {
       "session_id": "s_golden_1",
