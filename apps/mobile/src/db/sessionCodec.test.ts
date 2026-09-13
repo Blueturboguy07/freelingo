@@ -4,6 +4,7 @@ import {
   TestMonotonicClock,
   step,
   items,
+  item,
   type StepDeps,
   type SessionEvent,
   EXERCISE_TYPES,
@@ -19,6 +20,7 @@ import {
   serialiseSession,
   type SessionState,
 } from '@freelingo/core/session';
+import { emptySessionModality, MODALITY_REVIEW_KINDS } from '@freelingo/core/modality';
 import { isSessionState, parseSessionState, SessionCodecError } from './sessionCodec';
 
 function richSession(): SessionState {
@@ -56,6 +58,19 @@ function richSession(): SessionState {
         matched: [null, false, 'uno'],
         strange: { custom: true },
       },
+    },
+    modality: {
+      observations: [
+        {
+          id: 'native-1',
+          slotId: item.id,
+          itemId: item.itemId,
+          family: 'speaking',
+          reviewKind: 'no_audio',
+        },
+      ],
+      blockedFamilies: ['speaking'],
+      unavailableSlotIds: ['unavailable-slot'],
     },
     mistakes: [
       {
@@ -201,6 +216,29 @@ const INVALID: readonly (readonly [string, unknown])[] = [
   ['weakItemRows.0.rejections', 0.1],
   ['packNonLatinScript', 0],
   ['exited', 'abandoned'],
+  ['modality', false],
+  ['modality', 0],
+  ['modality', null],
+  ['modality', []],
+  ['modality', 'unknown'],
+  ['modality', {}],
+  ['modality.observations', null],
+  ['modality.observations', {}],
+  ['modality.observations.0', false],
+  ['modality.observations.0.id', ''],
+  ['modality.observations.0.id', 1],
+  ['modality.observations.0.slotId', '  '],
+  ['modality.observations.0.itemId', null],
+  ['modality.observations.0.family', 'camera'],
+  ['modality.observations.0.family', 'listening'],
+  ['modality.observations.0.reviewKind', 'unknown'],
+  ['modality.observations.0.reviewKind', false],
+  ['modality.blockedFamilies', ['camera']],
+  ['modality.blockedFamilies', [false]],
+  ['modality.blockedFamilies', ['speaking', 'speaking']],
+  ['modality.unavailableSlotIds', [false]],
+  ['modality.unavailableSlotIds', ['']],
+  ['modality.unavailableSlotIds', ['slot', 'slot']],
 ];
 
 const NESTED_OBJECTS = [
@@ -208,6 +246,8 @@ const NESTED_OBJECTS = [
   'core.answers.0',
   'core.hearts',
   'inFlight',
+  'modality',
+  'modality.observations.0',
   'mistakes.0',
   'progress',
   'lastVerdict',
@@ -269,6 +309,95 @@ describe('persisted session codec', () => {
     }
   });
 
+  it('[INV-SESS-01] migrates only the absent legacy modality field without rewriting caller bytes', () => {
+    const legacy = changed('modality', null, true);
+    const raw = JSON.stringify(legacy);
+    expect(isSessionState(legacy)).toBe(false);
+    const restored = parseSessionState(raw);
+    expect(restored).toEqual({ ...(legacy as JsonObject), modality: emptySessionModality() });
+    expect(JSON.stringify(legacy)).toBe(raw);
+    const damaged = legacy as JsonObject;
+    damaged['core'] = null;
+    expect(() => parseSessionState(JSON.stringify(damaged))).toThrow(SessionCodecError);
+  });
+  it('[INV-MOD-09] real silent-attempt observations survive codec kill/resume and cause exactly the third-attempt conversion', () => {
+    const deps: StepDeps = {
+      config: DEFAULT_FLAVOUR_MATRIX.nodePractice,
+      clock: new TestMonotonicClock(),
+      grading: { grade: () => ({ kind: 'correct' }) },
+      isTypeEligible: () => true,
+      stepUpTripped: () => false,
+      modalityReplacement: (source) => ({
+        ...source,
+        type: 'meaningSelect',
+        family: 'recognition',
+        requiresAudio: false,
+        itemId: source.itemId + '-recognition',
+      }),
+    };
+    let state = freshSession({
+      flavour: 'nodePractice',
+      queue: [item(1, { type: 'speakSentence' }), item(2, { type: 'speakSentence' })],
+    });
+    state = step(state, { type: 'rendered' }, deps).state;
+    for (let n = 1; n <= 3; n++) {
+      const active = state.core.queue[state.core.index]!;
+      const event: SessionEvent = {
+        type: 'speechResult',
+        eventId: 'silent-' + n,
+        slotId: active.id,
+        itemId: active.itemId,
+        transcript: '',
+        amplitude: 0,
+      };
+      const result = step(state, event, deps);
+      expect(result.suspendFamily).toBeUndefined();
+      state = parseSessionState(serialiseSession(result.state));
+      expect(state.modality.observations).toHaveLength(n);
+      expect(state.core.answers).toEqual([]);
+      expect(state.core.index).toBe(0);
+      if (n < 3) expect(state.core.queue[0]?.type).toBe('speakSentence');
+    }
+    expect(state.core.queue.every((row) => row.type === 'meaningSelect')).toBe(true);
+    expect(state.modality.blockedFamilies).toEqual(['speaking']);
+    expect(state.core.queue).toHaveLength(2);
+    const raw = serialiseSession(state);
+    const damaged = JSON.parse(raw) as JsonObject;
+    const m = damaged['modality'] as JsonObject;
+    m['observations'] = [...(m['observations'] as unknown[]), (m['observations'] as unknown[])[0]];
+    expect(() => parseSessionState(JSON.stringify(damaged))).toThrow(SessionCodecError);
+    expect(serialiseSession(state)).toBe(raw);
+  });
+  it('[INV-SESS-01] accepts all declared speech observations and only skipped listening observations', () => {
+    for (const kind of MODALITY_REVIEW_KINDS)
+      expect(isSessionState(changed('modality.observations.0.reviewKind', kind))).toBe(true);
+    const state = richSession();
+    expect(
+      isSessionState({
+        ...state,
+        modality: {
+          ...state.modality,
+          observations: [
+            { ...state.modality.observations[0]!, family: 'listening', reviewKind: 'skipped' },
+          ],
+        },
+      }),
+    ).toBe(true);
+  });
+  it('[INV-SESS-01] rejects sparse and getter modality fields before invoking the shared validator', () => {
+    for (const field of ['observations', 'blockedFamilies', 'unavailableSlotIds'])
+      expect(isSessionState(changed('modality.' + field, Array(1)))).toBe(false);
+    let invoked = false;
+    const value = Object.defineProperty({}, 'observations', {
+      enumerable: true,
+      get() {
+        invoked = true;
+        return [];
+      },
+    });
+    expect(isSessionState(changed('modality', value))).toBe(false);
+    expect(invoked).toBe(false);
+  });
   it.each(INVALID)('[INV-SESS-01] rejects malformed %s = %j before restoration', (path, value) => {
     const damaged = changed(path, value);
     expect(isSessionState(damaged)).toBe(false);

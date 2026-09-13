@@ -2,8 +2,9 @@
  * Strict persisted-session boundary (INV-SESS-01/06/15).
  *
  * This validates the declared row, not a new version of the lesson machine. Callers
- * still bind the row to its SQL key and enforce the active-session lease. No coercion,
- * repair or row deletion happens here; a rejected row remains available for recovery.
+ * still bind the row to its SQL key and enforce the active-session lease. Only an
+ * absent legacy modality field is initialized; malformed present fields are never
+ * repaired or deleted, and a rejected row remains available for recovery.
  */
 import {
   EXERCISE_TYPES,
@@ -26,6 +27,8 @@ import {
   type SessionState,
   type WeakItemRow,
 } from '@freelingo/core/session';
+
+import { emptySessionModality, isSessionModalityState } from '@freelingo/core/modality';
 
 type Validator<T> = (value: unknown) => value is T;
 type Fields<T> = { readonly [K in keyof T]-?: Validator<T[K]> };
@@ -163,6 +166,7 @@ const session = shape<SessionState>({
   core: resumeCore,
   shellState: member(SHELL_STATES),
   inFlight: input,
+  modality: isSessionModalityState,
   mistakes: arrayOf(mistake),
   progress,
   checkpointMonotonicMs: finite,
@@ -230,7 +234,8 @@ export function isSessionState(value: unknown): value is SessionState {
   }
 }
 
-/** Parsing never exposes stored input in its error or silently repairs a damaged row. */
+/** An absent pre-modality field has no observations. Present invalid state stays invalid.
+ * This migration changes only the parsed return value, never stored bytes or another field. */
 export function parseSessionState(raw: string): SessionState {
   let value: unknown;
   try {
@@ -238,6 +243,8 @@ export function parseSessionState(raw: string): SessionState {
   } catch {
     throw new SessionCodecError();
   }
+  if (record(value) && !Object.hasOwn(value, 'modality'))
+    value = { ...value, modality: emptySessionModality() };
   if (!isSessionState(value)) throw new SessionCodecError();
   return value;
 }
