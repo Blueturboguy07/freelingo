@@ -124,10 +124,42 @@ export function registerSources(
         source.item.itemId,
       ]);
     for (const surface of source.item.schedulerSurfaces) {
-      if (surface.itemId !== source.item.itemId)
-        throw new LearningUnavailableError(
-          'Lexical scheduler countability evidence is unavailable.',
+      if (surface.itemId !== source.item.itemId) {
+        // The repository decoder proves the authored meaning and review hash. Join its
+        // exact child surface here; aggregate parents remain non-countable above.
+        const matches = source.item.lexicalBindings?.filter(
+          (b) => b.schedulerItemId === surface.itemId && b.surfaceId === surface.surfaceId,
         );
+        const binding = matches?.length === 1 ? matches[0] : undefined;
+        if (
+          surface.kind !== 'lexeme' ||
+          !binding ||
+          binding.surface !== surface.surface ||
+          binding.language !== surface.language ||
+          binding.lexemeId !== surface.itemRef ||
+          typeof binding.countable !== 'boolean' ||
+          !['word', 'particle', 'bound-morpheme', 'character'].includes(binding.classification) ||
+          (binding.countable && binding.classification !== 'word') ||
+          binding.proof.sourceId !== source.item.proof.sourceId ||
+          binding.proof.sourceSha256 !== source.item.proof.sourceSha256
+        )
+          throw new LearningDataError('Lexical scheduler countability proof changed.');
+        const oldChild = db.get(
+          'SELECT countable,quarantined FROM course_item WHERE course_id=? AND item_id=?',
+          [courseId, surface.itemId],
+        );
+        if (
+          oldChild &&
+          (oldChild.countable !== Number(binding.countable) ||
+            ![0, 1].includes(oldChild.quarantined as number))
+        )
+          throw new LearningDataError('Saved lexical countability changed.');
+        if (!oldChild)
+          db.run(
+            'INSERT INTO course_item(course_id,item_id,countable,quarantined) VALUES(?,?,?,0)',
+            [courseId, surface.itemId, Number(binding.countable)],
+          );
+      }
       const id = asItemId(surface.itemId),
         old = rowAt(next, id, surface.surface),
         spec = exerciseSpec(source.item.presentation.type);

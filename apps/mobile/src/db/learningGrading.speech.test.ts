@@ -60,6 +60,7 @@ function source(): VerifiedRuntimeItem {
         itemRef: 'agua',
       },
     ],
+    lexicalBindings: [],
     introductions: [],
     explanation: 'An original reviewed request for water.',
     grading: { pack: ES_PACK, unit: ES_UNIT, profileId: 'es', responseLanguage: 'es' },

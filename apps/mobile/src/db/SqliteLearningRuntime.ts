@@ -253,14 +253,41 @@ export class SqliteLearningRuntime {
           return fail('Verified pack target language is missing.');
         for (const exposure of item.introductions) {
           if (exposure.when !== request.when || exposure.language !== language) continue;
-          const rendered =
-            request.when === 'prompt'
-              ? item.presentation.prompt
-              : item.presentation.acceptedAnswers[0];
-          const renderedLanguage =
-            request.when === 'prompt'
-              ? (item.presentation.promptLanguage ?? item.presentation.language)
-              : item.responseLanguage;
+          let rendered: string | undefined;
+          let renderedLanguage: string;
+          if (exposure.location === 'option') {
+            const options = item.presentation.options?.filter((o) => o.id === exposure.optionId);
+            const option = options?.length === 1 ? options[0] : undefined;
+            if (
+              request.when !== 'prompt' ||
+              item.presentation.type !== 'pictureSelect' ||
+              item.presentation.introduction !== 'word' ||
+              !option ||
+              item.presentation.language !== language ||
+              !item.gradable.accepted.some(
+                (a) => a.surfaceId === exposure.surfaceId && a.surface === exposure.surface,
+              ) ||
+              !item.schedulerSurfaces.some(
+                (s) =>
+                  s.kind === 'lexeme' &&
+                  s.surfaceId === exposure.surfaceId &&
+                  s.surface === exposure.surface &&
+                  s.language === language,
+              )
+            )
+              return fail('Observed option is not the declared correct NEW WORD target.');
+            rendered = option.text;
+            renderedLanguage = item.presentation.language;
+          } else {
+            rendered =
+              request.when === 'prompt'
+                ? item.presentation.prompt
+                : item.presentation.acceptedAnswers[0];
+            renderedLanguage =
+              request.when === 'prompt'
+                ? (item.presentation.promptLanguage ?? item.presentation.language)
+                : item.responseLanguage;
+          }
           if (
             typeof exposure.surfaceId !== 'string' ||
             !exposure.surfaceId.trim() ||
