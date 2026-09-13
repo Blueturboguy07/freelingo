@@ -30,7 +30,9 @@
       "expo-asset",
       "expo-localization",
       "expo-sharing",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-speech-recognition",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": false
