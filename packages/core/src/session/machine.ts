@@ -34,6 +34,8 @@ import type { SessionState } from './resume.js';
 import { checkpoint } from './resume.js';
 import { exerciseSpec } from './registry.js';
 import { comboAfter } from './combo.js';
+import { MATCH_RUNTIME_KEY, matchRuntime, preserveMatchRuntime } from './match-runtime.js';
+import type { RuntimeMatchPair } from './match-runtime.js';
 import { advanceProgress, consumeFinalSegment } from './progress.js';
 import type { RecyclePhase } from './mistakes.js';
 import {
@@ -71,6 +73,8 @@ export interface StepDeps {
   readonly isTypeEligible: (type: ExerciseType) => boolean;
   /** The step-up heuristic. Called once per graded answer. */
   readonly stepUpTripped: (state: RuntimeState) => boolean;
+  /** Exact pairs supplied by the current pack row; absent evidence cannot complete a grid. */
+  readonly matchPairs?: (item: QueuedItem) => readonly RuntimeMatchPair[];
 }
 
 /* ==================================================================== 2. events */
@@ -89,6 +93,12 @@ export type SessionEvent =
   | { readonly type: 'audioInterrupted' }
   | { readonly type: 'audioCompleted' }
   | { readonly type: 'setInputMode'; readonly mode: InputMode }
+  | {
+      readonly type: 'matchPair';
+      readonly attemptId: string;
+      readonly leftId: string;
+      readonly rightId: string;
+    }
   | { readonly type: 'check' }
   | { readonly type: 'graded' }
   | { readonly type: 'skip' }
@@ -223,7 +233,7 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
         ...state.inFlight,
         text: event.text,
         caret: event.caret,
-        partialState: event.partialState,
+        partialState: preserveMatchRuntime(state.inFlight.partialState, event.partialState),
       };
       const item = currentItem(state);
       // INV-SESS-24: CHECK stays disabled until the clip completes again.
@@ -259,8 +269,12 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
         exit: null,
       };
 
+    case 'matchPair':
+      return answerPair(state, event, deps);
+
     case 'check': {
-      if (state.shellState !== 'challenge.armed') return none;
+      if (state.shellState !== 'challenge.armed' || currentItem(state)?.type === 'matchPairs')
+        return none;
       return { state: mark(state, 'grading', deps), writes: [], exit: null };
     }
 
@@ -377,17 +391,32 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
     return { state, writes: [], exit: null };
   }
 
-  const verdict = deps.grading.grade({
-    item,
-    raw: state.inFlight.text,
-    partialState: state.inFlight.partialState,
-    hardMode: state.core.hardMode,
-  });
+  const pairRows = item.type === 'matchPairs' ? (deps.matchPairs?.(item) ?? []) : [];
+  const pairState =
+    item.type === 'matchPairs' ? matchRuntime(state.inFlight.partialState, pairRows) : null;
+  if (
+    item.type === 'matchPairs' &&
+    (pairRows.length === 0 ||
+      pairState === null ||
+      (pairState.matchedLeftIds.length !== pairRows.length &&
+        allowanceRemaining(state.core.hearts) > 0))
+  ) {
+    return { state, writes: [], exit: null };
+  }
+  const verdict: Verdict =
+    pairState !== null
+      ? { kind: pairState.paid > 0 ? 'wrong' : 'correct' }
+      : deps.grading.grade({
+          item,
+          raw: state.inFlight.text,
+          partialState: state.inFlight.partialState,
+          hardMode: state.core.hardMode,
+        });
 
   const spec = exerciseSpec(item.type);
   const wrong = verdict.kind === 'wrong';
   const cost =
-    wrong && spec.punitive ? (spec.heartCost === 'perWrongPair' ? 1 : spec.heartCost) : 0;
+    wrong && spec.punitive ? (spec.heartCost === 'perWrongPair' ? 0 : spec.heartCost) : 0;
   const hearts: Allowance = spendAllowance(state.core.hearts, cost);
 
   // INV-COM-09 / EC-COM-12: the tier-2 note is CORRECTIVE information and wins the banner
@@ -403,7 +432,7 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
     verdict: verdict.kind,
     softCorrected: verdict.kind === 'softCorrect',
     wrong,
-    costPaid: cost,
+    costPaid: pairState?.paid ?? cost,
     skipped: false,
     scorable: spec.scorable,
     queue: state.currentReplay !== null ? 'mistakes' : 'main',
@@ -460,6 +489,61 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
 
   const shell = allowanceRemaining(hearts) <= 0 && wrong ? 'outOfHearts' : bannerFor(verdict);
   return { state: mark(next, shell, deps), writes: [], exit: null };
+}
+
+/** A pair is charged at its tap, before the grid verdict, with an idempotent attempt id. */
+function answerPair(
+  state: RuntimeState,
+  event: Extract<SessionEvent, { type: 'matchPair' }>,
+  deps: StepDeps,
+): StepResult {
+  const none: StepResult = { state, writes: [], exit: null };
+  const item = currentItem(state);
+  if (!isChallengeState(state.shellState) || item?.type !== 'matchPairs' || event.attemptId === '')
+    return none;
+  const pairs = deps.matchPairs?.(item) ?? [];
+  const pair = pairs.find((p) => p.leftId === event.leftId);
+  if (
+    pair === undefined ||
+    !pairs.some((p) => p.rightId === event.rightId) ||
+    new Set(pairs.map((p) => p.leftId)).size !== pairs.length ||
+    new Set(pairs.map((p) => p.rightId)).size !== pairs.length
+  )
+    return none;
+  const current = matchRuntime(state.inFlight.partialState, pairs);
+  if (
+    current === null ||
+    current.taps.some((t) => t.attemptId === event.attemptId) ||
+    current.matchedLeftIds.includes(event.leftId) ||
+    pairs.some((p) => p.rightId === event.rightId && current.matchedLeftIds.includes(p.leftId))
+  )
+    return none;
+  const wrong = pair.rightId !== event.rightId;
+  const record = {
+    taps: [
+      ...current.taps,
+      { attemptId: event.attemptId, leftId: event.leftId, rightId: event.rightId, wrong },
+    ],
+    matchedLeftIds: wrong ? current.matchedLeftIds : [...current.matchedLeftIds, event.leftId],
+    paid: current.paid + (wrong ? 1 : 0),
+  };
+  const partialState = {
+    ...state.inFlight.partialState,
+    [MATCH_RUNTIME_KEY]: record,
+    selectedPairLeft: null,
+  };
+  const next: RuntimeState = {
+    ...withCore(state, {
+      hearts: spendAllowance(state.core.hearts, wrong ? 1 : 0),
+      combo: wrong ? 0 : state.core.combo,
+    }),
+    inFlight: { ...state.inFlight, partialState },
+  };
+  const finished =
+    record.matchedLeftIds.length === pairs.length || allowanceRemaining(next.core.hearts) === 0;
+  return finished
+    ? grade(mark(next, 'grading', deps), deps)
+    : { state: mark(next, 'challenge.idle', deps), writes: [], exit: null };
 }
 
 function skip(state: RuntimeState, deps: StepDeps): StepResult {
