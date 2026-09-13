@@ -118,3 +118,23 @@ def test_path_malformed_input_is_a_named_rejection(change):
     change(d)
     with pytest.raises(ValueError, match="path"):
         build(d)
+
+
+def test_path_accepts_the_actual_g9_zero_based_slot_and_writer_boundary(tmp_path):
+    import importlib.util
+    import sqlite3
+
+    spec = importlib.util.spec_from_file_location(
+        "path_loader_fixture", FIXTURE.with_name("build_loader_fixture.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    database = module.build(tmp_path / "pack.sqlite")
+    assert database.read_bytes() == FIXTURE.with_name("loader-pack.sqlite").read_bytes()
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT MIN(slot_index) FROM exercise").fetchone()[0] == 0
+        value = json.loads(
+            connection.execute("SELECT value FROM meta WHERE key='path:v1'").fetchone()[0]
+        )
+        assert value["sections"][0]["units"][1]["nodes"][0]["sessions"][0]["lessonIndex"] == 3
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []

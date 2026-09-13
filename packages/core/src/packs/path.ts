@@ -222,7 +222,7 @@ export function readPathMetadata(
     const unit = text(row['unit_id'], 'exercise unit');
     requireThat(unitsById.has(unit), 'unknown exercise unit');
     const lesson = integer(row['lesson_index'], 'lesson index', 1);
-    integer(row['slot_index'], 'slot index', 1);
+    integer(row['slot_index'], 'slot index');
     for (const field of EXERCISE_FIELDS)
       if (!['lesson_index', 'slot_index', 'source_sentence_id'].includes(field))
         text(row[field], 'exercise ' + field);
