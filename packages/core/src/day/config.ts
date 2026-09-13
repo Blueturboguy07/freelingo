@@ -8,9 +8,15 @@
  * provenance is a guess somebody will later defend as a fact.
  *
  * This is NOT the economy config (`packages/core/src/economy`, a different P1 task):
- * that one owns XP tiers, boosts, the freeze *price* and the cosmetics catalogue. These
- * are the day engine's own constants and nothing outside `day/` and `streak/` reads them.
+ * that one owns XP tiers, boosts, the freeze *price* and the cosmetics catalogue. The day engine consumes the economy-owned Society checkpoint table so the
+ * reward threshold and freeze capacity cannot diverge.
  */
+
+import {
+  SOCIETY_CHECKPOINTS,
+  SOCIETY_FREEZE_CAP_BONUS,
+  STREAK_FREEZE_CAP,
+} from '../economy/config.js';
 
 export interface DayConfig {
   /**
@@ -59,15 +65,15 @@ export interface DayConfig {
    */
   readonly freezeRefillIntervalDays: number;
   /**
-   * Streak Society tiers and the freeze cap each one steps to (`deep/04` §7, DERIVED:
-   * Ember 60 · Blaze 180 · Phoenix 365, cap 2 → 3 → 4 → 5). Tier entry GRANTS the
-   * freezes as well as raising the cap (EC-FRZ-07), idempotent on
-   * `society_tier_entered_at` (INV-FRZ-04).
+   * Society reward checkpoints project the approved economy table (EC-ECO-20,
+   * corrected 2026-09-13). Entry at 7 days raises capacity by 3; each checkpoint's
+   * gift is explicit and idempotent on its persisted entry event (INV-FRZ-04).
    */
   readonly societyTiers: readonly {
     readonly tier: string;
     readonly streak: number;
     readonly cap: number;
+    readonly freezes: number;
   }[];
   /**
    * The recovery challenge's window, in LOCAL DAYS from `broken_on` — the bundle's own
@@ -111,11 +117,12 @@ export const DAY_CONFIG: DayConfig = {
   buildLocalDay: '2026-09-11',
   freezeCapBase: 2,
   freezeRefillIntervalDays: 7,
-  societyTiers: [
-    { tier: 'ember', streak: 60, cap: 3 },
-    { tier: 'blaze', streak: 180, cap: 4 },
-    { tier: 'phoenix', streak: 365, cap: 5 },
-  ],
+  societyTiers: SOCIETY_CHECKPOINTS.map((checkpoint) => ({
+    tier: checkpoint.id,
+    streak: checkpoint.streakDays,
+    cap: STREAK_FREEZE_CAP + SOCIETY_FREEZE_CAP_BONUS,
+    freezes: checkpoint.freezes,
+  })),
   recoveryChallengeWindowLocalDays: 2,
   recoveryChallengeLessons: 3,
   challengeCommitGraceLocalDays: 1,

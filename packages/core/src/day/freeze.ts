@@ -193,8 +193,8 @@ export function societyTierGrantKey(tier: string, societyTierEnteredAt: string):
  * The second half of INV-FRZ-04's "a clock-tamper replay mints nothing". A replay of the
  * same event is caught by the grant key; a clock wound back far enough to re-cross the
  * tier's streak threshold arrives with a NEW `entered_at` and a new key, and the tier
- * would otherwise be entered twice. Society tiers are monotone — Ember at 60, Blaze at
- * 180, Phoenix at 365 — so a tier is entered exactly once in an account's life.
+ * would otherwise be entered twice. Society checkpoint IDs are permanent — entry, second, third —
+ * so each checkpoint is entered exactly once in an account's life.
  */
 export function hasEnteredTier(ledger: FreezeLedger, tier: string): boolean {
   const prefix = `society_tier:${tier}:`;
@@ -202,17 +202,13 @@ export function hasEnteredTier(ledger: FreezeLedger, tier: string): boolean {
 }
 
 /**
- * Streak Society tier entry: the cap rises AND the balance is topped up to it (EC-FRZ-07
- * — 2/2 → 3/3, "not a ceiling the learner must then fill at 200 gems"). Idempotent on
- * `society_tier_entered_at`, so winding the clock back and re-entering the tier mints
- * nothing (INV-FRZ-04).
+ * Society checkpoint grant (EC-ECO-20, corrected 2026-09-13). Entry raises capacity
+ * from two to five and grants the declared three extra freezes. Later checkpoints
+ * reuse that capacity and pay their explicit gift, clamped to remaining room.
  *
- * The grant is `cap − held`, not `cap − old_cap`. Those are the same number only for a
- * learner sitting at a full balance; for one who has spent a freeze, entering Ember at
- * 1/2 gives 3/3 rather than 2/3, which is what "the cap rises AND the freezes are
- * granted" says. It is also what makes the idempotency key load-bearing: a replay of a
- * tier entry AFTER the learner has spent freezes would refill the balance from the same
- * event, which is exactly the clock-tamper mint INV-FRZ-04 forbids.
+ * Persisted checkpoint identity prevents replay under a changed wall-clock timestamp;
+ * a checkpoint paid while full is still consumed and cannot be claimed after spending.
+ * The legacy function name remains for existing callers; obsolete tier IDs do not pay.
  */
 export function enterSocietyTier(
   ledger: FreezeLedger,
@@ -229,7 +225,7 @@ export function enterSocietyTier(
     grantKey: societyTierGrantKey(tier, societyTierEnteredAt),
     channel: 'milestone_grant',
     ownedFromDay,
-    amount: Math.max(0, raised - freezesHeld(withCap)),
+    amount: tierConfig.freezes,
   });
 }
 
