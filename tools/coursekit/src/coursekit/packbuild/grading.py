@@ -21,6 +21,11 @@ from typing import Any
 from ..config.g7 import SHAPES as PIPELINE_SHAPES
 from .itemid import canonical_json
 
+# Actual LessonPlayer hides these prompts via EXERCISE_REGISTRY.requiresAudio.
+# Captured 2026-09-13; speaking and chat prompts remain visible even with audioRef.
+HIDDEN_AUDIO_PROMPT_TYPES = frozenset(
+    {"listenTapWhatYouHear", "listenTypeWhatYouHear", "listenMissingWord", "listenAndRespond"}
+)
 WIRE_VERSION = 1
 NORMALIZATION_ID = "core-grading-lookup-v1"
 SOURCE_SHAPES = {shape.id: shape for shape in PIPELINE_SHAPES}
@@ -874,7 +879,11 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
         )
         intro = row["introduction"]
         if intro is not None:
-            fields(intro, {"exerciseId", "unitId", "lessonIndex"}, "surface introduction")
+            fields(intro, {"exerciseId", "unitId", "lessonIndex", "when"}, "surface introduction")
+            require(
+                intro["when"] in {"prompt", "wrong-feedback"},
+                "surface introduction: unknown display event",
+            )
             exercise = exercises.get(intro["exerciseId"])
             require(
                 exercise is not None
@@ -954,6 +963,12 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
         )
         gradable = fields(draft["gradable"], {"family"}, "gradable", GRADABLE_FIELDS - {"family"})
         require(gradable["family"] == spec[0], "runtime draft: wrong grading family")
+        require(
+            json.loads(exercise["distractors_json"]) == record.get("distractors", [])
+            and exercise["audio_id"] == draft["presentation"].get("audioRef")
+            and exercise["source_sentence_id"] in {None, draft["sourceId"]},
+            "runtime draft: actual exercise distractors/audio/source mismatch",
+        )
         presentation = fields(
             draft["presentation"],
             {"itemId", "type", "instruction", "prompt", "language", "acceptedAnswers"},
@@ -1045,15 +1060,30 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             "explanation: stale binding",
         )
         text(explanation["text"], "explanation")
-        introductions = [
-            row["surfaceId"]
-            for row in catalog.values()
-            if row["introduction"] is not None and row["introduction"]["exerciseId"] == exercise_id
-        ]
-        require(
-            all(surface in draft["surfaceIds"] for surface in introductions),
-            "introduction: surface not presented by exercise",
-        )
+        introductions = []
+        for row in catalog.values():
+            intro = row["introduction"]
+            if intro is None or intro["exerciseId"] != exercise_id:
+                continue
+            require(draft["sourceId"] in row["sourceIds"], "introduction: wrong source binding")
+            if intro["when"] == "prompt":
+                require(
+                    presentation["type"] not in HIDDEN_AUDIO_PROMPT_TYPES
+                    and "promptLanguage" in presentation
+                    and row["surface"] == presentation["prompt"]
+                    and row["language"] == presentation["promptLanguage"],
+                    "introduction: prompt is hidden, different, or lacks explicit language",
+                )
+            else:
+                require(
+                    row["surface"] == presentation["acceptedAnswers"][0]
+                    and row["language"] == presentation["language"],
+                    "introduction: wrong feedback does not display this surface",
+                )
+            introductions.append(
+                {key: row[key] for key in ("surfaceId", "surface", "language")}
+                | {"when": intro["when"]}
+            )
         runtime.append(
             {
                 "schemaVersion": WIRE_VERSION,
