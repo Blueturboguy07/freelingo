@@ -20,3 +20,5 @@ export * from './machine.js';
 export * from './boot.js';
 export * from './test-doubles.js';
 export * from './session-fixture.js';
+
+export * from './match-runtime.js';
