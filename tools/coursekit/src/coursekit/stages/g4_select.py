@@ -45,7 +45,7 @@ from typing import Any
 
 from ..artifacts import read_records, write_records
 from ..config import ARTIFACT_SCHEMA_VERSION
-from ..config.g3 import LESSONS_PER_LEVEL, RECYCLE_MIN_OCCURRENCES
+from ..config.g3 import LESSONS_PER_LEVEL, RECYCLE_MIN_OCCURRENCES, RECYCLE_WINDOW_LESSONS
 from ..config.g4 import (
     CANDIDATE_TOKENS_MAX,
     CANDIDATE_TOKENS_MIN,
@@ -60,6 +60,7 @@ from ..config.g4 import (
     MAX_USES_PER_SENTENCE_PER_UNIT,
     PREDICTED_YIELD_MAX,
     PREDICTED_YIELD_MIN,
+    RECURRENCE_PLANNING_BASIS,
     RECYCLE_SCAN_LIMIT,
     SHIPPABLE_VERDICT,
     SLOTS_PER_LESSON,
@@ -228,6 +229,8 @@ class SelectReport:
     selection_yield: float = 0.0
     within_prediction: bool = False
     per_unit_gaps: dict[str, int] = field(default_factory=dict)
+    source_recurrence_debts: list[dict[str, Any]] = field(default_factory=list)
+    gap_recurrence_priorities: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def gap_fraction(self) -> float:
@@ -245,6 +248,10 @@ class SelectReport:
             "gaps": self.gaps,
             "gap_fraction": round(self.gap_fraction, 4),
             "per_unit_gaps": dict(self.per_unit_gaps),
+            "recurrence_planning_basis": RECURRENCE_PLANNING_BASIS,
+            "actual_g7_v3_required": True,
+            "source_recurrence_debts": self.source_recurrence_debts,
+            "gap_recurrence_priorities": self.gap_recurrence_priorities,
             "selected_distinct": self.selected_distinct,
             "cross_unit_repeats": self.cross_unit_repeats,
             "cross_unit_repeat_fraction": round(self.cross_unit_repeat_fraction, 4),
@@ -333,6 +340,8 @@ def select(
     #: precisely so this stage can select against it; without this the ledger satisfies
     #: V1 and V2 by construction and leaves V3 to luck.
     owed: dict[str, int] = {}
+    introduced_at: dict[str, int] = {}
+    deadlines: dict[str, int] = {}
     lesson_index = 0
 
     for unit in units:
@@ -381,6 +390,8 @@ def select(
                     uses_in_unit=uses_in_unit,
                     uses_per_course=uses_per_course,
                     owed=owed,
+                    recurrence_deadlines=deadlines,
+                    current_lesson=lesson_index,
                     require_new=True,
                 )
                 if choice is None and len(pending) < SLOTS_PER_LESSON - slot_index:
@@ -397,6 +408,8 @@ def select(
                         uses_in_unit=uses_in_unit,
                         uses_per_course=uses_per_course,
                         owed=owed,
+                        recurrence_deadlines=deadlines,
+                        current_lesson=lesson_index,
                         require_new=False,
                     )
                 if choice is None:
@@ -419,6 +432,24 @@ def select(
                     # owes the learner, and the head of it is what this slot is reserved
                     # to teach — capped at the per-exercise new-item budget, which is
                     # V2's rule and the same number `_pick` enforces on a corpus choice.
+                    live_debt = {
+                        lemma: deadline
+                        for lemma, deadline in deadlines.items()
+                        if owed.get(lemma, 0) > 0
+                        and deadline >= lesson_index
+                        and lemma in index.known
+                    }
+                    if live_debt:
+                        earliest = min(live_debt.values())
+                        report.gap_recurrence_priorities.append(
+                            {
+                                "slot": [unit_index, lesson_index, slot_index],
+                                "window_end": earliest,
+                                "lemmas": sorted(
+                                    lemma for lemma, end in live_debt.items() if end == earliest
+                                ),
+                            }
+                        )
                     gap_new = pending[:MAX_NEW_LEMMAS_PER_EXERCISE]
                     items.append(
                         _item(
@@ -439,6 +470,8 @@ def select(
                     lesson_new.update(gap_new)
                     for lemma in gap_new:
                         owed.setdefault(lemma, RECYCLE_MIN_OCCURRENCES)
+                        introduced_at.setdefault(lemma, lesson_index)
+                        deadlines.setdefault(lemma, lesson_index + RECYCLE_WINDOW_LESSONS)
                     continue
 
                 new_lemmas = sorted((choice.lemmas & unit_new) - shown)
@@ -446,10 +479,14 @@ def select(
                 shown.update(choice.lemmas)
                 lesson_new.update(new_lemmas)
                 for lemma in choice.lemmas:
-                    if lemma in owed:
-                        owed[lemma] = max(0, owed[lemma] - 1)
+                    if lemma in introduced_at:
+                        if lesson_index <= deadlines[lemma]:
+                            owed[lemma] = max(0, owed[lemma] - 1)
                     else:
-                        # First appearance: from here it owes N RE-appearances (V3).
+                        # First selected source starts the planning window. Expired
+                        # debt is reported, never paid by a later out-of-window row.
+                        introduced_at[lemma] = lesson_index
+                        deadlines[lemma] = lesson_index + RECYCLE_WINDOW_LESSONS
                         owed[lemma] = RECYCLE_MIN_OCCURRENCES
                 uses_in_unit[choice.sentence_id] = uses_in_unit.get(choice.sentence_id, 0) + 1
                 previous = uses_per_course.get(choice.sentence_id, 0)
@@ -473,6 +510,17 @@ def select(
         # G4 could not place would block every later sentence that uses it.
         index.introduce(target)
 
+    report.source_recurrence_debts = [
+        {
+            "lemma": lemma,
+            "introduced_at": introduced_at[lemma],
+            "window_end": deadlines[lemma],
+            "remaining_source_appearances": owed[lemma],
+            "window_complete": deadlines[lemma] <= lesson_index,
+        }
+        for lemma in sorted(introduced_at)
+        if owed[lemma] > 0
+    ]
     # Count unique (unit, candidate) exclusions, not repeated lesson scans.
     report.census["register_excluded_unit_candidates"] = len(register_excluded)
     _measure_yield(report, index, candidates, units, exhibited, uses_per_course)
@@ -490,6 +538,8 @@ def _pick(
     uses_in_unit: Mapping[str, int],
     uses_per_course: Mapping[str, int],
     owed: Mapping[str, int],
+    recurrence_deadlines: Mapping[str, int],
+    current_lesson: int,
     require_new: bool,
 ) -> Candidate | None:
     """The admissible candidate that pays off the most recycling debt.
@@ -498,14 +548,28 @@ def _pick(
     candidate pool is already filtered to that), at most one of THIS unit\'s new items
     not yet shown, the lesson\'s allowance not exceeded, the unit\'s grammar concept
     exhibited, not already used here. Among the candidates that pass, the one carrying the
-    most lemmas that still owe V3 appearances wins — that is what turns G3's
-    `recycled_lemmas` from a field into a constraint. Ties go to corpus order (shortest
-    first, then sentence id), so the whole stage stays deterministic.
+    earliest still-open source-recurrence deadline wins, then the most outstanding
+    lemmas. Ties retain corpus order (shortest first, then sentence id). This supports
+    authoring; actual G7/V3 exercise counts remain the final recurrence gate.
     """
+
+    def priority(candidate: Candidate) -> tuple[float, int]:
+        live = [
+            recurrence_deadlines[lemma]
+            for lemma in candidate.lemmas
+            if owed.get(lemma, 0) > 0
+            and lemma in recurrence_deadlines
+            and recurrence_deadlines[lemma] >= current_lesson
+        ]
+        return min(live, default=math.inf), -len(live)
+
+    # Prioritize before the existing scan bound so a due candidate cannot disappear
+    # behind 512 shorter candidates with a later deadline. Stable ties retain corpus order.
+    ordered = sorted(pool, key=priority)
     best: Candidate | None = None
-    best_score = -1
+    best_score = (-math.inf, -math.inf)
     scanned = 0
-    for candidate in pool:
+    for candidate in ordered:
         if scanned >= RECYCLE_SCAN_LIMIT and best is not None:
             break
         if uses_in_unit.get(candidate.sentence_id, 0) >= MAX_USES_PER_SENTENCE_PER_UNIT:
@@ -522,7 +586,8 @@ def _pick(
         if not exhibited(candidate, concept_id):
             continue
         scanned += 1
-        score = sum(1 for lemma in candidate.lemmas if owed.get(lemma, 0) > 0)
+        deadline, negative_count = priority(candidate)
+        score = (-deadline, -negative_count)
         if score > best_score:
             best, best_score = candidate, score
     return best

@@ -140,3 +140,7 @@ MAX_GAP_FRACTION: Final[float] = 0.60
 YIELD_NOTE_KEY: Final[str] = "ledger_yield"
 PREDICTED_YIELD_MIN: Final[float] = 0.05
 PREDICTED_YIELD_MAX: Final[float] = 0.15
+
+
+# 2026-09-13: source planning aid only. V3 still counts actual G7 exercise appearances.
+RECURRENCE_PLANNING_BASIS: Final[str] = "selected_or_reserved_sources"
