@@ -1,0 +1,26 @@
+{
+  "candidateCount": 20,
+  "lexicalCount": 8,
+  "surfaceCount": 39,
+  "lexicalBindingCount": 18,
+  "sourceAndPlacementJoin": "passed",
+  "rankAndSurfaceJoin": "passed",
+  "wordSemanticHashJoin": "passed",
+  "pathSubsetExactOrdering": "passed",
+  "sourceAmendments": [
+    "6b55ff456e5dbbce",
+    "8e7dafd338c5df2c",
+    "866580071384c31d",
+    "348ce0ddd15072d4",
+    "2555d1a2ffc1bfc6",
+    "ba369b2c6536fec7",
+    "27adb987c8bb5e3d",
+    "24012fdff4e4b81c"
+  ],
+  "missingCurrentG6Approvals": 20,
+  "recognitionCandidates": 0,
+  "productionCandidates": 20,
+  "runnableFirstEverPath": false,
+  "replayLog": "/private/tmp/p3-spanish-authoring-replay.log",
+  "replayExit": 0
+}

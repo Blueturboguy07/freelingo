@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "Codex independent reviewer /root/review_g7_integration",
+  "reviewedAt": "2026-09-13",
+  "sourceCommit": "7dc0bd2e37119fce64e764daf517549d5a980249",
+  "scope": "independent authoring judgments only; no G6, source approval, profile/dictionary approval, learner observation or phase gate",
+  "nativeReviewLabel": "PROVISIONAL (unreviewed by a paid native speaker)",
+  "assemblyReady": false,
+  "hashAlgorithm": "sha256(canonical UTF-8 JSON, sorted keys, compact separators, ensure_ascii=false; exclude only future top-level review)",
+  "files": {
+    "authoring.json": "cb5b5024abd72a95ad16b361affa2906f7a14f51f5cb4826be0f22cf64974314",
+    "bundle/manifest.json": "ecc283ac379c38958fd7b2a8ae67280cbb3473546961a3812f7ba776d014655e",
+    "bundle/candidates.jsonl": "018e3d5445f93aa66ce547a1d016210803883cae31e4e2fc0ad89f9fde19b502",
+    "bundle/lexical-catalog.jsonl": "9127d13135c3ad5649d7d4220de54db7650c3679a9665f9da3d0bed967c60416",
+    "bundle/surface-catalog.jsonl": "e811c870feb905ef48b3eee4255104a67bc79bc0bb1aeb0e3d8a8981bb75a1b8",
+    "bundle/source-facts.json": "2bce55e91322d17b9ef5f1c91ac3ca7814ea0e77b77de5feca7692d7dd8585ce",
+    "bundle/path-candidate.json": "e61225f6977862ec905b3012cb0a3da4a0031bcaf6891f0b9fa2b437098ac319"
+  },
+  "candidateDecisions": {
+    "rejected": 8,
+    "accepted": 12
+  },
+  "decisionCounts": {
+    "candidate": 20,
+    "explanation": 20,
+    "schedulerObjective": 20,
+    "lexicalBinding": 18,
+    "lexicalCatalog": 8,
+    "surfaceCatalog": 39,
+    "pathDeclaration": 1
+  },
+  "decisionsSha256": "4100caade7f53197b0bf98e4e5766b63d6645877f3573162e4544d3a7c2a07ce",
+  "checksSha256": "dc4bae23f62116993803a390d860708a3ad6614000c8fffebf1cd821d53ea8fd",
+  "pending": [
+    "Eight candidate source/answer/naturalness revisions need author adjudication",
+    "Every current complete selected source and alternate needs current G6/answer approval",
+    "Existing source POS defects need upstream regeneration",
+    "Reviewed normalized grading profile and complete dictionary/credit policy still absent",
+    "Actual recognition introductions and delay-compatible first-course path remain absent",
+    "Full V1–V12 and 300-item fresh pack scoring not run by this review",
+    "Paid native review remains release prerequisite"
+  ],
+  "reportSha256": "89f074ae56d91fc544cb02f49b649404a4b6af07e4a3fda75bb46716be362e42"
+}
