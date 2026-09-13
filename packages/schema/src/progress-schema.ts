@@ -34,6 +34,7 @@ import { LEARNING_EVIDENCE_COURSE_TABLES } from './learning-evidence-schema.js';
 
 import { PATH_STATE_COURSE_TABLES } from './path-state-schema.js';
 import { WORD_REVIEW_ACCOUNT_TABLES } from './word-review-schema.js';
+import { MISTAKE_STATE_COURSE_TABLES } from './mistake-state-schema.js';
 import { WORD_EVIDENCE_ACCOUNT_TABLES } from './word-evidence-schema.js';
 
 export type SchemaRegion = 'account' | 'course_progress';
@@ -52,6 +53,12 @@ export interface TableSpec {
  * without a migration that creates it fails the same test from the other side.
  */
 export const PROGRESS_TABLES: readonly TableSpec[] = [
+  ...MISTAKE_STATE_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Source-bound mistake cache and ordered actual graded encounters (INV-MIS-04, INV-PER-03).',
+  })),
   ...PATH_STATE_COURSE_TABLES.map((name): TableSpec => ({
     name,
     region: 'course_progress',

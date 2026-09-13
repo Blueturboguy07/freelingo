@@ -43,6 +43,10 @@ import {
 } from './word-evidence-schema.js';
 
 import { WORD_REVIEW_ACCOUNT_TABLES, WORD_REVIEW_SCHEMA_V11_DDL } from './word-review-schema.js';
+import {
+  MISTAKE_STATE_COURSE_TABLES,
+  MISTAKE_STATE_SCHEMA_V12_DDL,
+} from './mistake-state-schema.js';
 
 export interface Migration {
   readonly userVersion: number;
@@ -185,6 +189,14 @@ const DURABLE_WORD_REVIEWS: Migration = {
   },
 };
 
+const DURABLE_MISTAKE_STATE: Migration = {
+  userVersion: 12,
+  name: 'source-bound-mistake-retention',
+  up(db) {
+    for (const statement of MISTAKE_STATE_SCHEMA_V12_DDL) db.run(statement);
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
@@ -197,6 +209,7 @@ export const MIGRATIONS: readonly Migration[] = [
   DURABLE_PATH_STATE,
   DURABLE_WORD_EVIDENCE,
   DURABLE_WORD_REVIEWS,
+  DURABLE_MISTAKE_STATE,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -467,6 +480,36 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
     ...PATH_STATE_COURSE_TABLES,
     ...WORD_EVIDENCE_ACCOUNT_TABLES,
     ...WORD_REVIEW_ACCOUNT_TABLES,
+  ],
+  12: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+    ...WORD_EVIDENCE_ACCOUNT_TABLES,
+    ...WORD_REVIEW_ACCOUNT_TABLES,
+    ...MISTAKE_STATE_COURSE_TABLES,
   ],
 };
 

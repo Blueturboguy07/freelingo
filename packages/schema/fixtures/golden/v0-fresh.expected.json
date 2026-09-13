@@ -82,6 +82,8 @@
   "course_item_surface": [],
   "course_item_surface_modality": [],
   "course_mistake": [],
+  "course_mistake_encounter": [],
+  "course_mistake_state": [],
   "course_node": [],
   "course_path_jump": [],
   "course_path_state": [],
