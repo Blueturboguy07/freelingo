@@ -121,3 +121,21 @@ describe('measured path caller', () => {
     expect(repair).toHaveBeenCalledOnce();
   });
 });
+
+it('[INV-PATH-06] unknown legacy history preserves progress visibly without offering a download as the remedy', () => {
+  render(
+    <PathScreen
+      model={null}
+      status="history-unavailable"
+      selectedNodeId={null}
+      onSelectNode={() => {}}
+      onLaunch={() => {}}
+      onOpenGuidebook={() => {}}
+      onOpenSections={() => {}}
+      onRepairPack={() => {}}
+    />,
+  );
+  expect(screen.getByText('Your saved path needs review')).toBeTruthy();
+  expect(screen.getByText(/Your saved progress is preserved/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Verify or download course' })).toBeNull();
+});
