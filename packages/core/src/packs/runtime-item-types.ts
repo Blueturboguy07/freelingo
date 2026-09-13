@@ -21,12 +21,23 @@ export interface RuntimeItemProof {
  * Approval/loading is not exposure. Consumers retain only the target course language;
  * prompt language may differ from response language (including reverse translation).
  */
-export interface RuntimeIntroduction {
+interface RuntimeIntroductionSurface {
   readonly surfaceId: string;
   readonly surface: string;
   readonly language: string;
-  readonly when: 'prompt' | 'wrong-feedback';
 }
+/** Ordinary prompt/feedback witnesses remain unchanged. A picture NEW WORD option
+ * is eligible only on the existing prompt display event after options render. */
+export type RuntimeIntroduction = RuntimeIntroductionSurface &
+  (
+    | {
+        readonly when: 'prompt' | 'wrong-feedback';
+        readonly location?: never;
+        readonly optionId?: never;
+      }
+    | { readonly when: 'prompt'; readonly location: 'option'; readonly optionId: string }
+  );
+
 /** Exact reviewed target-language spelling scheduled for the real item/semantic ID.
  * One canonical per target; matching accepted Spanish alternatives retain their own ID.
  * Wrong/open-response attempts use canonical; English responses never replace it.
