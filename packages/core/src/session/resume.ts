@@ -21,6 +21,7 @@ import type {
   ShellState,
   WeakItemRow,
 } from './types.js';
+import type { SessionModalityState } from '../modality/index.js';
 import type { RecyclePhase } from './mistakes.js';
 import { EMPTY_IN_FLIGHT } from './types.js';
 import type { ProgressState } from './progress.js';
@@ -89,6 +90,7 @@ export interface SessionState {
   /** INV-SESS-04: `banner.*` is a PERSISTED shell state. */
   readonly shellState: ShellState;
   readonly inFlight: InFlightInput;
+  readonly modality: SessionModalityState;
   readonly mistakes: readonly QueuedMistake[];
   readonly progress: ProgressState;
   /** INV-SESS-02/10: monotonic, never wall-clock. */
@@ -134,6 +136,7 @@ export const SESSION_ROW_FIELDS = [
   'core',
   'shellState',
   'inFlight',
+  'modality',
   'mistakes',
   'progress',
   'checkpointMonotonicMs',
