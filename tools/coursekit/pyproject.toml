@@ -29,12 +29,17 @@ lm = [
     "kenlm",
 ]
 nlp = [
+    "de-core-news-md",
     "es-core-news-md",
+    "fr-core-news-md",
     "spacy>=3.8.0,<3.9.0",
+    "sudachidict-core==20260723",
+    "sudachipy==0.6.11",
 ]
 tts = [
     "kokoro-onnx>=0.6.1",
     "numpy>=2.5.3",
+    "piper-tts==1.8.0",
     "soundfile>=0.14.0",
 ]
 
@@ -79,3 +84,5 @@ explicit = true
 es-core-news-md = { url = "https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl" }
 kenlm = { url = "https://github.com/kpu/kenlm/archive/4cb443e60b7bf2c0ddf3c745378f76cb59e254e5.zip" }
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+fr-core-news-md = { url = "https://github.com/explosion/spacy-models/releases/download/fr_core_news_md-3.8.0/fr_core_news_md-3.8.0-py3-none-any.whl" }
+de-core-news-md = { url = "https://github.com/explosion/spacy-models/releases/download/de_core_news_md-3.8.0/de_core_news_md-3.8.0-py3-none-any.whl" }
