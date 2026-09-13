@@ -39,6 +39,8 @@ import {
 import { readPathModel } from '../services/readPathModel';
 import { SqlitePoolStore } from './SqlitePoolStore';
 import { SqliteCeremonyStore } from './SqliteCeremonyStore';
+import { commitLearning } from './learningCompletion';
+import type { CeremonyPresentation, CeremonyAdvance } from '../loop/contracts';
 import type { LessonLaunch, SessionOffer, SessionOfferDecision } from '../app/ports';
 
 function fail(message: string): never {
@@ -380,6 +382,7 @@ export class SqliteLearningRuntime {
         state && state.exited === null
           ? { sessionId: state.sessionId, monotonicMs: clock.monotonicMs }
           : null;
+      if (state?.exited !== null && state !== null) this.completeNow();
     });
   }
   background(): Promise<void> {
@@ -634,10 +637,99 @@ export class SqliteLearningRuntime {
         if (intent !== null && savedContext.completion === null)
           contexts.freezeCompletion(source.state.courseId, source.state.sessionId, intent);
       });
+      if (finalState.exited !== null) this.completeNow();
       this.activeClock =
         this.foregrounded && finalState.exited === null
           ? { sessionId: finalState.sessionId, monotonicMs: clock.monotonicMs }
           : null;
+    });
+  }
+  private completionError: string | null = null;
+  complete(): Promise<void> {
+    return this.serial(() => this.completeNow());
+  }
+  private completeNow(): void {
+    const state = new SqliteSessionStore(this.db).activeGraded();
+    if (!state) return;
+    const context = new SqliteLearningContextStore(this.db).load(state.courseId, state.sessionId);
+    if (!context?.completion) {
+      if (state.exited !== null) fail('The terminal checkpoint has no frozen completion intent.');
+      return;
+    }
+    try {
+      this.db.withExclusiveTransaction(() => {
+        const db = this.scopedDb(),
+          pack = this.ports.packs.get(state.courseId);
+        if (!pack || pack.contentHash !== context.launch.packContentHash)
+          fail('The original verified pack is required to finish this lesson.');
+        commitLearning(db, {
+          state,
+          context,
+          pack,
+          resolve: (answer, receipt) => {
+            const binding = context.slots.find((s) => s.slotId === answer.slotId);
+            if (!binding || binding.exerciseId !== receipt.exerciseId)
+              fail('The saved answer source is unavailable.');
+            const value = pack.runtimeItem(binding.exerciseId),
+              spec = exerciseSpec(answer.type),
+              canonical = value.schedulerSurfaces.filter((s) => s.canonical);
+            const queued: QueuedItem = {
+              id: answer.slotId,
+              itemId: answer.itemId,
+              type: answer.type,
+              family: spec.family,
+              nodeRef: state.nodeRef,
+              conceptId: canonical.length === 1 ? canonical[0]!.itemRef : value.itemId,
+              requiresAudio: spec.requiresAudio,
+            };
+            return this.savedItem(state, context, queued, binding, pack);
+          },
+        });
+        new SqliteSessionStore(db).delete(state.courseId, state.sessionKind, state.nodeRef);
+        db.run('DELETE FROM course_session_context WHERE session_id=? AND course_id=?', [
+          state.sessionId,
+          state.courseId,
+        ]);
+      });
+      this.completionError = null;
+      this.activeClock = null;
+    } catch (error) {
+      this.completionError =
+        error instanceof Error ? error.message : 'The lesson could not be saved.';
+      throw error;
+    }
+  }
+  readCeremony(): CeremonyPresentation | null {
+    const saved = new SqliteCeremonyStore(this.db, () =>
+      new Date(this.clock().utcMs).toISOString(),
+    ).pending();
+    if (saved) {
+      const receipt = saved.receipt;
+      return {
+        status: 'committed',
+        state: receipt.state,
+        result: receipt.result,
+        index: saved.index,
+        facts: receipt.facts,
+        animations: new SqlitePreferences(this.db, this.ports.modalityClock).readCourse(
+          receipt.state.course.courseId,
+        ).preferences.animations,
+        reduceMotion: this.ports.reduceMotion(),
+      };
+    }
+    if (this.completionError !== null) return { status: 'failed', message: this.completionError };
+    const state = new SqliteSessionStore(this.db).activeGraded();
+    if (state && state.exited !== null) {
+      const context = new SqliteLearningContextStore(this.db).load(state.courseId, state.sessionId);
+      if (context?.completion) return { status: 'saving' };
+    }
+    return null;
+  }
+  advanceCeremony(request: CeremonyAdvance): Promise<void> {
+    return this.serial(() => {
+      new SqliteCeremonyStore(this.db, () => new Date(this.clock().utcMs).toISOString()).advance(
+        request,
+      );
     });
   }
   private offer: {

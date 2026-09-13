@@ -9,6 +9,8 @@ import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import { SqliteSessionStore } from './SqliteSessionStore';
 import { SqliteLearningContextStore } from './SqliteLearningContextStore';
 import { SqliteSchedulerStore } from './SqliteSchedulerStore';
+import { SqliteWordStore } from './SqliteWordStore';
+import { fixtureLexemes, observeFixtureLexemes } from './learningCompletion.fixtures';
 import { emptySchedulerState, registerRows, introduce, asItemId } from '@freelingo/core/scheduler';
 import { SqliteLearningRuntime } from './SqliteLearningRuntime';
 const opened: Db[] = [];
@@ -22,9 +24,16 @@ function setup() {
   const db = createNodeDb();
   opened.push(db);
   migrate(db);
+  new SqliteWordStore(db).initializeFreshHistory(at, { databaseWasCreated: true });
   db.run("INSERT INTO course_progress(course_id,added_at) VALUES('en-es','2026-09-13')");
   db.run("INSERT INTO course_selection(course_id,is_active,is_selected) VALUES('en-es',1,1)");
-  const item: VerifiedRuntimeItem = {
+  db.run(
+    'UPDATE course_progress SET pack_content_hash=?,score_unlocked=0,score_ceiling_beat_shown=0',
+    ['a'.repeat(64)],
+  );
+  db.run("INSERT INTO course_path_state VALUES('en-es',100,0,0)");
+  db.run('UPDATE account SET selection_seed=1');
+  const item: VerifiedRuntimeItem = fixtureLexemes({
     schemaVersion: 1,
     exerciseId: 'exercise-1',
     itemId: 'semantic-1',
@@ -71,15 +80,56 @@ function setup() {
     ],
     explanation: 'cat',
     grading: { pack: ES_PACK, unit: ES_UNIT, profileId: 'es', responseLanguage: 'es' },
-  };
+  });
   let pack = {
     courseId: 'en-es',
     contentHash: 'a'.repeat(64),
     pack: {
-      meta: { lang: 'es' },
+      meta: { lang: 'es', courseId: 'en-es' },
       path: () => ({
+        manifest: {
+          packId: 'test-es',
+          languageName: 'Spanish',
+          declaredNodeTypes: ['lesson'],
+          legendaryDenominator: ['lesson'],
+          scoreCeiling: 29,
+          cefrChecked: true,
+          sectionTitles: ['Section one'],
+        },
+        sections: [
+          {
+            sectionIndex: 1,
+            title: 'Section one',
+            band: 'early A1',
+            units: [
+              {
+                unitId: 'u1',
+                unitIndex: 1,
+                title: 'First unit',
+                colourIndex: 0,
+                nodes: [
+                  {
+                    nodeId: 'node-1',
+                    type: 'lesson',
+                    sessions: [{ lessonIndex: 1, exerciseIds: ['exercise-1'] }],
+                    introducesScriptUnits: [],
+                    requiresScriptUnits: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
         forNode: () => ({
-          node: { nodeId: 'node-1', sessions: [{ lessonIndex: 1, exerciseIds: ['exercise-1'] }] },
+          node: {
+            nodeId: 'node-1',
+            type: 'lesson',
+            sessions: [{ lessonIndex: 1, exerciseIds: ['exercise-1'] }],
+            introducesScriptUnits: [],
+            requiresScriptUnits: [],
+          },
+          unitIndex: 0,
+          sectionIndex: 0,
           unitId: 'u1',
         }),
       }),
@@ -94,7 +144,7 @@ function setup() {
     itemId: item.itemId,
     type: item.presentation.type,
     family: 'production',
-    conceptId: 'cat',
+    conceptId: 'gato',
     nodeRef: 'node-1',
     requiresAudio: false,
   } as const;
@@ -376,6 +426,7 @@ function finiteSetup() {
   ]);
   scheduler = introduce(scheduler, asItemId(f.item.itemId), 'el gato', new Date(at - 86400000));
   new SqliteSchedulerStore(f.db).save('en-es', scheduler);
+  observeFixtureLexemes(f.db, f.item, at - 86400000);
   return { ...f, contexts };
 }
 it('[INV-ECO-16][INV-PER-03] allowance exhaustion freezes failed time through replay, kill and later End session', async () => {
@@ -410,9 +461,12 @@ it('[INV-ECO-16][INV-PER-03] allowance exhaustion freezes failed time through re
   now += 3600000;
   runtime = new SqliteLearningRuntime(f.db, ports);
   await runtime.dispatch({ type: 'endSession', route: 'closeButton' });
-  expect(f.contexts.load('en-es', 'session-1')!.completion).toEqual(frozen);
-  expect(f.sessions.get('en-es', 'graded', 'node-1')?.exited).toBe('quit');
-  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+  expect(f.contexts.load('en-es', 'session-1')).toBeNull();
+  expect(f.sessions.get('en-es', 'graded', 'node-1')).toBeNull();
+  expect(f.db.get('SELECT outcome,completed_at_utc_ms FROM committed_session')).toEqual({
+    outcome: 'failed',
+    completed_at_utc_ms: frozen!.completedAtUtcMs,
+  });
 });
 it('[INV-ECO-16] ordinary quit never manufactures an allowance-failure award intent', async () => {
   const f = finiteSetup();
@@ -426,7 +480,7 @@ it('[INV-ECO-16] ordinary quit never manufactures an allowance-failure award int
   await f.runtime.dispatch({ type: 'check' });
   await f.runtime.dispatch({ type: 'exit', route: 'closeButton' });
   await f.runtime.dispatch({ type: 'endSession', route: 'closeButton' });
-  expect(f.contexts.load('en-es', 'session-1')!.completion?.outcome).toBe('quit');
+  expect(f.db.get('SELECT outcome FROM committed_session')?.outcome).toBe('quit');
 });
 it('[INV-ECO-16][INV-PER-03] corrupt exhausted allowance without real grade receipts cannot become a failed intent', async () => {
   const f = finiteSetup(),

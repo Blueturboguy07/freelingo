@@ -262,6 +262,7 @@ export function prepareLearningLaunch(
   if (
     !sessionId.trim() ||
     db.get('SELECT session_id FROM committed_session WHERE session_id=?', [sessionId]) ||
+    db.get('SELECT session_id FROM course_attempt WHERE session_id=?', [sessionId]) ||
     db.get('SELECT session_id FROM course_session_context WHERE session_id=?', [sessionId])
   )
     throw new LearningDataError('A fresh session identity is required.');
