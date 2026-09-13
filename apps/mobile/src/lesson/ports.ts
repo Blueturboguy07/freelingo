@@ -27,6 +27,8 @@ export interface LessonMediaPort {
       readonly text: string;
       readonly locale: string;
       readonly slow: boolean;
+      /** True when assetRef already names a separately baked slow take. */
+      readonly assetIsSlow?: boolean;
     },
     callbacks: {
       readonly onComplete: () => void;

@@ -220,6 +220,7 @@ function PlayerContent({
         text: challenge.audioText ?? challenge.prompt,
         locale: challenge.language,
         slow,
+        ...(slow && challenge.slowAudioRef !== undefined ? { assetIsSlow: true } : {}),
       },
       {
         onComplete: () => {

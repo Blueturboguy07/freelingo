@@ -23,7 +23,15 @@ function media(): LessonMediaPort {
     announce: vi.fn(),
   };
 }
-function Harness({ port, results }: { port: LessonMediaPort; results: StepResult[] }) {
+function Harness({
+  port,
+  results,
+  contentExtra = {},
+}: {
+  port: LessonMediaPort;
+  results: StepResult[];
+  contentExtra?: Partial<LessonChallenge>;
+}) {
   const [state, setState] = useState<SessionState>(() => ({
     ...freshSession({
       queue: [item(1, { type: 'speakSentence' }), item(2, { type: 'speakSentence' })],
@@ -44,6 +52,7 @@ function Harness({ port, results }: { port: LessonMediaPort; results: StepResult
       { id: 'hello', text: 'Hello.' },
       { id: 'bye', text: 'Goodbye.' },
     ],
+    ...contentExtra,
   };
   const dispatch = (event: SessionEvent) =>
     setState((previous) => {
@@ -149,4 +158,21 @@ it('[INV-MOD-13] the real player carries recognizer segments into the session ev
   act(() => callback.onResult({ transcript: 'Hola.', amplitude: 0.5, segments }));
   const saved = parseSessionState(JSON.stringify(results.at(-1)!.state));
   expect(saved.inFlight.partialState.segments).toEqual(segments);
+});
+
+it('[INV-AUD-01] a separate slow take reaches native playback without a second slowdown', () => {
+  const port = media();
+  render(
+    <Harness
+      port={port}
+      results={[]}
+      contentExtra={{ audioRef: 'normal', slowAudioRef: 'slow' }}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Play slowly' }));
+  expect(vi.mocked(port.play).mock.calls.at(-1)![0]).toMatchObject({
+    assetRef: 'slow',
+    slow: true,
+    assetIsSlow: true,
+  });
 });
