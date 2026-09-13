@@ -6,7 +6,16 @@ was heard, or replace the scored 300-item review. Agent reviews remain provision
 
 ## Authoring and explicit plan
 
-The caller supplies `expected_slots`: exact `(unit_index, lesson_index, slot_index)`
+The caller first loads its authored `authoring/conversation-plan.json` with
+`load_conversation_plan(lang, selected_sources, path=...)`. The JSON object has
+exactly `schema_version: 1`, `lang`, canonical ISO `authored_on`, nonblank `author`
+and `rationale`, and `expected_slots` as an explicit array of coordinate arrays.
+Unit and lesson indices are positive integers; G4 slot indices are zero based and
+must be nonnegative integers. Boolean coordinates, duplicates, missing/unselected
+slots, unknown fields and missing files fail. An explicit empty array is allowed.
+This file records the caller's plan, not successful review rows or language approval.
+
+The caller supplies the returned `expected_slots`: exact `(unit_index, lesson_index, slot_index)`
 occurrences from its independently chosen conversation plan. The loader requires one
 reviewed row for each planned occurrence and refuses extras, duplicates and missing
 rows. An explicitly empty plan has a different digest from a nonempty plan. Never
