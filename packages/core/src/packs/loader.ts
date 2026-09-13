@@ -42,6 +42,7 @@
  * product map still owes a row). Purity: no React, no React Native, no `node:` imports.
  */
 import { contentHashItemId } from './items.js';
+import { readPathMetadata, type LoadedPathMetadata } from './path.js';
 import {
   readGradingMetadata,
   type ExerciseGradingContext,
@@ -452,6 +453,8 @@ export interface OpenPackOptions {
 
 export interface LoadedPack {
   readonly meta: PackMeta;
+  /** Optional signed node/source capability; missing metadata never invents a path. */
+  path(): LoadedPathMetadata;
   units(): readonly PackUnit[];
   unit(unitId: string): PackUnit | null;
   /** Every exercise of one lesson, in slot order. The session queue's input. */
@@ -476,14 +479,15 @@ export interface LoadedPack {
 /**
  * Open an installed pack. Throws `PackFormatError` if it is not one.
  *
- * Nothing is cached across calls except the meta row, which is read once and is what a
- * caller checks before doing anything else. The rest is queried on demand: a pack is
+ * Meta is read once. Optional grading/path metadata is cached only after successful
+ * validation against this reader and meta identity. Content is queried on demand: a pack is
  * tens of thousands of rows, a device has a session's worth of memory, and SQLite is
  * already the index.
  */
 export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPack {
   const meta = readPackMeta(reader);
   let grading: LoadedGradingMetadata | undefined;
+  let path: LoadedPathMetadata | undefined;
 
   const toExercise = (row: ExerciseRow, tags: readonly PackItemTag[]): PackExercise => ({
     exerciseId: row.exercise_id,
@@ -556,6 +560,10 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
 
   return {
     meta,
+    path() {
+      path ??= readPathMetadata(reader, meta);
+      return path;
+    },
     exercise(exerciseId) {
       const rows = reader.all<ExerciseRow>(
         `SELECT exercise_id, item_id, unit_id, lesson_index, slot_index, type, prompt,

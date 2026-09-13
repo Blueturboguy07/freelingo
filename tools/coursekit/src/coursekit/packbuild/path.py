@@ -157,7 +157,7 @@ def build_path_metadata(
         _text(row["unit_id"], "exercise unit")
         _require(row["unit_id"] in source_units, "unknown exercise unit")
         _int(row["lesson_index"], "lesson index", 1)
-        _int(row["slot_index"], "slot index", 1)
+        _int(row["slot_index"], "slot index")
         for field in EXERCISE_SOURCE_FIELDS:
             if field not in ("lesson_index", "slot_index", "source_sentence_id"):
                 _text(row[field], "exercise " + field)
