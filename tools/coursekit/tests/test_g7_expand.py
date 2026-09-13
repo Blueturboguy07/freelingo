@@ -1004,7 +1004,8 @@ def test_INV_PACK_08_the_written_packs_answers_are_all_in_the_declared_register(
     runner.invoke(app, ["build", LANG, "--only", "g7", "--set", "align_engine=deterministic"])
     records = list(read_records("exercise", lang=LANG))
     assert {record["register"] for record in records} == {"tu"}
-    assert [f for f in check_v6(records, lang=LANG) if f.severity == "blocking"] == []
+    findings = check_v6(records, lang=LANG, units={1: UNIT})
+    assert [f for f in findings if f.severity == "blocking"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -2591,3 +2592,64 @@ def test_INV_PACK_06_reanalysed_real_quoted_dialogue_has_only_lexical_exercise_t
         assert draft.source_sentence_id == "4d192ee8a1e0d5a7"
         assert draft.accepted_answers == ("Yo",)
         assert "«¿____?» «¡Sí, tú!»" in draft.body
+
+
+
+def _write_two_register_units() -> None:
+    _write_ledger()
+    _add_agreement_ledger()
+    formal = {**UNIT, "unit_index": 23, "grammar_concept": "formal_informal_address"}
+    write_records("unit_assignment", [UNIT, formal], lang=LANG)
+    selected = list(read_records("selected_item", lang=LANG))
+    write_records("selected_item", [*selected, *[
+        {**item, "unit_index": 23, "lesson_index": item["lesson_index"] + 130,
+         "grammar_concept": "formal_informal_address"} for item in selected
+    ]], lang=LANG)
+
+
+def test_INV_PACK_08_g7_stamps_each_units_sentence_and_synthetic_forms() -> None:
+    _write_two_register_units()
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+    records = list(read_records("exercise", lang=LANG))
+    for unit, register in [(1, "tu"), (23, "usted")]:
+        rows = [record for record in records if record["unit_index"] == unit]
+        assert any(record["source_sentence_id"] is None for record in rows)
+        assert any(record["source_sentence_id"] is not None for record in rows)
+        assert {record["register"] for record in rows} == {register}
+
+
+@pytest.mark.parametrize("override", ["tu", "usted", "neutral"])
+def test_INV_PACK_08_global_register_option_cannot_override_unit_declarations(
+    override: str,
+) -> None:
+    _write_two_register_units()
+    result = runner.invoke(app, ["build", LANG, "--only", "g7", "--set",
+                                "align_engine=deterministic", "--set", f"register={override}"])
+    assert result.exit_code == EXIT_FAILED, result.output
+    assert "register" in result.output and "override" in result.output
+
+
+def test_INV_PACK_08_formal_lexeme_match_keeps_usted_in_declared_unit() -> None:
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _lexeme_pass, _load
+
+    _write_ledger()
+    inputs = _load(LANG)
+    glosses = {"amable": "kind", "educado": "polite", "permiso": "permission",
+               "respeto": "respect", "usted": "you"}
+    inputs.units = {23: {**UNIT, "unit_index": 23, "grammar_concept": "formal_informal_address"}}
+    inputs.selected = [{"unit_index": 23, "lesson_index": 131, "new_lemmas": list(glosses)}]
+    glosses.update({"formal": "formal", "agradable": "pleasant", "libro": "book",
+                    "casa": "house", "yo": "I", "él": "he", "ella": "she"})
+    for pos, lemmas in [("ADJ", ["amable", "educado", "formal", "agradable"]),
+                        ("NOUN", ["permiso", "respeto", "libro", "casa"]),
+                        ("PRON", ["usted", "yo", "él", "ella"])]:
+        inputs.pool.by_pos_band[(pos, "A1")] = lemmas
+        for lemma in lemmas:
+            inputs.pos_of[lemma] = pos
+            inputs.band_of[lemma] = "A1"
+    drafts, _counts = _lexeme_pass(inputs, glosses=glosses, alternatives=AlternativesIndex())
+    matches = [draft for draft in drafts if draft.shape_id == "match_pairs"]
+    assert matches and any("usted = you" in draft.accepted_answers for draft in matches)
+    assert all(draft.register == "usted" and draft.source_sentence_id is None for draft in drafts)

@@ -692,15 +692,7 @@ MIN_L1_DECOY_POOL: Final[int] = 4
 # V6 — register
 # ---------------------------------------------------------------------------
 
-#: The register a unit declares, derived from `unit_assignment.register_slot`. A1
-#: Spanish teaches tuteo and nothing else, so `binary_t_v` resolves to `tu` for the
-#: whole of P2; a unit that teaches ustedeo overrides it with `--set register=usted`.
-DEFAULT_REGISTER_BY_SLOT: Final[dict[str, str]] = {
-    "n/a": "neutral",
-    "binary_t_v": "tu",
-    "graded_honorific": "plain",
-}
-
+#: Unit declarations resolve through coursekit.registers (founder B19, 2026-09-12).
 #: Every register value V6 will accept as a declaration.
 REGISTERS: Final[tuple[str, ...]] = ("neutral", "tu", "usted", "plain", "polite", "humble")
 

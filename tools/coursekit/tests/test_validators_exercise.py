@@ -404,21 +404,25 @@ def _record(*, register: str, accepted_answers: list[str]) -> dict[str, Any]:
 
 def test_INV_PACK_08_the_falsifier_is_caught() -> None:
     """[INV-PACK-08] an usted answer in a tú unit is blocked."""
-    findings = blocking(check_v6(load("INV-PACK-08", "falsifier"), lang="es"))
+    findings = blocking(check_v6(
+        load("INV-PACK-08", "falsifier"), lang="es", units=_UNIT_REGISTERS
+    ))
     assert len(findings) == 1, findings
     assert findings[0].detail["carried"] == ["usted"]
 
 
 def test_INV_PACK_08_a_mixed_register_answer_is_caught() -> None:
     """[INV-PACK-08] one answer carrying both registers is blocked too."""
-    findings = blocking(check_v6(load("INV-PACK-08", "mixed_register"), lang="es"))
+    findings = blocking(check_v6(
+        load("INV-PACK-08", "mixed_register"), lang="es", units=_UNIT_REGISTERS
+    ))
     assert len(findings) == 1, findings
     assert "mixes registers" in findings[0].message
 
 
 def test_INV_PACK_08_the_repair_passes() -> None:
     """[INV-PACK-08] both tú renderings of the same sentence are accepted."""
-    assert blocking(check_v6(load("INV-PACK-08", "repair"), lang="es")) == []
+    assert blocking(check_v6(load("INV-PACK-08", "repair"), lang="es", units=_UNIT_REGISTERS)) == []
 
 
 def test_INV_PACK_08_japanese_is_refused_not_passed() -> None:
@@ -429,7 +433,7 @@ def test_INV_PACK_08_japanese_is_refused_not_passed() -> None:
     an accepted set that IS the entire tolerance budget (review R24), so V6 refuses.
     """
     records = load("INV-PACK-08", "japanese_half")
-    findings = blocking(check_v6(records, lang="ja"))
+    findings = blocking(check_v6(records, lang="ja", units={}))
     assert len(findings) == 1
     assert "docs/owned/p2-g7.json" in findings[0].message
     assert "es" in findings[0].detail["implemented_for"]
@@ -463,7 +467,7 @@ def test_INV_PACK_08_ordinary_third_person_spanish_carries_no_register() -> None
     # And the case the invariant IS about still fails: an explicit usted in a tu unit.
     findings = check_v6(
         [_record(register="tu", accepted_answers=["¿Usted tiene hambre?"])],
-        lang="es",
+        lang="es", units=_UNIT_REGISTERS,
     )
     assert [f for f in findings if f.severity == "blocking"]
 
@@ -475,7 +479,7 @@ def test_INV_PACK_08_a_third_person_answer_passes_v6_in_a_tu_unit() -> None:
             _record(register="tu", accepted_answers=["A él le gusta su casa."]),
             _record(register="tu", accepted_answers=["Tu casa es su casa."]),
         ],
-        lang="es",
+        lang="es", units=_UNIT_REGISTERS,
     )
     assert findings == []
 
@@ -483,3 +487,62 @@ def test_INV_PACK_08_a_third_person_answer_passes_v6_in_a_tu_unit() -> None:
 def test_register_of_refuses_a_language_it_has_no_table_for() -> None:
     with pytest.raises(ValueError, match="ja"):
         register_of("引っ越しました", "ja")
+
+
+_UNIT_REGISTERS = {
+    1: {"grammar_concept": "subject_pronouns", "register_slot": "binary_t_v"},
+    2: {"grammar_concept": "subject_pronouns", "register_slot": "binary_t_v"},
+    23: {"grammar_concept": "formal_informal_address", "register_slot": "binary_t_v"},
+    24: {"grammar_concept": "contractions_al_del", "register_slot": "n/a"},
+}
+
+
+@pytest.mark.parametrize(("unit", "declared", "answers", "passes"), [
+    (1, "tu", ["¿Son ustedes ingleses?"], False),
+    (23, "usted", ["¿Comprende usted francés?"], True),
+    (23, "usted", ["usted = you"], True),
+    (23, "usted", ["¿Comprendes tú francés?"], False),
+    (23, "usted", ["¿Comprende usted francés?", "¿Comprendes tú francés?"], False),
+    (23, "usted", ["Tu casa es la casa de usted."], False),
+    (24, "tu", ["Baje usted la maleta de mi cuarto."], False),
+    (1, "usted", ["¿Cómo está usted?"], False),
+    (1, "neutral", ["Hola."], False),
+    (1, "tu", ["Hola."], True),
+    (23, "usted", ["Hola."], True),
+])
+def test_INV_PACK_08_unit_declaration_is_independent_of_exercise_label(
+    unit: int, declared: str, answers: list[str], passes: bool,
+) -> None:
+    record = _record(register=declared, accepted_answers=answers)
+    record["unit_index"] = unit
+    findings = blocking(check_v6([record], lang="es", units=_UNIT_REGISTERS))
+    assert (not findings) is passes, findings
+
+
+@pytest.mark.parametrize("units", [None, {}, {1: {"grammar_concept": "greeting"}}])
+def test_INV_PACK_08_missing_unit_register_declaration_cannot_pass(units: dict | None) -> None:
+    records = [_record(register="tu", accepted_answers=["Hola."])]
+    assert blocking(check_v6(records, lang="es", units=units))
+
+
+@pytest.mark.parametrize("unit_index", [1, 23])
+def test_INV_PACK_08_registered_validator_reads_unit_artifact(
+    monkeypatch: pytest.MonkeyPatch, unit_index: int,
+) -> None:
+    from types import SimpleNamespace
+
+    from coursekit.validators import exercise
+
+    record = _record(register="usted", accepted_answers=["¿Cómo está usted?"])
+    record["unit_index"] = unit_index
+    reads = []
+    def read(kind: str, *, lang: str) -> list[dict]:
+        reads.append((kind, lang))
+        return [record] if kind == "exercise" else [
+            {"unit_index": unit_index, **_UNIT_REGISTERS[unit_index]}
+        ]
+    monkeypatch.setattr(exercise, "read_records", read)
+    ctx = SimpleNamespace(lang="es", entry=SimpleNamespace(note=lambda **kwargs: None))
+    findings = blocking(exercise.v6_register(ctx))
+    assert bool(findings) is (unit_index == 1)
+    assert ("unit_assignment", "es") in reads

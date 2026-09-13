@@ -46,6 +46,7 @@ from ..config.g7 import (
 )
 from ..exercises.shapes import shape_of_record
 from ..ledger import surface_tokens
+from ..registers import RegisterPolicyError, unit_register
 from . import Finding, ValidatorContext, register_validator
 
 __all__ = [
@@ -489,6 +490,7 @@ def check_v6(
     records: Iterable[Mapping[str, Any]],
     *,
     lang: str,
+    units: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> list[Finding]:
     """Every accepted answer sits in the unit's declared register.
 
@@ -524,6 +526,25 @@ def check_v6(
                     subject=record["exercise_id"],
                 )
             )
+            continue
+        unit = (units or {}).get(record["unit_index"])
+        try:
+            if unit is None:
+                raise RegisterPolicyError(
+                    f"missing unit register declaration for {record['unit_index']}"
+                )
+            expected = unit_register(lang, unit)
+        except RegisterPolicyError as exc:
+            findings.append(Finding(validator_id="V6", severity="blocking", message=str(exc),
+                                    subject=record["exercise_id"]))
+            continue
+        if declared != expected:
+            findings.append(Finding(
+                validator_id="V6", severity="blocking", subject=record["exercise_id"],
+                message=(f"exercise register {declared!r} disagrees with unit "
+                         f"{record['unit_index']}'s declared register {expected!r}"),
+                detail={"declared": declared, "expected": expected},
+            ))
             continue
         for answer in record["accepted_answers"]:
             carried = register_of(answer, lang)
@@ -592,11 +613,20 @@ def v5_distractors(ctx: ValidatorContext) -> list[Finding]:
 
 @register_validator("V6")
 def v6_register(ctx: ValidatorContext) -> list[Finding]:
-    """V6 over the written pack, and an explicit refusal for a language it cannot read."""
+    """V6 compares the written exercises with independent G3 unit declarations."""
     records = _exercise_records(ctx.lang)
+    try:
+        unit_rows = list(read_records("unit_assignment", lang=ctx.lang))
+    except FileNotFoundError as exc:
+        return [Finding(validator_id="V6", severity="blocking", message=str(exc), subject=ctx.lang)]
+    units = {unit["unit_index"]: unit for unit in unit_rows}
+    if len(units) != len(unit_rows):
+        return [Finding(validator_id="V6", severity="blocking",
+                        message="duplicate unit register declarations", subject=ctx.lang)]
     ctx.entry.note(
         v6_exercises=len(records),
+        v6_unit_declarations=len(units),
         v6_implemented_for=list(V6_IMPLEMENTED_LANGUAGES),
         v6_script_variants_checked=False,
     )
-    return check_v6(records, lang=ctx.lang)
+    return check_v6(records, lang=ctx.lang, units=units)

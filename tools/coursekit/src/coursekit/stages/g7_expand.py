@@ -79,7 +79,6 @@ from ..config import EXERCISE_TYPES, TOOL_NAME
 from ..config.g7 import (
     CHAT_TURN_SEPARATOR,
     CURRENT_PHASE,
-    DEFAULT_REGISTER_BY_SLOT,
     ENDING_POS_PREFERENCE,
     ENDING_SEGMENTATION_LANGUAGES,
     GAP_MARKER,
@@ -92,7 +91,6 @@ from ..config.g7 import (
     MIN_ENDING_STEM_CHARS,
     MIN_FORMS_PER_MISSABLE_ITEM,
     PHASE_ORDER,
-    REGISTERS,
     SENTENCE_FORM_PLAN,
     SHAPES,
     SPANISH_CLOZE_PROOF_PERSONS,
@@ -115,9 +113,10 @@ from ..exercises.distractors import (
 from ..exercises.shapes import ExerciseDraft, focus_for_item, shape
 from ..exercises.wordbank import Hint, build_hints, build_word_bank
 from ..ledger import is_lexical_pos, surface_tokens
+from ..registers import RegisterPolicyError, unit_register
 from ..runlog import require_successful
 from ..tts.cast import Cast, CastError, load_cast, rebake_key
-from ..validators.exercise import check_pack_07, check_pack_50, check_v5, pos_sets
+from ..validators.exercise import check_pack_07, check_pack_50, check_v5, check_v6, pos_sets
 from . import StageContext, StageResult, register_stage
 
 __all__ = [
@@ -1275,7 +1274,6 @@ def _lexeme_pass(
     inputs: ExpansionInputs,
     *,
     glosses: Mapping[str, str],
-    register: str,
     alternatives: AlternativesIndex,
 ) -> tuple[list[ExerciseDraft], dict[str, int]]:
     """Introduce the lexemes that can carry BOTH punitive forms, and build the matches.
@@ -1350,6 +1348,7 @@ def _lexeme_pass(
 
     drafts: list[ExerciseDraft] = []
     for unit, entries in sorted(eligible.items()):
+        register = unit_register(inputs.lang, inputs.units[unit])
         if len(entries) < MATCH_PAIRS_PER_EXERCISE:
             # No match is possible, so no lemma here can reach two punitive forms.
             counts["lexemes_in_a_unit_too_small_to_match"] += len(entries)
@@ -1532,15 +1531,15 @@ def expand(ctx: StageContext) -> StageResult:
         # provenance log that `config.SOURCES` cannot resolve.
         ctx.entry.record_input("simalign")
 
-    register = ctx.options.get("register")
-    if register is None:
-        slots = {row["register_slot"] for row in inputs.units.values()}
-        register = DEFAULT_REGISTER_BY_SLOT[sorted(slots)[0]] if slots else "neutral"
-    if register not in REGISTERS:
-        return StageResult(
-            ok=False,
-            message=f"register {register!r} is not one of {', '.join(REGISTERS)}",
-        )
+    try:
+        if not inputs.units:
+            raise RegisterPolicyError("G7 has no unit register declarations")
+        registers = {index: unit_register(lang, unit) for index, unit in inputs.units.items()}
+        override = ctx.options.get("register")
+        if override is not None and any(value != override for value in registers.values()):
+            raise RegisterPolicyError("--set register cannot override curriculum unit declarations")
+    except RegisterPolicyError as exc:
+        return StageResult(ok=False, message=str(exc))
 
     # EVERY PASS IS INSIDE THE TRY, and pass 1 not being is what B14 was. A starved gap
     # slot is resolved in pass 1, it raised there, and pass 1 used to sit outside this
@@ -1585,7 +1584,7 @@ def expand(ctx: StageContext) -> StageResult:
                 item,
                 slot=slot,
                 alignment=pairs,
-                register=register,
+                register=registers[item["unit_index"]],
                 alternatives=alternatives,
             )
             if not item_drafts:
@@ -1600,7 +1599,6 @@ def expand(ctx: StageContext) -> StageResult:
         lexeme_drafts, lexeme_counts = _lexeme_pass(
             inputs,
             glosses=glosses,
-            register=register,
             alternatives=alternatives,
         )
         drafts.extend(lexeme_drafts)
@@ -1619,6 +1617,7 @@ def expand(ctx: StageContext) -> StageResult:
         for finding in (
             *check_pack_07(records),
             *check_pack_50(records),
+            *check_v6(records, lang=lang, units=inputs.units),
             *check_v5(records, pos_of=inputs.pos_of, attested_pos=inputs.pos_sets),
         )
         if finding.severity == "blocking"
@@ -1629,7 +1628,7 @@ def expand(ctx: StageContext) -> StageResult:
             ok=False,
             message=(
                 f"{len(blocking)} blocking finding(s) from the G7 gates "
-                f"(INV-PACK-07, INV-PACK-50, V5); first: {blocking[0].message}"
+                f"(INV-PACK-07, INV-PACK-50, V5, V6); first: {blocking[0].message}"
             ),
             detail={"blocking": len(blocking)},
         )
@@ -1648,7 +1647,7 @@ def expand(ctx: StageContext) -> StageResult:
         },
         types_emitted=sorted({record["type"] for record in records}),
         types_declared=list(EXERCISE_TYPES),
-        register=register,
+        registers_by_unit={str(index): value for index, value in registers.items()},
         # What the alignment actually bought, as two numbers rather than an adjective.
         # `alignment_pairs_written` is how many records carry the pairs the player needs
         # to draw a dotted underline; `word_bank_hints` is how many underlines those
