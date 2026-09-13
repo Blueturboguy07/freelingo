@@ -34,7 +34,8 @@ SAMPLE_STRATA: Final[tuple[str, ...]] = ("unit_index", "exercise_type", "provena
 
 #: The recorded seed. A sample that cannot be redrawn cannot be audited: a reviewer who
 #: scores 300 items and a maintainer who re-runs the draw must get the same 300.
-SAMPLE_SEED: Final[int] = 20260912
+#: P2 round-5 redraw after source/answer repairs, chosen before scoring (2026-09-13).
+SAMPLE_SEED: Final[int] = 20260913
 
 #: Filenames under the language's run root.
 SAMPLE_FILENAME_TEMPLATE: Final[str] = "sample-{n}.jsonl"
@@ -141,9 +142,11 @@ ACCENT_UNSCOREABLE_UNSCORED: Final[str] = "the sheet carries clips and no row wa
 
 #: The reviewer classes a defect rate may have been measured by.
 REVIEWER_KIND_PAID_NATIVE: Final[str] = "paid-native-speaker"
-REVIEWER_KIND_AGENT: Final[str] = "opus-agent-reviewer"
+REVIEWER_KIND_AGENT: Final[str] = "codex-agent-reviewer"
+#: Historical reviews keep their actual reviewer attribution after the 2026-09-13 takeover.
+REVIEWER_KIND_OPUS: Final[str] = "opus-agent-reviewer"
 
-#: The kinds `gate_passed()` will accept a rate from, and the only two that exist.
+#: The recorded reviewer labels, including the historical Opus label.
 #:
 #: **Founder ruling B3, 2026-09-12**: *"P3 proceeds. The 300-item sample is scored by an
 #: Opus reviewer as `REVIEWER_KIND_AGENT`; the manifest and S001 card carry
@@ -159,6 +162,7 @@ REVIEWER_KIND_AGENT: Final[str] = "opus-agent-reviewer"
 RECORDED_REVIEWER_KINDS: Final[tuple[str, ...]] = (
     REVIEWER_KIND_PAID_NATIVE,
     REVIEWER_KIND_AGENT,
+    REVIEWER_KIND_OPUS,
 )
 
 #: The exact string `docs/pack-provenance.md` and the coursekit README carry today, and
@@ -204,3 +208,6 @@ ED25519_SIGNATURE_LENGTH: Final[int] = 64
 #: without a second copy of the manifest riding alongside it.
 MANIFEST_SIGNATURE_KEY: Final[str] = "signature"
 MANIFEST_FILENAME: Final[str] = "manifest.json"
+
+#: G7 shapes with no sentence source, observed in the P2 generator 2026-09-13.
+SYNTHETIC_EXERCISE_SHAPES: Final[tuple[str, ...]] = ("meaning_select", "match_pairs")

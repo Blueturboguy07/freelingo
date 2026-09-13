@@ -21,7 +21,7 @@ population. The seed is a named constant, it is written into the sheet, and the 
 a `random.Random(seed)` over a population sorted by a stable key.
 
 **This run has no paid native reviewer.** The scores in `content/<lang>/review/` come
-from the phase's Opus reviewer agent against `RUBRIC.md`, so every rate this module
+from the phase's recorded reviewer agent against `RUBRIC.md`, so every rate this module
 produces carries `PROVISIONAL (unreviewed by a paid native speaker)` — see
 `config/sample.py`, which owns that string because it has to appear identically
 everywhere it is shown — two carriers today (`docs/pack-provenance.md` and the coursekit
@@ -31,9 +31,12 @@ S001 card at P3, the manifest's `review` block at G9).
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import random
 from collections.abc import Iterable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -61,7 +64,9 @@ from .config.sample import (
     SAMPLE_STRATA,
     SAMPLE_SUMMARY_FILENAME,
     SCORES_FILENAME,
+    SYNTHETIC_EXERCISE_SHAPES,
 )
+from .exercises.shapes import UnknownShape, shape_of_record
 
 # KNOWN TEST-INFRA HAZARD, recorded rather than papered over (docs/owned/
 # p2-validate-ci.json -> knownHazards). `Registry.restore_for_tests()` evicts the
@@ -96,11 +101,28 @@ class ScoreError(ValueError):
     """A scores file that does not match the rubric's contract."""
 
 
+def content_fingerprint(row: Mapping[str, Any]) -> str:
+    """Bind a score to the exact reviewable text, answers, source and baked clip."""
+    payload = {key: value for key, value in row.items() if key != "content_fingerprint"}
+    return hashlib.sha256(
+        json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _population_fingerprint(items: Sequence[SampleItem]) -> str:
+    identities = sorted((item.exercise_id, item.to_json()["content_fingerprint"]) for item in items)
+    if len({identifier for identifier, _ in identities}) != len(identities):
+        raise ScoreError("duplicate exercise ids in the review population")
+    return hashlib.sha256(json.dumps(identities, separators=(",", ":")).encode()).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class SampleItem:
     """One row a reviewer scores.
 
-    The last six fields are the clip, and they exist because of founder ruling **B6**:
+    The clip fields exist because of founder ruling **B6**:
     Spanish bakes on Kokoro, whose Spanish voices declare no region, so the manifest says
     `language: es` + `accent_claim: unverified` and NOTHING in `coursekit` listens to the
     bank. `RUBRIC.md` §`accent_consistency` is the only accent check the project has, and
@@ -109,8 +131,8 @@ class SampleItem:
     does Rosa read as a different speaker from Plumas, when 70% of her style vector IS
     Plumas — could not be put to anybody.
 
-    Every one of the six is `None` together or set together, and the join that sets them
-    is three-legged, which is the point:
+    The clip identity, path and digest are absent together or set together. The join
+    that sets them is three-legged, which is the point:
 
     * the exercise's `audio_ref` (G7) says which clip this row WOULD be spoken by;
     * the `baked_clip` record (G8) says which clips a bake actually produced, with the
@@ -121,9 +143,10 @@ class SampleItem:
     A promise from G7 is not a clip. `audio_ref` is present on every audio-bearing
     exercise the moment G7 runs, months before any bake, so a sheet that copied it would
     hand a reviewer sixteen hex characters and no bytes — and `"pass"` on a clip nobody
-    played is the one lie this sheet exists to prevent. So `clip_path` is set only when
-    the file is on disk at draw time, and `has_audio` reads `clip_path`, never
-    `clip_id`.
+    played is the one lie this sheet exists to prevent. So `clip_path` is set only for
+    a nonempty file on disk at draw time, and `has_audio` reads `clip_path`, never
+    `clip_id`. Its SHA256 binds the exact bytes to the review; neither existence nor a
+    hash asserts that anybody listened or that the audio sounds correct.
     """
 
     exercise_id: str
@@ -145,6 +168,8 @@ class SampleItem:
     #: Where to listen, relative to the language's run directory (`g8/bank/<id>.opus`).
     #: `None` means the bytes are not there, whatever the exercise promised.
     clip_path: str | None = None
+    #: Digest of the actual nonempty file, so a same-id replacement invalidates review.
+    clip_sha256: str | None = None
     #: The cast role speaking it (`narrator`), and its display name (`Plumas`).
     voice_role: str | None = None
     voice_name: str | None = None
@@ -157,6 +182,8 @@ class SampleItem:
     #: token (`config/g8.py::SPOKEN_TEXT_SOURCE`), and a reviewer judging "is this the
     #: same accent" needs the line they are hearing.
     clip_text: str | None = None
+    source_sentence_id: str | None = None
+    exercise_fingerprint: str | None = None
 
     @property
     def stratum(self) -> tuple[int, str, str]:
@@ -168,7 +195,7 @@ class SampleItem:
         return self.clip_path is not None
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        row = {
             "exercise_id": self.exercise_id,
             "unit_index": self.unit_index,
             "lesson_index": self.lesson_index,
@@ -178,9 +205,12 @@ class SampleItem:
             "accepted_answers": list(self.accepted_answers),
             "distractors": list(self.distractors),
             "source_text": self.source_text,
+            "source_sentence_id": self.source_sentence_id,
+            "exercise_fingerprint": self.exercise_fingerprint,
             "source_translation": self.source_translation,
             "clip_id": self.clip_id,
             "clip_path": self.clip_path,
+            "clip_sha256": self.clip_sha256,
             "voice_role": self.voice_role,
             "voice_name": self.voice_name,
             "clip_engine": self.clip_engine,
@@ -188,6 +218,8 @@ class SampleItem:
             "has_audio": self.has_audio,
             "stratum": f"{self.unit_index}|{self.exercise_type}|{self.provenance}",
         }
+        row["content_fingerprint"] = content_fingerprint(row)
+        return row
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +233,7 @@ class SampleSheet:
     population: int
     items: tuple[SampleItem, ...]
     allocation: dict[str, int]
+    population_fingerprint: str = ""
 
     @property
     def drawn(self) -> int:
@@ -227,6 +260,7 @@ class SampleSheet:
             "requested": self.requested,
             "drawn": self.drawn,
             "population": self.population,
+            "population_fingerprint": self.population_fingerprint,
             "seed": self.seed,
             "strata": list(self.strata),
             "distinct_strata": len(self.allocation),
@@ -244,6 +278,7 @@ class _Clip:
 
     clip_id: str
     path: str | None
+    sha256: str
     role: str | None
     name: str | None
     engine: str
@@ -289,16 +324,19 @@ def _clips(lang: str) -> dict[str, _Clip]:
     for record in read_records("baked_clip", lang=lang):
         role, name = roles.get(record["voice_id"], (None, None))
         relative = str(record["path"])
-        # A record without bytes is not a clip a reviewer can score. The bank is
-        # gitignored and CI uploads it as an artefact with a one-day retention
-        # (`docs/ci.md`), so "the manifest remembers it" and "it is here to play" come
-        # apart routinely, and only the second one licenses a verdict.
-        on_disk = (root / relative).exists()
-        if not on_disk:
+        # The recorded synthesis inputs do not prove which bytes were reviewed.
+        # A rebuild or replacement may keep the id and size, so hash the actual file
+        # into every row that plays it and, through that row, the full population.
+        audio_file = root / relative
+        if not audio_file.is_file():
+            continue
+        audio_bytes = audio_file.read_bytes()
+        if not audio_bytes:
             continue
         clips[record["clip_id"]] = _Clip(
             clip_id=record["clip_id"],
             path=f"g8/{relative}",
+            sha256=hashlib.sha256(audio_bytes).hexdigest(),
             role=role,
             name=name,
             engine=record["engine"],
@@ -324,9 +362,18 @@ def _population(lang: str) -> tuple[SampleItem, ...]:
         )
     provenance: dict[str, str] = {}
     texts: dict[str, ShippedItem] = {}
+    locations: dict[str, set[tuple[int, int]]] = {}
     for item in shipped_items(lang):
         if item.item_id:
             provenance[item.item_id] = item.provenance
+            locations.setdefault(item.item_id, set()).add((item.unit_index, item.lesson_index))
+            previous = texts.get(item.item_id)
+            if previous and (previous.text, previous.translation, previous.provenance) != (
+                item.text,
+                item.translation,
+                item.provenance,
+            ):
+                raise SuiteInputMissing(f"conflicting source identity {item.item_id}")
             texts[item.item_id] = item
 
     clips = _clips(lang)
@@ -334,6 +381,25 @@ def _population(lang: str) -> tuple[SampleItem, ...]:
     for record in read_records("exercise", lang=lang):
         source = record["source_sentence_id"]
         origin = texts.get(source) if source else None
+        if record["lang"] != lang:
+            raise SuiteInputMissing(f"exercise {record['exercise_id']} has different language")
+        synthetic = False
+        if not source:
+            with suppress(UnknownShape):
+                synthetic = shape_of_record(record).id in SYNTHETIC_EXERCISE_SHAPES
+        if (
+            source
+            and (
+                origin is None
+                or not origin.text
+                or not origin.translation
+                or (record["unit_index"], record["lesson_index"]) not in locations[source]
+            )
+        ) or (not source and not synthetic):
+            raise SuiteInputMissing(
+                f"exercise {record['exercise_id']} cannot join source {source!r}; "
+                "sentence-backed exercises require the exact selected corpus/candidate id"
+            )
         # `audio_ref` is G7's promise; `clips` is G8's fact. The row gets the clip only
         # where the two agree, so an exercise naming a clip that was never baked —
         # exactly the state G9 refused a pack over on 2026-09-12 — reaches the reviewer
@@ -345,14 +411,17 @@ def _population(lang: str) -> tuple[SampleItem, ...]:
                 unit_index=record["unit_index"],
                 lesson_index=record["lesson_index"],
                 exercise_type=record["type"],
-                provenance=provenance.get(source or "", "unknown"),
+                provenance=provenance[source] if source else "derived",
                 prompt=record["prompt"],
                 accepted_answers=tuple(record["accepted_answers"]),
                 distractors=tuple(record["distractors"]),
                 source_text=origin.text if origin else "",
+                source_sentence_id=source,
+                exercise_fingerprint=content_fingerprint(record),
                 source_translation=origin.translation if origin else "",
                 clip_id=clip.clip_id if clip else None,
                 clip_path=clip.path if clip else None,
+                clip_sha256=clip.sha256 if clip else None,
                 voice_role=clip.role if clip else None,
                 voice_name=clip.name if clip else None,
                 clip_engine=clip.engine if clip else None,
@@ -486,6 +555,7 @@ def draw_sample(
         population=len(population),
         items=tuple(drawn),
         allocation=allocation,
+        population_fingerprint=_population_fingerprint(population),
     )
 
 
@@ -531,6 +601,7 @@ def read_scores(lang: str, repo_root: Path | None = None) -> list[dict[str, Any]
     if not path.exists():
         return []
     rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip() or line.lstrip().startswith("//"):
             continue
@@ -538,9 +609,19 @@ def read_scores(lang: str, repo_root: Path | None = None) -> list[dict[str, Any]
             row = json.loads(line)
         except json.JSONDecodeError as exc:
             raise ScoreError(f"{path.name} line {number}: {exc}") from exc
+        if not isinstance(row, dict):
+            raise ScoreError(f"{path.name} line {number}: a score must be an object")
         missing = {"exercise_id", "verdict", "reviewer"} - set(row)
         if missing:
             raise ScoreError(f"{path.name} line {number}: missing {', '.join(sorted(missing))}")
+        for key in ("exercise_id", "reviewer"):
+            if not isinstance(row[key], str) or not row[key].strip():
+                raise ScoreError(f"{path.name} line {number}: {key} must be nonblank")
+        if row["exercise_id"] in seen:
+            raise ScoreError(
+                f"{path.name} line {number}: duplicate exercise_id {row['exercise_id']}"
+            )
+        seen.add(row["exercise_id"])
         if row["verdict"] not in REVIEW_VERDICTS:
             raise ScoreError(
                 f"{path.name} line {number}: verdict {row['verdict']!r} is not one of "
@@ -735,6 +816,7 @@ def review_summary(
     sample_size: int,
     reviewer_kind: str = REVIEWER_KIND_AGENT,
     sheet_item_ids: Iterable[str] | None = None,
+    sheet_fingerprints: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """The `review` block of `validator-report.json` and of the pack manifest.
 
@@ -758,6 +840,8 @@ def review_summary(
     gate refuses, the same way it refuses an unscored sample.
     """
     scored = len(scores)
+    if len({row["exercise_id"] for row in scores}) != scored:
+        raise ScoreError("duplicate exercise_id in review scores")
     note = "" if reviewer_kind == REVIEWER_KIND_PAID_NATIVE else PROVISIONAL_DEFECT_RATE_NOTE
 
     if sheet_item_ids is None:
@@ -766,7 +850,18 @@ def review_summary(
         unjoined: int | None = None
     else:
         sheet = set(sheet_item_ids)
-        joined_rows = [row for row in scores if row["exercise_id"] in sheet]
+        joined_rows = [
+            row
+            for row in scores
+            if row["exercise_id"] in sheet
+            and (
+                sheet_fingerprints is None
+                or (
+                    row["exercise_id"] in sheet_fingerprints
+                    and row.get("content_fingerprint") == sheet_fingerprints[row["exercise_id"]]
+                )
+            )
+        ]
         joined = len(joined_rows)
         unjoined = scored - joined
 
@@ -786,34 +881,62 @@ def review_summary(
 
 
 def gate_passed(summary: Mapping[str, Any]) -> bool:
-    """Is the measured rate at or below `MAX_DEFECT_RATE`?
+    """B3: a fully scored current sample of at least 300, at or below 2% wrong.
 
-    **Founder ruling B3, 2026-09-12**: P3 proceeds on an agent-scored sample, so an
-    `REVIEWER_KIND_AGENT` rate at or under the gate is a pass — the paid native review
-    moves to `docs/RELEASE.md` as a release prerequisite. Three things the ruling does
-    NOT do, each of which was one line away from being lost:
-
-    * **`None` is still never a pass.** An unscored sample has no rate, and the plan's
-      non-negotiable 5 gates on a measurement rather than on the absence of one.
-    * **The reviewer kind must be recorded.** A block whose kind is `""` or some string
-      nobody defined has no measurer, and B3 is a ruling about who measured.
-    * **The rate must rest on a real join.** `joined` is the denominator (see
-      `review_summary`); `None` or `0` means the scored rows are not on this build's
-      sheet, so there is nothing this pack can show that the rate describes.
+    Partial intersections, unknown reviewers and non-finite/negative rates fail. The
+    disk-facing `derive_review` first binds scores to exact content fingerprints and
+    verifies the population still matches the recorded draw. Paid review remains the
+    release prerequisite; an agent review always carries the provisional note.
     """
     if summary.get("reviewer_kind") not in RECORDED_REVIEWER_KINDS:
         return False
-    joined = summary.get("joined")
-    if not isinstance(joined, int) or isinstance(joined, bool) or joined <= 0:
+    counts = [summary.get(key) for key in ("sample_size", "scored", "joined", "unjoined")]
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in counts):
         return False
-    rate = summary["wrong_item_rate"]
-    return rate is not None and rate <= MAX_DEFECT_RATE
+    size, scored, joined, unjoined = counts
+    if size < REVIEWER_SAMPLE_ITEMS or scored != size or joined != size or unjoined != 0:
+        return False
+    rate = summary.get("wrong_item_rate")
+    return (
+        isinstance(rate, (int, float))
+        and not isinstance(rate, bool)
+        and math.isfinite(rate)
+        and 0 <= rate <= MAX_DEFECT_RATE
+    )
 
 
 def unscored_items(sheet: SampleSheet, scores: Iterable[Mapping[str, Any]]) -> tuple[str, ...]:
     """Sheet rows nobody scored. The denominator's other half."""
     seen = {row["exercise_id"] for row in scores}
     return tuple(item.exercise_id for item in sheet.items if item.exercise_id not in seen)
+
+
+def _current_sheet_fingerprints(
+    lang: str, requested: int, summary: Mapping[str, Any]
+) -> dict[str, str]:
+    path = sample_path(lang, requested)
+    if not path.exists():
+        return {}
+    rows = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    if len({row["exercise_id"] for row in rows}) != len(rows):
+        raise ScoreError("duplicate exercise_id in reviewer sheet")
+    if len(rows) != summary.get("drawn") or not summary.get("population_fingerprint"):
+        return {}
+    try:
+        current = _population(lang)
+    except SuiteInputMissing:
+        return {}
+    if _population_fingerprint(current) != summary["population_fingerprint"]:
+        return {}
+    current_rows = {item.exercise_id: item.to_json()["content_fingerprint"] for item in current}
+    return {
+        row["exercise_id"]: row["content_fingerprint"]
+        for row in rows
+        if row.get("content_fingerprint") == content_fingerprint(row)
+        and row.get("content_fingerprint") == current_rows.get(row["exercise_id"])
+    }
 
 
 def derive_review(lang: str, repo_root: Path | None = None) -> dict[str, Any] | None:
@@ -833,6 +956,7 @@ def derive_review(lang: str, repo_root: Path | None = None) -> dict[str, Any] | 
     sample_size = 0
     requested = REVIEWER_SAMPLE_ITEMS
     engines: list[str] = []
+    drawn: dict[str, Any] = {}
     if summary_file.exists():
         drawn = json.loads(summary_file.read_text(encoding="utf-8"))
         sample_size = int(drawn["drawn"])
@@ -855,7 +979,12 @@ def derive_review(lang: str, repo_root: Path | None = None) -> dict[str, Any] | 
         sheet_audio_ids=sheet_audio_ids(lang, requested),
         engines=engines,
     )
-    return review_summary(scores=scores, sample_size=sample_size, sheet_item_ids=on_sheet)
+    return review_summary(
+        scores=scores,
+        sample_size=sample_size,
+        sheet_item_ids=on_sheet,
+        sheet_fingerprints=_current_sheet_fingerprints(lang, requested, drawn),
+    )
 
 
 def derive_accent(lang: str) -> dict[str, Any]:

@@ -406,7 +406,7 @@ def _exercise(**overrides: object) -> dict[str, object]:
         "exercise_id": sentence_id("exercise", "greeting"),
         "unit_index": 1,
         "lesson_index": 1,
-        "type": "reverse_translate",
+        "type": "translate",
         "prompt": "Good afternoon",
         "accepted_answers": ["Buenas tardes", "Muy buenas tardes"],
         "distractors": [],

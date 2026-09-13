@@ -108,7 +108,7 @@ in its runlog entry rather than leaving that unsaid.
 ## `coursekit sample` and the published defect rate
 
 ```bash
-uv run coursekit sample es                              # 300 items, seed 20260912
+uv run coursekit sample es                              # 300 items, seed 20260913
 uv run coursekit sample es --set n=300 --set seed=12345  # per-stage options ride on --set
 ```
 
@@ -150,10 +150,17 @@ recorded seed. A sheet that cannot be redrawn belongs to no measurable populatio
 seed and the per-stratum allocation are written into `build/<lang>/sample-summary.json`.
 
 Scoring happens against `content/<lang>/review/RUBRIC.md`, into
-`content/<lang>/review/scores.jsonl`.
+`content/<lang>/review/scores.jsonl`. Copy each sheet row's `content_fingerprint` into
+its score. The fingerprint covers the reviewable content; the sheet summary also
+records the full population fingerprint. An unchanged exercise id does not validate an
+old score after answers, source text, distractors or clip metadata change. The H1 gate
+requires at least 300 rows, all scored and joined to the current population; duplicate
+scores and partial intersections cannot pass. Clip paths are relative to
+`build/<lang>/`, so the candidate CI artifact preserves `g8/bank/` alongside the sheet.
 
 **This run has no paid native reviewer.** The Spanish sample is scored by the phase's
-Opus reviewer agent, so every rate derived from it is published with, verbatim:
+reviewer agent (Codex for the current takeover round), so every rate derived from it
+is published with, verbatim:
 
 > PROVISIONAL (unreviewed by a paid native speaker)
 

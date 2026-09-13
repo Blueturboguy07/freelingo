@@ -63,7 +63,6 @@ __all__ = [
 ]
 
 
-
 class SuiteInputMissing(RuntimeError):
     """An artefact the suite must read does not exist. Never a pass."""
 
@@ -134,11 +133,9 @@ def shipped_items(lang: str) -> tuple[ShippedItem, ...]:
     selected = _read("selected_item", lang)
     ingested = {record["sentence_id"]: record for record in _read("ingested_sentence", lang)}
     candidates = _read_optional("candidate", lang) or []
-    by_slot = {
-        (record["unit_index"], record["lesson_index"], record["slot_index"]): record
-        for record in candidates
-        if record["accepted"]
-    }
+    from ..artifacts import first_accepted_candidates
+
+    by_slot = first_accepted_candidates(candidates, lang=lang)
 
     items: list[ShippedItem] = []
     for row in selected:
@@ -711,9 +708,7 @@ def direction_and_font_coverage(ctx: ValidatorContext) -> list[Finding]:
         )
     else:
         declared = [
-            row
-            for row in pack_rows
-            if row["table"] == "meta" and row["row_id"] == RTL_META_ROW_ID
+            row for row in pack_rows if row["table"] == "meta" and row["row_id"] == RTL_META_ROW_ID
         ]
         if not declared:
             findings.append(

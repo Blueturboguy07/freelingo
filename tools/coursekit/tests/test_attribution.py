@@ -64,12 +64,34 @@ def _inputs(case: dict[str, Any]) -> PackInputs:
     )
     candidates = tuple(
         {
+            "schema_version": 1,
+            "lang": "es",
+            "candidate_id": sentence_id("candidate", entry["text"]),
+            "unit_index": 1,
+            "lesson_index": 1,
+            "slot_index": len(sentences) + index,
+            "author": "fixture",
+            "generated_at": "2026-09-13T00:00:00+00:00",
+            "analysis": None,
+            "reject_reason": None,
+            "accepted_alternates": [],
             "text": entry["text"],
             "translation": entry["text"],
             "accepted": entry["accepted"],
             "provenance": "llm",
         }
-        for entry in case["candidates"]
+        for index, entry in enumerate(case["candidates"])
+    )
+    selected += tuple(
+        {
+            "unit_index": 1,
+            "lesson_index": 1,
+            "slot_index": row["slot_index"],
+            "sentence_id": None,
+            "gap": True,
+            "provenance": "llm",
+        }
+        for row in candidates
     )
     clips = tuple(
         {

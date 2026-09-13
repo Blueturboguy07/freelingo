@@ -27,6 +27,7 @@ from coursekit.config.sample import (
     RECORDED_REVIEWER_KINDS,
     REVIEW_VERDICTS,
     REVIEWER_KIND_AGENT,
+    REVIEWER_KIND_OPUS,
     REVIEWER_KIND_PAID_NATIVE,
     SAMPLE_SEED,
     SAMPLE_STRATA,
@@ -144,9 +145,7 @@ def test_a_different_seed_draws_a_different_sheet(make_es_build) -> None:
     make_es_build(units=5, per_unit=12)
     first = draw_sample("es", n=30, seed=SAMPLE_SEED)
     second = draw_sample("es", n=30, seed=SAMPLE_SEED + 1)
-    assert [item.exercise_id for item in first.items] != [
-        item.exercise_id for item in second.items
-    ]
+    assert [item.exercise_id for item in first.items] != [item.exercise_id for item in second.items]
 
 
 def test_the_sheet_records_everything_needed_to_redraw_it(make_es_build) -> None:
@@ -218,10 +217,7 @@ def make_scores(tmp_path, rows) -> None:
 def test_scores_are_read_and_the_rate_is_the_wrong_fraction(tmp_path) -> None:
     make_scores(
         tmp_path,
-        [
-            {"exercise_id": f"e{index}", "verdict": "ok", "reviewer": "opus"}
-            for index in range(98)
-        ]
+        [{"exercise_id": f"e{index}", "verdict": "ok", "reviewer": "opus"} for index in range(98)]
         + [
             {"exercise_id": "e98", "verdict": "wrong", "reviewer": "opus"},
             {"exercise_id": "e99", "verdict": "awkward", "reviewer": "opus"},
@@ -239,7 +235,7 @@ def test_scores_are_read_and_the_rate_is_the_wrong_fraction(tmp_path) -> None:
 
 
 def test_awkward_is_not_folded_into_the_wrong_item_rate(tmp_path) -> None:
-    """"A native speaker would not say it this way" and "this is not Spanish" are
+    """ "A native speaker would not say it this way" and "this is not Spanish" are
     different claims, and the published number is about the second one."""
     make_scores(
         tmp_path,
@@ -339,7 +335,11 @@ def test_the_gate_refuses_a_rate_whose_reviewer_class_is_not_recorded() -> None:
     `"whoever"`, which is how a rate measured by nobody in particular ends up on the
     S001 card wearing the same weight as one a paid native speaker produced.
     """
-    assert RECORDED_REVIEWER_KINDS == (REVIEWER_KIND_PAID_NATIVE, REVIEWER_KIND_AGENT)
+    assert RECORDED_REVIEWER_KINDS == (
+        REVIEWER_KIND_PAID_NATIVE,
+        REVIEWER_KIND_AGENT,
+        REVIEWER_KIND_OPUS,
+    )
     for kind in ("", "whoever", "intern", "unknown"):
         summary = _summary(2, 298)
         summary["reviewer_kind"] = kind
@@ -493,9 +493,7 @@ def test_the_docs_do_not_claim_the_note_already_appears_where_it_cannot() -> Non
 def test_unscored_sheet_rows_are_reportable(make_es_build, tmp_path) -> None:
     make_es_build(units=3, per_unit=8)
     sheet = draw_sample("es", n=12)
-    scored = [
-        {"exercise_id": sheet.items[0].exercise_id, "verdict": "ok", "reviewer": "opus"}
-    ]
+    scored = [{"exercise_id": sheet.items[0].exercise_id, "verdict": "ok", "reviewer": "opus"}]
     assert len(unscored_items(sheet, scored)) == 11
 
 
@@ -521,10 +519,8 @@ def test_derive_review_is_none_when_nothing_has_been_drawn_or_scored(tmp_path) -
     assert derive_review("es", repo_root=tmp_path) is None
 
 
-def test_a_drawn_but_unscored_sample_still_appears_in_the_report(
-    make_es_build, tmp_path
-) -> None:
-    """"We have not measured this" and "we measured it and it was fine" must differ.
+def test_a_drawn_but_unscored_sample_still_appears_in_the_report(make_es_build, tmp_path) -> None:
+    """ "We have not measured this" and "we measured it and it was fine" must differ.
 
     A drawn sheet with no scores is the state a pack is in between `coursekit sample`
     and the reviewer finishing, and the report has to show `sample_size: 40, scored: 0,
@@ -554,11 +550,24 @@ def test_derive_review_joins_the_committed_scores_against_the_drawn_sheet(
     sheet = draw_sample("es", n=20)
     write_sample(sheet)
     on_sheet = [item.exercise_id for item in sheet.items][:10]
+    fingerprints = {item.exercise_id: item.to_json()["content_fingerprint"] for item in sheet.items}
     make_scores(
         tmp_path,
-        [{"exercise_id": on_sheet[0], "verdict": "wrong", "reviewer": "opus"}]
+        [
+            {
+                "exercise_id": on_sheet[0],
+                "verdict": "wrong",
+                "reviewer": "opus",
+                "content_fingerprint": fingerprints[on_sheet[0]],
+            }
+        ]
         + [
-            {"exercise_id": identifier, "verdict": "ok", "reviewer": "opus"}
+            {
+                "exercise_id": identifier,
+                "verdict": "ok",
+                "reviewer": "opus",
+                "content_fingerprint": fingerprints[identifier],
+            }
             for identifier in on_sheet[1:]
         ]
         + [
@@ -635,4 +644,4 @@ def test_the_sanctioned_spellings_are_the_ones_the_readme_documents() -> None:
     # The bare draw is REVIEWER_SAMPLE_ITEMS at SAMPLE_SEED, which is what the README
     # and the plan's P2 row both claim.
     assert REVIEWER_SAMPLE_ITEMS == 300
-    assert SAMPLE_SEED == 20260912
+    assert SAMPLE_SEED == 20260913

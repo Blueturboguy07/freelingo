@@ -51,7 +51,7 @@
     "codec": "opus"
   },
   "audioBytes": 399,
-  "builtAt": "2026-09-12T14:52:54+00:00",
+  "builtAt": "2026-09-13T02:16:37+00:00",
   "cefrChecked": true,
   "cefrClaim": "A1 · CEFR-checked",
   "courseId": "en-es",
@@ -117,12 +117,13 @@
   "major": 0,
   "packId": "freelingo-es",
   "payloadBytes": 131072,
-  "payloadSha256": "a8cb0947c41560097bfe467d2a891fcbb18e162d1569b432d41a195c8fc65c18",
+  "payloadSha256": "4c6243411467f2b51deea9550165bc305bcef9cb7321a4f87cc384d55d443100",
   "provenance": {
     "corpusPct": 83.33,
     "machineAuthoredPct": 16.67,
     "sentences": 6
   },
+  "review": null,
   "reviewerSampleItems": 300,
   "schemaVersion": 1,
   "shareAlike": [

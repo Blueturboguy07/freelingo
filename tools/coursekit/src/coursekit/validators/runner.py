@@ -138,7 +138,8 @@ class SuiteResult:
 
 
 def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    # G9 must distinguish a rebuild from validation within the same second.
+    return datetime.now(UTC).isoformat(timespec="microseconds")
 
 
 def run_suite(

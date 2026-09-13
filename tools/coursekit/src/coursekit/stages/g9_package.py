@@ -30,18 +30,21 @@ be a stage nobody could run locally.
 from __future__ import annotations
 
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from .. import __version__
 from ..artifacts import read_records, stage_dir, write_records
-from ..config import ARTIFACT_SCHEMA_VERSION, BUILD_STAGE_IDS, PACK_STAGE_ID, VALIDATOR_IDS
+from ..config import ARTIFACT_SCHEMA_VERSION, BUILD_STAGE_IDS, PACK_STAGE_ID, TOOL_NAME
 from ..config.g9 import AUDIO_DIRNAME, PACK_DB_FILENAME
 from ..packbuild.attribution import attribution_violations
 from ..packbuild.manifest import build_manifest, manifest_violations, write_manifest
 from ..packbuild.sqlite import PackInputs, build_rows, row_id_for, write_pack
 from ..runlog import licences_seen, read_entries, require_successful
 from ..sample import derive_review
+from ..validators.report import build_report, read_report, report_path
 from . import StageContext, StageResult, register_stage
 
 #: The stages whose records G9 reads. G5 and G6 leave no record of their own (a
@@ -50,23 +53,35 @@ _UPSTREAM = ("g0", "g1", "g2", "g3", "g4", "g7", "g8")
 
 
 def _validator_report(lang: str) -> dict[str, Any]:
-    """The validator suite's own account of itself, from the runlog.
+    """Embed the suite's full result only when it postdates every upstream stage.
 
-    Read from the log rather than re-run here: `coursekit validate` is a separate command
-    with its own exit code, and a stage that re-ran the validators would be a second
-    opinion nobody asked for. A validator with no entry is reported as `not-run`, which
-    is the state the S002 validator-report summary must be able to show — "clean" and
-    "never ran" being the two things a report must never confuse.
+    G9 initially runs before validation. A previous report must not approve a rebuilt
+    population. `coursekit validate` followed by `coursekit pack` embeds the actual
+    full report; copying a few counts from the runlog loses the hard gate and V8 engine
+    evidence the loader and provenance screens require.
     """
-    entries = {entry["stage"]: entry for entry in read_entries(lang)}
-    report: dict[str, Any] = {}
-    for validator_id in VALIDATOR_IDS:
-        entry = entries.get(validator_id)
-        report[validator_id] = {
-            "status": "not-run" if entry is None else str(entry["status"]),
-            "findings": 0 if entry is None else int(entry["notes"].get("findings", 0)),
-        }
-    return report
+    entries = list(read_entries(lang))
+    upstream = [
+        entry for entry in entries if entry["stage"] in BUILD_STAGE_IDS and entry["stage"] != "g9"
+    ]
+    path = report_path(lang)
+    if path.exists():
+        report = read_report(path)
+        generated = datetime.fromisoformat(report["generated_at"])
+        # Both producers retain microseconds. Equality cannot establish ordering,
+        # especially for historical second-resolution entries, so it fails closed.
+        if report["lang"] == lang and all(
+            datetime.fromisoformat(entry["finished_at"]) < generated for entry in upstream
+        ):
+            return report
+    return build_report(
+        lang=lang,
+        run_id=upstream[-1]["run_id"] if upstream else "not-run",
+        tool=TOOL_NAME,
+        tool_version=__version__,
+        generated_at=datetime.now(UTC).isoformat(),
+        runs=[],
+    )
 
 
 def _collect(lang: str, kind: str) -> tuple[dict[str, Any], ...]:

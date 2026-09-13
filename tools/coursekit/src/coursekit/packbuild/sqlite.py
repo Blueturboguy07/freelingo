@@ -238,7 +238,7 @@ class PackInputs:
     clips: tuple[Mapping[str, Any], ...] = ()
     #: Per-source licence rows, as the run resolved them (`runlog.licences_seen`).
     licences: tuple[Mapping[str, Any], ...] = ()
-    #: The validator report: `{validator_id: {"status": ..., "findings": n}}`.
+    #: The complete current validator-report.json, including hard gate and engine evidence.
     validator_report: Mapping[str, Any] = field(default_factory=dict)
     #: The measured native-reviewer wrong-item rate, or None before the sample lands.
     defect_rate: float | None = None
@@ -261,7 +261,7 @@ def shipped_sentences(inputs: PackInputs) -> list[Mapping[str, Any]]:
     whose BY clause still requires a credit, and they are what the `{{n}}%
     machine-authored` figure on S001 counts.
     """
-    from ..artifacts import sentence_id as content_address
+    from ..artifacts import first_accepted_candidates
 
     if not inputs.selected:
         raise ValueError(
@@ -283,11 +283,18 @@ def shipped_sentences(inputs: PackInputs) -> list[Mapping[str, Any]]:
             )
         shipped[str(raw)] = {**record, "provenance": "corpus"}
 
-    for candidate in inputs.candidates:
-        if not candidate.get("accepted"):
+    chosen = first_accepted_candidates(inputs.candidates, lang=inputs.lang)
+    for slot in inputs.selected:
+        if slot.get("sentence_id"):
             continue
+        coordinate = (slot["unit_index"], slot["lesson_index"], slot["slot_index"])
+        candidate = chosen.get(coordinate)
+        if candidate is None:
+            raise LookupError(f"selected gap {coordinate} has no accepted candidate")
         text = str(candidate["text"])
-        identifier = content_address(inputs.lang, text)
+        identifier = str(candidate["candidate_id"])
+        if identifier in shipped:
+            raise ValueError(f"conflicting shipped source identity {identifier}")
         shipped[identifier] = {
             "sentence_id": identifier,
             "text": text,
