@@ -165,8 +165,10 @@ def test_the_spellcheck_probe_sentences_are_the_measured_ones() -> None:
     """
     assert SPELLCHECK_PROBE["fr"] == "La maison xqzptv est grande."
     assert "Je xqzptv" not in SPELLCHECK_PROBE["fr"]
-    assert all("xqzptv" in probe for probe in SPELLCHECK_PROBE.values())
-    assert set(SPELLCHECK_PROBE) == {"es", "fr", "de", "ja"}
+    assert all("xqzptv" in SPELLCHECK_PROBE[lang] for lang in ("es", "fr", "de", "ja"))
+    # Separate actual LT6.6 en-US spelling probe, measured 2026-09-13.
+    assert SPELLCHECK_PROBE["en"] == "This is a misspelledd word."
+    assert set(SPELLCHECK_PROBE) == {"es", "fr", "de", "ja", "en"}
 
 
 def test_a_misspelling_comes_back_labelled_the_way_v8_keys_on(spanish_server: str) -> None:

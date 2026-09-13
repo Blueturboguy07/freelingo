@@ -132,6 +132,8 @@ MOCK_ENGINE_IDS: Final[tuple[str, ...]] = ("mock_lt",)
 #: `de` and `ja` resolve only under a region tag on that list, so a bare code is not a
 #: safe default for all four.
 LANGUAGETOOL_LONG_CODE: Final[dict[str, str]] = {
+    # English reverse-answer checks: actual local LT6.6 probe, 2026-09-13.
+    "en": "en-US",
     "es": "es",
     "fr": "fr",
     "de": "de-DE",
@@ -178,6 +180,8 @@ LANGUAGETOOL_XML_RULE_COUNTS: Final[dict[str, int]] = {
 #: than tabulated, and also why the probe SENTENCE is a measured constant rather than
 #: whatever reads naturally.
 SPELLCHECK_PROBE: Final[dict[str, str]] = {
+    # LT6.6 (2026-09-13) raised MORFOLOGIK_RULE_EN_US / misspelling / TYPOS.
+    "en": "This is a misspelledd word.",
     "es": "Yo xqzptv en la casa.",
     # NOT "Je xqzptv dans la maison." — see the table above.
     "fr": "La maison xqzptv est grande.",
@@ -197,6 +201,9 @@ SPELLCHECK_CATEGORY_ID: Final[str] = "TYPOS"
 #: encoded as *which categories are enforced*, not as an error budget: a sentence with
 #: one real agreement error is not more acceptable in French.
 BLOCKING_ISSUE_TYPES: Final[dict[str, tuple[str, ...]]] = {
+    # en-US also raised HE_VERB_AGR / grammar for "He go to school every day."
+    # on local LT6.6, 2026-09-13. Same correctness axes as Spanish; no style budget.
+    "en": ("misspelling", "grammar", "inconsistency"),
     # Both engines present and both trusted.
     "es": ("misspelling", "grammar", "inconsistency"),
     # Same two engines; style and typography demoted, because a ruleset this dense
