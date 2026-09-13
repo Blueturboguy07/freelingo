@@ -1,0 +1,15 @@
+{
+  "originalFiles": {
+    "/private/tmp/p2r5-source-freeze-20260913/es/g4/selected.jsonl": "7a7db73a3da553da77aac262185d01d7ad707ab0a887bd15b6b5051db4da94a2",
+    "/private/tmp/p2r5-source-freeze-20260913/es/g3/units.jsonl": "e1335f927d78a96a65d6a4aa8dcc3e13394c60b0364b74e9ac61f8506dac18dd",
+    "/private/tmp/p2r5-source-freeze-20260913/es/g2/banded.jsonl": "e0449ca4b6a0b748e81793120c9237350a8b6fbc39b9f162727f610d97cde9b2",
+    "/Users/mannbellani/freelingo-wt/p2r5-integration/content/es/authoring/lexeme-glosses.jsonl": "ba49aa2bbec5f1bff19e0d4441b5a44bfd908d1331c187bc2fc1058a8f26a972",
+    "content/es/grading/first-unit-20260913/bundle/source-facts.json": "2bce55e91322d17b9ef5f1c91ac3ca7814ea0e77b77de5feca7692d7dd8585ce"
+  },
+  "snapshotFiles": {
+    "glosses.jsonl": "b7d16fe908658972a677a9826e446244f1de6db14feb3fb0f4f9423a20e66bbf",
+    "selected-u1.jsonl": "b849a211caac6d1170322e811d059ffb9cff1f5372c3a2731409b08424e2e6c7",
+    "units-u1.jsonl": "e62657008bb01aa4b4f922a29a7d89023f626cad4be4a401e01c2f811a968ebd",
+    "banded-u1.jsonl": "392b458fbf428702cce1d64d3d2e1f2c9d1ac8086d42a721d109bd8c75e25f90"
+  }
+}

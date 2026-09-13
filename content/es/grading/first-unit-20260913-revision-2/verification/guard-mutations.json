@@ -1,0 +1,29 @@
+{
+  "kind": "four isolated guard-removal mutations; no source-file changes",
+  "mutations": [
+    {
+      "guard": "stale original candidate",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    },
+    {
+      "guard": "author revision cannot self-approve",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    },
+    {
+      "guard": "first session cannot contain production",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    },
+    {
+      "guard": "correct option mismatch",
+      "baseline": "rejects falsifier",
+      "mutant": "accepts same falsifier",
+      "killed": true
+    }
+  ]
+}

@@ -1,0 +1,447 @@
+{
+  "schemaVersion": 1,
+  "author": "Codex Spanish revision author /root/review_g7_integration (2026-09-13)",
+  "licence": "CC-BY-NC-SA-4.0",
+  "baseAuthorCommit": "7dc0bd2e37119fce64e764daf517549d5a980249",
+  "baseCandidatesSha256": "018e3d5445f93aa66ce547a1d016210803883cae31e4e2fc0ad89f9fde19b502",
+  "revisions": [
+    {
+      "originalExerciseId": "57b13098f7415a04",
+      "originalCandidateSha256": "d97bab3e91f8345a572d9ccb5571ca87e62426a2c3ce6ae3b5dbb99bf05b05a3",
+      "shapeId": "typed_translate_forward",
+      "text": "Hola, buenas noches.",
+      "translation": "Hello, good evening.",
+      "answers": [
+        {
+          "surface": "Hola, buenas noches.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:noche:NOUN"
+      },
+      "explanation": "The greeting buenas noches means good evening when arriving; buenas agrees with feminine plural noches.",
+      "rationale": "English greeting corrected; retain Spanish night target."
+    },
+    {
+      "originalExerciseId": "fed7d95f643679e3",
+      "originalCandidateSha256": "e202a2ef3230544a914f2b0b8f7cf190bd63ab5f4dff8efd680e7d340047a065",
+      "shapeId": "typed_translate_forward",
+      "text": "Adiós, buenas noches.",
+      "translation": "Goodbye, good night.",
+      "answers": [
+        {
+          "surface": "Adiós, buenas noches.",
+          "rank": 0
+        },
+        {
+          "surface": "Buenas noches, adiós.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:noche:NOUN"
+      },
+      "explanation": "Adiós says goodbye, and buenas noches wishes someone good night when parting.",
+      "rationale": "One coherent farewell replaces the unrelated hello/yes/goodbye fragments; reserved adiós remains.",
+      "objectiveChange": {
+        "from": {
+          "kind": "lexeme",
+          "itemRef": "lx:sí:INTJ"
+        },
+        "reason": "The new coherent farewell removes sí. Noche is present with NOUN in both unchanged G2 and the actual canonical G1 analysis; the reserved adiós remains in its original G4 slot."
+      }
+    },
+    {
+      "originalExerciseId": "36ba32390399ac9f",
+      "originalCandidateSha256": "cab947077302d840aa555d564c0c57998e65dccfef24ca1723f8012237d44332",
+      "shapeId": "typed_translate_forward",
+      "text": "Sí, por favor.",
+      "translation": "Yes, please.",
+      "answers": [
+        {
+          "surface": "Sí, por favor.",
+          "rank": 0
+        },
+        {
+          "surface": "Por favor, sí.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:favor:NOUN"
+      },
+      "explanation": "Sí means yes. Por favor is the polite expression please; either authored order expresses the same polite affirmative response.",
+      "rationale": "Natural preferred order; preserve both whole Spanish responses for separate current validation.",
+      "objectiveChange": {
+        "from": {
+          "kind": "lexeme",
+          "itemRef": "lx:sí:INTJ"
+        },
+        "reason": "Natural Sí, por favor. keeps affirmative sí, but actual G1 reads it ADV while unchanged G2 declares INTJ. Favor is present as NOUN in both; do not relabel either analysis or add an unsupported sí objective."
+      }
+    },
+    {
+      "originalExerciseId": "464154843186dcc4",
+      "originalCandidateSha256": "42ce832ade847876423f90f133fbd23ddd991b72ff08422ef2b3a5a028953256",
+      "shapeId": "typed_translate_reverse",
+      "text": "Ella es buena.",
+      "translation": "She is a good person.",
+      "answers": [
+        {
+          "surface": "She is a good person.",
+          "rank": 0
+        },
+        {
+          "surface": "She's a good person.",
+          "rank": 1
+        },
+        {
+          "surface": "She is good.",
+          "rank": 2
+        },
+        {
+          "surface": "She's good.",
+          "rank": 3
+        },
+        {
+          "surface": "She is kind.",
+          "rank": 4
+        },
+        {
+          "surface": "She's kind.",
+          "rank": 5
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bueno:ADJ"
+      },
+      "explanation": "Buena describes a good person here and agrees with ella. Spanish can omit ella when the subject is clear.",
+      "rationale": "The visible Spanish source selects character/quality. Route to reverse typing with explicit English equivalents; neither an ambiguous English prompt nor newly required persona/estar Spanish vocabulary is introduced."
+    },
+    {
+      "originalExerciseId": "ba369b2c6536fec7",
+      "originalCandidateSha256": "2ca2834c3a6d6e491f3a6ef75db1c3d1467024ced63c1832daf1571631c196a2",
+      "shapeId": "typed_translate_reverse",
+      "text": "Encantado, mucho gusto.",
+      "translation": "Nice to meet you.",
+      "answers": [
+        {
+          "surface": "Nice to meet you.",
+          "rank": 0
+        },
+        {
+          "surface": "Pleased to meet you.",
+          "rank": 1
+        },
+        {
+          "surface": "It is a pleasure to meet you.",
+          "rank": 2
+        },
+        {
+          "surface": "It's a pleasure to meet you.",
+          "rank": 3
+        },
+        {
+          "surface": "A pleasure to meet you.",
+          "rank": 4
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:gusto:NOUN"
+      },
+      "explanation": "Encantado and mucho gusto are Spanish meeting formulas. English naturally expresses their greeting with nice to meet you or pleased to meet you.",
+      "rationale": "Retain reserved encantado; author natural whole English greeting instead of translating redundant formulas word for word."
+    },
+    {
+      "originalExerciseId": "8844061cfdcc221d",
+      "originalCandidateSha256": "6ac0071b2661fefc98859b9eddb3b5263678bdafe675c06462851b4e1c8926c3",
+      "shapeId": "typed_translate_reverse",
+      "text": "Bien, gracias. ¿Y tú?",
+      "translation": "Fine, thank you. And you?",
+      "answers": [
+        {
+          "surface": "Fine, thank you. And you?",
+          "rank": 0
+        },
+        {
+          "surface": "Fine, thanks. And you?",
+          "rank": 1
+        },
+        {
+          "surface": "Good, thank you. And you?",
+          "rank": 2
+        },
+        {
+          "surface": "Good, thanks. And you?",
+          "rank": 3
+        },
+        {
+          "surface": "I'm fine, thank you. And you?",
+          "rank": 4
+        },
+        {
+          "surface": "I am fine, thank you. And you?",
+          "rank": 5
+        },
+        {
+          "surface": "I'm well, thank you. And you?",
+          "rank": 6
+        },
+        {
+          "surface": "I am well, thank you. And you?",
+          "rank": 7
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bien:ADV"
+      },
+      "explanation": "Bien answers that the speaker is fine or well; gracias thanks the listener, and ¿y tú? asks the informal singular listener the same question.",
+      "rationale": "Explicitly route this source to reverse typing. Forward unrestricted typing would need legitimate estar expansions outside the unchanged unit allowance; no raw inferred Spanish alternatives or ledger expansion."
+    },
+    {
+      "originalExerciseId": "27adb987c8bb5e3d",
+      "originalCandidateSha256": "1451c877fcea88ba8c633bc060b2699e4483c45b56891f84cba957f8ed31cca7",
+      "shapeId": "typed_translate_reverse",
+      "text": "Bien. ¿Y tú?",
+      "translation": "Fine. And you?",
+      "answers": [
+        {
+          "surface": "Fine. And you?",
+          "rank": 0
+        },
+        {
+          "surface": "Well. And you?",
+          "rank": 1
+        },
+        {
+          "surface": "Good. And you?",
+          "rank": 2
+        },
+        {
+          "surface": "I'm fine. And you?",
+          "rank": 3
+        },
+        {
+          "surface": "I am fine. And you?",
+          "rank": 4
+        },
+        {
+          "surface": "I'm well. And you?",
+          "rank": 5
+        },
+        {
+          "surface": "I am well. And you?",
+          "rank": 6
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bien:ADV"
+      },
+      "explanation": "Bien is a short answer about wellbeing. ¿Y tú? asks and you; English can use a short reply or explicitly say I am fine or I am well.",
+      "rationale": "Add the concrete omitted English replies; these remain reverse-only and cannot introduce Spanish vocabulary."
+    },
+    {
+      "originalExerciseId": "8bd62a7a1c4ce632",
+      "originalCandidateSha256": "f5e391cb9e97cb84fb4ed286ae263a845097cb3bb88c6ec6d49a0ec644e0e70c",
+      "shapeId": "typed_translate_reverse",
+      "text": "Mucho gusto, señor.",
+      "translation": "Nice to meet you, sir.",
+      "answers": [
+        {
+          "surface": "Nice to meet you, sir.",
+          "rank": 0
+        },
+        {
+          "surface": "Pleased to meet you, sir.",
+          "rank": 1
+        },
+        {
+          "surface": "A pleasure to meet you, sir.",
+          "rank": 2
+        },
+        {
+          "surface": "It is a pleasure to meet you, sir.",
+          "rank": 3
+        },
+        {
+          "surface": "It's a pleasure to meet you, sir.",
+          "rank": 4
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:gusto:NOUN"
+      },
+      "explanation": "Mucho gusto is a meeting greeting. Señor addresses a man respectfully; English uses sir here.",
+      "rationale": "Replace the awkward meeting/farewell combination with a complete meeting greeting, and use reverse typing so unrestricted Spanish greeting paraphrases outside the unit window are not falsely graded."
+    }
+  ],
+  "introductions": [
+    {
+      "lexemeId": "lx:hola:INTJ",
+      "lemma": "hola",
+      "pos": "INTJ",
+      "meaning": "hello",
+      "g4SlotIndex": 0,
+      "shapeId": "meaning_select",
+      "instruction": "Select the meaning for “hola”",
+      "prompt": "hola",
+      "accepted": "hello",
+      "optionOrder": [
+        "hello",
+        "day",
+        "night"
+      ],
+      "correctOptionId": "option-hello",
+      "explanation": "Hola is the ordinary Spanish greeting hello or hi.",
+      "classification": "word",
+      "countable": true,
+      "answers": [
+        {
+          "surface": "hello",
+          "rank": 0
+        },
+        {
+          "surface": "hi",
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "lexemeId": "lx:día:NOUN",
+      "lemma": "día",
+      "pos": "NOUN",
+      "meaning": "day",
+      "g4SlotIndex": 2,
+      "shapeId": "meaning_select",
+      "instruction": "Select the meaning for “día”",
+      "prompt": "día",
+      "accepted": "day",
+      "optionOrder": [
+        "hello",
+        "day",
+        "night"
+      ],
+      "correctOptionId": "option-day",
+      "explanation": "Día means day. It is a masculine noun, despite its final a.",
+      "classification": "word",
+      "countable": true,
+      "answers": [
+        {
+          "surface": "day",
+          "rank": 0
+        }
+      ]
+    },
+    {
+      "lexemeId": "lx:noche:NOUN",
+      "lemma": "noche",
+      "pos": "NOUN",
+      "meaning": "night",
+      "g4SlotIndex": 4,
+      "shapeId": "meaning_select",
+      "instruction": "Select the meaning for “noche”",
+      "prompt": "noche",
+      "accepted": "night",
+      "optionOrder": [
+        "hello",
+        "day",
+        "night"
+      ],
+      "correctOptionId": "option-night",
+      "explanation": "Noche means night. It is a feminine noun.",
+      "classification": "word",
+      "countable": true,
+      "answers": [
+        {
+          "surface": "night",
+          "rank": 0
+        }
+      ]
+    }
+  ],
+  "firstSession": {
+    "unitId": "u001",
+    "unitIndex": 1,
+    "lessonIndex": 1,
+    "nodeId": "u001-candidate-level-1",
+    "orderedLexemeIds": [
+      "lx:hola:INTJ",
+      "lx:día:NOUN",
+      "lx:noche:NOUN"
+    ],
+    "productionAllowed": false,
+    "rationale": "Explicit first session contains only source-backed meaning recognition: the actual Spanish prompt is visible, with a NEW WORD cue and reviewed prompt-exposure witness. The existing four-hour production hold remains unchanged. This is a replacement first-session proposal; old source rows remain preserved. Picture alternatives wait for verified native image asset resolution."
+  },
+  "pictureAlternatives": [
+    {
+      "lexemeId": "lx:hola:INTJ",
+      "lemma": "hola",
+      "pos": "INTJ",
+      "meaning": "hello",
+      "g4SlotIndex": 0,
+      "shapeId": "picture_select",
+      "instruction": "Which one of these is “hello”?",
+      "prompt": "hello",
+      "accepted": "hola",
+      "optionOrder": [
+        "hola",
+        "día",
+        "noche"
+      ],
+      "correctOptionId": "option-hello",
+      "explanation": "Hola is the ordinary Spanish greeting hello or hi.",
+      "classification": "word",
+      "countable": true
+    },
+    {
+      "lexemeId": "lx:día:NOUN",
+      "lemma": "día",
+      "pos": "NOUN",
+      "meaning": "day",
+      "g4SlotIndex": 2,
+      "shapeId": "picture_select",
+      "instruction": "Which one of these is “day”?",
+      "prompt": "day",
+      "accepted": "día",
+      "optionOrder": [
+        "hola",
+        "día",
+        "noche"
+      ],
+      "correctOptionId": "option-day",
+      "explanation": "Día means day. It is a masculine noun, despite its final a.",
+      "classification": "word",
+      "countable": true
+    },
+    {
+      "lexemeId": "lx:noche:NOUN",
+      "lemma": "noche",
+      "pos": "NOUN",
+      "meaning": "night",
+      "g4SlotIndex": 4,
+      "shapeId": "picture_select",
+      "instruction": "Which one of these is “night”?",
+      "prompt": "night",
+      "accepted": "noche",
+      "optionOrder": [
+        "hola",
+        "día",
+        "noche"
+      ],
+      "correctOptionId": "option-night",
+      "explanation": "Noche means night. It is a feminine noun.",
+      "classification": "word",
+      "countable": true
+    }
+  ],
+  "baseLexicalCatalogSha256": "9127d13135c3ad5649d7d4220de54db7650c3679a9665f9da3d0bed967c60416"
+}

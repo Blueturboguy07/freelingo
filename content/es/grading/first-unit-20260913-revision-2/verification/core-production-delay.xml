@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="32" failures="0" errors="0" time="0.015921458">
+    <testsuite name="packages/core/src/scheduler/exercise-roles.test.ts" timestamp="2026-09-13T18:44:40.515Z" hostname="MacBook-Pro-447.local" tests="32" failures="0" errors="0" skipped="0" time="0.015921458">
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] wordBankTranslate cannot produce a just-introduced item through the real scheduler caller" time="0.012725834">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] typedTranslate cannot produce a just-introduced item through the real scheduler caller" time="0.000352667">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] completeChat cannot produce a just-introduced item through the real scheduler caller" time="0.00019525">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] listenTypeWhatYouHear cannot produce a just-introduced item through the real scheduler caller" time="0.000137292">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] listenMissingWord cannot produce a just-introduced item through the real scheduler caller" time="0.000147584">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] listenRepeat cannot produce a just-introduced item through the real scheduler caller" time="0.000161167">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] listenAndRespond cannot produce a just-introduced item through the real scheduler caller" time="0.000147084">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] gapFillTyped cannot produce a just-introduced item through the real scheduler caller" time="0.000110416">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] completeWord cannot produce a just-introduced item through the real scheduler caller" time="0.000118041">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] typeWordEnding cannot produce a just-introduced item through the real scheduler caller" time="0.000153">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] readAndRespond cannot produce a just-introduced item through the real scheduler caller" time="0.000091875">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] speakSentence cannot produce a just-introduced item through the real scheduler caller" time="0.000065292">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape pictureSelect stays available for early recall" time="0.000033959">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape matchPairs stays available for early recall" time="0.000016292">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape meaningSelect stays available for early recall" time="0.000014708">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape listenTapWhatYouHear stays available for early recall" time="0.000014708">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape gapFillSelect stays available for early recall" time="0.000014167">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape pronunciationSelect stays available for early recall" time="0.000014">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape characterSelect stays available for early recall" time="0.000013625">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape characterTrace stays available for early recall" time="0.000023208">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape characterBuild stays available for early recall" time="0.000024">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-SCH-10] the declared recognition shape learnCharacters stays available for early recall" time="0.000018209">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] every current exercise has a reviewed classification" time="0.000284667">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type speak before it can bypass production eligibility" time="0.000269">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type completeTheChat before it can bypass production eligibility" time="0.00003975">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type gapFill before it can bypass production eligibility" time="0.000028583">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type listening before it can bypass production eligibility" time="0.000030375">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type readRespond before it can bypass production eligibility" time="0.00002725">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type character before it can bypass production eligibility" time="0.000032125">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type unknown before it can bypass production eligibility" time="0.000027458">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type __proto__ before it can bypass production eligibility" time="0.000033208">
+        </testcase>
+        <testcase classname="packages/core/src/scheduler/exercise-roles.test.ts" name="actual exercise types at the production delay boundary &gt; [INV-PACK-19] rejects unsupported exercise type constructor before it can bypass production eligibility" time="0.000041208">
+        </testcase>
+    </testsuite>
+</testsuites>

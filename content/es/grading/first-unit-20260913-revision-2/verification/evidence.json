@@ -1,0 +1,51 @@
+{
+  "kind": "local authoring and structural evidence, not pipeline or release approval",
+  "authoringSha256": "78faf572fbb2403314387f742d0553b2fb8488c5d004118cafb963c1503487c2",
+  "bundleManifestSha256": "0697311d6e554d0ff6d5780f4448a58f9a2f1204e8280f6e917886a5d2984a09",
+  "exporterSha256": "87535f41dd45d03c7372795408bde15380796234c6f7447e88ac3bc0ec94047f",
+  "actualLocalG5AxisChecks": 13,
+  "actualLocalAxisRejects": 0,
+  "actualProductionSchemaAndShapeChecks": 11,
+  "pythonTests": {
+    "passed": 39,
+    "failed": 0,
+    "skipped": 0,
+    "revision": 24,
+    "unchangedParentAuthoring": 15
+  },
+  "unchangedCoreRoleAndDelayTests": {
+    "passed": 32,
+    "failed": 0,
+    "skipped": 0
+  },
+  "isolatedGuardMutationsKilled": 4,
+  "ruff": "passed",
+  "G6Approval": false,
+  "independentAuthorRevisionReview": null,
+  "nativeRun": false,
+  "files": {
+    "authoring-tests.xml": "2e02c7f5bfffbe58923ab3867d1663b93a9c386c40eb5e6779e56f95e54442f8",
+    "authoring-tests.log": "0977d2326227646bc8cfa97d75af014e4a535c01ba161faae10c3facc763c20a",
+    "core-production-delay.xml": "fb8a06cb5ecc09dad6cd2ea1e7bb6c14c8d98b6c14ac796205b5a10e8870c410",
+    "guard-mutations.json": "73b29876ab4441c13a2919f623c35d2f9581f9d700d22a39e9219c4943f7fd29",
+    "meaning-recognition-red.xml.gz": "dc8540b39b57b14b6f1069ff2daab8592080f48bfdaf1c8f146929dbb7fc1212",
+    "objective-evidence-red.xml.gz": "9b75c3dc260315c0ba613ed410ba53d5510540a362ac1a6dc05831398e2b580a"
+  },
+  "tools": {
+    "python": "/Users/mannbellani/freelingo-wt/p7-kits/tools/coursekit/.venv/bin/python",
+    "upstreamSource": "/Users/mannbellani/freelingo-wt/p2r5-upstream/tools/coursekit/src",
+    "productionCompiler": "/Users/mannbellani/freelingo-wt/p3-app/tools/coursekit/src"
+  },
+  "compressedOriginals": {
+    "meaning-recognition-red.xml.gz": {
+      "originalName": "meaning-recognition-red.xml",
+      "originalSha256": "8caae9f41f8b61526a772ba88b5e4d5fe4d4fd72df4fd661d91eab001307d3e6",
+      "encoding": "gzip; decompression yields exact original JUnit bytes"
+    },
+    "objective-evidence-red.xml.gz": {
+      "originalName": "objective-evidence-red.xml",
+      "originalSha256": "8988e4b6db896b87bdfae4d77d3f1ec9dcd6cded14a5fd368cd42e897a9a522b",
+      "encoding": "gzip; decompression yields exact original JUnit bytes"
+    }
+  }
+}
