@@ -63,3 +63,11 @@ describe('pack signing key custody', () => {
     expect(() => parseEd25519PublicKeyPem(truncated)).toThrow();
   });
 });
+
+it('[INV-PACK-18] the bundled native trust anchor is the committed public key', async () => {
+  const { PACK_SIGNING_PUBLIC_KEY_PEM } = await import('./signing.js');
+  const { readFileSync } = await import('node:fs');
+  expect(PACK_SIGNING_PUBLIC_KEY_PEM).toBe(
+    readFileSync(new URL('../keys/pack-signing.pub', import.meta.url), 'utf8').trim(),
+  );
+});
