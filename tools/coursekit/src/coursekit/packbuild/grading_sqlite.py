@@ -13,7 +13,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ..config.g9 import PACK_SCHEMA_TS_RELPATH
-from .grading import GradingPayload, content_hash, require, text
+from .grading import GradingPayload, content_hash, require, sha, text
 from .itemid import canonical_json
 
 
@@ -25,6 +25,7 @@ def write_learning_extension(
     from .sqlite import read_ts_string_array, repo_root
 
     require(isinstance(payload, GradingPayload), "grading payload must come from its producer")
+    sha(payload.provenance.get("lexicalCatalogSha256"), "lexical catalog provenance")
     meta = dict(connection.execute("SELECT key,value FROM meta"))
     required = {"packId": "pack_id", "courseId": "course_id", "packVersion": "version"}
     for field, key in required.items():
@@ -73,8 +74,13 @@ def write_learning_extension(
     )
     cursor = connection.execute("SELECT exercise_id,item_id,unit_id,lesson_index FROM exercise")
     exercises = {row[0]: row[1:] for row in cursor}
+    from .lexical import validate_runtime_lexical_bindings
+
+    actual_lexemes = {r["lexeme_id"]: r for r in actual_definitions("lexeme")}
+    word_identities = {}
     seen = set()
     for row in payload.runtime_items:
+        validate_runtime_lexical_bindings(row, actual_lexemes, meta.get("lang"), word_identities)
         identifier = row.get("exerciseId")
         require(
             identifier not in seen and identifier in exercises,

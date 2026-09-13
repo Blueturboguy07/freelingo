@@ -278,6 +278,7 @@ class GradingBuildInputs:
     teaching: Sequence[Mapping[str, Any]]
     dictionaries: Sequence[DictionaryInput]
     approval_check: Callable[[Mapping[str, Any], Mapping[str, Any]], bool] | None
+    lexical_catalog: Sequence[Mapping[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -910,8 +911,14 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
                 "surface introduction: stale/missing exercise",
             )
     runtime, bindings, seen = [], [], set()
+    lexical_catalog = None
     for draft in inputs.drafts:
-        fields(draft, DRAFT_FIELDS, "runtime draft/explanation", {"schedulerObjective"})
+        fields(
+            draft,
+            DRAFT_FIELDS,
+            "runtime draft/explanation",
+            {"schedulerObjective", "lexicalBindings"},
+        )
         record = draft["record"]
         exercise_id = record.get("exercise_id")
         exercise = exercises.get(exercise_id)
@@ -1139,6 +1146,23 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
                     or canonical["surface"] in approval.get("spanish", []),
                     "scheduler surface: canonical lacks current target-language approval",
                 )
+        from .lexical import build_lexical_bindings, validate_lexical_catalog
+
+        if lexical_catalog is None:
+            lexical_catalog = validate_lexical_catalog(
+                inputs.lexical_catalog,
+                language=inputs.identity["lang"],
+                sources=inputs.sources,
+                lexemes=lexemes,
+            )
+        lexical_bindings = build_lexical_bindings(
+            lexical_catalog,
+            draft.get("lexicalBindings"),
+            scheduler_surfaces,
+            exercise_id=exercise_id,
+            source_id=draft["sourceId"],
+            source_sha256=draft["sourceSha256"],
+        )
         explanation = draft["explanation"]
         reviewed(explanation, {"exerciseId", "text", "sourceId"}, "explanation")
         require(
@@ -1240,6 +1264,7 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
                 "presentation": copy.deepcopy(presentation),
                 "introductions": introductions,
                 "schedulerSurfaces": scheduler_surfaces,
+                "lexicalBindings": lexical_bindings,
                 "explanation": explanation["text"],
                 **speech,
             }
@@ -1280,6 +1305,7 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             )
         ),
         "surfaceCatalogSha256": content_hash(inputs.surface_catalog),
+        "lexicalCatalogSha256": content_hash(inputs.lexical_catalog),
         "teachingSha256": content_hash(inputs.teaching),
         "dictionaryProofs": [copy.deepcopy(row.provenance) for row in dictionaries.values()],
     }

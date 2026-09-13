@@ -17,11 +17,84 @@ afterEach(() => {
   for (const db of handles.splice(0)) db.close();
 });
 
+// Explicit original semantic declarations for these fixtures, never a pack fallback.
+function canonicalFixture(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(canonicalFixture).join(',') + ']';
+  return (
+    '{' +
+    Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => JSON.stringify(k) + ':' + canonicalFixture(v))
+      .join(',') +
+    '}'
+  );
+}
+function withLexicalFixture<
+  T extends {
+    schedulerSurfaces: {
+      itemId: string;
+      kind: string;
+      itemRef: string;
+      surfaceId: string;
+      surface: string;
+      language: string;
+    }[];
+    proof: { sourceId: string; sourceSha256: string };
+  },
+>(value: T) {
+  const declarations: Record<string, { lemma: string; pos: string; meaning: string }> = {
+    'lx:cantar:VERB': { lemma: 'cantar', pos: 'VERB', meaning: 'to sing' },
+    ...Object.fromEntries(
+      Array.from({ length: 5 }, (_, i) => [
+        'lx:source' + i + ':NOUN',
+        { lemma: 'source' + i, pos: 'NOUN', meaning: 'answer ' + i },
+      ]),
+    ),
+  };
+  return {
+    ...value,
+    lexicalBindings: value.schedulerSurfaces
+      .filter((t) => t.kind === 'lexeme')
+      .map((t) => {
+        const declaration = declarations[t.itemRef];
+        if (!declaration) throw new Error('Unknown original lexical fixture');
+        const semantic = {
+          prompt: declaration.meaning,
+          preferredSurface: declaration.lemma,
+          register: 'neutral',
+          lexemes: [declaration.lemma],
+          grammarConcepts: [] as string[],
+          graphemes: [] as string[],
+        };
+        return {
+          schedulerItemId: t.itemId,
+          surfaceId: t.surfaceId,
+          surface: t.surface,
+          language: t.language,
+          lexemeId: t.itemRef,
+          lemma: declaration.lemma,
+          pos: declaration.pos,
+          wordItemId: 'i_' + hash(canonicalFixture(semantic)).slice(0, 16),
+          semantic,
+          countable: true,
+          classification: 'word',
+          proof: {
+            sourceId: value.proof.sourceId,
+            sourceSha256: value.proof.sourceSha256,
+            declarationSha256: '4'.repeat(64),
+            bindingSha256: '5'.repeat(64),
+          },
+        };
+      }),
+  };
+}
+
 function payload() {
   const accepted = [
     { surfaceId: surfaceId('es', 'Quiero cantar.'), surface: 'Quiero cantar.', rank: 4 },
   ];
-  return {
+  return withLexicalFixture({
     schemaVersion: 1,
     exerciseId: 'ex1',
     itemId: 'i_actual',
@@ -73,7 +146,7 @@ function payload() {
       },
     ],
     explanation: 'Quiero means I want; cantar is the infinitive to sing.',
-  };
+  });
 }
 
 function metadata() {
@@ -352,7 +425,7 @@ it('[INV-GRD-15] the same active pack can reuse its already validated policy', (
 
 function bankPayload() {
   const base = payload();
-  return {
+  return withLexicalFixture({
     ...base,
     gradable: {
       ...base.gradable,
@@ -372,7 +445,7 @@ function bankPayload() {
         { id: 't3', text: 'Quiero' },
       ],
     },
-  };
+  });
 }
 function bankDecode(value = bankPayload()) {
   const { db, reader } = database(value);
@@ -399,7 +472,7 @@ it.each(['visible-text', 'visible-id', 'duplicate-id', 'unconstructible'] as con
 
 function listeningPayload() {
   const base = payload();
-  return {
+  return withLexicalFixture({
     ...base,
     gradable: { ...base.gradable, family: 'listening' },
     presentation: {
@@ -408,7 +481,7 @@ function listeningPayload() {
       audioRef: 'a1',
       audioText: 'Quiero cantar.',
     },
-  };
+  });
 }
 function listeningDatabase(value: unknown = listeningPayload()) {
   const result = database(value);
@@ -450,7 +523,7 @@ it.each([
 function gapPayload() {
   const base = payload();
   const form = { surfaceId: surfaceId('es', 'cantar'), surface: 'cantar', rank: 4 };
-  return {
+  return withLexicalFixture({
     ...base,
     gradable: {
       itemId: base.itemId,
@@ -481,7 +554,7 @@ function gapPayload() {
       },
     ],
     introductions: [],
-  };
+  });
 }
 function gapDecode(value = gapPayload()) {
   const { db, reader } = database(value);
@@ -603,7 +676,7 @@ function matchPayload() {
     facet: 'meaning',
   }));
   const answers = pairs.map((pair) => pair.left + ' = ' + pair.right);
-  return {
+  return withLexicalFixture({
     ...payload(),
     gradable: {
       itemId: 'i_actual',
@@ -637,7 +710,7 @@ function matchPayload() {
       canonical: true,
     })),
     introductions: [],
-  };
+  });
 }
 function matchDatabase(value = matchPayload()) {
   const result = database(value);
@@ -758,12 +831,12 @@ function speechEvidence() {
 }
 function speakingPayload() {
   const base = listeningPayload();
-  return {
+  return withLexicalFixture({
     ...base,
     gradable: { ...base.gradable, family: 'speaking' },
     presentation: { ...base.presentation, type: 'speakSentence' },
     speech: speechEvidence(),
-  };
+  });
 }
 function speakingDatabase(value: unknown = speakingPayload()) {
   const result = listeningDatabase(value);
@@ -846,6 +919,7 @@ describe('explicit target-language scheduling forms', () => {
       language: 'es',
       canonical: false,
     });
+    value.lexicalBindings = withLexicalFixture(value).lexicalBindings;
     const { reader, db } = database(value);
     db.prepare('UPDATE exercise SET accepted_answers_json=?').run(
       JSON.stringify(value.presentation.acceptedAnswers),
@@ -972,6 +1046,7 @@ it('[INV-SCH-11] a reviewed declared grammar objective retains the aggregate ite
   const value = payload();
   value.schedulerSurfaces[0]!.kind = 'grammarConcept';
   value.schedulerSurfaces[0]!.itemRef = 'gc:original';
+  value.lexicalBindings = [];
   const { reader, db } = database(value);
   db.exec(
     "INSERT INTO grammar_concept VALUES('gc:original');INSERT INTO exercise_item_tag VALUES('ex1','grammar_concept','gc:original',1)",
@@ -1000,7 +1075,7 @@ function pictureIntroPayload() {
   const base = payload(),
     surface = 'cantar',
     id = surfaceId('es', surface);
-  return {
+  return withLexicalFixture({
     ...base,
     gradable: {
       itemId: base.itemId,
@@ -1035,7 +1110,7 @@ function pictureIntroPayload() {
         optionId: 'correct',
       },
     ],
-  };
+  });
 }
 function pictureIntroDatabase(value: unknown = pictureIntroPayload()) {
   const result = database(value);
@@ -1101,4 +1176,126 @@ it('[INV-SCH-11] an orphan option ID cannot masquerade as a full prompt witness'
   ];
   Object.assign(value.introductions[0]!, { optionId: 'unbound' });
   expect(() => decode(value)).toThrow(PackFormatError);
+});
+
+it('[INV-ECO-27] does not infer lexical countability from an ordinary objective', () => {
+  const value: Record<string, unknown> = payload();
+  delete value.lexicalBindings;
+  const { reader } = database(value);
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(/lexical/);
+});
+
+it('[INV-ECO-27] carries an explicit distinct lexical word identity for actual surface events', () => {
+  const value = payload();
+  const { reader } = database(value);
+  const item = readRuntimeItem(reader, identity, 'ex1'),
+    binding = item.lexicalBindings[0]!;
+  expect(binding.schedulerItemId).toBe(item.itemId);
+  expect(binding.wordItemId).toBe('i_' + hash(canonicalFixture(binding.semantic)).slice(0, 16));
+  expect(binding.wordItemId).not.toBe(item.itemId);
+  expect(binding.semantic.prompt).toBe('to sing');
+  expect(binding.lexemeId).toBe('lx:cantar:VERB');
+  expect(binding.surface).toBe('Quiero cantar.');
+  expect(binding.countable).toBe(true);
+});
+it.each([
+  'missing',
+  'empty',
+  'duplicate',
+  'word-id',
+  'meaning',
+  'semantic-tags',
+  'concept',
+  'grapheme',
+  'classification',
+  'particle',
+  'bound',
+  'character',
+  'countable-type',
+  'lexeme-id',
+  'lemma',
+  'pos',
+  'language',
+  'surface-id',
+  'surface',
+  'scheduler-id',
+  'source-id',
+  'source-hash',
+  'declaration-hash',
+  'binding-hash',
+  'unknown',
+  'actual-lemma',
+  'actual-pos',
+])('[INV-ECO-27] rejects incomplete or drifting lexical evidence: %s', (fault) => {
+  const value = payload();
+  const binding = value.lexicalBindings[0]!;
+  if (fault === 'missing') delete (value as Partial<typeof value>).lexicalBindings;
+  if (fault === 'empty') value.lexicalBindings = [];
+  if (fault === 'duplicate') value.lexicalBindings.push(structuredClone(binding));
+  if (fault === 'word-id') binding.wordItemId = 'i_' + '0'.repeat(16);
+  if (fault === 'meaning') binding.semantic.prompt = 'a different meaning';
+  if (fault === 'semantic-tags') binding.semantic.lexemes = ['querer'];
+  if (fault === 'concept') binding.semantic.grammarConcepts = ['g1'];
+  if (fault === 'grapheme') binding.semantic.graphemes = ['g'];
+  if (fault === 'classification') binding.classification = 'guess';
+  if (fault === 'particle') binding.classification = 'particle';
+  if (fault === 'bound') binding.classification = 'bound-morpheme';
+  if (fault === 'character') binding.classification = 'character';
+  if (fault === 'countable-type') (binding as unknown as Record<string, unknown>).countable = 1;
+  if (fault === 'lexeme-id') binding.lexemeId = 'unknown';
+  if (fault === 'lemma') binding.lemma = 'querer';
+  if (fault === 'pos') binding.pos = 'NOUN';
+  if (fault === 'language') binding.language = 'en';
+  if (fault === 'surface-id') binding.surfaceId = 'unknown';
+  if (fault === 'surface') binding.surface = 'unobserved';
+  if (fault === 'scheduler-id') binding.schedulerItemId = 'unknown';
+  if (fault === 'source-id') binding.proof.sourceId = 'unknown';
+  if (fault === 'source-hash') binding.proof.sourceSha256 = '0'.repeat(64);
+  if (fault === 'declaration-hash') binding.proof.declarationSha256 = 'invalid';
+  if (fault === 'binding-hash') binding.proof.bindingSha256 = 'invalid';
+  if (fault === 'unknown') (binding as unknown as Record<string, unknown>).guessed = true;
+  const { reader, db } = database(value);
+  if (fault === 'actual-lemma')
+    db.exec(
+      "UPDATE lexeme SET lemma='different' WHERE lexeme_id='lx:cantar:VERB'; UPDATE exercise_item_tag SET item_ref='different'",
+    );
+  if (fault === 'actual-pos')
+    db.exec("UPDATE lexeme SET pos='NOUN' WHERE lexeme_id='lx:cantar:VERB'");
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
+});
+it.each(['particle', 'bound-morpheme', 'character'])(
+  '[INV-ECO-27] retains explicitly uncountable source classifications: %s',
+  (classification) => {
+    const value = payload();
+    value.lexicalBindings[0]!.classification = classification;
+    value.lexicalBindings[0]!.countable = false;
+    const { reader } = database(value);
+    expect(readRuntimeItem(reader, identity, 'ex1').lexicalBindings[0]).toMatchObject({
+      classification,
+      countable: false,
+    });
+  },
+);
+it('[INV-ECO-13] rejects conflicting countability for the same full lexical identity', () => {
+  const value = payload(),
+    alternate = 'Yo quiero cantar.';
+  value.gradable.accepted.push({
+    surfaceId: surfaceId('es', alternate),
+    surface: alternate,
+    rank: 5,
+  });
+  value.presentation.acceptedAnswers.push(alternate);
+  value.schedulerSurfaces.push({
+    ...value.schedulerSurfaces[0]!,
+    surfaceId: surfaceId('es', alternate),
+    surface: alternate,
+    canonical: false,
+  });
+  value.lexicalBindings = withLexicalFixture(value).lexicalBindings;
+  value.lexicalBindings[1]!.countable = false;
+  const { reader, db } = database(value);
+  db.prepare('UPDATE exercise SET accepted_answers_json=?').run(
+    JSON.stringify(value.presentation.acceptedAnswers),
+  );
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(/conflicting/);
 });

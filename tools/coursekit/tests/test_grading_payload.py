@@ -55,6 +55,78 @@ def fixture_policy_hash(profile, lessons):
     )
 
 
+def lexical_fixture(inputs):
+    """Explicit original test lexemes; never used by a production producer."""
+    meanings = {
+        "cantar": "to sing",
+        "gato": "cat",
+        "perro": "dog",
+        "casa": "house",
+        "libro": "book",
+        "mesa": "table",
+    }
+    catalog = []
+    for lexeme in inputs.lexemes:
+        lemma = lexeme["lemma"]
+        if lemma not in meanings:
+            continue
+        semantic = {
+            "prompt": meanings[lemma],
+            "preferredSurface": lemma,
+            "register": "neutral",
+            "lexemes": [lemma],
+            "grammarConcepts": [],
+            "graphemes": [],
+        }
+        catalog.append(
+            reviewed(
+                {
+                    "lexemeId": lexeme["lexeme_id"],
+                    "lemma": lemma,
+                    "pos": lexeme["pos"],
+                    "language": "es",
+                    "wordItemId": "i_" + digest(semantic)[:16],
+                    "semantic": semantic,
+                    "countable": True,
+                    "classification": "word",
+                    "sources": [
+                        {"sourceId": sid, "sourceSha256": digest(source)}
+                        for sid, source in inputs.sources.items()
+                    ],
+                }
+            )
+        )
+    inputs.lexical_catalog = catalog
+    by_id = {r["lexemeId"]: r for r in catalog}
+    for draft in inputs.drafts:
+        bindings = []
+        for target in draft["schedulerSurfaces"]:
+            if draft["gradable"]["family"] == "match":
+                lexeme_id = target["itemId"]
+            else:
+                objective = draft.get("schedulerObjective", {})
+                if objective.get("kind") != "lexeme":
+                    continue
+                lexeme_id = objective["itemRef"]
+            if lexeme_id not in by_id:
+                continue
+            bindings.append(
+                reviewed(
+                    {
+                        "exerciseId": draft["record"]["exercise_id"],
+                        "sourceId": draft["sourceId"],
+                        "sourceSha256": digest(inputs.sources[draft["sourceId"]]),
+                        "schedulerItemId": target["itemId"],
+                        "surfaceId": target["surfaceId"],
+                        "lexemeId": lexeme_id,
+                        "wordItemId": by_id[lexeme_id]["wordItemId"],
+                    }
+                )
+            )
+        draft["lexicalBindings"] = bindings
+    return inputs
+
+
 def fixture():
     from coursekit.packbuild.grading import DictionaryInput, GradingBuildInputs, surface_id
 
@@ -207,7 +279,7 @@ def fixture():
     provenance["policySha256"] = fixture_policy_hash(
         {"profileId": "spanish", "responseLanguage": "es", "configuration": config}, [lesson]
     )
-    return GradingBuildInputs(
+    inputs = GradingBuildInputs(
         identity={"packId": "original", "courseId": "en-es", "version": "1.0.0", "lang": "es"},
         units=[{"unit_id": "u1", "unit_index": 1, "grammar_concept": "g1"}],
         lexemes=[{"lexeme_id": "lx:cantar:VERB", "lemma": "cantar", "pos": "VERB"}],
@@ -261,6 +333,8 @@ def fixture():
             }
         ),
     )
+
+    return lexical_fixture(inputs)
 
 
 def test_INV_GRD_22_producer_preserves_real_ids_catalog_rank_and_exact_taught_forms():
@@ -528,6 +602,7 @@ def rewrite_answers(inputs, answers, body, *, source=None):
     )
     inputs.teaching.clear()
     inputs.lessons[0]["taughtInflections"] = []
+    lexical_fixture(inputs)
 
 
 def word_bank_fixture():
@@ -551,7 +626,7 @@ def word_bank_fixture():
         "kind": "word-bank",
         "solutions": [{"surfaceId": draft["surfaceIds"][0], "tileIds": ["t1", "t2"]}],
     }
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_GRD_04_word_bank_preserves_duplicate_occurrences_and_exact_solution_ids():
@@ -616,7 +691,7 @@ def gap_fixture():
     )
     draft["record"]["distractors"] = ["contar"]
     inputs.exercises[0]["distractors_json"] = json.dumps(["contar"])
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_GRD_05_gap_reconstructs_the_exact_approved_source_and_keeps_rank():
@@ -745,7 +820,7 @@ def english_reverse_fixture():
             lambda: iter([raw]),
         )
     ]
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_GRD_15_english_reverse_profile_uses_its_own_answer_and_word_evidence():
@@ -908,7 +983,7 @@ def match_fixture():
         {"itemId": pair["leftLexemeId"], "surfaceId": row["surfaceId"], "canonical": True}
         for pair, row in zip(pairs, target_rows, strict=True)
     ]
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_GRD_07_match_keeps_semantic_ids_separate_from_visible_occurrence_ids():
@@ -1198,7 +1273,7 @@ def speaking_fixture():
     draft["presentation"].update(type="speakSentence", audioRef="a-spoken")
     draft["record"].update(type="speak", audio_ref="a-spoken")
     inputs.exercises[0].update(type="speak", audio_id="a-spoken")
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_MOD_13_speaking_without_current_approved_analysis_is_unavailable():
@@ -1298,6 +1373,7 @@ def test_INV_SCH_11_reviewed_grammar_objective_preserves_aggregate_identity():
             "itemRef": "gc:original_concept",
         }
     )
+    inputs.drafts[0]["lexicalBindings"] = []
     result = build_grading_payload(inputs)
     assert result.runtime_items[0]["schedulerSurfaces"][0] | {} == {
         "itemId": "i_existing",
@@ -1340,7 +1416,7 @@ def approved_speaking_fixture():
     draft["schedulerObjective"] = reviewed(objective)
     expected = copy.deepcopy(inputs.approvals["a1"])
     inputs.approval_check = lambda source, approval: approval == expected
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_MOD_13_current_speech_projection_is_consumed_by_real_producer_and_validator():
@@ -1410,7 +1486,7 @@ def picture_introduction_fixture():
         "optionId": "correct",
     }
     inputs.surface_catalog[0] = reviewed(row)
-    return inputs
+    return lexical_fixture(inputs)
 
 
 def test_INV_SCH_11_picture_new_word_introduces_exact_visible_correct_target_option():
@@ -1472,6 +1548,7 @@ def test_INV_SCH_11_option_introduction_is_an_exact_declared_new_word_beat(fault
     if fault == "unknown-location":
         intro["location"] = "answer-cache"
     if fault == "grammar-objective":
+        draft["lexicalBindings"] = []
         inputs.exercise_tags.append(
             {"exercise_id": "ex1", "item_kind": "grammar_concept", "item_ref": "g1", "is_new": 1}
         )

@@ -11,6 +11,7 @@ import type { AcceptedForm, ItemFamily } from '../grading/types.js';
 import type { ExerciseType } from '../session/types.js';
 import { exerciseSpec } from '../session/registry.js';
 import { sha256Hex } from './hashing.js';
+import { canonicalJson, contentHashItemId } from './items.js';
 import {
   readGradingMetadata,
   type ExerciseGradingContext,
@@ -35,7 +36,7 @@ export const RUNTIME_ITEM_READS = {
     'illustration_ref',
     'source_sentence_id',
   ],
-  lexeme: ['lexeme_id'],
+  lexeme: ['lexeme_id', 'lemma', 'pos'],
   audio: ['audio_id', 'clip_hash', 'path', 'duration_ms', 'bytes'],
 } as const;
 
@@ -43,6 +44,8 @@ export type {
   RuntimeItemProof,
   RuntimeIntroduction,
   RuntimeSchedulerSurface,
+  RuntimeLexicalBinding,
+  RuntimeLexicalSemantic,
   VerifiedRuntimeItem,
   RuntimeItemReader,
 } from './runtime-item-types.js';
@@ -133,6 +136,115 @@ const GRADABLE_OPTIONAL = [
   'requiredLexemeIds',
   'schedulerFacet',
 ] as const;
+
+function validateLexicalBindings(
+  row: ObjectValue,
+  schedulerRows: ObjectValue[],
+  reader: PackReader,
+  targetLanguage: string,
+): void {
+  const bindings = array(row.lexicalBindings, 'lexical bindings').map((value) =>
+    object(
+      value,
+      [
+        'schedulerItemId',
+        'surfaceId',
+        'surface',
+        'language',
+        'lexemeId',
+        'lemma',
+        'pos',
+        'wordItemId',
+        'semantic',
+        'countable',
+        'classification',
+        'proof',
+      ],
+      'lexical bindings',
+    ),
+  );
+  const expected = new Map(
+    schedulerRows
+      .filter((t) => t.kind === 'lexeme')
+      .map((t) => [JSON.stringify([t.itemId, t.surfaceId]), t]),
+  );
+  const seen = new Set<string>(),
+    identities = new Map<string, string>();
+  const sourceProof = row.proof as ObjectValue;
+  for (const binding of bindings) {
+    const lexemeId = text(binding.lexemeId, 'lexical identity'),
+      lemma = text(binding.lemma, 'lexical lemma'),
+      pos = text(binding.pos, 'lexical POS');
+    const actual = reader.get<{ lemma: string; pos: string }>(
+      'SELECT lemma,pos FROM lexeme WHERE lexeme_id = ?',
+      [lexemeId],
+    );
+    if (
+      !actual ||
+      actual.lemma !== lemma ||
+      actual.pos !== pos ||
+      binding.language !== targetLanguage
+    )
+      fail('lexical identity', 'actual lexeme definition/language mismatch');
+    if (
+      typeof binding.countable !== 'boolean' ||
+      !['word', 'particle', 'bound-morpheme', 'character'].includes(
+        text(binding.classification, 'lexical classification'),
+      ) ||
+      (binding.countable && binding.classification !== 'word')
+    )
+      fail('lexical countability', 'invalid classification or excluded item');
+    const semantic = object(
+      binding.semantic,
+      ['prompt', 'preferredSurface', 'register', 'lexemes', 'grammarConcepts', 'graphemes'],
+      'lexical semantics',
+    );
+    for (const key of ['prompt', 'preferredSurface', 'register'])
+      text(semantic[key], 'lexical semantics ' + key);
+    if (
+      !same(strings(semantic.lexemes, 'lexical semantic tags'), [lemma]) ||
+      array(semantic.grammarConcepts, 'lexical concepts').length ||
+      array(semantic.graphemes, 'lexical graphemes').length
+    )
+      fail('lexical semantics', 'exact lexical tags required');
+    const id = text(binding.wordItemId, 'lexical word identity');
+    if (id !== contentHashItemId(semantic))
+      fail('lexical identity', 'semantic content hash mismatch');
+    const meaning = canonicalJson({
+      semantic,
+      countable: binding.countable,
+      classification: binding.classification,
+    });
+    if (identities.has(id) && identities.get(id) !== meaning)
+      fail('lexical identity', 'conflicting content for the same word item ID');
+    identities.set(id, meaning);
+    const key = JSON.stringify([
+        text(binding.schedulerItemId, 'lexical scheduler target'),
+        text(binding.surfaceId, 'lexical surface ID'),
+      ]),
+      target = expected.get(key);
+    if (
+      seen.has(key) ||
+      !target ||
+      target.itemRef !== lexemeId ||
+      target.surface !== text(binding.surface, 'lexical surface') ||
+      target.language !== binding.language
+    )
+      fail('lexical binding', 'actual scheduler surface mismatch');
+    seen.add(key);
+    const proof = object(
+      binding.proof,
+      ['sourceId', 'sourceSha256', 'declarationSha256', 'bindingSha256'],
+      'lexical proof',
+    );
+    for (const name of ['sourceSha256', 'declarationSha256', 'bindingSha256'])
+      digest(proof[name], 'lexical proof');
+    if (proof.sourceId !== sourceProof.sourceId || proof.sourceSha256 !== sourceProof.sourceSha256)
+      fail('lexical proof', 'source snapshot mismatch');
+  }
+  if (seen.size !== expected.size)
+    fail('lexical bindings', 'incomplete scheduler surface population');
+}
 
 function fail(where: string, reason: string): never {
   throw new PackFormatError(`exercise_runtime ${where}: ${reason}`);
@@ -293,7 +405,7 @@ function decodePayload(
   reader: PackReader,
   targetLanguage: string,
 ): VerifiedRuntimeItem {
-  const row = object(value, ROOT_FIELDS, 'payload', ['speech']);
+  const row = object(value, ROOT_FIELDS, 'payload', ['speech', 'lexicalBindings']);
   if (row.schemaVersion !== RUNTIME_ITEM_VERSION) fail('payload', 'unsupported revision');
   const exerciseId = text(row.exerciseId, 'exercise ID'),
     itemId = text(row.itemId, 'item ID'),
@@ -714,6 +826,7 @@ function decodePayload(
   if (shape.audio === true && presentation.audioRef === undefined)
     fail('audio', 'required built audio reference missing');
   if (presentation.slowAudioRef !== undefined) audio(reader, presentation.slowAudioRef);
+  validateLexicalBindings(row, schedulerRows, reader, targetLanguage);
   return Object.freeze({ ...freeze(row), grading }) as unknown as VerifiedRuntimeItem;
 }
 

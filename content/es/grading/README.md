@@ -297,3 +297,52 @@ language surfaces, and location fields on wrong-feedback witnesses are rejected.
 The runtime carries the same location and ID. The existing prompt-phase callback
 fires after options render; only that actual display event records the exposure.
 No introduction is inferred from decoding, and the production delay is unchanged.
+
+
+Lexical word counters use a separate, explicit reviewed identity. They never use
+an aggregate sentence exercise ID, infer countability from POS, or copy every
+sentence tag. `GradingBuildInputs.lexical_catalog` is required, with rows:
+
+```
+{lexemeId,lemma,pos,language,wordItemId,
+ semantic:{prompt,preferredSurface,register,lexemes,grammarConcepts,graphemes},
+ countable,classification,sources:[{sourceId,sourceSha256}],author,
+ review:{reviewer,verdict:'accepted',sha256}}
+```
+
+The semantic prompt is the independently authored lexical meaning, not the
+exercise instruction or sentence prompt. `wordItemId` uses the existing
+`item_id(semantic)` recipe unchanged (`i_` plus 16 hex); lexical tags contain the
+exact declared lemma, and grammar/grapheme tags are empty. No course/language salt
+is added. Explicitly shared reviewed semantics can therefore identify the same
+lexeme across courses (EC-ECO-16); spelling alone does not establish shared meaning.
+Rows with the same ID must have identical full semantics, countability and
+classification, even if a truncated-hash collision is supplied. Classification is
+`word`, `particle`, `bound-morpheme` or `character`; only `word` may be countable,
+and all excluded classes explicitly carry false. No production lexical catalog
+has been authored or approved by the original fixtures in these tests.
+
+Every lexical scheduler surface also needs its own independently reviewed draft
+`lexicalBindings` row:
+
+```
+{exerciseId,sourceId,sourceSha256,schedulerItemId,surfaceId,lexemeId,wordItemId,
+ author,review:{reviewer,verdict:'accepted',sha256}}
+```
+
+The complete mapping includes each accepted target-language scheduler surface and
+each actual MATCH left target; grammar objectives have an explicit empty array.
+An exact lexeme definition and source snapshot must join both declarations.
+The compiled runtime binding carries the exact surface/language, lexical
+identity/semantics/countability, and source/declaration/binding hashes. G9 compares
+frozen source-defining SQL columns and rechecks each binding against the actual
+inserted lexeme rows before committing. The decoder independently checks these
+SQL definitions, source hashes, semantic identity, and complete surface joins.
+
+Scheduling still uses the existing aggregate exercise ID (or MATCH semantic child
+ID). Only the actual corresponding exposure/eligible review event may contribute
+the separate `wordItemId` to the two durable counters. Loading a declaration is not
+an exposure or a learned word. Local quarantine and the existing retirement/two-
+review rule remain consumer state, not author-supplied source metadata. The account
+store must reject conflicting full semantic JSON/countability for an existing
+word ID across separately decoded exercises or courses; it must never sum courses.
