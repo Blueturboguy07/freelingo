@@ -247,3 +247,21 @@ describe('actual session modality replacement', () => {
     expect(state.modality.blockedFamilies).toEqual([]);
   });
 });
+
+it('[INV-MOD-13] actual recognizer segments survive the speech event and saved-session roundtrip', () => {
+  const before = start();
+  const event = {
+    ...signal(before, 'segmented', 'speech'),
+    segments: [{ segment: 'Hola.', startTimeMillis: 0, endTimeMillis: 500, confidence: -1 }],
+  };
+  const result = step(before, event, deps);
+  expect(deserialiseSession(serialiseSession(result.state)).inFlight.partialState.segments).toEqual(
+    event.segments,
+  );
+  event.segments[0]!.segment = 'mutated';
+  expect(result.state.inFlight.partialState.segments).toEqual([
+    { segment: 'Hola.', startTimeMillis: 0, endTimeMillis: 500, confidence: -1 },
+  ]);
+  const next = step(result.state, signal(result.state, 'unsegmented', 'speech'), deps).state;
+  expect(next.inFlight.partialState).not.toHaveProperty('segments');
+});

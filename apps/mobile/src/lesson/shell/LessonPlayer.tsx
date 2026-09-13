@@ -296,6 +296,7 @@ function PlayerContent({
             ...observationKey,
             transcript: result.transcript,
             amplitude: result.amplitude,
+            ...(result.segments === undefined ? {} : { segments: result.segments }),
           });
         },
         onError: (error) => {

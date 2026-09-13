@@ -1,7 +1,13 @@
+import type { SpeechSegment } from '@freelingo/core/grading';
 import type { LessonChallenge } from '@freelingo/core/presentation';
 import type { SessionEvent, SessionState } from '@freelingo/core/session';
 import type { UiPreferences } from '@freelingo/ui';
 
+export interface SpeechCaptureResult {
+  readonly transcript: string;
+  readonly amplitude: number;
+  readonly segments?: readonly SpeechSegment[];
+}
 export type MediaError = 'route' | 'interrupted' | 'unavailable' | 'permission-denied';
 export interface LessonMediaCapabilities {
   readonly canPlay: boolean;
@@ -31,10 +37,7 @@ export interface LessonMediaPort {
   recognize(
     request: { readonly itemId: string; readonly locale: string },
     callbacks: {
-      readonly onResult: (result: {
-        readonly transcript: string;
-        readonly amplitude: number;
-      }) => void;
+      readonly onResult: (result: SpeechCaptureResult) => void;
       readonly onError: (error: MediaError) => void;
     },
   ): () => void;

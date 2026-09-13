@@ -1,3 +1,4 @@
+import type { SpeechSegment } from '../grading/speech-types.js';
 import { acceptsSpeechAmplitude, MODALITY_POLICY } from '../modality/index.js';
 import type {
   ModalityFamily,
@@ -22,6 +23,7 @@ export type SessionModalityEvent =
       readonly type: 'speechResult';
       readonly transcript: string;
       readonly amplitude: number;
+      readonly segments?: readonly SpeechSegment[];
     })
   | (ObservationKey & {
       readonly type: 'speechError';
@@ -200,9 +202,15 @@ export function applyModalityEvent(
           text: event.transcript,
           caret: event.transcript.length,
           partialState: {
-            ...state.inFlight.partialState,
             transcript: event.transcript,
             amplitude: event.amplitude,
+            ...(event.segments === undefined
+              ? {}
+              : {
+                  segments: Object.freeze(
+                    event.segments.map((segment) => Object.freeze({ ...segment })),
+                  ),
+                }),
           },
         },
       },

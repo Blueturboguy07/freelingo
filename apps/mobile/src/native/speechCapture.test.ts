@@ -174,3 +174,19 @@ it('[INV-MOD-10] native audio-capture failure is a transient route error, distin
   expect(r.callbacks.onError).toHaveBeenCalledWith('route');
   expect(r.callbacks.onResult).not.toHaveBeenCalled();
 });
+
+it('[INV-MOD-13] preserves actual native word segments as a detached final-result snapshot', async () => {
+  const r = rig();
+  await r.capture.begin('es', r.callbacks);
+  const segments = [{ segment: 'Hola', startTimeMillis: 0, endTimeMillis: 500, confidence: 0.9 }];
+  r.emit('volumechange', { value: 5 });
+  r.emit('result', { isFinal: true, results: [{ transcript: 'Hola', segments }] });
+  segments[0]!.segment = 'mutated';
+  r.emit('end', null);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(r.callbacks.onResult).toHaveBeenCalledWith({
+    transcript: 'Hola',
+    amplitude: 0.5,
+    segments: [{ segment: 'Hola', startTimeMillis: 0, endTimeMillis: 500, confidence: 0.9 }],
+  });
+});

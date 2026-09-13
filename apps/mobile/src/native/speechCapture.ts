@@ -3,7 +3,7 @@ import type {
   ExpoSpeechRecognitionOptions,
   SetCategoryOptions,
 } from 'expo-speech-recognition';
-import type { MediaError } from '../lesson/ports';
+import type { MediaError, SpeechCaptureResult } from '../lesson/ports';
 export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 export interface SpeechDriver {
   getMicrophonePermissionsAsync(): Promise<{ status: PermissionStatus }>;
@@ -29,7 +29,7 @@ export interface SpeechCapability {
   readonly permission: PermissionStatus;
 }
 export interface SpeechCallbacks {
-  onResult(result: { transcript: string; amplitude: number }): void;
+  onResult(result: SpeechCaptureResult): void;
   onError(error: MediaError): void;
 }
 /** Package57.0.0 reports volume in [-2,10]. Timing is Freelingo policy, 2026-09-13:
@@ -169,10 +169,7 @@ export function createSpeechCapture(
       })();
       return cleanupPromise;
     };
-    const finish = (
-      result: { transcript: string; amplitude: number } | MediaError,
-      abortNative = false,
-    ) => {
+    const finish = (result: SpeechCaptureResult | MediaError, abortNative = false) => {
       if (settled || current !== generation) return;
       requestAbort = abortNative;
       const completion = cleanup();
@@ -205,7 +202,17 @@ export function createSpeechCapture(
         driver.addListener('result', (event) => {
           if (event.isFinal)
             finish(
-              { transcript: event.results[0]?.transcript ?? '', amplitude: peak },
+              {
+                transcript: event.results[0]?.transcript ?? '',
+                amplitude: peak,
+                ...(event.results[0]?.segments === undefined
+                  ? {}
+                  : {
+                      segments: Object.freeze(
+                        event.results[0].segments.map((segment) => Object.freeze({ ...segment })),
+                      ),
+                    }),
+              },
               options.platform === 'android',
             );
         }),

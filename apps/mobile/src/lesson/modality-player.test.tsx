@@ -1,3 +1,4 @@
+import { parseSessionState } from '../db/sessionCodec';
 import { useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -137,4 +138,15 @@ describe('P3 microphone caller', () => {
     expect(port.recognize).not.toHaveBeenCalled();
     expect(results.filter((result) => result.suspendFamily === 'speaking')).toHaveLength(1);
   });
+});
+
+it('[INV-MOD-13] the real player carries recognizer segments into the session event', () => {
+  const port = media(),
+    results: StepResult[] = [];
+  render(<Harness port={port} results={results} />);
+  const callback = startCapture(port);
+  const segments = [{ segment: 'Hola.', startTimeMillis: 0, endTimeMillis: 500, confidence: -1 }];
+  act(() => callback.onResult({ transcript: 'Hola.', amplitude: 0.5, segments }));
+  const saved = parseSessionState(JSON.stringify(results.at(-1)!.state));
+  expect(saved.inFlight.partialState.segments).toEqual(segments);
 });
