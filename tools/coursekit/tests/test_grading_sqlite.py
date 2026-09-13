@@ -14,8 +14,8 @@ from coursekit.packbuild.grading import build_grading_payload
 from coursekit.packbuild.sqlite import write_pack
 
 
-def population():
-    inputs = fixture()
+def population(inputs=None):
+    inputs = fixture() if inputs is None else inputs
     payload = build_grading_payload(inputs)
     exercise = {
         **inputs.exercises[0],
@@ -55,6 +55,20 @@ def population():
             }
         ],
         "exercise": [exercise],
+        "exercise_item_tag": list(inputs.exercise_tags),
+        "lexeme": [
+            {
+                **row,
+                "rank": 4,
+                "frequency": 1,
+                "decile": 1,
+                "band": "A1",
+                "band_source": "frequency_decile",
+                "band_source_licence": None,
+                "gloss": None,
+            }
+            for row in inputs.lexemes
+        ],
     }
     proof = payload.provenance["dictionaryProofs"][0]
     credits = [
@@ -224,3 +238,75 @@ def test_INV_PACK_35_complete_stream_and_real_payload_control(tmp_path):
     with sqlite3.connect(path) as db:
         assert db.execute("select count(*) from grading_word").fetchone()[0] == 3
         assert db.execute("select count(*) from exercise_runtime").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["absent-digest", "absent-tags", "changed-reference", "changed-kind", "changed-new-flag"],
+)
+def test_INV_SCH_11_post_insert_objective_tags_must_match_producer_evidence(tmp_path, fault):
+    rows, payload, credits = population()
+    destination = tmp_path / "pack.sqlite"
+    destination.write_bytes(b"existing immutable pack")
+    if fault == "absent-digest":
+        payload = replace(
+            payload,
+            provenance={k: v for k, v in payload.provenance.items() if k != "exerciseTagsSha256"},
+        )
+    if fault == "absent-tags":
+        rows["exercise_item_tag"] = []
+    if fault == "changed-reference":
+        rows["exercise_item_tag"][0]["item_ref"] = "other"
+    if fault == "changed-kind":
+        rows["exercise_item_tag"][0]["item_kind"] = "grammar_concept"
+    if fault == "changed-new-flag":
+        rows["exercise_item_tag"][0]["is_new"] = 0
+    with pytest.raises(ValueError, match="objective tags"):
+        write_pack(destination, rows, grading=payload, grading_credits=credits)
+    assert destination.read_bytes() == b"existing immutable pack"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.parametrize(
+    "fault", ["unit-grammar", "lexeme-pos", "lexeme-lemma", "absent-definition-proof"]
+)
+def test_INV_SCH_11_actual_objective_definitions_cannot_change_after_assembly(tmp_path, fault):
+    from test_grading_payload import digest, reviewed
+
+    inputs = fixture()
+    if fault == "unit-grammar":
+        inputs.drafts[0]["schedulerObjective"] = reviewed(
+            {
+                "exerciseId": "ex1",
+                "sourceId": "s1",
+                "sourceSha256": digest(inputs.sources["s1"]),
+                "kind": "grammarConcept",
+                "itemRef": "g1",
+            }
+        )
+        inputs.exercise_tags.append(
+            {"exercise_id": "ex1", "item_kind": "grammar_concept", "item_ref": "g1", "is_new": 1}
+        )
+    rows, payload, credits = population(inputs)
+    if fault == "absent-definition-proof":
+        payload = replace(
+            payload,
+            provenance={
+                k: v for k, v in payload.provenance.items() if k != "objectiveDefinitionsSha256"
+            },
+        )
+    if fault == "unit-grammar":
+        rows["grammar_concept"].append(
+            {**rows["grammar_concept"][0], "concept_id": "g2", "name": "Other"}
+        )
+        rows["unit"][0]["grammar_concept"] = "g2"
+    if fault == "lexeme-pos":
+        rows["lexeme"][0]["pos"] = "NOUN"
+    if fault == "lexeme-lemma":
+        rows["lexeme"][0]["lemma"] = "other"
+    destination = tmp_path / "pack.sqlite"
+    destination.write_bytes(b"existing immutable pack")
+    with pytest.raises(ValueError, match="objective definitions"):
+        write_pack(destination, rows, grading=payload, grading_credits=credits)
+    assert destination.read_bytes() == b"existing immutable pack"
+    assert list(tmp_path.iterdir()) == [destination]

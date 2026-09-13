@@ -59,3 +59,4 @@ export * from './trace-config.js';
 
 export * from './speech.js';
 export * from './speech-config.js';
+export type * from './speech-types.js';
