@@ -1,0 +1,24 @@
+# [INV-AUD-01][INV-AUD-02] Actual binary has the offline-voice patch and refuses
+# an unavailable explicit voice. This proves rejection, not audible synthesis.
+appId: org.freelingo.app
+name: p5-native-speech
+tags:
+  - p5
+  - audio
+---
+- runFlow: p0-db-path.yaml
+- scrollUntilVisible:
+    element:
+      id: 'native-speech-probe'
+    direction: DOWN
+- tapOn:
+    id: 'native-speech-probe'
+- extendedWaitUntil:
+    visible:
+      id: 'native-speech-result'
+      text: 'missing-voice-blocked'
+    timeout: 25000
+- assertVisible:
+    id: 'native-speech-revision'
+    text: '1'
+- takeScreenshot: p5-native-speech

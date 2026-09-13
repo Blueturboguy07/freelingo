@@ -7,6 +7,7 @@
  */
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLOR } from '@freelingo/ui';
+import { NativeSpeechDiagnostics } from './NativeSpeechDiagnostics';
 import type { PersistenceStatus } from '../db/startPersistence';
 
 export interface DevDiagnosticsProps {
@@ -66,6 +67,8 @@ export function DevDiagnostics({ status, error, onClose }: DevDiagnosticsProps) 
           />
         </>
       )}
+
+      <NativeSpeechDiagnostics />
 
       <Pressable testID="dev-diagnostics-close" onPress={onClose} style={styles.close}>
         <Text style={styles.closeLabel}>CLOSE</Text>
