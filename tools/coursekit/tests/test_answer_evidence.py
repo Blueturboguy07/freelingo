@@ -390,7 +390,7 @@ def test_full_alternate_is_preserved_with_its_own_analysis(invariant, tmp_path):
             },
         ],
     }
-    alternative["checks"]["length"]["detail"]["count"] = 2
+    alternative["checks"]["length"]["detail"].update(count=2, minimum=1, maximum=None)
     checked[sources[0].slot].insert(1, alternative)
     approved = build_answer_approval("es", sources, evidence, checked, run_id="r1")
     assert approved["occurrences"][0]["surfaces"][1]["text"] == "El gato"
