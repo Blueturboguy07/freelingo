@@ -50,6 +50,8 @@ export interface LessonPlayerProps extends UiPreferences {
   readonly challenge: LessonChallenge | null;
   readonly onEvent: (event: SessionEvent) => void;
   readonly media: LessonMediaPort;
+  readonly onSnooze?: (itemId: string) => void;
+  readonly onCredits?: (itemId: string) => void;
   readonly onReport: (itemId: string, reason: string) => void;
   readonly onExplain: (request: {
     readonly itemId: string;
