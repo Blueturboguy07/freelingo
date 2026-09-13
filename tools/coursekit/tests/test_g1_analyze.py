@@ -99,7 +99,7 @@ def test_the_adapter_name_is_also_its_source_id_so_the_licence_row_cannot_drift(
 def test_a_language_with_no_adapter_is_a_named_failure_not_a_fallback() -> None:
     """`scope2/00` §2.1 puts the morphology adapter in the 'None. Hard gate' column."""
     with pytest.raises(MissingInput, match="no morphology adapter"):
-        adapter_for("de")
+        adapter_for("xx")
 
 
 # ---------------------------------------------------------------------------

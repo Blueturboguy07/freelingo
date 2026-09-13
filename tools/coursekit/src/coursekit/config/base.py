@@ -566,6 +566,46 @@ SOURCES: Final[dict[str, Source]] = {
             "downstream of G2 can see."
         ),
     ),
+    "spacy_fr": Source(
+        id="spacy_fr",
+        kind="morphology",
+        languages=("fr",),
+        licence="LGPL-LR",
+        verdict="shippable",
+        attribution_required=True,
+        attribution_owner="Explosion and the model's declared corpus contributors",
+        url=(
+            "https://github.com/explosion/spacy-models/releases/download/"
+            "fr_core_news_md-3.8.0/fr_core_news_md-3.8.0-py3-none-any.whl"
+        ),
+        requires_group="nlp",
+        remedy="Run `uv sync --locked --group nlp`; never resolve a live model alias.",
+        note=(
+            "P7 build-time morphology model, version 3.8.0. License verified from "
+            "the exact upstream release on 2026-09-13; this is the model license, "
+            "not an assumed license inherited from spaCy's Python package."
+        ),
+    ),
+    "spacy_de": Source(
+        id="spacy_de",
+        kind="morphology",
+        languages=("de",),
+        licence="MIT",
+        verdict="shippable",
+        attribution_required=True,
+        attribution_owner="Explosion and the model's declared corpus contributors",
+        url=(
+            "https://github.com/explosion/spacy-models/releases/download/"
+            "de_core_news_md-3.8.0/de_core_news_md-3.8.0-py3-none-any.whl"
+        ),
+        requires_group="nlp",
+        remedy="Run `uv sync --locked --group nlp`; never resolve a live model alias.",
+        note=(
+            "P7 build-time morphology model, version 3.8.0. License verified from "
+            "the exact upstream release on 2026-09-13; this is the model license, "
+            "not an assumed license inherited from spaCy's Python package."
+        ),
+    ),
     "sudachipy": Source(
         id="sudachipy",
         kind="morphology",
