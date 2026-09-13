@@ -37,6 +37,9 @@ function runtime(patch: Partial<VerifiedRuntimeItem> = {}): VerifiedRuntimeItem 
       language: 'es',
       acceptedAnswers: ['el gato'],
     },
+    schedulerSurfaces: [
+      { itemId: 'item-1', surfaceId: 'gato', surface: 'el gato', language: 'es', canonical: true },
+    ],
     introductions: [],
     explanation: 'A cat.',
     grading: { profileId: 'es', responseLanguage: 'es', pack: ES_PACK, unit: ES_UNIT },
