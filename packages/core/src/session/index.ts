@@ -22,3 +22,5 @@ export * from './test-doubles.js';
 export * from './session-fixture.js';
 
 export * from './match-runtime.js';
+
+export type { SessionModalityEvent, ModalityReplacementContext } from './modality-runtime.js';
