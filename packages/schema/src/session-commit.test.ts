@@ -76,41 +76,49 @@ describe('the committed-session ledger', () => {
   });
 
   it('[INV-ECO-20] the minutes figure is a SUM OF STORED COLUMNS, never of wall-clock spans', () => {
-    fc.assert(
-      fc.property(
-        fc.array(
-          fc.record({
-            activeMs: fc.integer({ min: 0, max: 900_000 }),
-            gapMs: fc.integer({ min: 0, max: 86_400_000 }),
-            xp: fc.integer({ min: 0, max: 60 }),
-          }),
-          { minLength: 1, maxLength: 12 },
-        ),
-        (sessions) => {
-          const handle = db();
-          let clock = Date.parse('2026-09-11T08:00:00Z');
-          let expected = 0;
-          sessions.forEach((session, index) => {
-            // The wall-clock span between commits is ARBITRARY — a phone in a pocket
-            // between two lessons. A report that derives minutes from it is the falsifier.
-            clock += session.gapMs;
-            commitSession(handle, {
-              sessionId: `s_${index}`,
-              courseId: 'en-es',
-              localDay: '2026-09-11',
-              flavour: 'lesson',
-              committedAtUtc: new Date(clock).toISOString(),
-              xpAwarded: session.xp,
-              activeMs: session.activeMs,
+    const handle = db();
+    try {
+      fc.assert(
+        fc.property(
+          fc.array(
+            fc.record({
+              activeMs: fc.integer({ min: 0, max: 900_000 }),
+              gapMs: fc.integer({ min: 0, max: 86_400_000 }),
+              xp: fc.integer({ min: 0, max: 60 }),
+            }),
+            { minLength: 1, maxLength: 12 },
+          ),
+          (sessions) => {
+            // Migration is proved separately. Reuse its schema for all 10,000 independent
+            // histories, resetting the exact ledger/totals consumed by commitSession.
+            handle.run('DELETE FROM committed_session');
+            handle.run('UPDATE account SET lifetime_xp=0');
+            handle.run('UPDATE course_progress SET xp=0');
+            let clock = Date.parse('2026-09-11T08:00:00Z');
+            let expected = 0;
+            sessions.forEach((session, index) => {
+              // The wall-clock span between commits is ARBITRARY — a phone in a pocket
+              // between two lessons. A report that derives minutes from it is the falsifier.
+              clock += session.gapMs;
+              commitSession(handle, {
+                sessionId: `s_${index}`,
+                courseId: 'en-es',
+                localDay: '2026-09-11',
+                flavour: 'lesson',
+                committedAtUtc: new Date(clock).toISOString(),
+                xpAwarded: session.xp,
+                activeMs: session.activeMs,
+              });
+              expected += session.activeMs;
             });
-            expected += session.activeMs;
-          });
-          expect(activeMsForDay(handle, '2026-09-11')).toBe(expected);
-          handle.close();
-        },
-      ),
-      RUNS,
-    );
+            expect(activeMsForDay(handle, '2026-09-11')).toBe(expected);
+          },
+        ),
+        RUNS,
+      );
+    } finally {
+      handle.close();
+    }
   });
 
   it('[INV-CER-01] a replayed commit is idempotent: the ledger row is the idempotency key', () => {

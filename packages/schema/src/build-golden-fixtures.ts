@@ -15,7 +15,7 @@
  * Everything here is deterministic: fixed ids, fixed timestamps, no clock, no randomness.
  * A rebuild that changes a byte for no reason would make every future diff unreadable.
  */
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -265,33 +265,73 @@ function seedV2(db: Db): void {
   );
 }
 
+/** v5 records two surfaces, an exact answer variant, and historical hold/anomaly evidence. */
+function seedV5(db: Db): void {
+  seedV2(db);
+  db.run("UPDATE course_progress SET mastery_high_water_points=17 WHERE course_id='en-es'");
+  for (const [surface, stability, sequence] of [
+    ['hablo', 8.5, 0],
+    ['hablamos', 2.5, 1],
+  ] as const) {
+    db.run(
+      `INSERT INTO course_item_surface(course_id,item_id,surface,kind,due_utc_ms,last_review_utc_ms,stability,difficulty,elapsed_days,scheduled_days,learning_steps,reps,lapses,state,retrievability,introduced_at_utc_ms,last_review_kind)
+      VALUES ('en-es','it_es_00',?,'lexeme',1789300800000,1789214400000,?,5.4,1.25,2.5,1,4,2,2,0.82,1789041600000,'scheduled')`,
+      [surface, stability],
+    );
+    db.run(
+      "INSERT INTO course_introduction VALUES ('en-es','it_es_00',?,1789041600000,'2026-09-10',?)",
+      [surface, sequence],
+    );
+  }
+  db.run(
+    "INSERT INTO course_item_surface_modality VALUES ('en-es','it_es_00','hablo','listening')",
+  );
+  db.run("INSERT INTO course_scheduler_mastery VALUES ('en-es','it_es_00')");
+  db.run(`INSERT INTO course_attempt(session_id,exercise_index,course_id,item_id,exercise_type,verdict,first_try,answered_at,active_ms,surface,scheduler_grade,encounter_role,scheduler_review_kind,ruby_shown,slot_id,queue,soft_corrected,cost_paid,skipped,scorable,note,attempt_sequence)
+    VALUES ('s_surface',-2,'en-es','it_es_00','typedTranslate','correct',0,'2026-09-13T12:00:00Z',2500,'hablo',3,'production','scheduled',0,'slot-a','mistakes',0,0,0,1,'replayed',0)`);
+  db.run(
+    `INSERT INTO course_session_answer_receipt VALUES ('s_pending',-2,'en-es',0,'slot-b','it_es_00','exercise-variant-b','hablamos','recognition',0,1789214400000,'2026-09-12',1200)`,
+  );
+  db.run(
+    "INSERT INTO course_scheduler_hold VALUES ('en-es','closed-listening','modality',NULL,'listening','modalityDisabled',1000,2000)",
+  );
+  db.run(
+    "INSERT INTO course_scheduler_anomaly VALUES ('en-es',0,'negativeElapsed',NULL,NULL,1000,-500,0,'wall clock rewound')",
+  );
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
   3: seedV2,
   4: seedV2,
+  5: seedV5,
 };
 
 /* ------------------------------------------------------------------------ build */
 
 export function buildFixtures(): string[] {
-  rmSync(FIXTURE_DIR, { recursive: true, force: true });
   mkdirSync(FIXTURE_DIR, { recursive: true });
   const written: string[] = [];
 
   // v0: a file that exists and has never been migrated.
-  const fresh = createNodeDb({ location: join(FIXTURE_DIR, V0_FIXTURE) });
-  fresh.run('CREATE TABLE IF NOT EXISTS placeholder (id INTEGER PRIMARY KEY)');
-  fresh.run('DROP TABLE placeholder');
-  fresh.close();
+  if (!existsSync(join(FIXTURE_DIR, V0_FIXTURE))) {
+    const fresh = createNodeDb({ location: join(FIXTURE_DIR, V0_FIXTURE) });
+    fresh.run('CREATE TABLE IF NOT EXISTS placeholder (id INTEGER PRIMARY KEY)');
+    fresh.run('DROP TABLE placeholder');
+    fresh.close();
+  }
   written.push(V0_FIXTURE);
 
   for (const migration of MIGRATIONS) {
     const name = fixtureName(migration.userVersion);
-    const db = createNodeDb({ location: join(FIXTURE_DIR, name) });
-    migrateTo(db, migration.userVersion);
-    SEEDS[migration.userVersion]?.(db);
-    db.close();
+    // A committed old DB is evidence, never regenerated from today's migration code.
+    if (!existsSync(join(FIXTURE_DIR, name))) {
+      const db = createNodeDb({ location: join(FIXTURE_DIR, name) });
+      migrateTo(db, migration.userVersion);
+      SEEDS[migration.userVersion]?.(db);
+      db.close();
+    }
     written.push(name);
   }
 

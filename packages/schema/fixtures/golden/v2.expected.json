@@ -155,7 +155,20 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:00:00Z",
-      "active_ms": 4000
+      "active_ms": 4000,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null
     },
     {
       "session_id": "s_golden_1",
@@ -166,7 +179,20 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:01:00Z",
-      "active_ms": 4250
+      "active_ms": 4250,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null
     },
     {
       "session_id": "s_golden_1",
@@ -177,7 +203,20 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:02:00Z",
-      "active_ms": 4500
+      "active_ms": 4500,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null
     },
     {
       "session_id": "s_golden_1",
@@ -188,7 +227,20 @@
       "verdict": "incorrect",
       "first_try": 1,
       "answered_at": "2026-09-10T20:03:00Z",
-      "active_ms": 4750
+      "active_ms": 4750,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null
     },
     {
       "session_id": "s_golden_1",
@@ -199,7 +251,20 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:04:00Z",
-      "active_ms": 5000
+      "active_ms": 5000,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null
     },
     {
       "session_id": "s_golden_1",
@@ -210,7 +275,20 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:05:00Z",
-      "active_ms": 5250
+      "active_ms": 5250,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null
     }
   ],
   "course_display": [
@@ -231,6 +309,7 @@
       "speaking_enabled": 1
     }
   ],
+  "course_introduction": [],
   "course_item": [
     {
       "course_id": "en-es",
@@ -569,6 +648,8 @@
       "quarantined": 0
     }
   ],
+  "course_item_surface": [],
+  "course_item_surface_modality": [],
   "course_mistake": [
     {
       "course_id": "en-es",
@@ -1082,7 +1163,8 @@
       "score_floor": 70,
       "pack_content_hash": "hash_en-es_v1",
       "pack_state": "installed",
-      "added_at": "2026-08-01T09:00:00Z"
+      "added_at": "2026-08-01T09:00:00Z",
+      "mastery_high_water_points": 0
     },
     {
       "course_id": "en-fr",
@@ -1091,9 +1173,14 @@
       "score_floor": 7,
       "pack_content_hash": "hash_en-fr_v1",
       "pack_state": "installed",
-      "added_at": "2026-08-01T09:00:00Z"
+      "added_at": "2026-08-01T09:00:00Z",
+      "mastery_high_water_points": 0
     }
   ],
+  "course_scheduler_anomaly": [],
+  "course_scheduler_hold": [],
+  "course_scheduler_mastery": [],
+  "course_session_answer_receipt": [],
   "course_session_state": [
     {
       "course_id": "en-fr",
