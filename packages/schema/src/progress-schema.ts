@@ -33,6 +33,7 @@ import { DAY_REWARD_ACCOUNT_TABLES, DAY_REWARD_COURSE_TABLES } from './day-rewar
 import { LEARNING_EVIDENCE_COURSE_TABLES } from './learning-evidence-schema.js';
 
 import { PATH_STATE_COURSE_TABLES } from './path-state-schema.js';
+import { WORD_REVIEW_ACCOUNT_TABLES } from './word-review-schema.js';
 import { WORD_EVIDENCE_ACCOUNT_TABLES } from './word-evidence-schema.js';
 
 export type SchemaRegion = 'account' | 'course_progress';
@@ -113,7 +114,7 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     purpose: 'One row per repaired month: idempotent on (year, month) by primary key (EC-FRZ-08).',
   },
 
-  ...WORD_EVIDENCE_ACCOUNT_TABLES.map((name): TableSpec => ({
+  ...[...WORD_EVIDENCE_ACCOUNT_TABLES, ...WORD_REVIEW_ACCOUNT_TABLES].map((name): TableSpec => ({
     name,
     region: 'account',
     purpose:

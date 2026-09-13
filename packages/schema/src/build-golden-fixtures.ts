@@ -430,6 +430,24 @@ function seedV10(db: Db): void {
   ]);
 }
 
+function seedV11(db: Db): void {
+  seedV10(db);
+  const word = db.get('SELECT word_item_id FROM account_word WHERE countable=1')!;
+  const learned = db.get(
+    'SELECT source_session_id FROM account_word_learning WHERE word_item_id=?',
+    [word.word_item_id],
+  )!;
+  db.run('INSERT INTO account_word_review VALUES(?,0,?,0,0,?,?)', [
+    word.word_item_id,
+    learned.source_session_id,
+    1799668800000,
+    JSON.stringify({
+      fixture: 'shape-only; runtime verifies real FSRS evidence',
+      exerciseIndex: -2,
+    }),
+  ]);
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -441,6 +459,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   8: seedV8,
   9: seedV9,
   10: seedV10,
+  11: seedV11,
 };
 
 /* ------------------------------------------------------------------------ build */
