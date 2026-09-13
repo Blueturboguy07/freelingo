@@ -300,12 +300,36 @@ function seedV5(db: Db): void {
   );
 }
 
+function seedV6(db: Db): void {
+  seedV5(db);
+  db.run('UPDATE account SET selection_seed=123456');
+  db.run("INSERT INTO account_onboarding VALUES (1,'complete','2026-08-01T09:05:00Z')");
+  db.run("INSERT INTO course_selection VALUES ('en-es',1,1,'test','basic',0)");
+  db.run(`INSERT INTO course_session_context(session_id,course_id,session_kind,node_ref,started_at_utc_ms,started_at_monotonic_ms,start_tz_id,start_utc_offset_minutes,start_tz_source,started_local_day,economy_flavour,practice_item_ratio,pack_content_hash,origin,origin_offer_id,origin_local_day)
+    VALUES ('s_pending','en-es','nodePractice','hub-a',1789214400000,5000.25,'America/Chicago',-300,'iana','2026-09-12','hubWords',0.5,'hash_en-es_v1','hub','hub-offer-a','2026-09-12')`);
+  db.run(
+    "INSERT INTO course_session_slot VALUES ('s_pending','slot-b','en-es','exercise-variant-b','it_es_00','hablamos','recognition',0)",
+  );
+  db.run("INSERT INTO course_review_pool_day VALUES ('en-es','2026-09-12',1789214400000)");
+  db.run(
+    "INSERT INTO course_review_pool_item VALUES ('en-es','2026-09-12','it_es_00',0,'todaysReview')",
+  );
+  db.run("INSERT INTO course_review_pool_day VALUES ('en-es','2026-09-13',1789300800000)");
+  db.run("INSERT INTO course_hub_day VALUES ('en-es','2026-09-12',1)");
+  db.run("INSERT INTO course_hub_choice VALUES ('en-es','2026-09-12','words',0)");
+  db.run(
+    "INSERT INTO course_hub_completion VALUES ('en-es','2026-09-12','fallback-rewind','s_golden_1')",
+  );
+  db.run("INSERT INTO course_daily_refresh_item VALUES ('en-es','2026-09-12','it_es_01',0)");
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
   3: seedV2,
   4: seedV2,
   5: seedV5,
+  6: seedV6,
 };
 
 /* ------------------------------------------------------------------------ build */

@@ -29,7 +29,8 @@
       "imported_at_utc": null,
       "sound_effects_enabled": 1,
       "animations_enabled": 1,
-      "motivational_messages_enabled": 1
+      "motivational_messages_enabled": 1,
+      "selection_seed": null
     }
   ],
   "account_boost": [
@@ -116,6 +117,7 @@
       "archived_at": null
     }
   ],
+  "account_onboarding": [],
   "account_personal_record": [
     {
       "record_kind": "most_xp_in_a_day",
@@ -168,7 +170,9 @@
       "skipped": null,
       "scorable": null,
       "note": null,
-      "attempt_sequence": null
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -192,7 +196,9 @@
       "skipped": null,
       "scorable": null,
       "note": null,
-      "attempt_sequence": null
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -216,7 +222,9 @@
       "skipped": null,
       "scorable": null,
       "note": null,
-      "attempt_sequence": null
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -240,7 +248,9 @@
       "skipped": null,
       "scorable": null,
       "note": null,
-      "attempt_sequence": null
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -264,7 +274,9 @@
       "skipped": null,
       "scorable": null,
       "note": null,
-      "attempt_sequence": null
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -288,9 +300,12 @@
       "skipped": null,
       "scorable": null,
       "note": null,
-      "attempt_sequence": null
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     }
   ],
+  "course_daily_refresh_item": [],
   "course_display": [
     {
       "course_id": "en-es",
@@ -309,6 +324,9 @@
       "speaking_enabled": 1
     }
   ],
+  "course_hub_choice": [],
+  "course_hub_completion": [],
+  "course_hub_day": [],
   "course_introduction": [],
   "course_item": [
     {
@@ -1177,10 +1195,15 @@
       "mastery_high_water_points": 0
     }
   ],
+  "course_review_pool_day": [],
+  "course_review_pool_item": [],
   "course_scheduler_anomaly": [],
   "course_scheduler_hold": [],
   "course_scheduler_mastery": [],
+  "course_selection": [],
   "course_session_answer_receipt": [],
+  "course_session_context": [],
+  "course_session_slot": [],
   "course_session_state": [
     {
       "course_id": "en-fr",
