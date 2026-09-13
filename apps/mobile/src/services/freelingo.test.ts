@@ -186,6 +186,7 @@ function fixture(active = false) {
       canRecognizeSpeech: () => false,
       hasTargetScriptInput: () => true,
       reduceMotion: () => false,
+      screenReaderActive: () => false,
     },
     catalogue: {
       read: () => [
@@ -238,7 +239,6 @@ function fixture(active = false) {
       reportItem: vi.fn(async () => {}),
       snoozeItem: vi.fn(async () => {}),
       readSurface: vi.fn(async () => ({ title: 'Bound source', paragraphs: [], rows: [] })),
-      setGoal: vi.fn(async () => {}),
       applyCourseAction: vi.fn(async () => {}),
       launchLegendary: vi.fn(async () => {}),
       shareCard: vi.fn(async () => {}),
@@ -499,5 +499,73 @@ it('[INV-PACK-04] explicit repair of a verified partial pack queues audio downlo
   expect(f.resources.catalogue.download).toHaveBeenCalledWith('en-es');
   expect(f.events).toEqual(['refresh', 'download queued', 'refresh']);
   expect((await runtime.readSnapshot()).path.status).toBe('ready');
+  await runtime.close();
+});
+
+it('[INV-ECO-01][INV-ECO-21] Settings saves the goal in the retained database before publication', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open();
+  const observed: unknown[] = [];
+  vi.mocked(f.resources.publishAndRearm).mockImplementation(async () => {
+    observed.push(f.db.get('SELECT daily_goal_xp FROM account WHERE id=1')?.daily_goal_xp);
+  });
+  await runtime.loop.setGoal('intense');
+  expect(f.db.get('SELECT daily_goal_tier,daily_goal_xp FROM account WHERE id=1')).toMatchObject({
+    daily_goal_tier: 'intense',
+    daily_goal_xp: 50,
+  });
+  expect((await runtime.readSnapshot()).settings?.goalTier).toBe('intense');
+  expect(observed).toEqual([50]);
+  expect(f.engine.complete).not.toHaveBeenCalled();
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+  await runtime.close();
+});
+it('S004/S006 onboarding persists its selected goal without creating quests or rewards', async () => {
+  const f = fixture(),
+    runtime = await f.services.open();
+  await runtime.handleOnboarding({ type: 'selectCourse', courseId: 'en-es' });
+  await runtime.handleOnboarding({ type: 'continue' });
+  await runtime.handleOnboarding({ type: 'choosePlacement', choice: 'scratch' });
+  await runtime.handleOnboarding({ type: 'continue' });
+  vi.mocked(f.resources.publishAndRearm).mockClear();
+  await runtime.handleOnboarding({ type: 'chooseGoal', goal: 'casual' });
+  expect(f.db.get('SELECT daily_goal_tier,daily_goal_xp FROM account WHERE id=1')).toMatchObject({
+    daily_goal_tier: 'casual',
+    daily_goal_xp: 10,
+  });
+  expect((await runtime.readSnapshot()).onboarding).toMatchObject({
+    screen: 'goal',
+    selected: 'casual',
+  });
+  expect(f.resources.publishAndRearm).toHaveBeenCalledOnce();
+  expect(f.db.all('SELECT * FROM account_quest')).toEqual([]);
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+  await runtime.close();
+});
+it('[INV-ECO-21] a rejected durable goal write cannot publish a new preference', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open();
+  f.db.run(
+    "CREATE TRIGGER reject_goal BEFORE UPDATE OF daily_goal_xp ON account BEGIN SELECT RAISE(ABORT,'goal write rejected'); END",
+  );
+  vi.mocked(f.resources.publishAndRearm).mockClear();
+  await expect(runtime.loop.setGoal('intense')).rejects.toThrow('goal write rejected');
+  expect((await runtime.readSnapshot()).settings?.goalTier).toBe('regular');
+  expect(f.resources.publishAndRearm).not.toHaveBeenCalled();
+  await runtime.close();
+});
+it('[INV-ECO-21] publication failure preserves a committed goal and retry publishes without replaying its write', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open();
+  vi.mocked(f.resources.publishAndRearm).mockRejectedValueOnce(Error('publication failed'));
+  await expect(runtime.loop.setGoal('serious')).rejects.toThrow('publication failed');
+  expect((await runtime.readSnapshot()).settings?.goalTier).toBe('serious');
+  f.db.run(
+    "CREATE TRIGGER reject_repeated_goal BEFORE UPDATE OF daily_goal_xp ON account BEGIN SELECT RAISE(ABORT,'duplicate write'); END",
+  );
+  vi.mocked(f.resources.publishAndRearm).mockClear();
+  await runtime.loop.setGoal('serious');
+  expect(f.resources.publishAndRearm).toHaveBeenCalledOnce();
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
   await runtime.close();
 });

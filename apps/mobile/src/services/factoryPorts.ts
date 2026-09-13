@@ -20,10 +20,7 @@ export interface FactoryResources {
     read(): NotificationSettingsSnapshot;
   };
   readonly actions: Pick<AppRuntime, 'reportItem' | 'snoozeItem' | 'readSurface'> &
-    Pick<
-      AppRuntime['loop'],
-      'setGoal' | 'applyCourseAction' | 'launchLegendary' | 'shareCard' | 'playWord'
-    >;
+    Pick<AppRuntime['loop'], 'applyCourseAction' | 'launchLegendary' | 'shareCard' | 'playWord'>;
   /** OS appearance/accessibility facts; saved appearance overrides only the theme. */
   readUi(): UiPreferences;
   /** Observed installed bytes, never expected manifest total. Null means unavailable. */

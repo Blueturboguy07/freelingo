@@ -1,4 +1,6 @@
-import { GOAL_TIERS, type GoalTierKey } from '@freelingo/core/economy';
+import type { GoalTierKey } from '@freelingo/core/economy';
+import { localDayOfStamp } from '@freelingo/core/day';
+import { SqliteGoalSettings } from './SqliteGoalSettings';
 import { packSurface, PackFormatError } from '@freelingo/core/packs';
 import { displayedScore } from '@freelingo/core/path';
 import type { AppRuntime, AppSnapshot, FreelingoServices } from '../app/ports';
@@ -72,12 +74,14 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         packs: native.packs,
       });
       const nowUtc = () => new Date(native.learning.clock().utcMs).toISOString();
-      function goal(): GoalTierKey {
-        const account = db.get('SELECT daily_goal_tier,daily_goal_xp FROM account WHERE id=1');
-        const tier = GOAL_TIERS.find((t) => t.key === account?.daily_goal_tier);
-        if (!tier || tier.xp !== account?.daily_goal_xp)
-          throw new AppDataError('Invalid saved daily goal.');
-        return tier.key;
+      const goalSettings = new SqliteGoalSettings(db, () => {
+        const clock = native.learning.clock();
+        return localDayOfStamp(new Date(clock.utcMs), clock.zone);
+      });
+      const goal = () => goalSettings.read();
+      async function chooseGoal(key: GoalTierKey): Promise<void> {
+        goalSettings.setGoal(key);
+        await native.publishAndRearm();
       }
       function activeCourse(): string {
         const id = state.read().activeCourseId;
@@ -100,7 +104,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         nowUtc,
         catalogue: native.catalogue,
         packs: native.packs,
-        goal: { read: goal, choose: (key) => native.actions.setGoal(key) },
+        goal: { read: goal, choose: chooseGoal },
         notifications: {
           read: () => native.notifications.read(),
           requestPermission: () => native.notifications.requestPermission(),
@@ -272,7 +276,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
           setPreference: (id, change) =>
             perform(() => preferences.setCoursePreference(id, change.key, change.value)),
           setAppearance: (value) => perform(() => preferences.setAppearance(value)),
-          setGoal: (key) => perform(() => native.actions.setGoal(key)),
+          setGoal: (key) => perform(() => chooseGoal(key)),
           applyCourseAction: (plan) => perform(() => native.actions.applyCourseAction(plan)),
           advanceCeremony: (request) => perform(() => learning.advanceCeremony(request)),
           retryCommit: () =>
