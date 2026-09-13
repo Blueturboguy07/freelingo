@@ -34,8 +34,9 @@ SAMPLE_STRATA: Final[tuple[str, ...]] = ("unit_index", "exercise_type", "provena
 
 #: The recorded seed. A sample that cannot be redrawn cannot be audited: a reviewer who
 #: scores 300 items and a maintainer who re-runs the draw must get the same 300.
-#: P2 round-5 redraw after source/answer repairs, chosen before scoring (2026-09-13).
-SAMPLE_SEED: Final[int] = 20260913
+#: P2 round-5 post-fix attempt, chosen before source preparation/scoring (2026-09-13).
+#: Attempt 1 used 20260913; its immutable draw and review remain in review/history/.
+SAMPLE_SEED: Final[int] = 2026091302
 
 #: Filenames under the language's run root.
 SAMPLE_FILENAME_TEMPLATE: Final[str] = "sample-{n}.jsonl"

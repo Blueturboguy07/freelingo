@@ -108,7 +108,7 @@ in its runlog entry rather than leaving that unsaid.
 ## `coursekit sample` and the published defect rate
 
 ```bash
-uv run coursekit sample es                              # 300 items, seed 20260913
+uv run coursekit sample es                              # 300 items, seed 2026091302 (next post-fix draw)
 uv run coursekit sample es --set n=300 --set seed=12345  # per-stage options ride on --set
 ```
 
