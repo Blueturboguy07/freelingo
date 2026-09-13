@@ -308,7 +308,7 @@ fields on Japanese lexical tokens in G1 and non-null G5 candidate analyses, and
 requires their adapter's split mode to be A. Punctuation and whitespace need no
 reading; candidates rejected before analysis may still carry null. Read and write
 use the same validation boundary. The schema digest is now
-`46dfbe17b700e4c1a0c86ed856389e121b52ffce61c7811d7446e49fdde0319c`.
+`a12007853b44287d42742b0859ae9229dbb1644be7afba3b58dfc4a10f48e81b`.
 
 `reading` preserves the dictionary-linked lemma reading used for ledger identity.
 Sudachi's surface reading can differ under inflection and belongs in the paired
@@ -322,3 +322,5 @@ Japanese G2 remains unready until the strict linked-identity extraction and pair
 source witnesses pass independent review. Mode C display spans, full-sentence TTS
 readings and licensed ruby evidence remain separately bound source-analysis work;
 this carrier change does not certify their correctness or a Japanese pack.
+
+P7 (2026-09-13) registers the Japanese-only G1 `japanese_script_analysis` artifact at `g1/scripts.jsonl`. All fields and nested spans are closed; carrier validation requires Mode A, kana TTS text and an unreviewed status. The digest above now includes this tenth record. A consumer must also call `validate_script_analysis(script, analysed, text=ingested["text"])` to prove exact source and whole-analysis hashes, ordered spans and Mode A/C projection. G1 must persist precisely the retained paired population. Registration does not authorize Japanese G2, certify readings or prove pack readiness.

@@ -84,7 +84,7 @@ from coursekit.runlog import (
 #: `1e743a0c70077d64dcaae319a8763b909d8fa8a5ad01d6e0bba17a45a5102c7d`.
 #: Re-pinned 2026-09-13 by codex/p3-p8-deps for explicit Japanese source readings.
 #: Previous: c3a1f00dfaaa4e4fac117eb9d865d70421afc72ebadfacddc592283144dec72e.
-FROZEN_CONTRACT_DIGEST = "46dfbe17b700e4c1a0c86ed856389e121b52ffce61c7811d7446e49fdde0319c"
+FROZEN_CONTRACT_DIGEST = "a12007853b44287d42742b0859ae9229dbb1644be7afba3b58dfc4a10f48e81b"
 
 
 def test_the_contract_digest_is_frozen() -> None:
@@ -96,10 +96,10 @@ def test_the_contract_digest_is_frozen() -> None:
 
 
 def test_every_g_stage_that_emits_a_record_is_covered() -> None:
-    """Nine records over ten stages. G6 emits none, deliberately."""
+    """Ten records over ten stages. G6 emits none, deliberately."""
     emitting = {art.stage for art in ARTIFACTS.values()}
     assert emitting == set(BUILD_STAGE_IDS) - {"g6"}
-    assert len(ARTIFACTS) == 9
+    assert len(ARTIFACTS) == 10
 
 
 def test_every_record_is_closed() -> None:
@@ -131,7 +131,7 @@ def _closed_objects(schema: object, path: str = "<root>") -> Iterator[tuple[str,
 
 
 def test_every_object_in_the_contract_is_closed_all_the_way_down() -> None:
-    """`test_every_record_is_closed` only reads the nine TOP-level records.
+    """`test_every_record_is_closed` only reads the ten TOP-level records.
 
     Every record shape that matters now lives one or more levels down —
     `analysed_sentence.adapter`, `exercise.item_tags`, and as of B16
@@ -152,7 +152,7 @@ def test_every_object_in_the_contract_is_closed_all_the_way_down() -> None:
 
     titles = set(walked.values())
     assert {"Token", "Adapter", "CandidateAnalysis", "ItemTags"} <= titles, titles
-    # Nine records + every nested object. Fewer means the walk stopped early.
+    # Ten records + every nested object. Fewer means the walk stopped early.
     assert len(walked) >= 14, sorted(walked)
 
 
