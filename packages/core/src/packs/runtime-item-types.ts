@@ -1,5 +1,7 @@
 /** Frozen revision-1 production carrier, 2026-09-13; no decoder fallback or data. */
 import type { GradableItem } from '../grading/types.js';
+import type { SpeechEvidence } from '../grading/speech-types.js';
+import type { ItemKind } from '../scheduler/types.js';
 import type { LessonChallenge } from '../presentation/index.js';
 import type {
   ExerciseGradingContext,
@@ -31,6 +33,9 @@ export interface RuntimeIntroduction {
  */
 export interface RuntimeSchedulerSurface {
   readonly itemId: string;
+  /** Independently declared source objective, joined to actual exercise tags. */
+  readonly kind: ItemKind;
+  readonly itemRef: string;
   readonly surfaceId: string;
   readonly surface: string;
   readonly language: string;
@@ -49,6 +54,8 @@ export interface VerifiedRuntimeItem {
   readonly presentation: LessonChallenge;
   readonly schedulerSurfaces: readonly RuntimeSchedulerSurface[];
   readonly introductions: readonly RuntimeIntroduction[];
+  /** Required for speaking; absent for other grading families. */
+  readonly speech?: SpeechEvidence;
   readonly explanation: string;
   readonly grading: ExerciseGradingContext;
 }
