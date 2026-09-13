@@ -155,7 +155,9 @@ def load_radio_targets(
             _integer(maximum_unit_index, "Radio target maximum unit")
         values = {}
         identities = {}
-        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as db:
+        # Read the hashed main-file snapshot only. A WAL created after the
+        # sidecar check must never supply unsigned rows to this connection.
+        with sqlite3.connect(path.as_uri() + "?mode=ro&immutable=1", uri=True) as db:
             db.execute("BEGIN")
             language = _text(
                 _single(

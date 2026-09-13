@@ -182,3 +182,40 @@ def test_INV_PACK_41_radio_target_refuses_stale_or_unbacked_pack_evidence(tmp_pa
         ref["surfaceId"] = "unknown"
     with pytest.raises(NarrativeError, match="Radio target"):
         load_radio_targets(path, expected_sha256=sha, references=[ref], maximum_unit_index=2)
+
+
+def test_INV_STO_10_radio_target_ignores_unsigned_wal_created_after_sidecar_check(
+    tmp_path, monkeypatch
+):
+    from coursekit.narratives import targets
+
+    path, _, runtime, target = fixture(tmp_path)
+    writer = sqlite3.connect(path)
+    writer.execute("PRAGMA journal_mode=WAL")
+    writer.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    expected = hashlib.sha256(path.read_bytes()).hexdigest()
+    real_connect = sqlite3.connect
+
+    def race(*args, **kwargs):
+        if kwargs.get("uri"):
+            writer.execute("UPDATE unit SET unit_index=9")
+            writer.commit()
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == expected
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(targets.sqlite3, "connect", race)
+    try:
+        found = targets.load_radio_targets(
+            path,
+            expected_sha256=expected,
+            references=[
+                {
+                    "exerciseId": "ex1",
+                    "schedulerItemId": "i_original",
+                    "surfaceId": target["surfaceId"],
+                }
+            ],
+        )
+        assert found.resolve("ex1", "i_original", target["surfaceId"])["unitIndex"] == 1
+    finally:
+        writer.close()
