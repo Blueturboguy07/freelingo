@@ -78,21 +78,13 @@ from coursekit.stages.g7_expand import (
 )
 
 
-@pytest.mark.parametrize(
-    ("surface", "expected"),
-    [
-        ("¿Él es americano?", ("¿Él es americano?", "¿Es americano?")),
-        ("Ella habló fuerte y claro.", ("Ella habló fuerte y claro.", "Habló fuerte y claro.")),
-        ("Ellos jamás mienten.", ("Ellos jamás mienten.", "Jamás mienten.")),
-        ("La alumna estudia.", ("La alumna estudia.",)),
-        ("Él mismo habló.", ("Él mismo habló.",)),
-    ],
-)
-def test_INV_PACK_07_spanish_subject_pronoun_variants_are_authored_generally(
-    surface: str, expected: tuple[str, ...]
-) -> None:
-    """[INV-PACK-07] obvious pro-drop is accepted without sampled-id exceptions."""
-    assert _spanish_accepted_surfaces(surface) == expected
+@pytest.mark.parametrize("surface", [
+    "¿Él es americano?", "Ella habló fuerte y claro.", "Ellos jamás mienten.",
+    "La alumna estudia.", "Él mismo habló.",
+])
+def test_INV_GRD_03_subject_pronoun_surface_without_analysis_gains_no_variant(surface: str) -> None:
+    """[INV-GRD-03] a spelling match alone cannot establish an optional subject."""
+    assert _spanish_accepted_surfaces(surface) == (surface,)
 
 
 @pytest.mark.parametrize(
@@ -1161,7 +1153,7 @@ def test_B16_the_gap_distractors_come_from_the_analysis_lemma_not_the_surface() 
     clozes = [
         record
         for record in _of_shape(records, "fill_in_the_blank")
-        if record["source_sentence_id"] is None
+        if record["source_sentence_id"] == sentence_id(LANG, _AUTHORED["text"])
     ]
     assert len(clozes) == 1, [record["prompt"] for record in clozes]
     cloze = clozes[0]
@@ -1835,7 +1827,7 @@ def test_the_slot_is_expanded_from_the_candidate_G5_filled_it_with_not_the_last_
     clozes = [
         record
         for record in _of_shape(records, "fill_in_the_blank")
-        if record["source_sentence_id"] is None
+        if record["source_sentence_id"] == sentence_id(LANG, _AUTHORED["text"])
     ]
     assert len(clozes) == 1, [record["prompt"] for record in clozes]
     assert clozes[0]["accepted_answers"] == ["libros"], (
@@ -1843,3 +1835,397 @@ def test_the_slot_is_expanded_from_the_candidate_G5_filled_it_with_not_the_last_
         f"({clozes[0]['prompt']!r})"
     )
     assert "caliente" not in clozes[0]["prompt"], clozes[0]["prompt"]
+
+
+# P2 round 5: regressions from the adversarial content review.
+def _quality_analysis(text: str, tokens: list[tuple[str, str, str, str]]) -> dict[str, Any]:
+    rows = _with_offsets(text, [(surface, lemma, pos) for surface, lemma, pos, _m in tokens])
+    for row, (_s, _l, _p, morph) in zip(rows, tokens, strict=True):
+        row["morph"] = morph
+    lexical = [r for r in rows if r["pos"] != "PUNCT"]
+    return {
+        "tokens": rows,
+        "display_tokens": [r["surface"] for r in lexical],
+        "lemmas": [r["lemma"] for r in lexical],
+    }
+
+
+def _quality_slot(*, alternates: tuple[str, ...] = ()) -> ResolvedSlot:
+    text = "Ella come pan."
+    analysis = _quality_analysis(
+        text,
+        [
+            ("Ella", "él", "PRON", "Number=Sing|Person=3|PronType=Prs"),
+            ("come", "comer", "VERB", "Mood=Ind|Number=Sing|Person=3|VerbForm=Fin"),
+            ("pan", "pan", "NOUN", "Number=Sing"),
+            (".", ".", "PUNCT", ""),
+        ],
+    )
+    return ResolvedSlot(
+        text, "She eats bread.", "aaaaaaaaaaaaaaaa", analysis, None, accepted_alternates=alternates
+    )
+
+
+def _quality_draft(
+    slot: ResolvedSlot, shape_id: str, *, audio: str = "a" * 16,
+    verb_decoys: tuple[str, ...] = ("beber", "correr", "mirar", "leer"),
+) -> Any:
+    from coursekit.exercises.distractors import AlternativesIndex
+    from coursekit.stages.g7_expand import _load, _sentence_draft
+
+    _write_ledger()
+    inputs = _load(LANG)
+    inputs.pos_of["comer"] = "VERB"
+    inputs.pos_of["él"] = "PRON"
+    inputs.band_of["él"] = "A1"
+    inputs.pool.by_pos_band[("PRON", "A1")] = ["alguien", "nadie", "algo"]
+    inputs.band_of["comer"] = "A1"
+    inputs.pool.by_pos_band[("VERB", "A1")] = list(verb_decoys)
+    alternatives = AlternativesIndex()
+    alternatives.add("other", ["El perro corre en el parque."])
+    return _sentence_draft(
+        inputs,
+        shape_id=shape_id,
+        unit=1,
+        lesson=1,
+        text=slot.text,
+        translation=slot.translation,
+        target_tokens=_target_tokens(slot),
+        source_tokens=slot.translation.split(),
+        lemmas=slot.analysis["lemmas"],
+        concept="present",
+        register="tu",
+        audio=audio,
+        slot=slot,
+        alternatives=alternatives,
+    )
+
+
+def test_INV_PACK_40_gloss_alignment_uses_the_same_lexical_indices_as_the_aligner() -> None:
+    """[INV-PACK-40] opening/interior punctuation never shifts aligned lemmas or hints."""
+    from coursekit.stages.g7_expand import _hints_for
+
+    text = "¿Pan, queso?"
+    analysis = _quality_analysis(
+        text,
+        [
+            ("¿", "¿", "PUNCT", ""),
+            ("Pan", "pan", "NOUN", ""),
+            (",", ",", "PUNCT", ""),
+            ("queso", "queso", "NOUN", ""),
+            ("?", "?", "PUNCT", ""),
+        ],
+    )
+    slot = ResolvedSlot(text, "Bread cheese?", "a" * 16, analysis, None)
+    pairs = [(0, 0), (1, 1)]
+    assert build_glosses(None, [(slot, pairs)]) == {"pan": "bread", "queso": "cheese"}
+    hints = _hints_for(None, {"new_lemmas": ["pan", "queso"]}, slot, pairs)
+    assert len(hints) == 2
+
+
+@pytest.mark.parametrize(
+    ("text", "tokens"),
+    [
+        (
+            "Él y yo comemos.",
+            [
+                ("Él", "él", "PRON", "Person=3|Number=Sing|PronType=Prs"),
+                ("y", "y", "CCONJ", ""),
+                ("yo", "yo", "PRON", "Person=1|Number=Sing|PronType=Prs"),
+                ("comemos", "comer", "VERB", "Person=1|Number=Plur|VerbForm=Fin"),
+            ],
+        ),
+        (
+            "Tú y yo.",
+            [
+                ("Tú", "tú", "PRON", "Person=2|Number=Sing|PronType=Prs"),
+                ("y", "y", "CCONJ", ""),
+                ("yo", "yo", "PRON", "Person=1|Number=Sing|PronType=Prs"),
+            ],
+        ),
+        (
+            "Ella comer pan.",
+            [
+                ("Ella", "él", "PRON", "Person=3|Number=Sing|PronType=Prs"),
+                ("comer", "comer", "VERB", "Person=3|Number=Sing|VerbForm=Inf"),
+                ("pan", "pan", "NOUN", ""),
+            ],
+        ),
+        (
+            "Ella comen pan.",
+            [
+                ("Ella", "él", "PRON", "Person=3|Number=Sing|PronType=Prs"),
+                ("comen", "comer", "VERB", "Person=3|Number=Plur|VerbForm=Fin"),
+                ("pan", "pan", "NOUN", ""),
+            ],
+        ),
+        (
+            "Ella, come pan.",
+            [
+                ("Ella", "él", "PRON", "Person=3|Number=Sing|PronType=Prs"),
+                (",", ",", "PUNCT", ""),
+                ("come", "comer", "VERB", "Person=3|Number=Sing|VerbForm=Fin"),
+                ("pan", "pan", "NOUN", ""),
+            ],
+        ),
+    ],
+)
+def test_INV_GRD_03_prodrop_requires_a_simple_agreeing_finite_predicate(
+    text: str, tokens: list[tuple[str, str, str, str]]
+) -> None:
+    """[INV-GRD-03] fragments, coordination and uncertain morphology gain no alternate."""
+    analysis = _quality_analysis(text, tokens)
+    assert _spanish_accepted_surfaces(text, analysis) == (text,)
+
+
+def test_INV_GRD_03_prodrop_requires_analysis_and_preserves_question_punctuation() -> None:
+    """[INV-GRD-03] omission is derived only from the stored Spanish morphology."""
+    text = "¿Él no come pan?"
+    tokens = [
+        ("¿", "¿", "PUNCT", ""),
+        ("Él", "él", "PRON", "Person=3|Number=Sing|PronType=Prs"),
+        ("no", "no", "ADV", ""),
+        ("come", "comer", "VERB", "Person=3|Number=Sing|VerbForm=Fin"),
+        ("pan", "pan", "NOUN", ""),
+        ("?", "?", "PUNCT", ""),
+    ]
+    assert _spanish_accepted_surfaces(text) == (text,)
+    assert _spanish_accepted_surfaces(text, _quality_analysis(text, tokens)) == (
+        text,
+        "¿No come pan?",
+    )
+
+
+@pytest.mark.parametrize(
+    "shape_id", [s.id for s in SHAPES if "sentence" in s.focuses and s.available_from == "P2"]
+)
+def test_INV_GRD_03_only_whole_sentence_typed_course_translation_accepts_alternates(
+    shape_id: str,
+) -> None:
+    """[INV-GRD-03] word-bank, English, cloze, audio and speech retain their contracts."""
+    slot = _quality_slot(alternates=("Ella está comiendo pan.", "Ella come pan."))
+    draft = _quality_draft(slot, shape_id)
+    if shape_id == "typed_translate_forward":
+        assert draft.accepted_answers == ("Ella come pan.", "Ella está comiendo pan.", "Come pan.")
+    else:
+        assert "Ella está comiendo pan." not in draft.accepted_answers
+        assert "Come pan." not in draft.accepted_answers
+        if shape(shape_id).direction == "l2_to_l1":
+            assert draft.accepted_answers == ("She eats bread.",)
+
+
+def test_INV_PACK_41_alternate_changes_leave_identity_stable_but_preference_does_not() -> None:
+    """[INV-PACK-41] nonpreferred grading variants do not orphan a semantic item."""
+    from coursekit.stages.g7_expand import _exercise_id
+
+    args = ("es", 1, 1, "typed_translate_forward", "She eats bread.")
+    base = _exercise_id(*args, "Ella come pan.")
+    assert _exercise_id(*args, "Ella come pan.", "Come pan.") == base
+    assert _exercise_id(*args, "Come pan.", "Ella come pan.") != base
+    assert (
+        _exercise_id("es", 1, 1, "typed_translate_forward", "She buys bread.", "Ella come pan.")
+        != base
+    )
+    first = _quality_draft(_quality_slot(), "typed_translate_forward")
+    more = _quality_draft(
+        _quality_slot(alternates=("Ella está comiendo pan.",)), "typed_translate_forward"
+    )
+    assert first.exercise_id == more.exercise_id
+    audio_first = _quality_draft(_quality_slot(), "type_what_you_hear", audio="a" * 16)
+    audio_other = _quality_draft(_quality_slot(), "type_what_you_hear", audio="b" * 16)
+    assert audio_first.exercise_id == audio_other.exercise_id
+
+
+def test_INV_PACK_41_every_required_match_row_contributes_to_identity() -> None:
+    """[INV-PACK-41] the remaining match rows are required meanings, not alternates."""
+    from coursekit.stages.g7_expand import _load, build_match_pairs
+
+    _write_ledger()
+    inputs = _load(LANG)
+    glosses = {"pan": "bread", "casa": "house", "libro": "book", "mesa": "table", "perro": "dog"}
+    args = dict(unit=1, lesson=1, lemmas=list(glosses), register="tu")
+    before = build_match_pairs(inputs, glosses=glosses, **args)
+    after = build_match_pairs(inputs, glosses={**glosses, "perro": "hound"}, **args)
+    assert before is not None and after is not None
+    assert before.accepted_answers[0] == after.accepted_answers[0]
+    assert before.exercise_id != after.exercise_id
+
+
+@pytest.mark.parametrize(
+    "shape_id", ["fill_in_the_blank", "listen_for_the_missing_word", "grammar_fill_in_the_blank"]
+)
+def test_INV_PACK_07_cloze_builders_never_offer_an_attested_same_lemma_form(
+    shape_id: str,
+) -> None:
+    """[INV-PACK-07] removing either builder's guard offers equally valid 'tarjetas'."""
+    from coursekit.exercises.distractors import AlternativesIndex, DistractorPool
+    from coursekit.stages.g7_expand import _grammar_draft, _load, _sentence_draft
+
+    _write_ledger()
+    inputs = _load(LANG)
+    inputs.pool = DistractorPool(
+        by_pos_band={("NOUN", "A1"): ["libro", "perro", "queso"]},
+        forms={"tarjeta": {"sing": "tarjeta", "plur": "tarjetas"}},
+        pos_of_lemma={"tarjeta": "NOUN"},
+        band_of_lemma={"tarjeta": "A1"},
+    )
+    inputs.pos_of = {"tarjeta": "NOUN"}
+    inputs.band_of = {"tarjeta": "A1"}
+    inputs.pos_sets = {}
+    slot = ResolvedSlot(
+        "Hay tarjeta hoy.",
+        "There is a card today.",
+        "a" * 16,
+        _quality_analysis(
+            "Hay tarjeta hoy.",
+            [
+                ("Hay", "haber", "AUX", ""),
+                ("tarjeta", "tarjeta", "NOUN", ""),
+                ("hoy", "hoy", "ADV", ""),
+            ],
+        ),
+        None,
+    )
+    common = dict(
+        shape_id="fill_in_the_blank" if shape_id == "grammar_fill_in_the_blank" else shape_id,
+        unit=1,
+        lesson=1,
+        concept="noun_number",
+        slot=slot,
+        target_tokens=_target_tokens(slot),
+        lemmas=slot.analysis["lemmas"],
+        register="tu",
+        alternatives=AlternativesIndex(),
+    )
+    if shape_id == "grammar_fill_in_the_blank":
+        draft = _grammar_draft(inputs, **common)
+    else:
+        draft = _sentence_draft(
+            inputs,
+            **common,
+            text=slot.text,
+            translation=slot.translation,
+            source_tokens=slot.translation.split(),
+            audio="a" * 16,
+        )
+    assert draft is not None
+    assert draft.accepted_answers == ("tarjeta",)
+    assert len(draft.distractors) == shape(common["shape_id"]).distractor_count
+    assert "tarjetas" not in draft.distractors
+
+
+def test_INV_PACK_40_G7_preserves_the_exact_first_postG6_candidate_identity() -> None:
+    """[INV-PACK-40] reserve/rejected rows and text hashes cannot replace chosen source IDs."""
+    _write_gap_ledger([_AUTHORED])
+    candidate = dict(next(read_records("candidate", lang=LANG)))
+    chosen_id, reserve_id, rejected_id = "1" * 16, "2" * 16, "3" * 16
+    candidate["candidate_id"] = chosen_id
+    rejected = {
+        **candidate,
+        "candidate_id": rejected_id,
+        "accepted": False,
+        "reject_reason": "grammar",
+    }
+    reserve = {**candidate, "candidate_id": reserve_id}
+    write_records("candidate", [rejected, candidate, reserve], lang=LANG)
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+    records = list(read_records("exercise", lang=LANG))
+    sourced = [r for r in records if r["source_sentence_id"] == chosen_id]
+    assert sourced
+    assert all(r["source_sentence_id"] not in {reserve_id, rejected_id} for r in records)
+    assert {shape_of_record(r).id for r in records if r["source_sentence_id"] is None} == {
+        "meaning_select",
+        "match_pairs",
+    }
+    assert all(r["source_sentence_id"] == chosen_id for r in sourced)
+
+
+def test_INV_GRD_03_every_validated_alternate_is_indexed_before_any_draft(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[INV-GRD-03] sourced alternates reach grading and cannot be drawn as decoys."""
+    import coursekit.stages.g7_expand as module
+
+    _write_gap_ledger([{**_AUTHORED, "slot_index": 5}])
+    candidate = dict(next(read_records("candidate", lang=LANG)))
+    candidate["candidate_id"] = "4" * 16
+    alternate = "Sobre las mesas están los libros."
+    candidate["accepted_alternates"] = [alternate]
+    write_records("candidate", [candidate], lang=LANG)
+    original = module._sentence_draft
+    seen = []
+
+    def checked(inputs: Any, **kwargs: Any) -> Any:
+        slot = kwargs["slot"]
+        if slot.candidate_id == candidate["candidate_id"]:
+            index = kwargs["alternatives"]
+            key = "sentence:" + candidate["candidate_id"]
+            assert index.is_alternative(key, candidate["text"])
+            assert index.is_alternative(key, alternate)
+            seen.append(kwargs["shape_id"])
+        return original(inputs, **kwargs)
+
+    monkeypatch.setattr(module, "_sentence_draft", checked)
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+    assert "typed_translate_forward" in seen
+    records = [
+        r
+        for r in read_records("exercise", lang=LANG)
+        if r["source_sentence_id"] == candidate["candidate_id"]
+    ]
+    typed = _of_shape(records, "typed_translate_forward")
+    assert len(typed) == 1
+    assert typed[0]["accepted_answers"] == [candidate["text"], alternate]
+    assert all(alternate not in r["distractors"] for r in records)
+    assert all(
+        alternate not in r["accepted_answers"]
+        for r in records
+        if shape_of_record(r).id != "typed_translate_forward"
+    )
+
+
+def test_INV_PACK_40_ending_target_indexes_only_lexical_tokens() -> None:
+    """[INV-PACK-40] an opening question mark cannot suppress or shift a real verb ending."""
+    from coursekit.stages.g7_expand import _ending_target
+
+    text = "¿Corren hoy?"
+    analysis = _quality_analysis(
+        text,
+        [
+            ("¿", "¿", "PUNCT", ""),
+            ("Corren", "correr", "VERB", "VerbForm=Fin"),
+            ("hoy", "hoy", "ADV", ""),
+            ("?", "?", "PUNCT", ""),
+        ],
+    )
+    slot = ResolvedSlot(text, "Are they running today?", "a" * 16, analysis, None)
+    assert _ending_target(slot, _target_tokens(slot), "es") == (0, "Corr", "en")
+
+
+@pytest.mark.parametrize(("field", "value"), [("pos", "NOUN"), ("morph", "")])
+def test_INV_GRD_03_unknown_subject_analysis_cannot_author_prodrop(field: str, value: str) -> None:
+    """[INV-GRD-03] a matching surface without personal-pronoun proof is insufficient."""
+    slot = _quality_slot()
+    slot.analysis["tokens"][0][field] = value
+    assert _spanish_accepted_surfaces(slot.text, slot.analysis) == (slot.text,)
+
+
+def test_INV_GRD_03_spanish_prodrop_is_never_applied_to_another_language() -> None:
+    """[INV-GRD-03] a Spanish-shaped token does not activate a cross-language rule."""
+    from coursekit.stages.g7_expand import _translation_surfaces
+
+    slot = _quality_slot()
+    assert _translation_surfaces(slot, "fr") == (slot.text,)
+
+
+def test_INV_PACK_41_changing_only_bank_distractors_preserves_identity() -> None:
+    """[INV-PACK-41] different valid decoys leave the learner's scheduled item intact."""
+    first = _quality_draft(_quality_slot(), "word_bank_forward",
+                           verb_decoys=("beber", "correr", "mirar"))
+    second = _quality_draft(_quality_slot(), "word_bank_forward",
+                            verb_decoys=("leer", "viajar", "bailar"))
+    assert first.distractors != second.distractors
+    assert first.accepted_answers == second.accepted_answers
+    assert first.exercise_id == second.exercise_id

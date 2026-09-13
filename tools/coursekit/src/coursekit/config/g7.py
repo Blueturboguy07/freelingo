@@ -875,3 +875,20 @@ GAP_MARKER: Final[str] = "____"
 
 #: `deep/01` §S6: the chat's two option lines. One correct, one distractor.
 CHAT_TURN_SEPARATOR: Final[str] = "\n"
+
+
+# P2 review ruling, 2026-09-13; pipeline semantics, no reference-app A/B arm.
+# Only a complete typed L1→L2 translation can accept sentence-level alternatives.
+WHOLE_SENTENCE_ALTERNATE_SHAPES: Final[frozenset[str]] = frozenset({"typed_translate_forward"})
+
+# Conservative Spanish pro-drop requires personal-pronoun and finite-verb agreement.
+SPANISH_SUBJECT_AGREEMENT: Final[dict[str, tuple[str, str]]] = {
+    "yo": ("1", "Sing"), "tú": ("2", "Sing"),
+    "él": ("3", "Sing"), "ella": ("3", "Sing"),
+    "nosotros": ("1", "Plur"), "nosotras": ("1", "Plur"),
+    "vosotros": ("2", "Plur"), "vosotras": ("2", "Plur"),
+    "ellos": ("3", "Plur"), "ellas": ("3", "Plur"),
+}
+SPANISH_PRODROP_ADVERBS: Final[frozenset[str]] = frozenset(
+    {"no", "nunca", "jamás", "siempre", "también", "ya", "todavía"}
+)

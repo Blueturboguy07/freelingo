@@ -74,7 +74,7 @@ from dataclasses import dataclass, field
 from typing import Any, Final
 
 from .. import __version__
-from ..artifacts import read_records, sentence_id, write_records
+from ..artifacts import first_accepted_candidates, read_records, sentence_id, write_records
 from ..config import EXERCISE_TYPES, TOOL_NAME
 from ..config.g7 import (
     CHAT_TURN_SEPARATOR,
@@ -96,7 +96,10 @@ from ..config.g7 import (
     SENTENCE_FORM_PLAN,
     SHAPES,
     SPANISH_INFINITIVE_ENDINGS,
+    SPANISH_PRODROP_ADVERBS,
+    SPANISH_SUBJECT_AGREEMENT,
     VERB_POS,
+    WHOLE_SENTENCE_ALTERNATE_SHAPES,
 )
 from ..config.g8 import LESSON_ROLE
 from ..exercises.alignment import alignment_provenance, get_aligner
@@ -201,36 +204,12 @@ def _load(lang: str) -> ExpansionInputs:
     selected = list(read_records("selected_item", lang=lang))
     ingested = list(read_records("ingested_sentence", lang=lang))
 
-    # FIRST accepted row per slot, and `setdefault` is the whole of that — it used to be
-    # `candidates[key] = row`, which is LAST-wins.
-    #
-    # G5 does not accept one row per slot. It measures every authored row against the
-    # five reject axes and marks each `accepted` independently; `slot_filled` only
-    # records that the slot HAS a fill, and the fill is the FIRST accepted row in shard
-    # order (`stages/g5_gapfill.py`, `if not slot_filled`). So a slot whose window admits
-    # two authored texts emits two accepted rows, G5's runlog names the first, and
-    # last-wins here made the learner meet the second. Nothing in either stage said so.
-    #
-    # Measured at the P2 round-3 integration, on `u1/l1/s0`: B9(a)'s lemma-normalisation
-    # table brought three more of that shard's twenty rows into the five-lemma window, so
-    # G5 accepted four (`Hola.`, `Buenas noches.`, `¡Buenas tardes!`,
-    # `Buenos días, buenas tardes.`), reported `Hola.` as the fill, and G7 expanded
-    # `Buenos días, buenas tardes.` — a word list where the course teaches `hola`. The
-    # other eight slots have one accepted row each only because G5's `duplicate` axis
-    # rejects those same three texts once the unit has seen them, which is luck about
-    # ordering rather than a property.
-    #
-    # First-wins makes the two stages name the same sentence by construction. It needs no
-    # new field on the frozen CANDIDATE contract (the deps lane owns that), and it holds
-    # for whatever G5 accepts, because `write_records`/`read_records` preserve the order
-    # G5 appended in.
-    candidates: dict[tuple[int, int, int], Mapping[str, Any]] = {}
-    if any(item["gap"] for item in selected):
-        for row in read_records("candidate", lang=lang):
-            if row["accepted"]:
-                candidates.setdefault(
-                    (row["unit_index"], row["lesson_index"], row["slot_index"]), row
-                )
+    # Shared post-G6 selection: reserves remain accepted but are not shipped fills.
+    candidates = (
+        first_accepted_candidates(read_records("candidate", lang=lang), lang=lang)
+        if any(item["gap"] for item in selected)
+        else {}
+    )
 
     return ExpansionInputs(
         lang=lang,
@@ -268,14 +247,20 @@ class ResolvedSlot:
 
     text: str
     translation: str
-    #: `None` for an authored slot. It is also what the pack records as
-    #: `source_sentence_id`, which is how the manifest's provenance split is computed.
+    #: G0 identity, or None for an authored slot whose source is candidate_id.
     sid: str | None
     #: G1's row or G5's `candidate.analysis`, in G1's shape. `None` only for a corpus
     #: sentence G1 never analysed.
     analysis: Mapping[str, Any] | None
     #: The authored row this slot came from, for the message an error has to name.
     candidate_id: str | None
+    #: Whole-sentence course-language surfaces independently validated by G5/G6.
+    accepted_alternates: tuple[str, ...] = ()
+
+    @property
+    def source_id(self) -> str | None:
+        """The exact corpus/chosen-candidate identity, never a hash of its text."""
+        return self.sid or self.candidate_id
 
 
 def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
@@ -314,6 +299,7 @@ def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
             sid=None,
             analysis=analysis,
             candidate_id=str(candidate["candidate_id"]),
+            accepted_alternates=tuple(candidate.get("accepted_alternates", ())),
         )
     sid = item["sentence_id"]
     if sid not in inputs.texts:
@@ -324,6 +310,7 @@ def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
         sid=sid,
         analysis=inputs.analysed.get(sid),
         candidate_id=None,
+        accepted_alternates=tuple(item.get("accepted_alternates", ())),
     )
 
 
@@ -448,25 +435,23 @@ def ending_split(surface: str, lemma: str, pos: str, lang: str) -> tuple[str, st
 def _exercise_id(
     lang: str, unit: int, lesson: int, shape_id: str, body: str, *answers: str
 ) -> str:
-    """Content-addressed, so a rebuild that did not change the item keeps its FSRS row.
+    """Hash semantic content while ignoring nonpreferred alternatives (INV-PACK-41).
 
-    THE ANSWER IS PART OF THE CONTENT, and leaving it out was a collision. The id was
-    `(unit, lesson, shape, body)`, and for a `l1_to_l2` shape the body is the ENGLISH
-    prompt — so two different Spanish sentences with one English translation in the same
-    lesson produced ONE id with two different accepted answers. Measured on the real
-    course, 2026-09-12: `Dos más dos es cuatro.` and `Dos más dos son cuatro.` are both
-    slots of unit 2 lesson 12 and both render `Write this in Spanish / Two plus two makes
-    four.`, and G9 refused the pack with `UNIQUE constraint failed: exercise.exercise_id`.
-    Downstream of that constraint it is worse than a refused build: one id means one FSRS
-    row for two items, so answering one would schedule the other.
-
-    The accepted answer is exactly what `packbuild.itemid.item_id` already hashes as
-    `preferredSurface`, so this makes the artefact id as discriminating as the pack id it
-    becomes. Every exercise id in the course moves, which is free at P2 (no pack has
-    shipped) and is why INV-PACK-02's additive-only clause is scoped to a major version.
+    The preferred answer distinguishes identical English prompts with distinct Spanish
+    meanings. Match-pair entries are all required answers, not alternate surfaces, so
+    each row contributes. Audio and distractors are presentation and are never inputs.
     """
-    parts = "\x1f".join((str(unit), str(lesson), shape_id, body, *answers))
+    required = answers if shape_id == "match_pairs" else answers[:1]
+    parts = "\x1f".join((str(unit), str(lesson), shape_id, body, *required))
     return sentence_id(lang, parts)
+
+
+def _lexical_analysis_tokens(analysis: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """The same lexical sequence as G1 display_tokens, retaining morphology and spans."""
+    return [
+        token for token in analysis["tokens"]
+        if token.get("pos") != "PUNCT" and str(token["surface"]).strip()
+    ]
 
 
 def _gapped(slot: ResolvedSlot, tokens: Sequence[str], index: int) -> str:
@@ -490,14 +475,7 @@ def _gapped(slot: ResolvedSlot, tokens: Sequence[str], index: int) -> str:
     up, falls back to the join it always was.
     """
     analysis = slot.analysis
-    if analysis is not None:
-        analysis_tokens = [
-            token
-            for token in analysis["tokens"]
-            if token.get("pos") != "PUNCT" and str(token["surface"]).strip()
-        ]
-    else:
-        analysis_tokens = []
+    analysis_tokens = _lexical_analysis_tokens(analysis) if analysis is not None else []
     if index < len(analysis_tokens) and index < len(tokens):
         token = analysis_tokens[index]
         start, end = int(token["start"]), int(token["end"])
@@ -617,16 +595,15 @@ def _sentence_draft(
 ) -> ExerciseDraft:
     chosen = shape(shape_id)
     lang = inputs.lang
-    sid = slot.sid
+    sid = slot.source_id
     key = f"sentence:{sid}" if sid else f"authored:{unit}:{lesson}:{text}"
-    # What `item_keys` will file the record under. For a corpus sentence that is `key`;
-    # for an authored one it is the concept, which is why the two are separate names.
+    # The validator indexes both corpus and authored records by their exact source ID.
     item_key = f"sentence:{sid}" if sid else f"concept:{concept}"
     reverse = chosen.direction == "l2_to_l1"
     body = translation if chosen.direction == "l1_to_l2" else text
-    accepted: tuple[str, ...] = (
-        _spanish_accepted_surfaces(text) if not reverse else (translation,)
-    )
+    accepted = (translation,) if reverse else (text,)
+    if chosen.id in WHOLE_SENTENCE_ALTERNATE_SHAPES and chosen.direction == "l1_to_l2":
+        accepted = _translation_surfaces(slot, lang)
     distractors: tuple[str, ...] = ()
 
     if chosen.id in {"word_bank_forward", "word_bank_reverse", "tap_what_you_hear"}:
@@ -708,39 +685,71 @@ def _sentence_draft(
     )
 
 
-_DROPPABLE_SUBJECTS = frozenset(
-    {
-        "yo",
-        "tú",
-        "él",
-        "ella",
-        "nosotros",
-        "nosotras",
-        "vosotros",
-        "vosotras",
-        "ellos",
-        "ellas",
-    }
-)
+def _translation_surfaces(slot: ResolvedSlot, lang: str) -> tuple[str, ...]:
+    """Preferred first; authored and proven Spanish variants retain insertion order."""
+    derived = _spanish_accepted_surfaces(slot.text, slot.analysis) if lang == "es" else ()
+    result: list[str] = []
+    seen: set[str] = set()
+    for surface in (slot.text, *slot.accepted_alternates, *derived):
+        folded = normalise(surface)
+        if folded not in seen:
+            result.append(surface)
+            seen.add(folded)
+    return tuple(result)
 
 
-def _spanish_accepted_surfaces(surface: str) -> tuple[str, ...]:
-    """Add the ordinary Spanish pro-drop form when the leading pronoun is unambiguous.
+def _morph_features(token: Mapping[str, Any]) -> dict[str, str]:
+    return dict(part.split("=", 1) for part in str(token.get("morph", "")).split("|")
+                if "=" in part)
 
-    This is deliberately syntactic and conservative: it does not infer gender, swap a
-    lexeme, or drop emphatic ``él mismo``. Those require authored evidence. Spanish
-    subject pronouns before a finite predicate are optional, so omitting one is the
-    systematic answer-set variant G7 can derive without guessing.
+
+def _spanish_accepted_surfaces(
+    surface: str, analysis: Mapping[str, Any] | None = None
+) -> tuple[str, ...]:
+    """Derive pro-drop only from a simple pronoun and agreeing finite predicate.
+
+    Stored POS, person, number, finite morphology and original offsets must agree.
+    Coordination, fragments, emphasis, intervening punctuation and missing morphology
+    abstain. This is a build-time Spanish translation rule, never a listening target.
     """
-    opening = surface[:1] if surface[:1] in {"¿", "¡"} else ""
-    body = surface[1:] if opening else surface
-    subject, separator, remainder = body.partition(" ")
-    if not separator or subject.casefold() not in _DROPPABLE_SUBJECTS:
+    if analysis is None:
         return (surface,)
-    if remainder.casefold().startswith(("mismo ", "misma ", "mismos ", "mismas ")):
+    tokens = _lexical_analysis_tokens(analysis)
+    if len(tokens) < 2:
         return (surface,)
+    subject = tokens[0]
+    agreement = SPANISH_SUBJECT_AGREEMENT.get(str(subject["surface"]).casefold())
+    features = _morph_features(subject)
+    if (agreement is None or subject["pos"] != "PRON"
+            or features.get("PronType") != "Prs"
+            or (features.get("Person"), features.get("Number")) != agreement):
+        return (surface,)
+    first = int(subject["start"])
+    last = int(subject["end"])
+    opening = surface[:first]
+    if opening not in {"", "¿", "¡"} or surface[first:last] != subject["surface"]:
+        return (surface,)
+    predicate = None
+    cursor = last
+    for token in tokens[1:]:
+        start, end = int(token["start"]), int(token["end"])
+        if (start <= cursor or not surface[cursor:start].isspace()
+                or surface[start:end] != token["surface"]):
+            return (surface,)
+        if token["pos"] == "ADV" and str(token["surface"]).casefold() in SPANISH_PRODROP_ADVERBS:
+            cursor = end
+            continue
+        predicate = token
+        break
+    if predicate is None or predicate["pos"] not in VERB_POS:
+        return (surface,)
+    finite = _morph_features(predicate)
+    if (finite.get("VerbForm") != "Fin"
+            or (finite.get("Person"), finite.get("Number")) != agreement):
+        return (surface,)
+    remainder = surface[last:].lstrip()
     dropped = opening + remainder[:1].upper() + remainder[1:]
-    return (surface, dropped) if dropped != surface else (surface,)
+    return (surface, dropped)
 
 
 def _gap_index(tokens: Sequence[str]) -> int:
@@ -842,14 +851,8 @@ def _decoys(
                 pos = attested
                 break
     forbidden_prompt = [token.strip(".,¿?¡!") for token in prompt_tokens]
-    # `item_key` is the key `validators.exercise.item_keys` will file this record under,
-    # and it is NOT always this call's `key`. An AUTHORED sentence has no
-    # `source_sentence_id`, so `item_keys` files it under its grammar concept and every
-    # authored sentence in that concept is one item — while the rule core's own
-    # exclusion set is per-slot. The gap is not theoretical: over the real Spanish course
-    # V5 reported `distractor 'hermanos' is an accepted answer of another exercise over
-    # the same item` twice. Excluding the item's whole accepted set here is what makes
-    # the generator and the validator agree by construction rather than by luck.
+    # Share the validator's source-item exclusion set. Source-less direct fixtures
+    # still use the concept fallback; every resolved production slot has an exact ID.
     forbidden_item = sorted(alternatives.forbidden_for(item_key)) if item_key else []
     return rule_core_distractors(
         pool=inputs.pool,
@@ -1021,7 +1024,7 @@ def _grammar_draft(
     stage records the skip on the runlog rather than swallowing it.
     """
     lang = inputs.lang
-    sid = slot.sid
+    sid = slot.source_id
     key = f"sentence:{sid}" if sid else f"concept:{concept}"
     if shape_id == "type_the_word_ending":
         segmented = _ending_target(slot, target_tokens, lang)
@@ -1089,12 +1092,11 @@ def _ending_target(
     """
     if slot.analysis is None:
         return None
-    tokens = slot.analysis["tokens"]
+    tokens = _lexical_analysis_tokens(slot.analysis)
     best: tuple[int, int, str, str] | None = None
     for index, token in enumerate(tokens):
         if index >= len(target_tokens) or token["surface"] != target_tokens[index]:
-            # display_tokens and tokens are the same list in G1's contract; if a pack
-            # ever disagrees, refuse rather than drill the wrong word.
+            # Lexical analysis and display_tokens must agree before a span is drilled.
             continue
         split = ending_split(token["surface"], token["lemma"], token["pos"], lang)
         if split is None:
@@ -1143,7 +1145,9 @@ def build_match_pairs(
     accepted = tuple(f"{lemma}{MATCH_PAIR_SEPARATOR}{glosses[lemma]}" for lemma in rows)
     return ExerciseDraft(
         lang=inputs.lang,
-        exercise_id=_exercise_id(inputs.lang, unit, lesson, "match_pairs", "|".join(rows)),
+        exercise_id=_exercise_id(
+            inputs.lang, unit, lesson, "match_pairs", "|".join(rows), *accepted
+        ),
         unit_index=unit,
         lesson_index=lesson,
         shape_id="match_pairs",
@@ -1328,7 +1332,7 @@ def build_glosses(
         if slot.analysis is None:
             continue
         translation = list(surface_tokens(slot.translation))
-        tokens = slot.analysis["tokens"]
+        tokens = _lexical_analysis_tokens(slot.analysis)
         for source_index, target_index in pairs:
             if not (0 <= source_index < len(translation) and 0 <= target_index < len(tokens)):
                 continue
@@ -1454,12 +1458,11 @@ def expand(ctx: StageContext) -> StageResult:
             # The gap index is content-free (`_gap_index`), so it is knowable here, before
             # any distractor is drawn — which is the only order that works: a distractor
             # is chosen against this index, so anything missing from it can be chosen.
-            accepted_here = [slot.text, slot.translation]
+            accepted_here = [*_translation_surfaces(slot, lang), slot.translation]
             if tokens:
                 accepted_here.append(tokens[_gap_index(tokens)])
             alternatives.add(_alt_key(item, slot), accepted_here)
-            # And again under the key `item_keys` will file the records under, which for
-            # an authored slot is the CONCEPT and not the slot. See `_decoys`.
+            # Also preserve the direct-fixture fallback key used by the validator.
             alternatives.add(_item_key(item, slot), accepted_here)
             resolved.append((item, slot, list(pairs)))
 
@@ -1579,21 +1582,15 @@ def expand(ctx: StageContext) -> StageResult:
 
 def _alt_key(item: Mapping[str, Any], slot: ResolvedSlot) -> str:
     """The alternatives-index key for one slot. Must match `_sentence_draft`'s."""
-    if slot.sid:
-        return f"sentence:{slot.sid}"
+    if slot.source_id:
+        return f"sentence:{slot.source_id}"
     return f"authored:{item['unit_index']}:{item['lesson_index']}:{slot.text}"
 
 
 def _item_key(item: Mapping[str, Any], slot: ResolvedSlot) -> str:
-    """The key `validators.exercise.item_keys` will file this slot's records under.
-
-    One function, because the generator and the validator disagreeing about what an
-    ITEM is was a measured defect: an authored slot has no `source_sentence_id`, so
-    `item_keys` files it under its grammar concept, and a per-slot exclusion set let a
-    distractor be a sibling authored sentence's accepted answer.
-    """
-    if slot.sid:
-        return f"sentence:{slot.sid}"
+    """The validator's source-item key, with a fallback for direct source-less fixtures."""
+    if slot.source_id:
+        return f"sentence:{slot.source_id}"
     return f"concept:{item['grammar_concept']}"
 
 
@@ -1618,7 +1615,7 @@ def _hints_for(
         return ()
     source_tokens = list(surface_tokens(slot.translation))
     target_tokens = _target_tokens(slot)
-    tokens = slot.analysis["tokens"]
+    tokens = _lexical_analysis_tokens(slot.analysis)
     lemma_of_source: list[str] = []
     by_source: dict[int, list[int]] = {}
     for source_index, target_index in alignment:
