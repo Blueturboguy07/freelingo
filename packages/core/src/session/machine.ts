@@ -16,6 +16,8 @@
  * attempt ledger stays injective on `exerciseIndex` and that the index only ever advances
  * out of a state that was showing a challenge or its banner.
  */
+import { TRACE_RUNTIME_KEY, preserveTraceRuntime, traceRuntime } from '../grading/trace.js';
+import type { TraceDefinition, TracePoint } from '../grading/trace.js';
 import type { SessionFlavourConfig } from './flavours.js';
 import type {
   Allowance,
@@ -75,6 +77,7 @@ export interface StepDeps {
   readonly stepUpTripped: (state: RuntimeState) => boolean;
   /** Exact pairs supplied by the current pack row; absent evidence cannot complete a grid. */
   readonly matchPairs?: (item: QueuedItem) => readonly RuntimeMatchPair[];
+  readonly traceDefinition?: (item: QueuedItem) => TraceDefinition | null;
 }
 
 /* ==================================================================== 2. events */
@@ -98,6 +101,11 @@ export type SessionEvent =
       readonly attemptId: string;
       readonly leftId: string;
       readonly rightId: string;
+    }
+  | {
+      readonly type: 'traceStroke';
+      readonly attemptId: string;
+      readonly points: readonly TracePoint[];
     }
   | { readonly type: 'check' }
   | { readonly type: 'graded' }
@@ -233,7 +241,10 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
         ...state.inFlight,
         text: event.text,
         caret: event.caret,
-        partialState: preserveMatchRuntime(state.inFlight.partialState, event.partialState),
+        partialState: preserveTraceRuntime(
+          state.inFlight.partialState,
+          preserveMatchRuntime(state.inFlight.partialState, event.partialState),
+        ),
       };
       const item = currentItem(state);
       // INV-SESS-24: CHECK stays disabled until the clip completes again.
@@ -269,11 +280,17 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
         exit: null,
       };
 
+    case 'traceStroke':
+      return answerStroke(state, event, deps);
+
     case 'matchPair':
       return answerPair(state, event, deps);
 
     case 'check': {
-      if (state.shellState !== 'challenge.armed' || currentItem(state)?.type === 'matchPairs')
+      if (
+        state.shellState !== 'challenge.armed' ||
+        ['matchPairs', 'characterTrace'].includes(currentItem(state)?.type ?? '')
+      )
         return none;
       return { state: mark(state, 'grading', deps), writes: [], exit: null };
     }
@@ -403,15 +420,22 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
   ) {
     return { state, writes: [], exit: null };
   }
+  const traceDefinition = item.type === 'characterTrace' ? deps.traceDefinition?.(item) : null;
+  const strokeState =
+    traceDefinition == null ? null : traceRuntime(traceDefinition, state.inFlight.partialState);
+  if (item.type === 'characterTrace' && strokeState?.complete !== true)
+    return { state, writes: [], exit: null };
   const verdict: Verdict =
-    pairState !== null
-      ? { kind: pairState.paid > 0 ? 'wrong' : 'correct' }
-      : deps.grading.grade({
-          item,
-          raw: state.inFlight.text,
-          partialState: state.inFlight.partialState,
-          hardMode: state.core.hardMode,
-        });
+    strokeState?.complete === true
+      ? { kind: 'correct' }
+      : pairState !== null
+        ? { kind: pairState.paid > 0 ? 'wrong' : 'correct' }
+        : deps.grading.grade({
+            item,
+            raw: state.inFlight.text,
+            partialState: state.inFlight.partialState,
+            hardMode: state.core.hardMode,
+          });
 
   const spec = exerciseSpec(item.type);
   const wrong = verdict.kind === 'wrong';
@@ -542,6 +566,55 @@ function answerPair(
   const finished =
     record.matchedLeftIds.length === pairs.length || allowanceRemaining(next.core.hearts) === 0;
   return finished
+    ? grade(mark(next, 'grading', deps), deps)
+    : { state: mark(next, 'challenge.idle', deps), writes: [], exit: null };
+}
+
+/** S042 completion is established by the active pack's ordered geometry, never raw text. */
+function answerStroke(
+  state: RuntimeState,
+  event: Extract<SessionEvent, { type: 'traceStroke' }>,
+  deps: StepDeps,
+): StepResult {
+  const none = { state, writes: [], exit: null };
+  if (!isChallengeState(state.shellState)) return none;
+  const item = currentItem(state);
+  if (item?.type !== 'characterTrace') return none;
+  const definition = deps.traceDefinition?.(item);
+  if (definition == null) return none;
+  const prior = traceRuntime(definition, state.inFlight.partialState);
+  if (
+    prior === null ||
+    prior.complete ||
+    prior.attempts.some((attempt) => attempt.id === event.attemptId)
+  )
+    return none;
+  const partial = {
+    ...state.inFlight.partialState,
+    [TRACE_RUNTIME_KEY]: {
+      attempts: [...prior.attempts, { id: event.attemptId, points: event.points }],
+    },
+  };
+  const record = traceRuntime(definition, partial);
+  if (record === null) return none;
+  const row = weakItemFor(item, state.courseId, record.rejections);
+  const next: RuntimeState = {
+    ...state,
+    inFlight: {
+      ...state.inFlight,
+      partialState: { ...partial, [TRACE_RUNTIME_KEY]: record, traceDraft: [] },
+    },
+    weakItemRows:
+      row === null
+        ? state.weakItemRows
+        : [
+            ...state.weakItemRows.filter(
+              (existing) => existing.itemId !== item.itemId || existing.courseId !== state.courseId,
+            ),
+            row,
+          ],
+  };
+  return record.complete
     ? grade(mark(next, 'grading', deps), deps)
     : { state: mark(next, 'challenge.idle', deps), writes: [], exit: null };
 }
