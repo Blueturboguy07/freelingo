@@ -304,9 +304,9 @@ def test_inv_pack_15_a_pack_that_declares_more_audio_than_it_carries_is_a_violat
         **manifest,
         "audio": {**manifest["audio"], "bytes": int(manifest["audio"]["bytes"]) + 1},
     }
-    assert any(
-        "across its pipelines" in line for line in manifest_violations(carries_more)
-    ), manifest_violations(carries_more)
+    assert any("across its pipelines" in line for line in manifest_violations(carries_more)), (
+        manifest_violations(carries_more)
+    )
 
     lesson = int(manifest["audio"]["bytesByPipeline"]["lesson"])
     declares_more = {
@@ -350,9 +350,10 @@ def test_the_audio_block_declares_an_accent_claim_and_no_locale(tmp_path: Path) 
     for bad in ("peninsular", "", None):
         broken = {**manifest, "audio": {**manifest["audio"], "accentClaim": bad}}
         assert any("accentClaim" in line for line in manifest_violations(broken)), bad
-    missing = {**manifest, "audio": {
-        key: value for key, value in manifest["audio"].items() if key != "accentClaim"
-    }}
+    missing = {
+        **manifest,
+        "audio": {key: value for key, value in manifest["audio"].items() if key != "accentClaim"},
+    }
     assert any("accentClaim" in line for line in manifest_violations(missing))
 
     # The claim is read from the cast, which is where the decision lives, and a pack
@@ -453,3 +454,21 @@ def test_the_cefr_claim_carries_its_boolean_so_the_app_has_one_to_branch_on(
     assert cefr_checked("es") is True
     assert cefr_checked("ja") is False
     assert CEFR_CLAIM_FREQUENCY.endswith("frequency-ordered")
+
+
+def test_INV_PACK_18_each_signed_audio_digest_is_over_delivered_file_bytes(tmp_path: Path) -> None:
+    import hashlib
+
+    manifest = _built(tmp_path)
+    audio = repo_root() / "packages/core/src/packs/__fixtures__/es-mini/audio"
+    expected = [
+        {
+            "path": f"audio/{path.name}",
+            "bytes": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in sorted(audio.iterdir())
+        if path.is_file()
+    ]
+    assert manifest["audioFiles"] == expected
+    assert sum(row["bytes"] for row in expected) == manifest["audioBytes"]

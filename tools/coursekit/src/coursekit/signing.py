@@ -11,8 +11,9 @@ Three rules, each of which is a hole if it is not written down:
   `--key` flag and no file path. A signing tool that will read a key off disk is a
   signing tool whose key ends up on disk.
 * **The signature covers the manifest with its own signature block removed**, serialised
-  as sorted-key, compact JSON. A verifier reconstructs the signed bytes from the shipped
-  file; nothing rides alongside it.
+  as sorted-key, compact JSON. The signature block carries those exact bytes as base64
+  so native verification preserves Python numeric spellings. Their decoded fields must
+  equal every unsigned manifest field; the block cannot substitute another payload.
 * **Verification compares the embedded public key with the trusted one.** A signature
   that verifies against the key packaged next to it proves only that somebody owned *a*
   key. The trusted key is the committed `packages/schema/keys/pack-signing.pub`, which
@@ -232,10 +233,10 @@ def trusted_public_key_spki(repo_root: Path | None = None) -> bytes:
 def canonical_manifest_bytes(manifest: Mapping[str, Any]) -> bytes:
     """The exact bytes a signature covers: the manifest, minus its signature block.
 
-    Sorted keys, no insignificant whitespace, UTF-8, `ensure_ascii=False`. A verifier
-    rebuilds these from the shipped `manifest.json`, so the pack needs no second copy of
-    the manifest and a reformatting of the file on the way out breaks the signature
-    rather than silently changing what was signed.
+    Sorted keys, no insignificant whitespace, UTF-8, `ensure_ascii=False`. Python
+    reconstructs these bytes; native readers verify the identical bytes carried in
+    signature.payload after binding all decoded fields to the unsigned manifest. Outer
+    JSON whitespace is irrelevant. A signed field or exact payload byte change fails.
     """
     payload = {key: value for key, value in manifest.items() if key != MANIFEST_SIGNATURE_KEY}
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
@@ -253,12 +254,16 @@ def sign_manifest(
     `PACK_SIGNING_KEY` from the repository secret and this reads it.
     """
     signing_key = key or load_signing_key(env_var)
-    signature = signing_key.sign(canonical_manifest_bytes(manifest)).signature
+    payload = canonical_manifest_bytes(manifest)
+    signature = signing_key.sign(payload).signature
     signed = {key_: value for key_, value in manifest.items() if key_ != MANIFEST_SIGNATURE_KEY}
     signed[MANIFEST_SIGNATURE_KEY] = {
         "algorithm": PACK_SIGNING_ALGORITHM,
         "public_key": base64.b64encode(public_key_spki(signing_key)).decode("ascii"),
         "signature": base64.b64encode(signature).decode("ascii"),
+        # JSON numbers have different spellings in Python and Hermes. Carry the exact
+        # signed bytes; the native verifier binds their decoded fields to the manifest.
+        "payload": base64.b64encode(payload).decode("ascii"),
     }
     return signed
 
@@ -297,6 +302,13 @@ def verify_manifest(manifest: Mapping[str, Any], *, trusted_spki: bytes) -> None
             f"signature is {len(signature)} bytes; ed25519 signatures are "
             f"{ED25519_SIGNATURE_LENGTH}."
         )
+    if "payload" in block:
+        try:
+            payload = base64.b64decode(block["payload"], validate=True)
+        except (TypeError, binascii.Error, ValueError) as exc:
+            raise SignatureInvalid(f"signature payload is malformed: {exc}") from exc
+        if payload != canonical_manifest_bytes(manifest):
+            raise SignatureInvalid("signature does not verify: payload disagrees with the manifest")
     verify_key = VerifyKey(embedded[len(_spki_prefix()) :])
     try:
         verify_key.verify(canonical_manifest_bytes(manifest), signature)
