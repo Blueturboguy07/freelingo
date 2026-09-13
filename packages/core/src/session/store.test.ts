@@ -213,7 +213,12 @@ describe('session_state store (S052)', () => {
       ],
     };
     const plan = planStartOver(parked, (id) => id === 'item-3');
-    expect([...plan.excludedItemIds].sort()).toEqual(['item-1', 'item-2', 'item-4', 'item-5']);
+    expect([...plan.excludedItemIds].sort()).toEqual(
+      items(12)
+        .map((q) => q.itemId)
+        .filter((id) => id !== 'item-3')
+        .sort(),
+    );
     expect(plan.dueExceptions).toEqual(['item-3']);
     // The parked session's undrained mistakes are HANDED OVER, not dropped.
     expect(plan.handedOverMistakes).toEqual(['item-2']);
@@ -227,7 +232,7 @@ describe('session_state store (S052)', () => {
     expect(ids).toContain('item-3');
   });
 
-  it('[INV-SESS-03] for any kill point, START OVER never re-serves an answered item that is not due', () => {
+  it('[INV-SESS-03] for any kill point, START OVER never re-serves any abandoned item that is not due', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 0, max: 12 }),
@@ -241,7 +246,7 @@ describe('session_state store (S052)', () => {
           const due = new Set(dueIndices.map((i) => `item-${i}`));
           const plan = planStartOver(parked, (id) => due.has(id));
           const regenerated = applyStartOverExclusion(items(12), plan).map((q) => q.itemId);
-          for (let i = 1; i <= index; i += 1) {
+          for (let i = 1; i <= 12; i += 1) {
             const id = `item-${i}`;
             if (!due.has(id)) expect(regenerated).not.toContain(id);
           }
@@ -252,4 +257,26 @@ describe('session_state store (S052)', () => {
       { numRuns: PROPERTY_RUNS },
     );
   });
+});
+
+it('[INV-SESS-03] untouched abandoned slots and replay-only targets also require a real due exception', () => {
+  const state = freshSession({ queue: items(3) });
+  const old = {
+    ...state,
+    core: {
+      ...state.core,
+      answers: [
+        {
+          ...answered(1)[0]!,
+          exerciseIndex: -1,
+          slotId: 'replay-only',
+          itemId: 'replay-target',
+          queue: 'mistakes' as const,
+        },
+      ],
+    },
+  };
+  const plan = planStartOver(old, (id) => id === 'item-2');
+  expect([...plan.excludedItemIds].sort()).toEqual(['item-1', 'item-3', 'replay-target']);
+  expect(plan.dueExceptions).toEqual(['item-2']);
 });

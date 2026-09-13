@@ -165,7 +165,7 @@ export function requestStart(
 export interface StartOverPlan {
   /** Ids the regenerated queue may not contain. */
   readonly excludedItemIds: readonly string[];
-  /** Already-answered ids that ARE due and may therefore return. */
+  /** Abandoned queue or replay ids that ARE due and may therefore return. */
   readonly dueExceptions: readonly string[];
   /** Mistakes handed over rather than dropped. */
   readonly handedOverMistakes: readonly string[];
@@ -177,9 +177,14 @@ export function planStartOver(
   state: SessionState,
   isDue: (itemId: string) => boolean,
 ): StartOverPlan {
-  const answered = [...new Set(state.core.answers.map((a) => a.itemId))];
-  const dueExceptions = answered.filter((id) => isDue(id));
-  const excludedItemIds = answered.filter((id) => !isDue(id));
+  const abandoned = [
+    ...new Set([
+      ...state.core.queue.map((item) => item.itemId),
+      ...state.core.answers.map((answer) => answer.itemId),
+    ]),
+  ];
+  const dueExceptions = abandoned.filter((id) => isDue(id));
+  const excludedItemIds = abandoned.filter((id) => !isDue(id));
   return {
     excludedItemIds,
     dueExceptions,
