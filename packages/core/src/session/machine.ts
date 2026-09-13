@@ -457,6 +457,20 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
   )
     return retrySpeechVerdict(state, deps, verdict.kind === 'wrong');
 
+  // INV-GRD-10/14: a re-prompt is not a completed answer. Keep the exact draft
+  // and all progress/allowance state; only a later corrected submission may grade.
+  if (verdict.kind === 'noVerdict') {
+    return {
+      state: mark(
+        { ...state, lastVerdict: { kind: 'noVerdict', note: verdict.note ?? null } },
+        'challenge.idle',
+        deps,
+      ),
+      writes: [],
+      exit: null,
+    };
+  }
+
   const spec = exerciseSpec(item.type);
   const wrong = verdict.kind === 'wrong';
   const cost =
