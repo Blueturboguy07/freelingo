@@ -1,5 +1,5 @@
 import type { LoadedPack, PackManifest, PackState } from '@freelingo/core/packs';
-import type { VerifiedRuntimeItem } from '@freelingo/core/packs/runtime-item-types';
+import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/runtime-item-types';
 
 /** All lookups are synchronous after refresh verifies the immutable on-disk payload. */
 export interface VerifiedInstalledPack {
