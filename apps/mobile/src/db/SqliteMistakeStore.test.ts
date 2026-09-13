@@ -24,6 +24,7 @@ import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/ru
 import type { LearningSchedulerTransition } from './learningTransitions';
 import { SqliteSchedulerStore } from './SqliteSchedulerStore';
 import { SqliteMistakeStore } from './SqliteMistakeStore';
+import { readPracticeMistakeOrigins } from './learningHubSources';
 const opened: Db[] = [];
 afterEach(() => {
   opened.forEach((d) => d.close());
@@ -329,4 +330,22 @@ it('[INV-MIS-04][INV-GRD-08] actual non-binary accepted grades advance an existi
   });
   f.store.apply(f.persist(accepted));
   expect(f.store.load('en-es')[0]?.row.reviewStreak).toBe(1);
+});
+
+it('[INV-HUB-09][INV-MIS-07] Hub alternative forms use the actual latest miss, not a later accepted review', () => {
+  const f = setup();
+  f.store.apply(f.persist(f.grade(f.start('hub-origin'), true)));
+  expect(readPracticeMistakeOrigins(f.db, 'en-es').get('item')).toBe('typedTranslate');
+  f.store.apply(f.persist(f.grade(f.start('hub-review-one'), false, true)));
+  const before = f.db.get('SELECT total_changes() AS n');
+  expect(readPracticeMistakeOrigins(f.db, 'en-es').get('item')).toBe('typedTranslate');
+  expect(f.db.get('SELECT total_changes() AS n')).toEqual(before);
+  f.store.apply(f.persist(f.grade(f.start('hub-review-two'), false, true)));
+  expect(readPracticeMistakeOrigins(f.db, 'en-es').size).toBe(0);
+});
+it('[INV-HUB-09][INV-MIS-07] corrupted normalized mistake history cannot advertise an alternative source', () => {
+  const f = setup();
+  f.store.apply(f.persist(f.grade(f.start('hub-origin'), true)));
+  f.db.run("UPDATE course_mistake_state SET misses=99 WHERE course_id='en-es'");
+  expect(() => readPracticeMistakeOrigins(f.db, 'en-es')).toThrow(/cache differs/);
 });

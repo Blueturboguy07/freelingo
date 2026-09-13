@@ -21,10 +21,13 @@ export const HUB_CONFIG = {
 } as const;
 export type HubKind =
   'today' | 'mistakes' | 'words' | 'listen' | 'speak' | 'target' | 'rewind' | 'path';
+export type HubPracticeMode = Exclude<HubKind, 'path'>;
 export interface HubItem {
   readonly itemId: string;
   /** Only practice projections carry target IDs: one exercise may review several words. */
   readonly targetItemIds?: readonly string[];
+  /** Explicit physical populations must prove an eligible source for each offered mode. */
+  readonly practiceModes?: readonly HubPracticeMode[];
   readonly unitIndex: number;
   readonly introducedAtUtc: string;
   readonly lastSeenAtUtc: string;
@@ -204,6 +207,8 @@ export function buildHub(input: HubInput): HubModel {
         input.microphoneAvailable &&
         i.modalities.includes('speak')),
   );
+  const supports = (item: HubItem, mode: HubPracticeMode): boolean =>
+    input.practiceItems === undefined || item.practiceModes?.includes(mode) === true;
   const byId = new Map(eligible.map((i) => [i.itemId, i]));
   const due = eligible
     .filter((i) => millis(i.dueAtUtc) <= now)
@@ -238,7 +243,9 @@ export function buildHub(input: HubInput): HubModel {
           HUB_CONFIG.rewindCooldownDays),
   );
   const overdue = (unit: number): number =>
-    due.filter((i) => i.unitIndex === unit).reduce((n, i) => n + now - millis(i.dueAtUtc), 0);
+    due
+      .filter((i) => supports(i, 'rewind') && i.unitIndex === unit)
+      .reduce((n, i) => n + now - millis(i.dueAtUtc), 0);
   const rewind =
     rewindUnits.filter((u) => overdue(u) > 0).sort((a, b) => overdue(b) - overdue(a) || a - b)[0] ??
     null;
@@ -248,20 +255,24 @@ export function buildHub(input: HubInput): HubModel {
         ? input.sharedReview.itemIds
             .filter((id) => !input.sharedReview.spentIds.includes(id))
             .flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []))
+            .filter((i) => supports(i, 'today'))
         : [],
     mistakes: uniqueItems(
-      kept.flatMap((m) => eligible.filter((i) => targetIds(i).includes(m.itemId))),
+      kept.flatMap((m) =>
+        eligible.filter((i) => supports(i, 'mistakes') && targetIds(i).includes(m.itemId)),
+      ),
     ),
-    words: eligible,
-    listen: eligible.filter((i) => i.modalities.includes('listen')),
-    speak: eligible.filter((i) => i.modalities.includes('speak')),
+    words: eligible.filter((i) => supports(i, 'words')),
+    listen: eligible.filter((i) => supports(i, 'listen') && i.modalities.includes('listen')),
+    speak: eligible.filter((i) => supports(i, 'speak') && i.modalities.includes('speak')),
     target: eligible.filter(
       (i) =>
+        supports(i, 'target') &&
         civilDaysBetween(i.lastSeenLocalDay, input.localDay) >= 0 &&
         civilDaysBetween(i.lastSeenLocalDay, input.localDay) <= HUB_CONFIG.recentDays &&
         (targetIds(i).some((id) => missed.has(id)) || millis(i.dueAtUtc) <= now),
     ),
-    rewind: due.filter((i) => i.unitIndex === rewind),
+    rewind: due.filter((i) => supports(i, 'rewind') && i.unitIndex === rewind),
   };
   const modes: HubMode[] = HUB_MODES.map((mode) => {
     const pool = pools[mode.kind];
@@ -281,7 +292,9 @@ export function buildHub(input: HubInput): HubModel {
                   ? 'Turn on your microphone!'
                   : pool.length === 0
                     ? mode.kind === 'mistakes'
-                      ? "Good job! You've reviewed all your mistakes"
+                      ? kept.length === 0
+                        ? "Good job! You've reviewed all your mistakes"
+                        : 'No eligible exercises are available for these mistakes yet.'
                       : 'Come back later to practice as you make more progress'
                     : null;
     const ids = pool.slice(0, HUB_CONFIG.target).map((i) => i.itemId);

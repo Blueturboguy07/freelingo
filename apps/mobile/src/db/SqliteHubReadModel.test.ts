@@ -260,3 +260,13 @@ it('[INV-HUB-07] a timezone change preserves the actual recorded last-seen local
   });
   expect(changed.read('en-es').items[0]!.lastSeenLocalDay).toBe('2026-09-12');
 });
+it('[INV-HUB-04][INV-HUB-09] actual typed-only pack keeps its Words list but never advertises matching practice', () => {
+  const f = setup();
+  f.teach();
+  const input = f.model.read('en-es'),
+    hub = buildHub(input);
+  expect(input.items).toHaveLength(1);
+  expect(hub.modes.find((m) => m.kind === 'words')!.offer).toBeNull();
+  expect(input.practiceItems![0]!.practiceModes).toContain('today');
+  expect(input.practiceItems![0]!.practiceModes).not.toContain('words');
+});
