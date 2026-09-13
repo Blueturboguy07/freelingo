@@ -1010,6 +1010,8 @@
       "retired_at": null
     }
   ],
+  "course_mistake_encounter": [],
+  "course_mistake_state": [],
   "course_node": [
     {
       "course_id": "en-es",
