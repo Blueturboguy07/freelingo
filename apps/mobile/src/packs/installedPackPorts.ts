@@ -7,6 +7,8 @@ export interface VerifiedInstalledPack {
   readonly contentHash: string;
   readonly manifest: PackManifest;
   readonly pack: LoadedPack;
+  /** Only authenticated, currently installed audio is playable. */
+  audioUri(audioId: string): string | null;
   runtimeItem(exerciseId: string): VerifiedRuntimeItem;
 }
 /** One repository owns native readers for an opened app runtime. Refresh precedes
