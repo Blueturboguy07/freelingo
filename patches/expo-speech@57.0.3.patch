@@ -1,0 +1,256 @@
+diff --git a/android/src/main/java/expo/modules/speech/SpeechModule.kt b/android/src/main/java/expo/modules/speech/SpeechModule.kt
+index ed8d2a72383239c7b3d331b0db0b40451f6223e5..6b20ba1a2e0f9f88f0694e73558cb7d5d47fb455 100644
+--- a/android/src/main/java/expo/modules/speech/SpeechModule.kt
++++ b/android/src/main/java/expo/modules/speech/SpeechModule.kt
+@@ -8,7 +8,6 @@ import expo.modules.kotlin.Promise
+ import expo.modules.kotlin.modules.Module
+ import expo.modules.kotlin.modules.ModuleDefinition
+ import java.util.ArrayDeque
+-import java.util.Locale
+ import java.util.Queue
+ 
+ const val speakingStartedEvent = "Exponent.speakingStarted"
+@@ -21,6 +20,7 @@ class SpeechModule : Module() {
+   private val delayedUtterances: Queue<Utterance> = ArrayDeque()
+   private val delayedGetVoices: Queue<Promise> = ArrayDeque()
+   private var ttsState = TtsState.PENDING
++  private var destroyed = false
+ 
+   override fun definition() = ModuleDefinition {
+     Name("ExpoSpeech")
+@@ -33,51 +33,70 @@ class SpeechModule : Module() {
+       speakingErrorEvent
+     )
+ 
++    Constant("freelingoLocalSpeechRevision") { 1 }
++
+     Constant("maxSpeechInputLength") {
+       TextToSpeech.getMaxSpeechInputLength()
+     }
+ 
+     OnActivityDestroys {
+-      textToSpeech.shutdown()
++      synchronized(this@SpeechModule) {
++        destroyed = true
++        ttsState = TtsState.FAILED
++        delayedUtterances.clear()
++        delayedGetVoices.forEach { it.resolve(emptyList<VoiceRecord>()) }
++        delayedGetVoices.clear()
++        _textToSpeech?.shutdown()
++      }
+     }
+ 
+     AsyncFunction<Boolean>("isSpeaking") {
+-      textToSpeech.isSpeaking
++      synchronized(this@SpeechModule) { _textToSpeech?.isSpeaking ?: false }
+     }
+ 
+     AsyncFunction("getVoices") { promise: Promise ->
+-      when (ttsState) {
+-        TtsState.READY -> promise.resolve(getVoices())
+-        TtsState.FAILED -> promise.resolve(emptyList<VoiceRecord>())
+-        TtsState.PENDING -> {
+-          delayedGetVoices.add(promise)
+-
+-          // Init TTS, the promise will be fulfilled after onInit
+-          textToSpeech
++      synchronized(this@SpeechModule) {
++        when (ttsState) {
++          TtsState.READY -> promise.resolve(getVoices())
++          TtsState.FAILED -> promise.resolve(emptyList<VoiceRecord>())
++          TtsState.PENDING -> {
++            delayedGetVoices.add(promise)
++
++            // Init TTS, the promise will be fulfilled after onInit.
++            textToSpeech
++          }
+         }
+       }
+     }
+ 
+     AsyncFunction<Unit>("stop") {
+-      textToSpeech.stop()
++      // A cancelled pre-initialization request must never speak after onInit.
++      synchronized(this@SpeechModule) {
++        delayedUtterances.clear()
++        _textToSpeech?.stop()
++      }
+     }
+ 
+     AsyncFunction("speak") { id: String, text: String, options: SpeechOptions ->
+-      if (text.length > TextToSpeech.getMaxSpeechInputLength()) {
+-        throw SpeechInputIsToLongException()
+-      }
++      // Same lock as onInit and stop: a stop cannot return before any pending
++      // initialization handoff has been cancelled at the native engine.
++      synchronized(this@SpeechModule) {
++        if (text.length > TextToSpeech.getMaxSpeechInputLength()) {
++          throw SpeechInputIsToLongException()
++        }
+ 
+-      when (ttsState) {
+-        TtsState.READY -> speakOut(id, text, options)
+-        TtsState.FAILED -> sendEvent(speakingErrorEvent, idToMap(id))
+-        TtsState.PENDING -> {
+-          delayedUtterances.add(Utterance(id, text, options))
++        when (ttsState) {
++          TtsState.READY -> speakOut(id, text, options)
++          TtsState.FAILED -> sendEvent(speakingErrorEvent, idToMap(id))
++          TtsState.PENDING -> {
++            delayedUtterances.add(Utterance(id, text, options))
+ 
+-          // init TTS, speaking will be available only after onInit
+-          textToSpeech
++            // Init TTS, speaking will be available only after onInit.
++            textToSpeech
++          }
+         }
++        Unit
+       }
+-      Unit
+     }
+   }
+ 
+@@ -88,7 +107,7 @@ class SpeechModule : Module() {
+       throw SpeechUnableToGetVoicesException(err)
+     }
+ 
+-    return nativeVoices.map {
++    return nativeVoices.filter(::isInstalledOfflineVoice).map {
+       val quality = if (it.quality > Voice.QUALITY_NORMAL) {
+         VoiceQuality.ENHANCED
+       } else {
+@@ -104,43 +123,37 @@ class SpeechModule : Module() {
+     }
+   }
+ 
++  // Freelingo local-only policy, 2026-09-13. Android's voice contract declares
++  // network dependence and missing voice data; neither is a permitted fallback.
++  private fun isInstalledOfflineVoice(voice: Voice): Boolean =
++    !voice.isNetworkConnectionRequired &&
++      !voice.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
++
+   private fun speakOut(id: String, text: String, options: SpeechOptions) {
++    val requested = textToSpeech.voices.firstOrNull {
++      it.name == options.voice && isInstalledOfflineVoice(it)
++    }
++    if (requested == null || textToSpeech.setVoice(requested) != TextToSpeech.SUCCESS) {
++      sendEvent(speakingErrorEvent, idToMap(id))
++      return
++    }
++    // The engine must accept this exact installed voice. Never setLanguage here:
++    // that API may replace it with a default or a network-backed voice.
++    val selected = textToSpeech.voice
++    if (selected == null || selected.name != requested.name || !isInstalledOfflineVoice(selected)) {
++      sendEvent(speakingErrorEvent, idToMap(id))
++      return
++    }
+     options.pitch?.let(textToSpeech::setPitch)
+     options.rate?.let(textToSpeech::setSpeechRate)
+-
+-    textToSpeech.language = options.language?.let {
+-      val locale = Locale(it)
+-      val languageAvailable = textToSpeech.isLanguageAvailable(locale)
+-
+-      return@let if (
+-        languageAvailable != TextToSpeech.LANG_MISSING_DATA &&
+-        languageAvailable != TextToSpeech.LANG_NOT_SUPPORTED
+-      ) {
+-        locale
+-      } else {
+-        Locale.getDefault()
+-      }
+-    } ?: Locale.getDefault()
+-
+-    options.voice?.let { voiceName ->
+-      textToSpeech.voices
+-        .firstOrNull { it.name == voiceName }
+-        ?.let(textToSpeech::setVoice)
+-    }
+-
+     val params = Bundle().apply {
+       options.volume?.let {
+-        val volume = it.coerceAtLeast(0.0f).coerceAtMost(1.0f)
+-        putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume)
++        putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, it.coerceAtLeast(0.0f).coerceAtMost(1.0f))
+       }
+     }
+-
+-    textToSpeech.speak(
+-      text,
+-      TextToSpeech.QUEUE_ADD,
+-      params,
+-      id
+-    )
++    if (textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, params, id) != TextToSpeech.SUCCESS) {
++      sendEvent(speakingErrorEvent, idToMap(id))
++    }
+   }
+ 
+   // TextToSpeech object related code
+@@ -150,6 +163,7 @@ class SpeechModule : Module() {
+       if (status == TextToSpeech.SUCCESS) {
+         // synchronize because in some cases this runs on another thread and _textToSpeech is null
+         synchronized(this@SpeechModule) {
++          if (destroyed) return@synchronized
+           ttsState = TtsState.READY
+           _textToSpeech!!.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+ 
+@@ -181,15 +195,19 @@ class SpeechModule : Module() {
+           for ((id, text, options) in delayedUtterances) {
+             speakOut(id, text, options)
+           }
++          delayedUtterances.clear()
+           for (promise in delayedGetVoices) {
+             promise.resolve(getVoices())
+           }
++          delayedGetVoices.clear()
+         }
+       } else {
+         synchronized(this@SpeechModule) {
+           ttsState = TtsState.FAILED
+           delayedGetVoices.forEach { it.resolve(emptyList<VoiceRecord>()) }
+           delayedUtterances.forEach { sendEvent(speakingErrorEvent, idToMap(it.id)) }
++          delayedUtterances.clear()
++          delayedGetVoices.clear()
+         }
+       }
+     }
+diff --git a/ios/SpeechModule.swift b/ios/SpeechModule.swift
+index ee90632511a350fc73f1dac36c7f29663dc7dd6f..c7285b8f562910eed25f42510b9299a1d1654fbd 100644
+--- a/ios/SpeechModule.swift
++++ b/ios/SpeechModule.swift
+@@ -13,6 +13,8 @@ public final class SpeechModule: Module, SpeechResultHadler {
+   public func definition() -> ModuleDefinition {
+     Name("ExpoSpeech")
+ 
++    Constant("freelingoLocalSpeechRevision") { 1 }
++
+     OnCreate {
+       delegate = SpeechDelegate(resultHandler: self)
+       synthesizer.delegate = delegate
+@@ -29,17 +31,14 @@ public final class SpeechModule: Module, SpeechResultHadler {
+     AsyncFunction("speak") { (utteranceId: String, text: String, options: SpeechOptions) in
+       let utterance = ExpoSpeechUtterance(id: utteranceId, text: text)
+ 
+-      if let language = options.language {
+-        utterance.voice = AVSpeechSynthesisVoice(language: language)
+-      }
+-
+-      if let voice = options.voice {
+-        utterance.voice = AVSpeechSynthesisVoice(identifier: voice)
+-
+-        guard utterance.voice != nil else {
+-          throw InvalidVoiceException(voice)
+-        }
++      // Freelingo requires an explicit voice from this device's available list.
++      // A disappearing voice reports an error; it never selects a default voice.
++      guard let voice = options.voice,
++        AVSpeechSynthesisVoice.speechVoices().contains(where: { $0.identifier == voice }),
++        let installedVoice = AVSpeechSynthesisVoice(identifier: voice) else {
++        throw InvalidVoiceException(options.voice ?? "missing installed voice")
+       }
++      utterance.voice = installedVoice
+ 
+       if let pitch = options.pitch {
+         utterance.pitchMultiplier = Float(pitch)
