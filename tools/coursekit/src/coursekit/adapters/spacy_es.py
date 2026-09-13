@@ -159,7 +159,10 @@ class SpacyEsAdapter:
                 {
                     "surface": token.text,
                     "lemma": ledger_lemma(self.lang, token.lemma_),
-                    "pos": token.pos_,
+                    # The statistical tagger calls the second « in
+                    # «¿Yo?» «¡Sí, tú!» PROPN. spaCy's lexical punctuation flag
+                    # supplies this boundary before any ledger/display list is built.
+                    "pos": "PUNCT" if token.is_punct else token.pos_,
                     "morph": str(token.morph),
                     "start": token.idx,
                     "end": token.idx + len(token.text),
@@ -243,7 +246,7 @@ class SpacyEsAdapter:
         """
         doc = _pipeline(self.model)(LEMMA_NORMALISATION_PROBE.format(surface=surface))
         words = [token for token in doc if not token.is_space]
-        if len(words) != 1 or words[0].pos_ in NON_LEXICAL_POS:
+        if len(words) != 1 or words[0].is_punct or words[0].pos_ in NON_LEXICAL_POS:
             return None
         return unicodedata.normalize("NFC", words[0].lemma_.lower())
 
@@ -331,7 +334,7 @@ def _single_token(doc, *, lang: str) -> tuple[str, str] | None:  # noqa: ANN001 
     if len(words) != 1:
         return None
     token = words[0]
-    if token.pos_ in NON_LEXICAL_POS:
+    if token.is_punct or token.pos_ in NON_LEXICAL_POS:
         return None
     return ledger_lemma(lang, token.lemma_), token.pos_
 

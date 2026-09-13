@@ -649,3 +649,34 @@ def test_the_digest_describes_all_three_frozen_tables(
         (*LEMMA_NORMALISATION_ES, ("malo", "mal", ("mal",))),
     )
     assert spacy_es.selftest_digest("es") != before
+
+
+@needs_nlp
+def test_INV_PACK_06_quote_misclassified_as_proper_noun_is_not_a_ledger_item() -> None:
+    """Actual source 4d192ee8a1e0d5a7: the model calls the second « a PROPN."""
+    text = "«¿Yo?» «¡Sí, tú!»"
+    record = adapter_for("es").analyse(sentence_id="4d192ee8a1e0d5a7", text=text)
+    assert record["display_tokens"] == ["Yo", "Sí", "tú"]
+    assert record["lemmas"] == ["yo", "sí", "tú"]
+    assert all(token["pos"] == "PUNCT" for token in record["tokens"]
+               if token["surface"] in {"«", "»", "¿", "?", "¡", "!", ","})
+    assert all(text[token["start"]:token["end"]] == token["surface"]
+               for token in record["tokens"])
+
+
+@needs_nlp
+@pytest.mark.parametrize("text", ["Tengo 20 libros.", "Sí, él bebe té.", "Son 3,5 euros."])
+def test_INV_PACK_40_punctuation_normalization_preserves_every_word_and_digit(text: str) -> None:
+    from coursekit.adapters.spacy_es import _pipeline
+
+    adapter = adapter_for("es")
+    raw = _pipeline(adapter.model)(text)
+    record = adapter.analyse(sentence_id="6" * 16, text=text)
+    supported = [token for token in raw if token.pos_ not in NON_LEXICAL_POS
+                 and any(character.isalnum() for character in token.text)]
+    assert supported
+    for token in supported:
+        assert token.text in record["display_tokens"]
+        stored = next(row for row in record["tokens"] if row["start"] == token.idx)
+        assert stored["pos"] == token.pos_
+        assert stored["surface"] == token.text
