@@ -37,8 +37,8 @@ never a fallback to display kanji. All these script rows have
 `reading_review_status="unreviewed"`; the structural validator refuses self-declared
 review. Independent contextual review and actual speech evidence remain separate.
 
-The paired script artifact registration and G1 population persistence are pending
-shared-contract integration. The actual `adapters.sudachi_ja.SudachiJaAdapter` now exposes
+The shared japanese_script_analysis artifact and paired G1 persistence are implemented.
+The actual `adapters.sudachi_ja.SudachiJaAdapter` now exposes
 `analyse_with_script(sentence_id=..., text=...) -> JapaneseAnalysis(analysed, script)`.
 It uses Sudachi's two explicit split modes and the installed spaCy3.8.16 Japanese
 `resolve_pos` mapping, including contextual bigram rules. That POS dependency is part
@@ -50,8 +50,15 @@ is recorded in `/private/tmp/p7-measured-japanese-probes.json`. Each runtime dep
 version is checked before producing a row. `tts_reading` is assembled from Mode C
 readings and exact whitespace gaps; no missing reading falls back to source kanji.
 
-The adapter deliberately remains unregistered with G1 until that stage persists and
-checks both paired outputs. Direct analysis is preparation evidence only. G2 still groups by lemma/POS without reading and cannot yet preserve
+G1 now registers the adapter and consumes only its paired API. Before either output is
+written it validates each exact source/analysis join and the stage fingerprint. Both
+artifacts use the same post-length-filter population; duplicate IDs, foreign-language
+rows and stale/missing scripts fail. OOV sources are counted and their named rejection
+reasons recorded, including an all-rejected failed run. The stage records both outputs
+and explicitly unreviewed script status. Original small test inputs exercised actual
+Sudachi output; no full Japanese corpus has been run.
+
+G2 still groups by lemma/POS without reading and cannot yet preserve
 Japanese homograph identities. Do not run Japanese G2 or infer kit readiness from these
 helpers. French/German measured adapter probes likewise freeze observed model output;
 they do not certify a language pack or cure known linguistic tagging errors.

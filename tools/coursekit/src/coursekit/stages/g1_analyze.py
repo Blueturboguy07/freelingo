@@ -23,12 +23,15 @@ The stage does four things and reports all four:
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from ..adapters import ADAPTERS
-from ..artifacts import read_records, write_records
+from ..artifacts import read_records, validate_record, write_records
 from ..config.g1 import ADAPTER_BY_LANGUAGE, LENGTH_DRIFT_MAX_RATE
+from ..config.japanese_script import READING_REVIEW_STATUS
 from ..inputs import MissingInput, licence_row, resolve
+from ..japanese_script import ScriptAnalysisError, validate_script_analysis
 from ..ledger import (
     count_units,
     ledger_declaration,
@@ -46,7 +49,7 @@ __all__ = ["analyze"]
 @register_stage(
     "g1",
     reads=("ingested_sentence",),
-    writes=("analysed_sentence",),
+    writes=("analysed_sentence", "japanese_script_analysis"),
     requires_group="nlp",
 )
 def analyze(ctx: StageContext) -> StageResult:
@@ -67,18 +70,51 @@ def analyze(ctx: StageContext) -> StageResult:
     ctx.entry.record_input(source.id)
     ctx.entry.record_licence(licence_row(source))
 
+    paired_analyse = getattr(adapter, "analyse_with_script", None)
+    if ctx.lang == "ja" and not callable(paired_analyse):
+        raise MissingInput("Japanese G1 requires a paired analyse_with_script adapter")
     analysed: list[dict[str, Any]] = []
+    scripts_by_id: dict[str, dict[str, Any]] = {}
+    seen_source_ids: set[str] = set()
+    rejection_reasons: Counter[str] = Counter()
     rejected = 0
     read = 0
     for row in read_records("ingested_sentence", lang=ctx.lang):
         read += 1
+        ctx.entry.read = read
+        if ctx.lang == "ja":
+            if row["lang"] != ctx.lang or row["sentence_id"] in seen_source_ids:
+                raise ScriptAnalysisError(
+                    "Japanese G0 population has a foreign or duplicate source"
+                )
+            seen_source_ids.add(row["sentence_id"])
         try:
-            analysed.append(adapter.analyse(sentence_id=row["sentence_id"], text=row["text"]))
-        except MissingInput:
+            if ctx.lang == "ja":
+                pair = paired_analyse(sentence_id=row["sentence_id"], text=row["text"])
+                analysis = getattr(pair, "analysed", None)
+                script = getattr(pair, "script", None)
+                # The schema alone cannot bind an artifact to the input population.
+                # Validate both the record and its exact source before writing either.
+                validate_script_analysis(script, analysis, text=row["text"])
+                if analysis["adapter"] != fingerprint:
+                    raise ScriptAnalysisError(
+                        "Japanese paired analysis differs from stage fingerprint"
+                    )
+                validate_record("japanese_script_analysis", script)
+                analysed.append(analysis)
+                scripts_by_id[row["sentence_id"]] = script
+            else:
+                analysed.append(adapter.analyse(sentence_id=row["sentence_id"], text=row["text"]))
+        except MissingInput as exc:
             # A sentence the adapter cannot turn into a single ledger unit is dropped and
             # COUNTED. Dropping silently is how a corpus loses a percent of itself
             # between two stages and nobody can say which one.
             rejected += 1
+            rejection_reasons[str(exc)] += 1
+
+    ctx.entry.read = read
+    ctx.entry.rejected = rejected
+    ctx.entry.note(source_rejection_reasons=dict(sorted(rejection_reasons.items())))
 
     if not analysed and read:
         return StageResult(
@@ -96,8 +132,17 @@ def analyze(ctx: StageContext) -> StageResult:
     dropped = len(analysed) - len(in_window)
     rate = dropped / len(analysed) if analysed else 0.0
 
+    # Filter the paired population with the very same retained G1 rows. No independent
+    # length rule or second analysis may pick a different set for display/audio.
+    scripts = [scripts_by_id[row["sentence_id"]] for row in in_window] if ctx.lang == "ja" else []
     written = write_records("analysed_sentence", in_window, lang=ctx.lang)
     ctx.entry.record_output("analysed_sentence")
+    if ctx.lang == "ja":
+        write_records("japanese_script_analysis", scripts, lang=ctx.lang)
+        ctx.entry.record_output("japanese_script_analysis")
+        ctx.entry.note(
+            paired_script_rows=len(scripts), script_reading_review_status=READING_REVIEW_STATUS
+        )
     ctx.entry.read = read
     ctx.entry.written = written
     ctx.entry.rejected = rejected + dropped

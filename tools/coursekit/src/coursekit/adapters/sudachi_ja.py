@@ -1,7 +1,6 @@
-"""Pinned Sudachi Mode A/C adapter preparation, not yet registered with G1.
+"""Pinned Sudachi Mode A/C adapter with paired G1 persistence.
 
-G1 registration must accompany persistence of both bound outputs. Registering this
-adapter while G1 writes only analysed_sentence would discard required script evidence.
+G1 consumes analyse_with_script so required script evidence cannot be discarded.
 spaCy's installed Japanese POS mapping is used directly, including its contextual
 bigram rules; no trained Japanese spaCy model or guessed fallback POS is introduced.
 """
@@ -16,6 +15,7 @@ from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
+from ..adapters import register_adapter
 from ..artifacts import sentence_id as source_id
 from ..config import ARTIFACT_SCHEMA_VERSION
 from ..config.japanese_adapter import JAPANESE_SELFTEST, JAPANESE_SELFTEST_DIGEST, SPACY_POS_VERSION
@@ -247,3 +247,9 @@ class SudachiJaAdapter:
             raise AdapterSelfTestFailed(
                 "Japanese paired adapter self-test drift:\n" + "\n".join(failures)
             )
+
+
+@register_adapter("ja")
+def build() -> SudachiJaAdapter:
+    """G1 must consume the paired API; no unpaired analysis method is provided."""
+    return SudachiJaAdapter()

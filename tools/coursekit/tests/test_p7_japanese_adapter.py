@@ -124,13 +124,12 @@ def test_INV_PACK_06_selftest_binds_complete_pair_not_just_lemma_spelling(monkey
         adapter.require_self_test()
 
 
-def test_INV_PACK_40_plain_G1_lookup_stays_closed_until_paired_stage_integration():
+def test_INV_PACK_40_G1_lookup_exposes_only_the_paired_analysis_API():
     from coursekit.stages.g1_analyze import adapter_for
 
-    # This test belongs to preparation only; root replaces it when G1 persists the
-    # joined artifact. Registering now would silently drop script evidence.
-    with pytest.raises(MissingInput, match="no morphology adapter"):
-        adapter_for("ja")
+    adapter = adapter_for("ja")
+    assert callable(adapter.analyse_with_script)
+    assert not hasattr(adapter, "analyse")
 
 
 def test_INV_PACK_06_real_selftest_corpus_is_measured_nonempty_and_passes():
