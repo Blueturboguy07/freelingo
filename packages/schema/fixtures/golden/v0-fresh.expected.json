@@ -24,7 +24,12 @@
       "weekend_pairs": 0,
       "stories_completed": 0,
       "night_lessons": 0,
-      "items_retired": 0
+      "items_retired": 0,
+      "appearance": "system",
+      "imported_at_utc": null,
+      "sound_effects_enabled": 1,
+      "animations_enabled": 1,
+      "motivational_messages_enabled": 1
     }
   ],
   "account_boost": [],
