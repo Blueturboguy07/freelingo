@@ -69,14 +69,28 @@ const EFFECTIVE_TEST_TIMEOUT_MS = UNDER_STRYKER
 
 export default defineConfig({
   test: {
-    projects: PROJECTS.map((name) => ({
-      test: {
-        name,
-        root: `./packages/${name}`,
-        environment: 'node' as const,
-        include: ['src/**/*.test.ts'],
-        testTimeout: EFFECTIVE_TEST_TIMEOUT_MS,
+    projects: [
+      ...PROJECTS.map((name) => ({
+        test: {
+          name,
+          root: `./packages/${name}`,
+          environment: 'node' as const,
+          include: ['src/**/*.test.ts'],
+          testTimeout: EFFECTIVE_TEST_TIMEOUT_MS,
+        },
+      })),
+      {
+        resolve: { alias: [{ find: /^react-native$/, replacement: 'react-native-web' }] },
+        esbuild: { jsx: 'automatic' },
+        test: {
+          name: 'mobile',
+          root: './apps/mobile',
+          environment: 'jsdom',
+          include: ['src/**/*.test.{ts,tsx}'],
+          setupFiles: ['./src/test/setup.ts'],
+          testTimeout: EFFECTIVE_TEST_TIMEOUT_MS,
+        },
       },
-    })),
+    ],
   },
 });
