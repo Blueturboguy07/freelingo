@@ -79,7 +79,10 @@ from coursekit.runlog import (
 #: G1's analysis across the G5 -> G7 boundary so G7 stops resolving a distractor by
 #: SURFACE. Previous value
 #: `3e2f6a6849cdb5a8815a5bc18f13d751742438ee6596d5267da3031bf703d0f2`.
-FROZEN_CONTRACT_DIGEST = "1e743a0c70077d64dcaae319a8763b909d8fa8a5ad01d6e0bba17a45a5102c7d"
+#: Re-pinned 2026-09-12 by `codex/p2r5-deps`: optional authored alternate sets,
+#: preferred-answer ordering and exact chosen-source obligations. Previous digest:
+#: `1e743a0c70077d64dcaae319a8763b909d8fa8a5ad01d6e0bba17a45a5102c7d`.
+FROZEN_CONTRACT_DIGEST = "c3a1f00dfaaa4e4fac117eb9d865d70421afc72ebadfacddc592283144dec72e"
 
 
 def test_the_contract_digest_is_frozen() -> None:
@@ -100,7 +103,8 @@ def test_every_g_stage_that_emits_a_record_is_covered() -> None:
 def test_every_record_is_closed() -> None:
     for kind, art in ARTIFACTS.items():
         assert art.schema["additionalProperties"] is False, kind
-        assert sorted(art.schema["properties"]) == art.schema["required"], kind
+        optional = {"accepted_alternates"} if kind in {"candidate", "selected_item"} else set()
+        assert sorted(set(art.schema["properties"]) - optional) == art.schema["required"], kind
 
 
 def test_every_record_carries_the_schema_version() -> None:
@@ -138,7 +142,8 @@ def test_every_object_in_the_contract_is_closed_all_the_way_down() -> None:
     for kind, art in ARTIFACTS.items():
         for path, schema in _closed_objects(art.schema, kind):
             assert schema.get("additionalProperties") is False, f"{path} is open"
-            assert sorted(schema["properties"]) == schema["required"], path
+            optional = {"accepted_alternates"} if path in {"candidate", "selected_item"} else set()
+            assert sorted(set(schema["properties"]) - optional) == schema["required"], path
             walked[path] = schema.get("title")
 
     titles = set(walked.values())
@@ -306,6 +311,7 @@ def _candidate(**overrides: object) -> dict[str, object]:
         "slot_index": 0,
         "text": "Buenas tardes",
         "translation": "Good afternoon",
+        "accepted_alternates": [],
         "author": "agent:opus",
         "generated_at": "2026-09-12T00:00:00Z",
         "accepted": True,
@@ -325,6 +331,149 @@ def test_a_candidate_carries_its_analysis_across_the_boundary() -> None:
     # The lemma at the gap index, not the surface. This is the bug, in one assertion.
     assert row["analysis"]["tokens"][1]["lemma"] == "tarde"
     assert row["analysis"]["tokens"][1]["surface"] == "tardes"
+
+
+def _selected(**overrides: object) -> dict[str, object]:
+    record = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "lang": "es",
+        "unit_index": 1,
+        "lesson_index": 1,
+        "slot_index": 0,
+        "sentence_id": sentence_id("es", "Buenas tardes"),
+        "provenance": "corpus",
+        "gap": False,
+        "new_lemmas": ["bueno"],
+        "known_lemmas": ["tarde"],
+        "grammar_concept": "greetings",
+        "accepted_alternates": [],
+    }
+    record.update(overrides)
+    return record
+
+
+@pytest.mark.parametrize(
+    "kind,make_record", [("candidate", _candidate), ("selected_item", _selected)]
+)
+@pytest.mark.parametrize("alternates", [[], ["Muy buenas tardes", "Buenas tardes a todos"]])
+def test_INV_PACK_08_alternate_surfaces_round_trip_without_rewriting(
+    kind: str, make_record, alternates: list[str]
+) -> None:
+    """[INV-PACK-08] Validated authored surfaces cross either boundary verbatim."""
+    record = make_record(accepted_alternates=alternates)
+    write_records(kind, [record], lang="es")
+    assert list(read_records(kind, lang="es")) == [record]
+
+
+@pytest.mark.parametrize(
+    "kind,make_record", [("candidate", _candidate), ("selected_item", _selected)]
+)
+@pytest.mark.parametrize(
+    "invalid",
+    [None, "Buenas tardes", [""], [" \t"], ["Hola", "Hola"], [{"text": "Hola", "lang": "es"}], [1]],
+)
+def test_INV_PACK_08_alternates_reject_ambiguous_shapes_on_write_and_read(
+    tmp_path: Path, kind: str, make_record, invalid: object
+) -> None:
+    """[INV-PACK-08] Missing validation cannot smuggle a non-surface answer downstream."""
+    record = make_record(accepted_alternates=invalid)
+    path = tmp_path / "untrusted.jsonl"
+    with pytest.raises(ArtifactError, match="accepted_alternates"):
+        write_records(kind, [record], path=path)
+    assert not path.exists()
+    path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    with pytest.raises(ArtifactError, match="accepted_alternates"):
+        list(read_records(kind, path=path))
+
+
+@pytest.mark.parametrize(
+    "kind,make_record", [("candidate", _candidate), ("selected_item", _selected)]
+)
+def test_INV_PACK_08_legacy_absence_means_no_authored_alternates(kind: str, make_record) -> None:
+    """[INV-PACK-08] Old records contain no alternate set; explicit new sets are preserved."""
+    record = make_record()
+    del record["accepted_alternates"]
+    write_records(kind, [record], lang="es")
+    (actual,) = list(read_records(kind, lang="es"))
+    assert actual == record
+    assert actual.get("accepted_alternates", []) == []
+
+
+def _exercise(**overrides: object) -> dict[str, object]:
+    record = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        "lang": "es",
+        "exercise_id": sentence_id("exercise", "greeting"),
+        "unit_index": 1,
+        "lesson_index": 1,
+        "type": "reverse_translate",
+        "prompt": "Good afternoon",
+        "accepted_answers": ["Buenas tardes", "Muy buenas tardes"],
+        "distractors": [],
+        "alignment": [],
+        "item_tags": {"lemmas": ["bueno", "tarde"], "grammar_concepts": ["greetings"]},
+        "audio_ref": None,
+        "register": "tu",
+        "source_sentence_id": _candidate()["candidate_id"],
+    }
+    record.update(overrides)
+    return record
+
+
+def test_INV_GRD_03_preferred_answer_remains_first_across_the_contract() -> None:
+    """[INV-GRD-03] Array order carries preference; sorting an answer set changes it."""
+    answers = ["Yo vivo aquí.", "Vivo aquí.", "Aquí vivo yo."]
+    record = _exercise(accepted_answers=answers)
+    write_records("exercise", [record], lang="es")
+    (actual,) = list(read_records("exercise", lang="es"))
+    assert actual["accepted_answers"] == answers
+    assert actual["accepted_answers"][0] == "Yo vivo aquí."
+
+
+@pytest.mark.parametrize(
+    "source_id", [_sentence()["sentence_id"], _candidate()["candidate_id"], None]
+)
+def test_exercise_source_identity_round_trips_corpus_candidate_or_synthetic(source_id) -> None:
+    """The existing source field carries exact identity, independent of answer spelling."""
+    record = _exercise(source_sentence_id=source_id)
+    write_records("exercise", [record], lang="es")
+    (actual,) = list(read_records("exercise", lang="es"))
+    assert actual["source_sentence_id"] == source_id
+
+
+def test_INV_PACK_41_first_surviving_candidate_is_shared_and_keeps_its_exact_id() -> None:
+    """[INV-PACK-41] A later valid candidate cannot replace the one G7 expanded."""
+    from coursekit.artifacts import first_accepted_candidates
+
+    rejected = _candidate(accepted=False, reject_reason="backtranslation")
+    first = _candidate(candidate_id="1" * 16, text="Buenas tardes a todos")
+    later = _candidate(candidate_id="2" * 16, text="Muy buenas tardes")
+    other_slot = _candidate(candidate_id="3" * 16, slot_index=1)
+    actual = first_accepted_candidates(iter([rejected, first, later, other_slot]), lang="es")
+    assert actual == {(1, 1, 0): first, (1, 1, 1): other_slot}
+    assert actual[(1, 1, 0)]["candidate_id"] != sentence_id("es", first["text"])
+    with_alternates = first | {"accepted_alternates": ["Buenas tardes"]}
+    assert (
+        first_accepted_candidates([with_alternates, later], lang="es")[(1, 1, 0)]["candidate_id"]
+        == first["candidate_id"]
+    )
+
+
+def test_first_surviving_candidates_refuses_cross_language_input() -> None:
+    from coursekit.artifacts import first_accepted_candidates
+
+    with pytest.raises(ArtifactError, match="lang"):
+        first_accepted_candidates([_candidate(lang="fr")], lang="es")
+    with pytest.raises(ArtifactError, match="lang"):
+        first_accepted_candidates([_candidate(lang="fr", accepted=False)], lang="es")
+
+
+def test_first_surviving_candidates_validates_rows_before_selection() -> None:
+    from coursekit.artifacts import first_accepted_candidates
+
+    malformed = _candidate(accepted_alternates=None)
+    with pytest.raises(ArtifactError, match="accepted_alternates"):
+        first_accepted_candidates([malformed], lang="es")
 
 
 def test_the_analysis_is_the_g1_shape_and_cannot_drift_from_it() -> None:

@@ -2,6 +2,7 @@
   "candidates": [
     {
       "accepted": true,
+      "accepted_alternates": [],
       "analysis": null,
       "author": "opus-5 (agent-authored, no API key in this environment)",
       "candidate_id": "9abf1889f7f35a9c",
@@ -353,6 +354,7 @@
   "pack_id": "freelingo-es",
   "selected": [
     {
+      "accepted_alternates": [],
       "gap": false,
       "grammar_concept": "present-estar",
       "known_lemmas": [],
@@ -366,6 +368,7 @@
       "unit_index": 1
     },
     {
+      "accepted_alternates": [],
       "gap": false,
       "grammar_concept": "present-estar",
       "known_lemmas": ["hola"],
@@ -379,6 +382,7 @@
       "unit_index": 1
     },
     {
+      "accepted_alternates": [],
       "gap": false,
       "grammar_concept": "present-estar",
       "known_lemmas": ["hola"],
@@ -392,6 +396,7 @@
       "unit_index": 1
     },
     {
+      "accepted_alternates": [],
       "gap": false,
       "grammar_concept": "present-ser",
       "known_lemmas": ["ser"],
@@ -405,6 +410,7 @@
       "unit_index": 2
     },
     {
+      "accepted_alternates": [],
       "gap": false,
       "grammar_concept": "present-ser",
       "known_lemmas": ["dónde"],
@@ -418,6 +424,7 @@
       "unit_index": 2
     },
     {
+      "accepted_alternates": [],
       "gap": true,
       "grammar_concept": "present-ser",
       "known_lemmas": ["ser"],

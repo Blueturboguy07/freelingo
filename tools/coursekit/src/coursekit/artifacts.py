@@ -69,6 +69,7 @@ __all__ = [
     "build_root",
     "contract_digest",
     "dedup_hash",
+    "first_accepted_candidates",
     "read_records",
     "run_dir",
     "sentence_id",
@@ -95,18 +96,25 @@ _SCHEMA_VERSION = {"const": ARTIFACT_SCHEMA_VERSION}
 _ID16 = {"type": "string", "pattern": "^[0-9a-f]{16}$"}
 _HASH32 = {"type": "string", "pattern": "^[0-9a-f]{32}$"}
 _NONEMPTY = {"type": "string", "minLength": 1}
+_ALTERNATE_SURFACES = {
+    "type": "array",
+    "uniqueItems": True,
+    "items": {"type": "string", "minLength": 1, "pattern": r"\S"},
+}
 _VERDICT = {"type": "string", "enum": ["shippable", "oracle_only", "forbidden"]}
 
 
-def _object(properties: Mapping[str, Any], title: str, description: str) -> dict[str, Any]:
-    """A closed object schema. Every declared property is required."""
+def _object(
+    properties: Mapping[str, Any], title: str, description: str, *, optional: tuple[str, ...] = ()
+) -> dict[str, Any]:
+    """A closed object schema; optional fields are explicit compatibility exceptions."""
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": title,
         "description": description,
         "type": "object",
         "additionalProperties": False,
-        "required": sorted(properties),
+        "required": sorted(set(properties) - set(optional)),
         "properties": dict(properties),
     }
 
@@ -294,6 +302,7 @@ SELECTED_ITEM = _object(
         "new_lemmas": {"type": "array", "items": _NONEMPTY},
         "known_lemmas": {"type": "array", "items": _NONEMPTY},
         "grammar_concept": _NONEMPTY,
+        "accepted_alternates": _ALTERNATE_SURFACES,
     },
     "SelectedItem",
     (
@@ -302,8 +311,13 @@ SELECTED_ITEM = _object(
         "`gap` is separate rather than inferred — an unfilled slot and a slot whose "
         "sentence was dropped are different bugs. Selection reads only sources whose "
         "verdict is `shippable`; oracle-only corpora inform statistics and never fill a "
-        "slot."
+        "slot. `accepted_alternates` is an array of validated whole-sentence "
+        "answer surfaces in `lang`, never English translations. G4 initializes it "
+        "empty; a gap takes its answer surfaces from the exact accepted candidate. "
+        "Absent on older records means no authored alternates; new writers emit []. "
+        "See docs/pipeline.md for producer validation and shape-specific consumers."
     ),
+    optional=("accepted_alternates",),
 )
 
 CANDIDATE = _object(
@@ -316,6 +330,7 @@ CANDIDATE = _object(
         "slot_index": {"type": "integer", "minimum": 0},
         "text": _NONEMPTY,
         "translation": _NONEMPTY,
+        "accepted_alternates": _ALTERNATE_SURFACES,
         "author": _NONEMPTY,
         "generated_at": _NONEMPTY,
         "accepted": {"type": "boolean"},
@@ -341,8 +356,14 @@ CANDIDATE = _object(
         "a coded one and it fails BY NAME: an authored row G7 is asked to expand and "
         "whose `analysis` is null stops the stage naming the candidate_id, rather than "
         "silently falling back to the surface, which is the bug this field exists to "
-        "delete."
+        "delete. `text` is the canonical course-language surface; "
+        "`accepted_alternates` contains only explicitly authored, independently "
+        "validated whole-sentence surfaces in the same language and register, for "
+        "the same English meaning. New writers emit an array, possibly empty; "
+        "absence on older records means no authored alternates. "
+        "An alternate never replaces `text` or changes `candidate_id`."
     ),
+    optional=("accepted_alternates",),
 )
 
 EXERCISE = _object(
@@ -379,13 +400,24 @@ EXERCISE = _object(
     },
     "Exercise",
     (
-        "G7. `accepted_answers` is a SET, minimum one, and for Japanese it must "
+        "G7. `accepted_answers` is ordered: index 0 is the canonical preferred "
+        "surface, preserved by G9 as preferred_surface and used in semantic item "
+        "identity. Remaining entries are non-preferred accepted surfaces; they do "
+        "not change item identity. Treat entries as a set for grading, never sort "
+        "the array to choose preference. For Japanese the array must "
         "enumerate kanji+okurigana, all-kana and taught katakana forms. The review "
         "(R24) measured why: the reference product marks a one-character typo fully "
         "wrong with no grace, so in a parity build the enumerated set IS the entire "
         "tolerance budget and an omission is an unrecoverable wrong answer, not a "
         "degraded one. `alignment` is index pairs from SimAlign, and its Japanese "
-        "quality is unmeasured — no eng-jpn F1 is published."
+        "quality is unmeasured — no eng-jpn F1 is published. "
+        "`source_sentence_id` is the exact G0 sentence_id or the chosen G5 "
+        "candidate_id; only source-less synthetic exercises use null. G7, G9, "
+        "validators and sampling use first_accepted_candidates over the same "
+        "post-G6 stream and never rehash candidate text into another source id. "
+        "Course-language authored alternates apply only to whole-sentence L1-to-L2 "
+        "translation; L2-to-L1, cloze, word-bank, transcription and speaking shapes "
+        "retain their own answer contracts. See docs/pipeline.md."
     ),
 )
 
@@ -627,6 +659,31 @@ def read_records(
                 raise ArtifactError(f"{kind} in {target.name} line {number}: {exc}") from exc
             validate_record(kind, record, where=f"{target.name} line {number}")
             yield record
+
+
+def first_accepted_candidates(
+    records: Iterable[Mapping[str, Any]], *, lang: str
+) -> dict[tuple[int, int, int], dict[str, Any]]:
+    """Select the first surviving G5 row per (unit, lesson, slot), after G6.
+
+    Every consumer must use the same ordered stream: later accepted candidates are
+    reserves, not shipped gap fills. Keep candidate_id verbatim; it includes slot
+    context and is not sentence_id(lang, text). Reject mixed-language inputs rather
+    than merging identical slot numbers across courses. This function validates the
+    boundary shape, not language quality; G5/G6 own the latter.
+    """
+    chosen: dict[tuple[int, int, int], dict[str, Any]] = {}
+    for index, record in enumerate(records):
+        validate_record("candidate", record, where=f"candidate selection row {index + 1}")
+        if record["lang"] != lang:
+            raise ArtifactError(
+                f"candidate {record['candidate_id']} has lang {record['lang']!r}; "
+                f"candidate selection requires lang {lang!r}"
+            )
+        if record["accepted"]:
+            key = (record["unit_index"], record["lesson_index"], record["slot_index"])
+            chosen.setdefault(key, dict(record))
+    return chosen
 
 
 def _target(kind: str, *, lang: str | None, path: Path | None) -> Path:
