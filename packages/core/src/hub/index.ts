@@ -23,6 +23,8 @@ export type HubKind =
   'today' | 'mistakes' | 'words' | 'listen' | 'speak' | 'target' | 'rewind' | 'path';
 export interface HubItem {
   readonly itemId: string;
+  /** Only practice projections carry target IDs: one exercise may review several words. */
+  readonly targetItemIds?: readonly string[];
   readonly unitIndex: number;
   readonly introducedAtUtc: string;
   readonly lastSeenAtUtc: string;
@@ -73,7 +75,10 @@ export interface HubInput {
   readonly localDay: LocalDay;
   readonly nowUtc: string;
   readonly seed: string;
+  /** All introduced scheduler items of every class, used by the Words surface. */
   readonly items: readonly HubItem[];
+  /** Actual source-backed exercise population. Omission supports single-target callers. */
+  readonly practiceItems?: readonly HubItem[];
   readonly mistakes: readonly HubMistake[];
   readonly sharedReview: SharedReviewSnapshot;
   readonly completedUnitIndices: readonly number[];
@@ -173,7 +178,15 @@ function selectedHero(modes: readonly HubMode[], daily: HubDailyState): HubOffer
 /** Render selection does not mutate the durable mistake queue or reserve review items. */
 export function buildHub(input: HubInput): HubModel {
   const now = millis(input.nowUtc);
-  const introduced = uniqueItems(input.items).filter((i) => millis(i.introducedAtUtc) <= now);
+  const vocabulary = uniqueItems(input.items).filter((i) => millis(i.introducedAtUtc) <= now);
+  const introducedIds = new Set(vocabulary.map((i) => i.itemId));
+  const targetIds = (i: HubItem): readonly string[] => i.targetItemIds ?? [i.itemId];
+  const introduced = uniqueItems(input.practiceItems ?? vocabulary).filter(
+    (i) =>
+      millis(i.introducedAtUtc) <= now &&
+      targetIds(i).length > 0 &&
+      targetIds(i).every((id) => introducedIds.has(id)),
+  );
   const listeningPaused =
     input.preferences.listeningUntilUtc !== null &&
     millis(input.preferences.listeningUntilUtc) > now;
@@ -191,7 +204,6 @@ export function buildHub(input: HubInput): HubModel {
         input.microphoneAvailable &&
         i.modalities.includes('speak')),
   );
-  const introducedIds = new Set(introduced.map((i) => i.itemId));
   const byId = new Map(eligible.map((i) => [i.itemId, i]));
   const due = eligible
     .filter((i) => millis(i.dueAtUtc) <= now)
@@ -237,7 +249,9 @@ export function buildHub(input: HubInput): HubModel {
             .filter((id) => !input.sharedReview.spentIds.includes(id))
             .flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []))
         : [],
-    mistakes: kept.flatMap((m) => (byId.has(m.itemId) ? [byId.get(m.itemId)!] : [])),
+    mistakes: uniqueItems(
+      kept.flatMap((m) => eligible.filter((i) => targetIds(i).includes(m.itemId))),
+    ),
     words: eligible,
     listen: eligible.filter((i) => i.modalities.includes('listen')),
     speak: eligible.filter((i) => i.modalities.includes('speak')),
@@ -245,7 +259,7 @@ export function buildHub(input: HubInput): HubModel {
       (i) =>
         civilDaysBetween(i.lastSeenLocalDay, input.localDay) >= 0 &&
         civilDaysBetween(i.lastSeenLocalDay, input.localDay) <= HUB_CONFIG.recentDays &&
-        (missed.has(i.itemId) || millis(i.dueAtUtc) <= now),
+        (targetIds(i).some((id) => missed.has(id)) || millis(i.dueAtUtc) <= now),
     ),
     rewind: due.filter((i) => i.unitIndex === rewind),
   };
