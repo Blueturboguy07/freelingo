@@ -24,7 +24,14 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["./modules/backup-exclusion/app.plugin.js"],
+    "plugins": [
+      "./modules/backup-exclusion/app.plugin.js",
+      "expo-font",
+      "expo-asset",
+      "expo-localization",
+      "expo-sharing",
+      "expo-secure-store"
+    ],
     "experiments": {
       "typedRoutes": false
     }
