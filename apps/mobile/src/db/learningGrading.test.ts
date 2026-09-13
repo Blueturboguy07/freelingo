@@ -1,11 +1,19 @@
 // @vitest-environment node
 import { expect, it } from 'vitest';
-import type { Answer, GradeRequest } from '@freelingo/core/session';
+import {
+  freshSession,
+  step,
+  DEFAULT_FLAVOUR_MATRIX,
+  type Answer,
+  type GradeRequest,
+  type SessionState,
+  type StepDeps,
+} from '@freelingo/core/session';
 import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/runtime-item-types';
 import { ES_PACK, ES_UNIT } from '../../../../packages/core/src/grading/packs/es';
 import { JA_PACK, JA_UNIT } from '../../../../packages/core/src/grading/packs/ja';
 import { DE_PACK, DE_UNIT } from '../../../../packages/core/src/grading/packs/de';
-import { gradeRuntimeItem, schedulerGradeFor } from './learningGrading';
+import { gradeRuntimeItem, schedulerGradeFor, targetsForRuntimeAnswer } from './learningGrading';
 function runtime(patch: Partial<VerifiedRuntimeItem> = {}): VerifiedRuntimeItem {
   return {
     schemaVersion: 1,
@@ -247,4 +255,186 @@ it('[INV-GRD-05] a typed gap never ignores malformed explicit answer state', () 
     gradeRuntimeItem(r, input(r, 'wrong raw', { gapAnswers: { g1: 'gato' } }), learner).session
       .kind,
   ).toBe('correct');
+});
+
+it('[INV-SCH-11] actual accepted Spanish alternate schedules its own signed target surface', () => {
+  const r = runtime({
+    gradable: {
+      ...runtime().gradable,
+      accepted: [
+        { surface: 'el gato', surfaceId: 'gato', rank: 1 },
+        { surface: 'el felino', surfaceId: 'felino', rank: 2 },
+      ],
+    },
+    schedulerSurfaces: [
+      { itemId: 'item-1', surfaceId: 'gato', surface: 'el gato', language: 'es', canonical: true },
+      {
+        itemId: 'item-1',
+        surfaceId: 'felino',
+        surface: 'el felino',
+        language: 'es',
+        canonical: false,
+      },
+    ],
+  });
+  const grade = gradeRuntimeItem(r, input(r, 'el felino'), learner);
+  expect(
+    targetsForRuntimeAnswer(r, base, {
+      targetLanguage: 'es',
+      rubyShown: false,
+      responseSurfaceId: grade.responseSurfaceId,
+      partialState: {},
+    }),
+  ).toEqual([
+    {
+      itemId: 'item-1',
+      surfaceId: 'felino',
+      surface: 'el felino',
+      role: 'production',
+      rubyShown: false,
+      grade: 3,
+    },
+  ]);
+  expect(() =>
+    targetsForRuntimeAnswer({ ...r, schedulerSurfaces: r.schedulerSurfaces.slice(0, 1) }, base, {
+      targetLanguage: 'es',
+      rubyShown: false,
+      responseSurfaceId: grade.responseSurfaceId,
+      partialState: {},
+    }),
+  ).toThrow(/surface/);
+});
+it('[INV-SCH-11] reverse English responses and real wrong answers retain the declared Spanish canonical source', () => {
+  const r = runtime({ responseLanguage: 'en' });
+  const options = {
+    targetLanguage: 'es',
+    rubyShown: false,
+    responseSurfaceId: 'english-answer',
+    partialState: {},
+  };
+  expect(targetsForRuntimeAnswer(r, base, options)[0]?.surfaceId).toBe('gato');
+  expect(
+    targetsForRuntimeAnswer(
+      runtime(),
+      { ...base, verdict: 'wrong', wrong: true },
+      { ...options, responseSurfaceId: null },
+    )[0],
+  ).toMatchObject({ surfaceId: 'gato', grade: 1 });
+  expect(() =>
+    targetsForRuntimeAnswer(runtime(), base, { ...options, responseSurfaceId: null }),
+  ).toThrow(/matched/);
+  expect(targetsForRuntimeAnswer(runtime(), { ...base, skipped: true }, options)).toEqual([]);
+});
+it('[INV-GRD-20][INV-SCH-11] one actual gap keeps its per-gap approved matched surface in the runtime receipt', () => {
+  const accepted = [
+    { surface: 'gato', surfaceId: 'cat', rank: 1 },
+    { surface: 'felino', surfaceId: 'feline', rank: 2 },
+  ];
+  const r = runtime({
+    gradable: {
+      itemId: 'item-1',
+      family: 'gap-fill',
+      accepted,
+      gaps: [{ gapId: 'real-gap', accepted }],
+    },
+    presentation: {
+      ...runtime().presentation,
+      type: 'gapFillTyped',
+      prompt: 'el ____',
+      acceptedAnswers: ['gato', 'felino'],
+    },
+    schedulerSurfaces: accepted.map((f, i) => ({
+      itemId: 'item-1',
+      surfaceId: f.surfaceId,
+      surface: f.surface,
+      language: 'es',
+      canonical: i === 0,
+    })),
+  });
+  const grade = gradeRuntimeItem(r, input(r, 'felino'), learner);
+  expect(grade.feedback.matchedSurfaceId).toBeNull();
+  expect(grade.responseSurfaceId).toBe('feline');
+  expect(
+    targetsForRuntimeAnswer(
+      r,
+      { ...base, type: 'gapFillTyped' },
+      {
+        targetLanguage: 'es',
+        rubyShown: false,
+        responseSurfaceId: grade.responseSurfaceId,
+        partialState: {},
+      },
+    )[0]?.surface,
+  ).toBe('felino');
+});
+it('[INV-SESS-13][INV-SCH-11] actual grid taps schedule each touched semantic target while accuracy keeps one Answer', () => {
+  for (const limited of [false, true]) {
+    const pairs = ['gato', 'perro', 'ave', 'pez', 'oso'].map((left, i) => ({
+      leftItemId: 'lex:' + i,
+      leftId: 'l' + i,
+      rightId: 'r' + i,
+      left,
+      right: 'meaning' + i,
+    }));
+    const r = runtime({
+      gradable: { itemId: 'item-1', family: 'match', accepted: [] },
+      presentation: { ...runtime().presentation, type: 'matchPairs', pairs },
+      schedulerSurfaces: pairs.map((p) => ({
+        itemId: p.leftItemId,
+        surfaceId: 'sf:' + p.leftId,
+        surface: p.left,
+        language: 'es',
+        canonical: true,
+      })),
+    });
+    const queue = [{ ...input(r, '').item, family: 'recognition' as const }];
+    let state = {
+      ...freshSession({ queue }),
+      shellState: 'challenge.idle' as const,
+    } as SessionState;
+    if (limited)
+      state = {
+        ...state,
+        core: { ...state.core, hearts: { kind: 'pips', total: 1, remaining: 1 } },
+      };
+    const deps: StepDeps = {
+      config: DEFAULT_FLAVOUR_MATRIX.lesson,
+      clock: { nowMs: () => 0 },
+      isTypeEligible: () => true,
+      stepUpTripped: () => false,
+      matchPairs: () => pairs,
+      grading: {
+        grade: () => {
+          throw Error('grid must grade actual pairs');
+        },
+      },
+    };
+    state = step(
+      state,
+      { type: 'matchPair', attemptId: 'wrong', leftId: 'l0', rightId: 'r1' },
+      deps,
+    ).state;
+    if (!limited)
+      for (const p of pairs)
+        state = step(
+          state,
+          {
+            type: 'matchPair',
+            attemptId: 'correct' + p.leftId,
+            leftId: p.leftId,
+            rightId: p.rightId,
+          },
+          deps,
+        ).state;
+    expect(state.core.answers).toHaveLength(1);
+    const targets = targetsForRuntimeAnswer(r, state.core.answers[0]!, {
+      targetLanguage: 'es',
+      rubyShown: false,
+      responseSurfaceId: null,
+      partialState: state.inFlight.partialState,
+    });
+    expect(targets.map((t) => [t.itemId, t.grade])).toEqual(
+      limited ? [['lex:0', 1]] : pairs.map((p, i) => [p.leftItemId, i === 0 ? 1 : 3]),
+    );
+  }
 });
