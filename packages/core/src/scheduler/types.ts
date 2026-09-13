@@ -168,6 +168,8 @@ export interface Encounter {
   readonly exerciseIndex: number;
   readonly itemId: ItemId;
   readonly surface: Surface;
+  /** Verified per-answer target identity; ordinary historical calls may omit it. */
+  readonly targetSurfaceId?: string;
   readonly role: EncounterRole;
   readonly grade: Grade;
   /** The real wall instant the answer was submitted. */
