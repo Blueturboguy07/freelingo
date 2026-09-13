@@ -191,6 +191,10 @@ PACK_SIGNING_ALGORITHM: Final[str] = "ed25519"
 #: The app's parser in `packages/schema/src/signing.ts` carries the same bytes.
 ED25519_SPKI_PREFIX_HEX: Final[str] = "302a300506032b6570032100"
 ED25519_SPKI_LENGTH: Final[int] = 44
+#: RFC 8410 unencrypted PKCS8 Ed25519 PrivateKeyInfo, pinned 2026-09-13.
+#: The OID and nested OCTET STRING lengths must match before extracting a seed.
+ED25519_PKCS8_PREFIX_HEX: Final[str] = "302e020100300506032b657004220420"
+ED25519_PKCS8_LENGTH: Final[int] = 48
 ED25519_SEED_LENGTH: Final[int] = 32
 ED25519_SIGNATURE_LENGTH: Final[int] = 64
 
