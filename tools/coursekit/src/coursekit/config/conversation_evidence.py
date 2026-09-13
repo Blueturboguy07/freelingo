@@ -8,6 +8,7 @@ from typing import Final
 
 CONVERSATION_EVIDENCE_VERSION: Final[int] = 1
 CONVERSATION_EVIDENCE_PATH: Final[str] = "authoring/conversations.jsonl"
+CONVERSATION_PLAN_PATH: Final[str] = "authoring/conversation-plan.json"
 CONVERSATION_APPROVAL_PATH: Final[str] = "g6/conversation-approval.json"
 CONVERSATION_EVIDENCE_LICENCE: Final[str] = "CC-BY-NC-SA-4.0"
 CONVERSATION_META_PREFIX: Final[str] = "conversation:"

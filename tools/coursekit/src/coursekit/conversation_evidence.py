@@ -13,6 +13,7 @@ import re
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass, replace
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ from .config.conversation_evidence import (
     CONVERSATION_EVIDENCE_LICENCE,
     CONVERSATION_EVIDENCE_PATH,
     CONVERSATION_EVIDENCE_VERSION,
+    CONVERSATION_PLAN_PATH,
     CONVERSATION_ROLES,
     CONVERSATION_SHAPE,
 )
@@ -81,7 +83,10 @@ def _slot(value: Any) -> Slot:
     _require(
         isinstance(value, (list, tuple))
         and len(value) == 3
-        and all(type(index) is int for index in value),
+        and all(type(index) is int for index in value)
+        and value[0] > 0
+        and value[1] > 0
+        and value[2] >= 0,
         "invalid conversation slot",
     )
     return tuple(value)
@@ -96,6 +101,49 @@ def conversation_plan_digest(
     _require(len(set(plan)) == len(plan), "duplicate planned conversation slot")
     _require(set(plan) <= slots, "conversation plan contains an unselected slot")
     return evidence_digest([list(slot) for slot in sorted(plan)])
+
+
+def load_conversation_plan(
+    lang: str,
+    sources: Iterable[SelectedSource],
+    *,
+    path: Path | None = None,
+) -> tuple[Slot, ...]:
+    """Read a deliberate plan, never infer one from whichever reviews remain."""
+    sources = tuple(sources)
+    source_population_digest(sources)
+    _require(all(source.lang == lang for source in sources), "conversation plan language mismatch")
+    if path is None:
+        root = Path(os.environ.get(CONTENT_ROOT_ENV_VAR, _repo_root() / CONTENT_ROOT_DIRNAME))
+        path = root / lang / CONVERSATION_PLAN_PATH
+    _require(path.is_file(), f"missing conversation plan: {path}")
+    try:
+        row = json.loads(path.read_text(encoding="utf-8"))
+        _fields(
+            row,
+            {"schema_version", "lang", "authored_on", "author", "rationale", "expected_slots"},
+            "conversation plan",
+        )
+        _require(
+            type(row["schema_version"]) is int
+            and row["schema_version"] == CONVERSATION_EVIDENCE_VERSION,
+            "unsupported conversation plan version",
+        )
+        _require(row["lang"] == lang, "conversation plan language mismatch")
+        for field in ("author", "rationale", "authored_on"):
+            _require(_text(row[field]), f"missing plan {field}")
+        _require(
+            date.fromisoformat(row["authored_on"]).isoformat() == row["authored_on"],
+            "plan authored_on must be an ISO date",
+        )
+        _require(isinstance(row["expected_slots"], list), "planned slots must be an explicit array")
+        slots = tuple(_slot(slot) for slot in row["expected_slots"])
+        conversation_plan_digest(slots, sources)
+        return tuple(sorted(slots))
+    except ConversationEvidenceError:
+        raise
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise ConversationEvidenceError(f"{path}: malformed conversation plan") from exc
 
 
 @dataclass(frozen=True, slots=True)
