@@ -130,6 +130,11 @@ function PlayerContent({
     audioRequired,
     kind,
   ]);
+  const retryNote =
+    interactive && state.lastVerdict?.kind === 'noVerdict' ? state.lastVerdict.note : null;
+  useEffect(() => {
+    if (retryNote) media.announce(retryNote);
+  }, [retryNote, state.lastVerdict, media]);
   const latestObservation = state.modality.observations.at(-1);
   const observation = latestObservation?.slotId === currentSlot?.id ? latestObservation : undefined;
   const replacementMissing =
@@ -501,6 +506,7 @@ function PlayerContent({
               ) : null}
               {mediaStatus ? <BodyText>{mediaStatus}</BodyText> : null}
               {modalityMessage ? <BodyText>{modalityMessage}</BodyText> : null}
+              {retryNote ? <BodyText>{retryNote}</BodyText> : null}
               {replacementMissing ? (
                 <Button3D
                   label="Check course download"
