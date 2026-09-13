@@ -135,9 +135,28 @@ def test_INV_PACK_10_b3_rejection_is_exact_not_a_lexical_ban() -> None:
 # ---------------------------------------------------------------------------
 
 
+def language_fixture_rows() -> list[dict[str, Any]]:
+    """Engine fixtures practise known vocabulary; G5 target obligations have their own tests.
+
+    The old axis fixture intentionally reserves impossible/missing targets in six slots.
+    Replaying those declarations as a successful G5 precondition would hide the new
+    required-target guard. Keep text, vocabulary windows and rubric evidence, explicitly
+    declaring practice gaps for the G6 engine tests only.
+    """
+    rows = authored_rows(REAL_CANDIDATES)
+    for row in rows:
+        row["new_lemmas"] = []
+    return rows
+
+
 @pytest.fixture
 def es_after_g5(es_adapter: None) -> Iterator[list[dict[str, Any]]]:  # noqa: F811
-    rows = authored_rows(REAL_CANDIDATES)
+    from coursekit.stages.g5_gapfill import authored_candidates_path
+
+    rows = language_fixture_rows()
+    authored_candidates_path("es").write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n", encoding="utf-8"
+    )
     stage_g4("es", gap_list(rows))
     result = run_g5()
     assert result.ok, result.message
@@ -878,7 +897,7 @@ def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
     """
     from coursekit.stages.g5_gapfill import authored_shard_dir
 
-    rows = authored_rows(REAL_CANDIDATES)
+    rows = language_fixture_rows()
     alternate_surface = "Vivo en Madrid."
     alternate_score = 4
     rows[0]["accepted_alternates"] = [

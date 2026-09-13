@@ -291,6 +291,7 @@ BACKTRANSLATION_AUTHORSHIP: Final[str] = "agent-authored rubric score, not a mod
 G6_REJECT_PREFIX: Final[str] = "g6:"
 
 G6_REJECT_AXES: Final[tuple[str, ...]] = (
+    "register",
     "review_defect",
     "perplexity_out_of_band",
     "grammar",

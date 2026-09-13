@@ -75,9 +75,11 @@ from ..config.g6 import (
     PERPLEXITY_ENGINE_OPTION,
 )
 from ..engines import ENGINES
+from ..inputs import MissingInput
 from ..pair_quality import reviewed_pair
 from ..runlog import require_successful
-from ..stages.g5_gapfill import authored_candidates_path, authored_candidates_paths
+from ..stages.g5_gapfill import authored_candidates_path, authored_candidates_paths, unit_registers
+from ..validators.exercise import register_of
 from . import StageContext, StageResult, register_stage
 
 __all__ = ["validate_language"]
@@ -160,6 +162,10 @@ def validate_language(ctx: StageContext) -> StageResult:
     ]
 
     rows = list(read_records("candidate", lang=ctx.lang))
+    registers = unit_registers(ctx.lang)
+    missing_units = {int(row["unit_index"]) for row in rows} - registers.keys()
+    if missing_units:
+        raise MissingInput(f"G6 has candidates without a G3 unit register: {sorted(missing_units)}")
     rejected_by_axis = dict.fromkeys(G6_REJECT_AXES, 0)
     checked = 0
     checked_answers = 0
@@ -182,14 +188,22 @@ def validate_language(ctx: StageContext) -> StageResult:
             checked_answers += 1
             checked_row = dict(row)
             checked_row["text"] = surface
-            axis, detail = _axis(
-                checked_row,
-                ctx.lang,
-                grammar if grammar_probe["available"] else None,
-                perplexity if perplexity_probe["available"] else None,
-                backtranslation if backtranslation_probe["available"] else None,
-                perplexities,
-            )
+            carried = register_of(surface, ctx.lang)
+            required_register = registers[int(row["unit_index"])]
+            if not carried <= {required_register}:
+                axis, detail = (
+                    "register",
+                    {"required_register": required_register, "carried_registers": sorted(carried)},
+                )
+            else:
+                axis, detail = _axis(
+                    checked_row,
+                    ctx.lang,
+                    grammar if grammar_probe["available"] else None,
+                    perplexity if perplexity_probe["available"] else None,
+                    backtranslation if backtranslation_probe["available"] else None,
+                    perplexities,
+                )
             if axis is not None:
                 detail = {"answer_kind": answer_kind, "answer": surface, **detail}
                 break

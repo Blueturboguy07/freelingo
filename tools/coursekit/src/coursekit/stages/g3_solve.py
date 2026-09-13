@@ -77,6 +77,7 @@ from ..config.g3 import (
     SECTION_INDEX_MIN,
 )
 from ..inputs import MissingInput
+from ..registers import RegisterPolicyError, unit_register
 from ..runlog import require_successful
 from . import StageContext, StageResult, register_stage
 
@@ -365,6 +366,10 @@ def _load_sections(
                 raise CurriculumError(
                     f"{unit_where}: register_slot {slot!r}, but {lang} is {allowed_slot!r}"
                 )
+            try:
+                unit_register(lang, unit_entry)
+            except RegisterPolicyError as exc:
+                raise CurriculumError(f"{unit_where}: {exc}") from exc
             lexemes = _strings(
                 _require(unit_entry, "target_lexemes", unit_where),
                 unit_where,

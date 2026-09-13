@@ -125,6 +125,8 @@ REJECT_AXES: Final[tuple[str, ...]] = (
     # to run FIRST: every axis below it would otherwise be measured against the
     # wrong vocabulary and pass for the wrong reason.
     "stale_ledger",
+    # B19 / V6: lexical surface register must match G3's declared unit policy.
+    "register",
     # V1: a lemma the learner has not met. The ledger is lemma-level, never surface.
     "out_of_vocabulary",
     # V2: more than one new lemma-or-inflection in one item.
@@ -138,6 +140,8 @@ REJECT_AXES: Final[tuple[str, ...]] = (
     # would mean the day that number changes, nothing here notices. It is recorded as
     # currently-unreachable rather than quietly counted as coverage.
     "new_lemma_budget",
+    # V4: every authored surface must teach the lemma G4 reserved for this gap.
+    "missing_target",
     # G0's length filter, applied to an authored sentence exactly as to a corpus one.
     "length",
     # V9: the same sentence twice inside a unit.

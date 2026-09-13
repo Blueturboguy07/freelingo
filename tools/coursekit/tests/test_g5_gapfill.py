@@ -462,6 +462,26 @@ def gap_list(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def stage_g4(lang: str, gaps: list[dict[str, Any]]) -> None:
     """Write a `selected_item` artefact and the successful G4 runlog entry G5 requires."""
+    # G5/G6 now consume the G3 register declaration. This stage fixture explicitly
+    # supplies that upstream artifact rather than inferring policy from answer text.
+    units = {}
+    for gap in gaps:
+        index = int(gap["unit_index"])
+        units[index] = {
+            "schema_version": 1,
+            "lang": lang,
+            "section_index": 1,
+            "section_cefr": "A1",
+            "unit_index": index,
+            "unit_title": "Axis fixture",
+            "function": "exercise axes",
+            "grammar_concept": gap["grammar_concept"],
+            "register_slot": "binary_t_v",
+            "target_lemmas": sorted(set(gap["new_lemmas"]) | set(gap["known_lemmas"])),
+            "recycled_lemmas": [],
+            "level_count": 1,
+        }
+    write_records("unit_assignment", units.values(), lang=lang)
     write_records("selected_item", gaps, lang=lang)
     log = RunLog(lang)
     with log.stage("g4", tool="test", tool_version="0") as entry:
@@ -517,7 +537,9 @@ def test_INV_PACK_10_every_emitted_text_is_an_authored_text(
     emitted = {row["text"] for row in read_records("candidate", lang="es")}
     authored = {row["text"] for row in es_course}
     assert emitted <= authored, f"G5 produced text nobody authored: {sorted(emitted - authored)}"
-    assert result.ok, result.message
+    # This rejection fixture includes targets absent from all candidates in six
+    # slots. The missing-target guard must leave those slots unfilled.
+    assert not result.ok
 
 
 def test_INV_PACK_10_a_candidate_one_accent_from_correct_is_discarded_not_corrected(
@@ -568,7 +590,9 @@ def test_INV_PACK_08_every_authored_alternate_runs_the_g5_axes(es_adapter: None)
     assert analyser_factory is not None
     analyser = analyser_factory()
     valid = next(
-        row for row in rows if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+        row
+        for row in rows
+        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0] is None
     )
     with_bad_alternate = {
         **valid,
@@ -576,7 +600,9 @@ def test_INV_PACK_08_every_authored_alternate_runs_the_g5_axes(es_adapter: None)
             {"text": "Xqzzy blorf nada.", "backtranslation": valid["backtranslation"]}
         ],
     }
-    axis, _analysis = _axis(with_bad_alternate, gap, analyser, set(), "1" * 16, MIN_TOKENS)
+    axis, _analysis = _axis(
+        with_bad_alternate, gap, analyser, set(), "1" * 16, MIN_TOKENS, required_register="tu"
+    )
     assert axis == "out_of_vocabulary"
 
 
@@ -621,10 +647,12 @@ def test_every_reject_reason_is_one_of_the_declared_axes(es_course: list[dict[st
     assert reasons <= set(REJECT_AXES), f"undeclared reject reason(s): {reasons - set(REJECT_AXES)}"
 
 
-def test_the_authored_file_exercises_four_of_the_five_axes(es_course: list[dict[str, Any]]) -> None:
+def test_the_authored_fixture_exercises_every_nonstale_reject_axis(
+    es_course: list[dict[str, Any]],
+) -> None:
     """Over-generation that only ever produces passes proves nothing about the filters.
 
-    `stale_ledger` is the fifth and cannot fire here by construction — the gap list in
+    `stale_ledger` cannot fire here by construction — the gap list in
     this fixture is derived from the same file — so it has its own test below.
     """
     run_g5()
@@ -766,7 +794,9 @@ def test_the_runlog_records_the_author_and_the_reject_rate(es_course: list[dict[
     assert notes["discard_and_resample"] is True
     assert notes["emitted_text_is_authored_verbatim"] is True
     assert notes["reject_rate"] > 0
-    assert notes["gap_slots"] == notes["filled_slots"]
+    assert notes["gap_slots"] > notes["filled_slots"]
+    assert entry["status"] == "failed"
+    assert notes["rejected_by_axis"]["missing_target"] > 0
     assert all("agent" in author for author in notes["author"])
     assert entry["outputs"] == ["candidate"]
 
@@ -1939,37 +1969,25 @@ def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
     )
 
 
-def test_INV_PACK_08_no_authored_candidate_anywhere_is_ustedeo() -> None:
-    """[INV-PACK-08] V6: the es course declares `tu`, so `usted`/`ustedes` is blocking.
+def test_INV_PACK_08_authored_units_use_the_curriculum_register_policy() -> None:
+    """[INV-PACK-08] B19: the formal unit is ustedeo; every other Spanish unit is tu.
 
-    Over EVERY committed shard, not only this lane's. The es course declares one register
-    for the whole run — `DEFAULT_REGISTER_BY_SLOT["binary_t_v"] == "tu"` — and V6 returns
-    a blocking finding for an accepted answer carrying a marker from the other row. 218
-    rows of one shard were `usted` before the round-2 fix; this is the gate that keeps
-    them gone, and it reads the register table rather than spelling the two words, so a
-    marker added to `ES_REGISTER_MARKERS` is covered the day it is added.
+    Raw over-generation may contain rejected candidates, so scanning every raw row
+    for global tuteo was both stale policy and the wrong acceptance boundary. Actual
+    G5/G6 caller regressions in test_g5_register_targets enforce the admitted set.
     """
-    from coursekit.config.g7 import DEFAULT_REGISTER_BY_SLOT, ES_REGISTER_MARKERS
-    from coursekit.validators.exercise import register_of
+    from coursekit.registers import unit_register
+    from coursekit.stages.g3_solve import load_curriculum
 
-    assert DEFAULT_REGISTER_BY_SLOT["binary_t_v"] == "tu"
-    assert ES_REGISTER_MARKERS["usted"], "an empty marker row makes this check nothing"
-
-    # `register_of` is V6's OWN function, imported. A local tokenise-and-compare here
-    # would be a second definition of what a register marker is, and the one that
-    # matters is the one the validator runs — it case-folds and strips accents on both
-    # sides, which a hand-rolled whitespace tokeniser in a test does not. (Writing the
-    # literal call here is itself a hit for `test_ledger_unit.py`'s grep gate, which is
-    # the gate working: the scanner cannot tell a comment from a consumer.)
-    offenders: list[str] = []
-    scanned = 0
-    for path in COMMITTED_SHARDS:
-        for row in authored_shard(path):
-            scanned += 1
-            if "usted" in register_of(str(row["text"]), "es"):
-                offenders.append(f"{path.name}: {row['text']!r}")
-    assert scanned > 9000, f"only {scanned} rows scanned; the shard glob found nothing"
-    assert offenders == [], offenders[:5]
+    curriculum = load_curriculum("es")
+    for index, (_, declared) in enumerate(curriculum.units(), start=1):
+        assert unit_register(
+            "es",
+            {
+                "grammar_concept": declared.grammar_concept,
+                "register_slot": declared.register_slot,
+            },
+        ) == ("usted" if index == 23 else "tu")
 
 
 def test_INV_PACK_08_the_ustedeo_scan_would_catch_one() -> None:
@@ -2160,8 +2178,7 @@ def test_analysis_is_null_on_exactly_the_rows_the_analyser_never_ran_on(
     that call — a cheap early-out on length, say, using a whitespace count — would make an
     accepted-looking population of rows G7 must refuse, and this is what notices.
     """
-    result = run_g5()
-    assert result.ok, result.message
+    run_g5()
     rows = list(read_records("candidate", lang="es"))
     assert rows, "no candidates written; this test would pass over nothing"
     null_reasons = {row["reject_reason"] for row in rows if row["analysis"] is None}
@@ -2205,7 +2222,9 @@ def test_INV_PACK_08_g5_emits_explicit_surfaces_only_after_every_axis_passes(
     assert factory is not None
     analyser = factory()
     valid = [
-        row for row in rows if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+        row
+        for row in rows
+        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0] is None
     ]
     assert len(valid) >= 2
     preferred, alternate = valid[:2]
@@ -2236,7 +2255,9 @@ def test_INV_PACK_08_every_alternate_obeys_length_and_uniqueness(
     assert factory is not None
     analyser = factory()
     valid = [
-        row for row in rows if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+        row
+        for row in rows
+        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0] is None
     ]
     preferred = dict(valid[0])
     surface = valid[1]["text"]
@@ -2246,4 +2267,7 @@ def test_INV_PACK_08_every_alternate_obeys_length_and_uniqueness(
         surface = preferred["text"]
     alternate = {"text": surface, "backtranslation": preferred["backtranslation"]}
     preferred["accepted_alternates"] = [alternate] * (2 if bad_kind == "repeated" else 1)
-    assert _axis(preferred, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] == expected
+    assert (
+        _axis(preferred, gap, analyser, set(), "0" * 16, MIN_TOKENS, required_register="tu")[0]
+        == expected
+    )

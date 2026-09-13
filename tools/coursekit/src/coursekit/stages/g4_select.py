@@ -68,7 +68,9 @@ from ..config.g4 import (
 )
 from ..ledger import surface_tokens
 from ..pair_quality import reviewed_pair
+from ..registers import unit_register
 from ..runlog import require_successful
+from ..validators.exercise import register_of
 from . import StageContext, StageResult, register_stage
 from .g3_solve import GrammarConcept, curriculum_path, load_curriculum
 
@@ -295,6 +297,20 @@ def select(
     """Fill every lesson slot of every unit, or mark it a gap for G5."""
     index = _Admissible(candidates)
     exhibits: dict[tuple[str, str], bool] = {}
+    carried_registers: dict[tuple[str, str], set[str]] = {}
+    register_excluded: set[tuple[int, str]] = set()
+
+    def in_register(candidate: Candidate, lang: str, required: str, unit_index: int) -> bool:
+        key = (lang, candidate.sentence_id)
+        if key not in carried_registers:
+            # Inspect lexical surfaces: G1 can lemmatise Ustedes as tú. Joining token
+            # surfaces for this marker check cannot alter the shipped corpus text.
+            surface = " ".join(str(token["surface"]) for token in candidate.tokens)
+            carried_registers[key] = register_of(surface, lang)
+        permitted = carried_registers[key] <= {required}
+        if not permitted:
+            register_excluded.add((unit_index, candidate.sentence_id))
+        return permitted
 
     def exhibited(candidate: Candidate, concept_id: str) -> bool:
         key = (candidate.sentence_id, concept_id)
@@ -318,6 +334,8 @@ def select(
     for unit in units:
         unit_index = int(unit["unit_index"])
         concept_id = str(unit["grammar_concept"])
+        lang = str(unit["lang"])
+        required_register = unit_register(lang, unit)
         target = [str(lemma) for lemma in unit["target_lemmas"]]
         #: The unit's OWN new items, the only ones that count against V2's per-exercise
         #: budget here. A lemma an earlier unit introduced is known by the time this unit
@@ -336,7 +354,11 @@ def select(
             lesson_index += 1
             index.introduce(chunk)
             lesson_new: set[str] = set()
-            pool = index.ready()
+            pool = [
+                candidate
+                for candidate in index.ready()
+                if in_register(candidate, lang, required_register, unit_index)
+            ]
 
             for slot_index in range(SLOTS_PER_LESSON):
                 report.slots += 1
@@ -447,6 +469,8 @@ def select(
         # G4 could not place would block every later sentence that uses it.
         index.introduce(target)
 
+    # Count unique (unit, candidate) exclusions, not repeated lesson scans.
+    report.census["register_excluded_unit_candidates"] = len(register_excluded)
     _measure_yield(report, index, candidates, units, exhibited, uses_per_course)
     return SelectResult(items=items, report=report)
 

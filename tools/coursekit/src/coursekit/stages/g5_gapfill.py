@@ -115,7 +115,9 @@ from ..config.g5 import (
     min_tokens_for_slot,
 )
 from ..inputs import MissingInput
+from ..registers import RegisterPolicyError, unit_register
 from ..runlog import require_successful
+from ..validators.exercise import register_of
 from . import StageContext, StageResult, register_stage
 
 __all__ = [
@@ -434,6 +436,8 @@ def _axis(
     seen_in_unit: set[str],
     sentence_id: str,
     min_tokens: int,
+    *,
+    required_register: str,
 ) -> tuple[str | None, dict[str, Any] | None]:
     """The first axis this candidate fails (or `None`), and the analysis behind it.
 
@@ -469,6 +473,9 @@ def _axis(
     lemmas = list(analysis["lemmas"])
     token_count = _token_count(analysis)
 
+    if not register_of(authored["text"], str(gap["lang"])) <= {required_register}:
+        return "register", carried
+
     unknown = [lemma for lemma in lemmas if lemma not in allowed]
     if unknown:
         return "out_of_vocabulary", carried
@@ -476,6 +483,11 @@ def _axis(
     introduced = {lemma for lemma in lemmas if lemma in set(gap["new_lemmas"])}
     if len(introduced) > MAX_NEW_LEMMAS_PER_ITEM:
         return "new_lemma_budget", carried
+
+    # A reserved gap is an obligation to teach this lemma, not merely permission to
+    # use it. The first-build pack filled twelve such gaps with unrelated sentences.
+    if set(gap["new_lemmas"]) - set(lemmas):
+        return "missing_target", carried
 
     if not min_tokens <= token_count <= MAX_TOKENS:
         return "length", carried
@@ -495,7 +507,13 @@ def _axis(
         alternate_row["text"] = alternate
         alternate_row["accepted_alternates"] = []
         alternate_axis, _ = _axis(
-            alternate_row, gap, analyser, seen_in_unit, sentence_id, min_tokens
+            alternate_row,
+            gap,
+            analyser,
+            seen_in_unit,
+            sentence_id,
+            min_tokens,
+            required_register=required_register,
         )
         if alternate_axis is not None:
             return alternate_axis, carried
@@ -506,6 +524,20 @@ def _axis(
 # ---------------------------------------------------------------------------
 # The stage
 # ---------------------------------------------------------------------------
+
+
+def unit_registers(lang: str) -> dict[int, str]:
+    """Read G3's declaration once; absent or conflicting unit policies fail closed."""
+    out: dict[int, str] = {}
+    try:
+        for unit in read_records("unit_assignment", lang=lang):
+            index = int(unit["unit_index"])
+            if index in out:
+                raise MissingInput(f"duplicate unit {index} cannot establish one register")
+            out[index] = unit_register(lang, unit)
+    except (FileNotFoundError, RegisterPolicyError) as exc:
+        raise MissingInput(f"G3 unit register declaration is missing or invalid: {exc}") from exc
+    return out
 
 
 def _gaps(lang: str) -> Iterator[dict[str, Any]]:
@@ -540,6 +572,10 @@ def gapfill(ctx: StageContext) -> StageResult:
         by_slot.setdefault(Slot.of(row["slot"]), []).append(row)
 
     gaps = list(_gaps(ctx.lang))
+    registers = unit_registers(ctx.lang)
+    missing_units = {int(gap["unit_index"]) for gap in gaps} - registers.keys()
+    if missing_units:
+        raise MissingInput(f"G5 has gaps without a G3 unit register: {sorted(missing_units)}")
     lexicon_pos = pos_by_lemma(ctx.lang)
     records: list[dict[str, Any]] = []
     rejected_by_axis = dict.fromkeys(REJECT_AXES, 0)
@@ -565,7 +601,15 @@ def gapfill(ctx: StageContext) -> StageResult:
         slot_filled = False
         for row in pool:
             candidate_id = _candidate_id(ctx.lang, slot, row["text"])
-            axis, analysis = _axis(row, gap, analyser, seen, candidate_id, min_tokens)
+            axis, analysis = _axis(
+                row,
+                gap,
+                analyser,
+                seen,
+                candidate_id,
+                min_tokens,
+                required_register=registers[slot.unit_index],
+            )
             accepted = axis is None
             if accepted:
                 seen.add(dedup_hash(row["text"]))
