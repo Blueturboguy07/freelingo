@@ -143,22 +143,14 @@ what makes `--no-bundler` honest; a Debug build with no Metro launches to a red 
 every flow then fails on the first assertion for the wrong reason. Expo's Android template
 signs `release` with the debug keystore, so this needs no secret.
 
-**The iOS toolchain is pinned, deliberately low.** `XCODE_APP` selects Xcode 16.4, the
-macos-15 image default, and the job fails loudly if it is missing rather than drifting onto
-whatever is newest. Measured 2026-09-11: under Xcode 26.2 (17C52, Apple Swift 6.2.3) the
-build dies at the ExpoModulesJSI xcframework phase with
-
-```
-RuntimeScheduler.h:53:26: 'RuntimeScheduler' cannot be annotated with either
-SWIFT_RETURNS_RETAINED or SWIFT_RETURNS_UNRETAINED because it is not returning a
-SWIFT_SHARED_REFERENCE type
-```
-
-and again at `:61` — two errors, `xcodebuild` exit 65. That is expo-modules-jsi@57.1.0's
-own header meeting a tightened C++ interop check in Swift 6.2, and the package compiles
-that framework from source at pod time, so there is no prebuilt slice to fall back to. The
-fix belongs upstream in expo/expo; raise the pin when it lands, not before. Xcode 16.4
-carries no iOS 26 runtime, so `SIMULATOR_OS` names an 18.x one.
+**The iOS toolchain is pinned.** `XCODE_APP` selects
+`/Applications/Xcode_26.2.app`; the simulator is `iPhone 17` on `iOS-26-1`.
+The job fails if that Xcode installation is absent. The checked-in pnpm patch
+`patches/expo-modules-jsi@57.1.0.patch` removes incompatible constructor ownership
+annotations and adjusts Swift language mode/features for this toolchain. Keep that
+patch applied through `pnpm-workspace.yaml`; generated `ios/` and `android/` trees
+remain untouched. Earlier Xcode 16.4/26.1.1 recommendations predate this repair.
+The downloaded native artifact's `runner.txt` records the actual toolchain for each run.
 
 **Screenshots.** A flow names its frame and nothing else:
 

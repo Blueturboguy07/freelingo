@@ -28,27 +28,10 @@ env:
   JAVA_VERSION: '21'
   # Named config: the toolchain and the simulator the iOS baselines are recorded against.
   #
-  # Xcode is PINNED, and narrowly, because expo-modules-jsi@57.1.0 fails at BOTH ends of
-  # the range this image offers. Everything below is measured, not inferred.
-  #
-  #  * Xcode 26.2 (17C52, Apple Swift 6.2.3): the ExpoModulesJSI xcframework phase fails
-  #    loudly with two errors, xcodebuild exit 65 —
-  #      RuntimeScheduler.h:53:26: 'RuntimeScheduler' cannot be annotated with either
-  #      SWIFT_RETURNS_RETAINED or SWIFT_RETURNS_UNRETAINED because it is not returning a
-  #      SWIFT_SHARED_REFERENCE type
-  #    (again at :61) — the package's own header against a tightened C++ interop check.
-  #    Reproduced locally 2026-09-11 and isolated to a 15-line repro with no Expo and no
-  #    React Native.
-  #  * Xcode 16.4 (Swift 6.1, the image default): the SAME phase fails QUIETLY. Run
-  #    34634498819: `[CP-User] Build ExpoModulesJSI xcframework` at 18:45:31, next line
-  #    18:45:47, then `0 error(s), and 1 warning(s)` and exit 65. A script phase's output
-  #    does not reach Expo's pretty printer, so the build reports no errors and dies. 16.4
-  #    is simply too old to build a framework SDK 57 compiles from source at pod time.
-  #
-  # So the pin is inside the range: 26.1.1 is the newest Xcode that predates the 26.2
-  # check, and Expo SDK 57 shipped against the 26.x line. If this still fails, the
-  # `Why the build failed` step below prints the raw xcodebuild output — read it before
-  # moving the pin again, and try 26.0.1 next rather than guessing upward.
+  # Xcode 26.2 is supported by the checked-in expo-modules-jsi@57.1.0 pnpm
+  # patch (constructor ownership annotations and Swift language-mode compatibility).
+  # Keep the patch applied; earlier 16.4/26.1.1 recommendations predate that repair.
+  # If the build fails, inspect the raw xcodebuild log before changing the pin.
   XCODE_APP: '/Applications/Xcode_26.2.app'
   SIMULATOR_NAME: 'iPhone 17'
   SIMULATOR_OS: 'iOS-26-1'
@@ -127,7 +110,7 @@ jobs:
       - uses: actions/checkout@v5
 
       # Every xcrun/xcodebuild in this job, including the ones inside `expo run:ios`,
-      # resolves through DEVELOPER_DIR. See XCODE_APP above for why it is pinned low.
+      # resolves through DEVELOPER_DIR. See XCODE_APP above for the pin and compatibility patch.
       - name: Select the pinned Xcode
         run: |
           set -euo pipefail

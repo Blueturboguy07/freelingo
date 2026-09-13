@@ -197,3 +197,29 @@ new review/report evidence. The old draw and its recorded scores are archived un
 
 Local tests and branch reviews do not make the P2 gate green. Integration, the rebuilt
 population, a fresh scored draw and actual CI artifacts are still required.
+
+## Round-5 integration checkpoint
+
+The sample branch integrated at `89e8238` and passed the required checks on main.
+The upstream branch rebased to `64f9254` + `6ffff7f`; its integrated Python suite
+passed 1,077 tests (8 skipped, one optional live SimAlign measurement deselected).
+G7 rebased to `3eb51cf` + `812d3c2`; its integrated suite passed 1,150 Python tests
+with the same exclusions. Each integration also passed lint, typecheck, the
+JavaScript suite and the invariant coverage map. Evidence logs are
+`/private/tmp/p2r5-integrate-sample.log`,
+`/private/tmp/p2r5-integrate-upstream.log`, and
+`/private/tmp/p2r5-integrate-g7.log`, each with exit 0.
+
+The signing branch rebased to `95b50c2` and is integrated; its post-integration
+checks are running. No fresh round-5 pack or CI artifact is claimed here.
+
+A separate real LanguageTool 6.6 diagnostic checked 108 candidates / 114 answer
+surfaces from the seven affected slots with G6's actual blocking rules: zero rejects,
+all seven slots retain their leading candidate. This is bounded corroboration;
+the full integrated G6 run and validator V8 still have to pass. Evidence:
+`/private/tmp/p2r5-seven-slot-languagetool.json`.
+
+The previous generated G4-G9 tail, sample and runlog were preserved under
+`/private/tmp/p2r5-prior-build-tail/` before regeneration. The pre-existing dirty audio
+manifest is separately backed up at `/private/tmp/p2r5-before-build-audio-manifest.json`
+(SHA256 `6a8defdb42c69bfec1fc3104fa95a2e99cf73b491ed7decfd772bcccec3fea64`).
