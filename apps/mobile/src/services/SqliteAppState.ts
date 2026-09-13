@@ -145,7 +145,7 @@ export class SqliteAppState {
     );
     return this.db.withExclusiveTransaction(() => {
       const state = this.read();
-      if (state.step !== expected) return false;
+      if (state.step === 'complete' || state.step !== expected) return false;
       if (next !== 'courses' && next !== 'restore' && !state.selectedCourse)
         return fail('selected course');
       this.db.run('UPDATE account_onboarding SET step=?,completed_at_utc=NULL WHERE id=1', [next]);

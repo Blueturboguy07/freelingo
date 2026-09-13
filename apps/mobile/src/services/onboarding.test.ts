@@ -198,3 +198,41 @@ it('S001 a removed or no-longer-catalogued selection renders the real picker', (
   ports.catalogue.read = () => [];
   expect(flow.read()).toEqual({ screen: 'courses', courses: [], selectedCourseId: null });
 });
+it.each(['restore', 'showPack', 'selectCourse'] as const)(
+  'S009 a queued stale %s callback cannot reopen terminal onboarding or erase its completion timestamp',
+  async (type) => {
+    const { flow, state, ports, selected } = setup();
+    selected();
+    state.transition('courses', 'entering');
+    const entering = flow.dispatch({ type: 'continue' });
+    const stale = entering.then(() =>
+      flow.dispatch(type === 'restore' ? { type } : { type, courseId: card.id }),
+    );
+    await entering;
+    const completed = state.read();
+    await stale;
+    expect(completed.step).toBe('complete');
+    expect(completed.completedAtUtc).toBe(now);
+    expect(state.read()).toEqual(completed);
+    expect(flow.read()).toBeNull();
+    expect(ports.restore.pick).not.toHaveBeenCalled();
+  },
+);
+it('S009 terminal storage transition rejects even an explicitly matching complete expectation', () => {
+  const { state, selected } = setup();
+  selected();
+  state.completeOnboarding(card.id, 'real-test-boundary-hash', now);
+  const before = state.read();
+  expect(state.transition('complete', 'restore')).toBe(false);
+  expect(state.transition('complete', 'pack-detail')).toBe(false);
+  expect(state.read()).toEqual(before);
+});
+it('S009 stale terminal download and notification callbacks perform no external actions', async () => {
+  const { flow, state, ports, selected } = setup();
+  selected();
+  state.completeOnboarding(card.id, 'real-test-boundary-hash', now);
+  await flow.dispatch({ type: 'download', courseId: card.id });
+  await flow.dispatch({ type: 'requestNotifications' });
+  expect(ports.catalogue.download).not.toHaveBeenCalled();
+  expect(ports.notifications.requestPermission).not.toHaveBeenCalled();
+});

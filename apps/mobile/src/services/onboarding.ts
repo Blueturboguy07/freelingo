@@ -204,6 +204,9 @@ export function createOnboardingFlow(ports: OnboardingFlowPorts) {
     }
   }
   async function dispatch(event: OnboardingEvent): Promise<void> {
+    // A queued callback from the dismissed onboarding surface must never restart it
+    // or perform its old external action. Explicit account reset has another owner.
+    if (store.read().step === 'complete') return;
     switch (event.type) {
       case 'selectCourse':
       case 'showPack':
