@@ -7,7 +7,7 @@ export function selectionReady(count: number, selected: readonly string[]): bool
     Number.isInteger(count) &&
     count > 0 &&
     selected.length === count &&
-    new Set(selected).size <= count
+    new Set(selected).size === count
   );
 }
 export function toggleSelection(selected: readonly string[], id: string): readonly string[] {
