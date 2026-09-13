@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { afterEach, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { migrate, type Db } from '@freelingo/schema';
 import { createNodeDb } from '../../../../packages/testkit/src/nodeDb';
 import {
@@ -21,9 +24,11 @@ import { SqliteLearningRuntime } from './SqliteLearningRuntime';
 import { roleOfExerciseType } from '@freelingo/core/scheduler';
 import { gradeRuntimeItem } from './learningGrading';
 const opened: Db[] = [];
+const directories: string[] = [];
 afterEach(() => {
   for (const db of opened) db.close();
   opened.length = 0;
+  directories.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true }));
 });
 const at = Date.parse('2026-09-13T12:00:00Z');
 const zone = { tzId: 'UTC', utcOffsetMinutes: 0, tzSource: 'iana' } as const;
@@ -46,8 +51,12 @@ function wrongBanner(state: SessionState, item: VerifiedRuntimeItem): SessionSta
   next = step(next, { type: 'check' }, deps).state;
   return step(next, { type: 'graded' }, deps).state;
 }
-function setup(transform: (item: VerifiedRuntimeItem) => VerifiedRuntimeItem = (item) => item) {
-  const db = createNodeDb();
+function setup(
+  transform: (item: VerifiedRuntimeItem) => VerifiedRuntimeItem = (item) => item,
+  location?: string,
+) {
+  const db = createNodeDb(location ? { location } : {});
+  if (location) db.run('PRAGMA journal_mode=WAL');
   opened.push(db);
   migrate(db);
   new SqliteWordStore(db).initializeFreshHistory(at - 1000, { databaseWasCreated: true });
@@ -454,7 +463,7 @@ it.each(['type', 'marker', 'option', 'text', 'accepted', 'target', 'language'] a
   },
 );
 
-it('[INV-ECO-27][INV-SCH-11] actual display persists word and scheduler introduction before another answer or process reopen', async () => {
+it('[INV-ECO-27][INV-SCH-11] actual display persists word and scheduler introduction before another answer or a new runtime instance', async () => {
   const f = setup();
   expect(new SqliteWordStore(f.db).readCounters()).toEqual({ wordsIntroduced: 0, wordsLearned: 0 });
   f.runtime.readSession();
@@ -515,4 +524,31 @@ it('[INV-ECO-27][INV-PER-04] a failed word identity write rolls back the actual 
   expect(new SqliteWordStore(f.db).readCounters().wordsIntroduced).toBe(0);
   await f.runtime.recordExposure(f.request);
   expect(new SqliteWordStore(f.db).readCounters().wordsIntroduced).toBe(1);
+});
+
+it('[INV-ECO-27][INV-SCH-11][INV-PER-03] actual WAL file reopen retains display and lexical history without an extra introduction', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'freelingo-display-reopen-'));
+  directories.push(dir);
+  const location = join(dir, 'progress.db'),
+    f = setup(undefined, location);
+  f.sessions.put(wrongBanner(f.initial, f.item));
+  await f.runtime.recordExposure(f.request);
+  const expected = f.db.all('SELECT * FROM course_source_exposure');
+  f.db.close();
+  opened.splice(opened.indexOf(f.db), 1);
+  const reopened = createNodeDb({ location });
+  opened.push(reopened);
+  expect(reopened.get('PRAGMA journal_mode')).toEqual({ journal_mode: 'wal' });
+  expect(new SqliteWordStore(reopened).readCounters()).toEqual({
+    wordsIntroduced: 1,
+    wordsLearned: 0,
+  });
+  expect(
+    [
+      ...new SqliteSchedulerStore(reopened).load('en-es', 'UTC').rows.values(),
+    ][0]!.introducedAt?.getTime(),
+  ).toBe(at);
+  await new SqliteLearningRuntime(reopened, f.ports).recordExposure(f.request);
+  expect(reopened.all('SELECT * FROM course_source_exposure')).toEqual(expected);
+  expect(new SqliteWordStore(reopened).readCounters().wordsIntroduced).toBe(1);
 });
