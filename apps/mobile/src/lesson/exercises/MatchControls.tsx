@@ -62,6 +62,7 @@ export function MatchControls({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={pair.left}
+              aria-pressed={selected === pair.leftId}
               accessibilityState={{
                 disabled: disabled || leftMatched,
                 selected: selected === pair.leftId,

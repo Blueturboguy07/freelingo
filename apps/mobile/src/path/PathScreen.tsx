@@ -315,6 +315,7 @@ function PathContent({
                         accessibilityRole="button"
                         accessibilityLabel={`Unit ${unit.index + 1}, ${item.type} ${index + 1}, ${unlocked ? visual.state : 'locked'}`}
                         accessibilityState={{ expanded: selectedNodeId === item.id }}
+                        aria-expanded={selectedNodeId === item.id}
                         onPress={() => open(item)}
                         style={({ pressed }) => ({
                           width: LAYOUT.nodeWidthPx,

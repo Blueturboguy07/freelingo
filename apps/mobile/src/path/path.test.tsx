@@ -77,7 +77,9 @@ describe('measured path caller', () => {
   });
   it('[INV-PATH-01] tapping a locked node gives the existing unlock explanation', () => {
     render(<Harness />);
+    expect(screen.getByTestId('path-node-b').getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(screen.getByTestId('path-node-b'));
+    expect(screen.getByTestId('path-node-b').getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText('Complete all levels above to unlock this!')).toBeTruthy();
   });
   it('[INV-PATH-03] complete popup launches the real nodePractice flavour and omits START/counter', () => {
