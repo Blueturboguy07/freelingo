@@ -32,6 +32,7 @@
       "expo-sharing",
       "expo-secure-store",
       "expo-speech-recognition",
+      "./modules/widget-publication/app.plugin.js",
       "@bacons/apple-targets"
     ],
     "experiments": {

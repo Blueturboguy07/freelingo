@@ -1,0 +1,674 @@
+[
+  {
+    "name": "cold",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":0,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":0,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": null,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "COLD",
+      "copy": "Tap to start",
+      "flame": "none"
+    }
+  },
+  {
+    "name": "done",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-13\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":true,\"goal_met\":true,\"earned_xp\":40,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": true,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://practice?course=en-es%2F%20%2B",
+      "cosmeticId": null,
+      "state": "DONE",
+      "flame": "lit",
+      "copy": "12 day streak!"
+    }
+  },
+  {
+    "name": "safe-unmet",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:30:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-13\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":true,\"goal_met\":false,\"earned_xp\":13,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789342200000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 30,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "STREAK_SAFE_GOAL_UNMET",
+      "flame": "lit",
+      "copy": "Streak safe — 27 XP to your goal"
+    }
+  },
+  {
+    "name": "lost",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":0,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 0,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "LOST",
+      "flame": "unlit",
+      "copy": "Revive your streak!"
+    }
+  },
+  {
+    "name": "freeze-ready",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:30:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":1,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789342200000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 30,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "FROZEN",
+      "flame": "frozen",
+      "copy": "Your Streak Freeze is ready"
+    }
+  },
+  {
+    "name": "freeze-yesterday",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"frozen\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "FROZEN",
+      "flame": "frozen",
+      "copy": "A Streak Freeze protected yesterday. Practice today!"
+    }
+  },
+  {
+    "name": "hour-09:00",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "hour-13:00",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T13:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789304400000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 660,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_AFTERNOON",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "hour-18:30",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T18:30:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789324200000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 330,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_EVENING",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "hour-20:00",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T20:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789329600000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 240,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "NUDGE",
+      "flame": "unlit",
+      "copy": "Less than 4 hours to extend your 12 day streak!"
+    }
+  },
+  {
+    "name": "hour-21:01",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T21:01:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789333260000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 179,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "NUDGE",
+      "flame": "unlit",
+      "copy": "Less than 3 hours to extend your 12 day streak!"
+    }
+  },
+  {
+    "name": "hour-22:30",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T22:30:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789338600000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 90,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "NUDGE",
+      "flame": "unlit",
+      "copy": "Less than 2 hours to extend your 12 day streak!"
+    }
+  },
+  {
+    "name": "hour-23:01",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:01:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789340460000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 59,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "DANGER",
+      "flame": "unlit",
+      "copy": "Less than 1 hour until your 12 day streak is lost!"
+    }
+  },
+  {
+    "name": "hour-23:17",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:17:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789341420000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 43,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "DANGER",
+      "flame": "unlit",
+      "copy": "Less than 45 minutes until your 12 day streak is lost!"
+    }
+  },
+  {
+    "name": "hour-23:32",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:32:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789342320000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 28,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "DANGER",
+      "flame": "unlit",
+      "copy": "Less than 30 minutes until your 12 day streak is lost!"
+    }
+  },
+  {
+    "name": "hour-23:47",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:47:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789343220000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 13,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "DANGER",
+      "flame": "unlit",
+      "copy": "Less than 15 minutes until your 12 day streak is lost!"
+    }
+  },
+  {
+    "name": "resume",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"fr/ja 日本 +\",\"active_node_id\":null,\"has_resumable_session\":true,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://resume?course=fr%2Fja%20%E6%97%A5%E6%9C%AC%20%2B",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "no-node",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es\",\"active_node_id\":null,\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://path?course=en-es",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "cosmetic",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":\"scarf/gold\"}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 900,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": "scarf/gold",
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "missing",
+    "snapshotJson": null,
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "extra",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null,\"extra\":true}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "wrongBoundary",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-15T00:00:00Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "numberFlag",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":1,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "badIdentifier",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"\\u0000\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "badLastDay",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2027-01-01\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "uninitialized",
+    "snapshotJson": "{\"initialized\":false,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "stale",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T23:59:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789344060000,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "future-computation",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789289999999,
+    "zone": "UTC",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "invalid-zone",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T09:00:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789290000000,
+    "zone": "Invalid/Zone",
+    "expected": {
+      "state": "UNKNOWN",
+      "copy": "Open Freelingo",
+      "streak": null,
+      "flame": "none",
+      "goalMet": false,
+      "remainingMinutes": null,
+      "deepLink": "freelingo://open",
+      "cosmeticId": null
+    }
+  },
+  {
+    "name": "America/Chicago2026-03-08T07:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-03-08\",\"computed_at_utc\":\"2026-03-08T07:30:00.000Z\",\"tz_id\":\"America/Chicago\",\"day_boundary_utc\":\"2026-03-09T05:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1772955000000,
+    "zone": "America/Chicago",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 1290,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "America/Chicago2026-11-01T06:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-11-01\",\"computed_at_utc\":\"2026-11-01T06:30:00.000Z\",\"tz_id\":\"America/Chicago\",\"day_boundary_utc\":\"2026-11-02T06:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1793514600000,
+    "zone": "America/Chicago",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 1410,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "America/Chicago2026-09-13T18:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T18:30:00.000Z\",\"tz_id\":\"America/Chicago\",\"day_boundary_utc\":\"2026-09-14T05:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789324200000,
+    "zone": "America/Chicago",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 630,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_AFTERNOON",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "Europe/Berlin2026-03-08T07:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-03-08\",\"computed_at_utc\":\"2026-03-08T07:30:00.000Z\",\"tz_id\":\"Europe/Berlin\",\"day_boundary_utc\":\"2026-03-08T23:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1772955000000,
+    "zone": "Europe/Berlin",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 930,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "Europe/Berlin2026-11-01T06:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-11-01\",\"computed_at_utc\":\"2026-11-01T06:30:00.000Z\",\"tz_id\":\"Europe/Berlin\",\"day_boundary_utc\":\"2026-11-01T23:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1793514600000,
+    "zone": "Europe/Berlin",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 990,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "Europe/Berlin2026-09-13T18:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T18:30:00.000Z\",\"tz_id\":\"Europe/Berlin\",\"day_boundary_utc\":\"2026-09-13T22:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789324200000,
+    "zone": "Europe/Berlin",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 210,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "NUDGE",
+      "flame": "unlit",
+      "copy": "Less than 4 hours to extend your 12 day streak!"
+    }
+  },
+  {
+    "name": "Australia/Lord_Howe2026-03-08T07:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-03-08\",\"computed_at_utc\":\"2026-03-08T07:30:00.000Z\",\"tz_id\":\"Australia/Lord_Howe\",\"day_boundary_utc\":\"2026-03-08T13:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1772955000000,
+    "zone": "Australia/Lord_Howe",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 330,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_EVENING",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "Australia/Lord_Howe2026-11-01T06:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-11-01\",\"computed_at_utc\":\"2026-11-01T06:30:00.000Z\",\"tz_id\":\"Australia/Lord_Howe\",\"day_boundary_utc\":\"2026-11-01T13:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1793514600000,
+    "zone": "Australia/Lord_Howe",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 390,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_AFTERNOON",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "Australia/Lord_Howe2026-09-13T18:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-14\",\"computed_at_utc\":\"2026-09-13T18:30:00.000Z\",\"tz_id\":\"Australia/Lord_Howe\",\"day_boundary_utc\":\"2026-09-14T13:30:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789324200000,
+    "zone": "Australia/Lord_Howe",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 1140,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "Asia/Kathmandu2026-03-08T07:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-03-08\",\"computed_at_utc\":\"2026-03-08T07:30:00.000Z\",\"tz_id\":\"Asia/Kathmandu\",\"day_boundary_utc\":\"2026-03-08T18:15:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1772955000000,
+    "zone": "Asia/Kathmandu",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 645,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_AFTERNOON",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "Asia/Kathmandu2026-11-01T06:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-11-01\",\"computed_at_utc\":\"2026-11-01T06:30:00.000Z\",\"tz_id\":\"Asia/Kathmandu\",\"day_boundary_utc\":\"2026-11-01T18:15:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1793514600000,
+    "zone": "Asia/Kathmandu",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 705,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_AFTERNOON",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  },
+  {
+    "name": "Asia/Kathmandu2026-09-13T18:30:00Z",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-14\",\"computed_at_utc\":\"2026-09-13T18:30:00.000Z\",\"tz_id\":\"Asia/Kathmandu\",\"day_boundary_utc\":\"2026-09-14T18:15:00.000Z\",\"streak\":12,\"last_completed_local_day\":null,\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789324200000,
+    "zone": "Asia/Kathmandu",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 1425,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_MORNING",
+      "flame": "unlit",
+      "copy": "Practice every day to build your streak."
+    }
+  },
+  {
+    "name": "zone-change",
+    "snapshotJson": "{\"initialized\":true,\"local_day\":\"2026-09-13\",\"computed_at_utc\":\"2026-09-13T20:30:00.000Z\",\"tz_id\":\"UTC\",\"day_boundary_utc\":\"2026-09-14T00:00:00.000Z\",\"streak\":12,\"last_completed_local_day\":\"2026-09-12\",\"freezes_owned\":0,\"previous_day_disposition\":\"completed\",\"streak_extended_today\":false,\"goal_met\":false,\"earned_xp\":0,\"goal_xp\":40,\"lifetime_sessions\":12,\"active_course_id\":\"en-es/ +\",\"active_node_id\":\"u1/l2?\",\"has_resumable_session\":false,\"equipped_cosmetic_id\":null}",
+    "nowMs": 1789331700000,
+    "zone": "America/Los_Angeles",
+    "expected": {
+      "streak": 12,
+      "goalMet": false,
+      "remainingMinutes": 625,
+      "deepLink": "freelingo://path?course=en-es%2F%20%2B&node=u1%2Fl2%3F",
+      "cosmeticId": null,
+      "state": "IDLE_AFTERNOON",
+      "flame": "unlit",
+      "copy": "Practice each day so your streak won't reset!"
+    }
+  }
+]
