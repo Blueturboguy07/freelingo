@@ -80,8 +80,10 @@ the exact current role analysis, and all surfaces use the original shared counte
 Contextual dialogue review supplements language checks. It does not make arbitrary
 ungrammatical fragments valid or waive grammar, register, length or vocabulary checks.
 A wrong reply must be a valid sentence/pair that is wrong for this context, not a
-misspelling or false translation. Ordinary translation-answer callers still require
-all target lemmas; extraction of `SurfacePolicy` does not loosen their checks.
+misspelling or false translation. Canonical translation-answer callers still require all target lemmas and their
+source length window. Independently reviewed noncanonical paraphrases use the
+separate [answer policy](answer-evidence.md); conversation roles do not use that
+policy and retain the source limits described above.
 
 `conversation_exposure_accounting(selected_sources, roles_by_slot)` combines all
 canonical selected slot/text occurrences with extra role slot/text occurrences.

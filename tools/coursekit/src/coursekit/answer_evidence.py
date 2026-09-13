@@ -13,7 +13,7 @@ import os
 import re
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,8 @@ from .config.answer_evidence import (
     ANSWER_EVIDENCE_LICENCE,
     ANSWER_EVIDENCE_PATH,
     ANSWER_EVIDENCE_VERSION,
+    NONCANONICAL_ANSWER_MAX_TOKENS,
+    NONCANONICAL_ANSWER_MIN_TOKENS,
 )
 from .config.g4 import LEDGER_EXCLUDED_POS, MAX_NEW_LEMMAS_PER_EXERCISE
 from .config.g5 import CONTENT_ROOT_DIRNAME, CONTENT_ROOT_ENV_VAR, MAX_TOKENS
@@ -235,6 +237,7 @@ class SurfacePolicy:
     register: str
     minimum_tokens: int
     window_pos_digest: str
+    maximum_tokens: int | None = MAX_TOKENS
 
     @classmethod
     def from_source(cls, source: SelectedSource) -> SurfacePolicy:
@@ -247,6 +250,19 @@ class SurfacePolicy:
             source.minimum_tokens,
             source.window_pos_digest,
         )
+
+
+def noncanonical_answer_policy(source: SurfacePolicy) -> SurfacePolicy:
+    """An optional accepted paraphrase is not a newly selected teaching source.
+
+    Preserve every destination allowance and register fact. Only its independent
+    length policy changes; callers pass no required source targets for this role.
+    """
+    return replace(
+        source,
+        minimum_tokens=NONCANONICAL_ANSWER_MIN_TOKENS,
+        maximum_tokens=NONCANONICAL_ANSWER_MAX_TOKENS,
+    )
 
 
 def validate_surface_proof(
@@ -304,14 +320,15 @@ def validate_surface_proof(
     _require(isinstance(adapter, Mapping), "surface analysis lacks its original adapter")
     token_count = count_units({"lang": source.lang, "tokens": tokens, "adapter": adapter})
     _require(
-        source.minimum_tokens <= token_count <= MAX_TOKENS,
+        source.minimum_tokens <= token_count
+        and (source.maximum_tokens is None or token_count <= source.maximum_tokens),
         "Spanish surface violates its destination length window",
     )
     _require(
         proof["checks"]["length"]["detail"]
         == {
             "minimum": source.minimum_tokens,
-            "maximum": MAX_TOKENS,
+            "maximum": source.maximum_tokens,
             "count": token_count,
             "window_pos_digest": source.window_pos_digest,
         },
@@ -343,14 +360,18 @@ def _validate_surfaces(source, row, proofs):
         isinstance(proofs, list) and len(proofs) == len(expected), "missing or extra surface proof"
     )
     for proof, (use, text, pair) in zip(proofs, expected, strict=True):
+        canonical = text == source.text
+        policy = SurfacePolicy.from_source(source)
+        if use == "forward" and not canonical:
+            policy = noncanonical_answer_policy(policy)
         validate_surface_proof(
-            SurfacePolicy.from_source(source),
+            policy,
             proof,
             use=use,
             text=text,
             pair=pair,
             review_hash=row["review"]["content_hash"],
-            required_target_lemmas=source.new_lemmas,
+            required_target_lemmas=source.new_lemmas if canonical else frozenset(),
             expected_analysis=source.analysis if use == "forward" and text == source.text else None,
         )
 
@@ -380,14 +401,14 @@ def build_answer_approval(
         row = evidence.rows[source.slot]
         _validate_row(row, source)
         _validate_surfaces(source, row, checks_by_slot[source.slot])
-        for use, text, _pair_evidence in answer_surfaces(source, row):
-            if use == "forward":
-                key = (source.unit_index, text)
-                _require(
-                    key not in surfaces_in_unit or surfaces_in_unit[key] == source.slot,
-                    "duplicate Spanish answer across selected slots in the same unit",
-                )
-                surfaces_in_unit[key] = source.slot
+        # V9 counts actual canonical source occurrences. Optional acceptance sets
+        # can overlap without presenting the same selected sentence twice.
+        key = (source.unit_index, source.text)
+        _require(
+            key not in surfaces_in_unit or surfaces_in_unit[key] == source.slot,
+            "duplicate Spanish answer source across selected slots in the same unit",
+        )
+        surfaces_in_unit[key] = source.slot
         occurrences.append(
             {
                 "slot": list(source.slot),
