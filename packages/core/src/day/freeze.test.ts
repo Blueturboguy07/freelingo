@@ -170,8 +170,7 @@ describe('freeze ledger', () => {
         heldAfterReplay: number;
       };
     };
-    // EC-FRZ-07: 2/2 → 3/3. The cap rises AND the freeze is granted; a raised ceiling the
-    // learner must then fill at 200 gems would be a non-event.
+    // EC-ECO-20 corrects the older tier draft: 2/2 → 5/5. Capacity and balance rise.
     let ledger = newFreezeLedger(addCivilDays(DAY, -1), input.startingCap);
     expect(freezesHeld(ledger)).toBe(input.startingCap);
 
@@ -214,7 +213,7 @@ describe('freeze ledger', () => {
     expect(tamperReplay.ledger.grants).toEqual(spent.grants);
 
     // A DIFFERENT `entered_at` for the same tier is a different key — and still mints
-    // nothing, because the cap has already risen and tier entry only tops up to it.
+    // nothing, because this checkpoint already has permanent grant evidence.
     const reEntered = enterSocietyTier(spent, input.tier, '2027-01-01T00:00:00Z', DAY);
     expect(hasEnteredTier(spent, input.tier)).toBe(true);
     expect(reEntered.applied).toBe(0);
@@ -222,13 +221,11 @@ describe('freeze ledger', () => {
     expect(freezesHeld(reEntered.ledger)).toBe(spend.heldAfterReplay);
     expect(reEntered.ledger.grants).toEqual(spent.grants);
 
-    // The next tier is a different key and does raise the cap again.
-    const next = DAY_CONFIG.societyTiers.find((t) => t.cap > input.expectedCap);
-    if (next !== undefined) {
-      const promoted = enterSocietyTier(replay.ledger, next.tier, '2027-03-01T00:00:00Z', DAY);
-      expect(promoted.ledger.cap).toBe(next.cap);
-      expect(freezesHeld(promoted.ledger)).toBe(next.cap);
-    }
+    // The second checkpoint may grant again after spending, without raising capacity.
+    const next = DAY_CONFIG.societyTiers[1]!;
+    const promoted = enterSocietyTier(spent, next.tier, '2027-03-01T00:00:00Z', DAY);
+    expect(promoted.ledger.cap).toBe(next.cap);
+    expect(freezesHeld(promoted.ledger)).toBe(next.cap);
   });
 
   it('[INV-FRZ-06] falsifier: a day-1 account at 2/2 writes no third freeze, no cap rise, no copy', () => {
