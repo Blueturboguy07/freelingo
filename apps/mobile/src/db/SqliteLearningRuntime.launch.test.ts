@@ -9,6 +9,7 @@ import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import { SqliteSessionStore } from './SqliteSessionStore';
 import { SqliteLearningContextStore } from './SqliteLearningContextStore';
 import { prepareLearningLaunch } from './learningLaunch';
+import { previewPathLaunch } from './learningLaunchPreview';
 import { SqliteLearningRuntime } from './SqliteLearningRuntime';
 import { SqliteSchedulerStore } from './SqliteSchedulerStore';
 import { emptySchedulerState, registerRows, introduce, asItemId } from '@freelingo/core/scheduler';
@@ -715,5 +716,79 @@ it('[INV-A11Y-06][INV-SESS-21] screen-reader launch retains real declared non-tr
   );
   expect(f.db.all('SELECT exercise_id FROM course_session_slot').map((r) => r.exercise_id)).toEqual(
     f.population.map((p) => p.exerciseId),
+  );
+});
+
+it('[INV-HUB-09][INV-SCH-11] exact path preview is read-only and matches actual launch population', async () => {
+  const f = launchSetup();
+  const tables = [
+    'course_item',
+    'course_item_surface',
+    'course_introduction',
+    'course_review_pool_day',
+    'course_review_pool_item',
+    'course_session_context',
+    'account_boost',
+  ];
+  const before = tables.map((table) => f.db.all('SELECT * FROM ' + table));
+  const readOnly: Db = {
+    ...f.db,
+    run: () => {
+      throw Error('preview wrote SQL');
+    },
+    withExclusiveTransaction: () => {
+      throw Error('preview opened a write transaction');
+    },
+  };
+  const ports = {
+    ...f.ports,
+    newSessionId: () => {
+      throw Error('preview allocated session identity');
+    },
+  };
+  const preview = previewPathLaunch(readOnly, ports, ports.clock(), 'en-es', f.request);
+  expect(preview.offered).toBe(true);
+  expect(preview.queue).toHaveLength(6);
+  expect(previewPathLaunch(readOnly, ports, ports.clock(), 'en-es', f.request).queue).toEqual(
+    preview.queue,
+  );
+  expect(tables.map((table) => f.db.all('SELECT * FROM ' + table))).toEqual(before);
+  await f.runtime.start('en-es', f.request);
+  expect(f.runtime.readSession()!.state.core.queue).toEqual(preview.queue);
+});
+it('[INV-SESS-26][INV-HUB-09] a three-source path preview remains unavailable under the real six-item floor', async () => {
+  const f = launchSetup();
+  f.path.forNode('node-1').node.sessions[0]!.exerciseIds.splice(3);
+  const preview = previewPathLaunch(f.db, f.ports, f.ports.clock(), 'en-es', f.request);
+  expect(preview.offered).toBe(false);
+  expect(preview.queue).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_review_pool_day')).toEqual([]);
+  await expect(f.runtime.start('en-es', f.request)).rejects.toThrow(/eligible|available|due/i);
+});
+it('[INV-SCH-10][INV-SCH-11][INV-HUB-09] preview never teaches unknown production to make a path offer', () => {
+  const f = launchSetup(false);
+  expect(previewPathLaunch(f.db, f.ports, f.ports.clock(), 'en-es', f.request).offered).toBe(false);
+  expect(f.db.all('SELECT * FROM course_item')).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_item_surface')).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_introduction')).toEqual([]);
+});
+it('[INV-A11Y-06][INV-HUB-09] preview and launch share actual screen-reader tracing exclusion', async () => {
+  const f = launchSetup(),
+    original = f.pack.runtimeItem;
+  f.setPack({
+    ...f.pack,
+    runtimeItem: (id) => {
+      const s = original(id);
+      return {
+        ...s,
+        gradable: { ...s.gradable, family: 'character-trace' },
+        presentation: { ...s.presentation, type: 'characterTrace' },
+      };
+    },
+  });
+  const ports = { ...f.ports, screenReaderActive: () => true };
+  expect(previewPathLaunch(f.db, ports, ports.clock(), 'en-es', f.request).offered).toBe(false);
+  await expect(new SqliteLearningRuntime(f.db, ports).start('en-es', f.request)).rejects.toThrow(
+    /eligible|available|due/i,
   );
 });
