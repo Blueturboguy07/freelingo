@@ -12,6 +12,7 @@ import { defineConfig } from 'vitest/config';
 /** Named config: the packages that hold tests. One project each, same settings. */
 const mobileRequire = createRequire(new URL('./apps/mobile/package.json', import.meta.url));
 const RN_WEB_ENTRY = mobileRequire.resolve('react-native-web');
+const SVG_WEB_ENTRY = mobileRequire.resolve('react-native-svg/lib/module/ReactNativeSVG.web.js');
 
 const PROJECTS = ['core', 'schema', 'ui', 'testkit'] as const;
 
@@ -84,10 +85,29 @@ export default defineConfig({
         },
       })),
       {
-        resolve: { alias: [{ find: /^react-native$/, replacement: RN_WEB_ENTRY }] },
+        resolve: {
+          alias: [
+            { find: /^react-native$/, replacement: RN_WEB_ENTRY },
+            { find: /^react-native-svg$/, replacement: SVG_WEB_ENTRY },
+          ],
+          extensions: [
+            '.web.tsx',
+            '.web.ts',
+            '.web.jsx',
+            '.web.js',
+            '.mjs',
+            '.js',
+            '.mts',
+            '.ts',
+            '.jsx',
+            '.tsx',
+            '.json',
+          ],
+        },
         esbuild: { jsx: 'automatic' },
         test: {
           name: 'mobile',
+          server: { deps: { inline: ['react-native-svg'] } },
           root: './apps/mobile',
           environment: 'jsdom',
           include: ['src/**/*.test.{ts,tsx}'],
