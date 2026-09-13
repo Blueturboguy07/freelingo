@@ -50,6 +50,7 @@ export function ChoiceControls({
             accessibilityRole="button"
             accessibilityLabel={option.text}
             accessibilityState={{ selected, disabled }}
+            aria-pressed={selected}
             disabled={disabled}
             onPress={() => {
               onInput(

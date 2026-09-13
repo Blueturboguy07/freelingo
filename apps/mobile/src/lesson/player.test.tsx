@@ -93,6 +93,26 @@ function Harness({
   );
 }
 describe('P3 real session player', () => {
+  it('[INV-A11Y-04] selected answer exposes its pressed state in the actual accessibility tree', () => {
+    render(
+      <Harness
+        content={{
+          ...challenge,
+          type: 'meaningSelect',
+          options: [
+            { id: 'one', text: 'house' },
+            { id: 'two', text: 'road' },
+          ],
+        }}
+      />,
+    );
+    const chosen = screen.getByRole('button', { name: 'house' });
+    expect(chosen.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(chosen);
+    expect(screen.getByRole('button', { name: 'house' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'road' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('[INV-MOD-08] a stopped old clip cannot mark a different restored challenge as heard', () => {
     const port = media(),
       onEvent = vi.fn();
