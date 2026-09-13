@@ -57,10 +57,12 @@ from ..config.g2 import (
     FREQUENCY_DERIVED_ORDERING_ATTRIBUTION,
     FREQUENCY_DERIVED_ORDERING_LICENCE,
     FREQUENCY_FILENAME_BY_LANGUAGE,
+    FREQUENCY_IS_SENSE_SPECIFIC,
     FREQUENCY_MIN_ROWS,
     FREQUENCY_MIN_SURFACE_COUNT,
     FREQUENCY_SKIP_POS,
     FREQUENCY_SOURCE_ID,
+    REVIEWED_POS_SCOPE,
 )
 from ..inputs import MissingInput, licence_row, resolve
 from ..ledger import (
@@ -70,6 +72,7 @@ from ..ledger import (
     ledger_declaration,
     ledger_unit,
 )
+from ..lexeme_glosses import load_glossary_by_lemma
 from ..runlog import require_successful
 from . import StageContext, StageResult, register_stage
 from .g1_analyze import adapter_for
@@ -93,16 +96,12 @@ def band(ctx: StageContext) -> StageResult:
     path = frequency_path(ctx)
     # A deliberately small list passed with `--set frequency=` is a fixture, not a
     # truncated download, so only the default path is held to the published row count.
-    surface_rows = read_frequency(
-        path, lang=ctx.lang, require_full="frequency" not in ctx.options
-    )
+    surface_rows = read_frequency(path, lang=ctx.lang, require_full="frequency" not in ctx.options)
     ctx.entry.record_input(source.id)
     ctx.entry.record_licence(licence_row(source))
 
     pos_in_context, corpus_pairs = corpus_profile(ctx.lang)
-    counts, frequency_stats = lemmatise_frequency(
-        adapter, surface_rows, context_pos=pos_in_context
-    )
+    counts, frequency_stats = lemmatise_frequency(adapter, surface_rows, context_pos=pos_in_context)
     if not counts:
         return StageResult(
             ok=False,
@@ -113,6 +112,7 @@ def band(ctx: StageContext) -> StageResult:
             ),
         )
 
+    counts, reviewed_pos_stats = reviewed_pos_index(ctx.lang, counts)
     ordered = rank(counts)
     items = [LedgerItem(lang=ctx.lang, lemma=lemma, pos=pos) for lemma, pos, _ in ordered]
     assert_unique_keys(items)
@@ -147,6 +147,7 @@ def band(ctx: StageContext) -> StageResult:
         section_cefr_is_a_g3_output=True,
         band_by_decile_calibration=dict(BAND_BY_DECILE_CALIBRATION),
         **frequency_stats,
+        **reviewed_pos_stats,
         **lexicon_stats,
         **band_stats,
     )
@@ -365,6 +366,52 @@ def consolidate_pos(counts: Counter[tuple[str, str]]) -> tuple[Counter[tuple[str
     return folded, consolidated
 
 
+def reviewed_pos_index(
+    lang: str, counts: Counter[tuple[str, str]]
+) -> tuple[Counter[tuple[str, str]], dict[str, Any]]:
+    """Apply unique independently reviewed intended POS to the consolidated index.
+
+    Frequency remains the aggregate across all surface forms/senses of each lemma.
+    A declaration neither corrects individual corpus tokens nor allocates this count
+    to its intended sense. The original G1 analyses remain context evidence. Multiple
+    reviewed POS cannot choose a single curriculum sense, so G2 names the unresolved
+    declaration and stops rather than taking file order or the corpus majority.
+    """
+    by_lemma = load_glossary_by_lemma(lang)
+    result: Counter[tuple[str, str]] = Counter()
+    declarations: list[dict[str, str]] = []
+    for (lemma, observed), count in sorted(counts.items()):
+        reviewed = by_lemma.get(lemma, ())
+        if len(reviewed) > 1:
+            positions = ", ".join(sorted(row.pos for row in reviewed))
+            raise MissingInput(
+                f"reviewed glossary lemma {lemma!r} has multiple intended POS "
+                f"({positions}); the single G2 curriculum POS is unresolved. "
+                "Resolve the intended sense with independent review before banding."
+            )
+        intended = observed
+        if reviewed:
+            declaration = reviewed[0]
+            intended = declaration.pos
+            declarations.append(
+                {
+                    "lemma": lemma,
+                    "from_pos": observed,
+                    "to_pos": intended,
+                    "content_hash": declaration.content_hash,
+                    "author": declaration.author,
+                    "reviewer": declaration.reviewer,
+                }
+            )
+        result[(lemma, intended)] += count
+    return result, {
+        "reviewed_pos_scope": REVIEWED_POS_SCOPE,
+        "frequency_is_sense_specific": FREQUENCY_IS_SENSE_SPECIFIC,
+        "reviewed_pos_declarations": declarations,
+        "reviewed_pos_overrides": [row for row in declarations if row["from_pos"] != row["to_pos"]],
+    }
+
+
 def rank(counts: Counter[tuple[str, str]]) -> list[tuple[str, str, int]]:
     """`(lemma, POS, frequency)`, most frequent first, ties broken lexicographically.
 
@@ -453,9 +500,9 @@ def read_elelex(path: Path) -> tuple[dict[tuple[str, str], str], dict[str, Any]]
             # Lowest level wins when a lemma appears under two tags mapping to one UD tag
             # (AQ0 and AQS both become ADJ). Teaching the earlier of two levels is the
             # conservative direction: it never asserts a lemma is harder than it is.
-            if key not in lexicon or ELELEX_LEVELS.index(
-                level.casefold()
-            ) < ELELEX_LEVELS.index(lexicon[key].casefold()):
+            if key not in lexicon or ELELEX_LEVELS.index(level.casefold()) < ELELEX_LEVELS.index(
+                lexicon[key].casefold()
+            ):
                 lexicon[key] = level
     stats: dict[str, Any] = {
         "cefr_lexicon_entries": entries,

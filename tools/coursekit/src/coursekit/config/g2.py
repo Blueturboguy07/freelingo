@@ -322,3 +322,9 @@ ELELEX_POS_MUST_MATCH: Final[bool] = True
 #: `"cefrlex"` on purpose: G9 puts band sources in the manifest, and "we matched the lemma
 #: but not the part of speech" is a weaker claim that a reader is entitled to see.
 BAND_SOURCE_CEFRLEX_POS_RELAXED: Final[str] = "cefrlex_pos_relaxed"
+
+
+# Founder-approved reviewed glossary declaration, 2026-09-13. This is a curriculum
+# index POS, not a retagging of G1 tokens or a sense-specific frequency estimate.
+REVIEWED_POS_SCOPE = "lemma_index_only"
+FREQUENCY_IS_SENSE_SPECIFIC = False
