@@ -65,6 +65,7 @@
   "account_streak_repair_day": [],
   "committed_session": [],
   "course_attempt": [],
+  "course_attempt_target": [],
   "course_ceremony": [],
   "course_checkpoint_claim": [],
   "course_daily_refresh_item": [],
@@ -86,8 +87,10 @@
   "course_scheduler_mastery": [],
   "course_selection": [],
   "course_session_answer_receipt": [],
+  "course_session_answer_target": [],
   "course_session_commit_link": [],
   "course_session_context": [],
   "course_session_slot": [],
-  "course_session_state": []
+  "course_session_state": [],
+  "course_surface_exposure": []
 }

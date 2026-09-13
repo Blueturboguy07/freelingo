@@ -455,6 +455,7 @@
       "pack_content_hash": null
     }
   ],
+  "course_attempt_target": [],
   "course_ceremony": [],
   "course_checkpoint_claim": [
     {
@@ -1531,6 +1532,7 @@
       "active_ms": 1200
     }
   ],
+  "course_session_answer_target": [],
   "course_session_commit_link": [
     {
       "session_id": "s_golden_1",
@@ -1611,5 +1613,6 @@
       "is_active": 1,
       "runtime_json": null
     }
-  ]
+  ],
+  "course_surface_exposure": []
 }
