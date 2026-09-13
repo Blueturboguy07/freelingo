@@ -15,6 +15,10 @@
  * - ORDER IS THE LEDGER'S OWN. Rows keep insertion order, so `attemptsForSession` returns
  *   what happened rather than what the map happens to iterate.
  *
+ * Explicit target children (2026-09-13 integration) retain that one parent while
+ * giving each verified MATCH semantic target its own FSRS idempotency key. A parent
+ * without explicit target evidence keeps the historical first-write-wins behavior.
+ *
  * `@freelingo/schema` owns the transaction that persists this; the engine decides what a
  * commit contains, exactly as `ceremony/commit.ts` does for rewards.
  */
@@ -25,6 +29,8 @@ export interface AttemptRow {
   readonly exerciseIndex: number;
   readonly itemId: ItemId;
   readonly surface: Surface;
+  /** Explicit signed target identity; absent for historical single-target callers. */
+  readonly targetSurfaceId?: string;
   readonly grade: Grade;
   readonly at: Date;
   /** What the scheduler did with it. `early` and `uncredited` are still attempts. */
@@ -41,9 +47,40 @@ export function attemptKeyOf(sessionId: SessionId, exerciseIndex: number): Attem
 export interface AttemptLedger {
   /** Insertion-ordered. A `Map` keeps that guarantee; a plain object does not. */
   readonly rows: ReadonlyMap<AttemptKey, AttemptRow>;
+  /** Scheduling children; parent rows above remain one per answered exercise. */
+  readonly targetRows: ReadonlyMap<AttemptKey, AttemptRow>;
 }
 
-export const EMPTY_ATTEMPT_LEDGER: AttemptLedger = { rows: new Map() };
+export const EMPTY_ATTEMPT_LEDGER: AttemptLedger = { rows: new Map(), targetRows: new Map() };
+
+/** A target is independently idempotent inside its one parent accuracy attempt. */
+export function attemptTargetKeyOf(
+  row: Pick<AttemptRow, 'sessionId' | 'exerciseIndex' | 'itemId'> & {
+    readonly targetSurfaceId: string;
+  },
+): AttemptKey {
+  if (typeof row.targetSurfaceId !== 'string' || row.targetSurfaceId.trim().length === 0)
+    throw new RangeError('Scheduler target surface identity is required.');
+  return JSON.stringify([
+    row.sessionId,
+    row.exerciseIndex,
+    row.itemId,
+    row.targetSurfaceId,
+  ]) as AttemptKey;
+}
+
+export function hasEncounter(
+  ledger: AttemptLedger,
+  row: Pick<AttemptRow, 'sessionId' | 'exerciseIndex' | 'itemId' | 'targetSurfaceId'>,
+): boolean {
+  const parent = ledger.rows.get(attemptKeyOf(row.sessionId, row.exerciseIndex));
+  if (row.targetSurfaceId === undefined) return parent !== undefined;
+  const key = attemptTargetKeyOf({ ...row, targetSurfaceId: row.targetSurfaceId });
+  // A historical parent has no target set: it must never be replayed as new children.
+  return (
+    (parent !== undefined && parent.targetSurfaceId === undefined) || ledger.targetRows.has(key)
+  );
+}
 
 export function attemptLedgerOf(rows: Iterable<AttemptRow> = []): AttemptLedger {
   return commitAttempts(EMPTY_ATTEMPT_LEDGER, rows);
@@ -56,11 +93,14 @@ export function attemptLedgerOf(rows: Iterable<AttemptRow> = []): AttemptLedger 
  * replayed session can test `next === prev` and skip the whole write.
  */
 export function appendAttempt(ledger: AttemptLedger, row: AttemptRow): AttemptLedger {
-  const key = attemptKeyOf(row.sessionId, row.exerciseIndex);
-  if (ledger.rows.has(key)) return ledger;
+  if (hasEncounter(ledger, row)) return ledger;
+  const parentKey = attemptKeyOf(row.sessionId, row.exerciseIndex);
   const rows = new Map(ledger.rows);
-  rows.set(key, row);
-  return { rows };
+  if (!rows.has(parentKey)) rows.set(parentKey, row);
+  if (row.targetSurfaceId === undefined) return { rows, targetRows: ledger.targetRows };
+  const targetRows = new Map(ledger.targetRows);
+  targetRows.set(attemptTargetKeyOf({ ...row, targetSurfaceId: row.targetSurfaceId }), row);
+  return { rows, targetRows };
 }
 
 /** Commit a batch. Idempotent as a whole and per row, in any order, any number of times. */
@@ -95,12 +135,12 @@ export function attemptsForSession(ledger: AttemptLedger, sessionId: SessionId):
  * stated as "the second call to this returns nothing".
  */
 export function pendingAttempts(ledger: AttemptLedger, batch: readonly AttemptRow[]): AttemptRow[] {
-  const seen = new Set<AttemptKey>(ledger.rows.keys());
+  let seen = ledger;
   const pending: AttemptRow[] = [];
   for (const row of batch) {
-    const key = attemptKeyOf(row.sessionId, row.exerciseIndex);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const next = appendAttempt(seen, row);
+    if (next === seen) continue;
+    seen = next;
     pending.push(row);
   }
   return pending;
