@@ -63,7 +63,7 @@ function booleanColumn(row: DbRow, column: string): boolean {
 export class SqlitePreferences {
   constructor(
     private readonly db: Db,
-    private readonly clock: () => ModalityClock,
+    private readonly clock: () => ModalityClock | null,
   ) {}
   private requireCourse(courseId: string): void {
     if (!this.db.get('SELECT course_id FROM course_progress WHERE course_id=?', [courseId]))
@@ -85,6 +85,7 @@ export class SqlitePreferences {
     );
     const now = this.clock();
     const until = (family: ModalityFamily): string | null => {
+      if (now === null) return null;
       const remainingMs = remainingSuspensionMs(state, family, now);
       // This is an ephemeral projection for wall-clock view models. The durable
       // deadline stays monotonic; neither reading nor clock changes rewrite it.
@@ -150,7 +151,9 @@ export class SqlitePreferences {
       const row = this.db.get('SELECT modality_suspension_until FROM account WHERE id=1');
       const raw =
         typeof row?.modality_suspension_until === 'string' ? row.modality_suspension_until : null;
-      const state = suspendModality(parseModalitySuspensions(raw), family, this.clock());
+      const now = this.clock();
+      if (now === null) throw new PreferencesError('The device clock is unavailable. Try again.');
+      const state = suspendModality(parseModalitySuspensions(raw), family, now);
       this.db.run('UPDATE account SET modality_suspension_until=? WHERE id=1', [
         JSON.stringify(state),
       ]);

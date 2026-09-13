@@ -105,6 +105,16 @@ describe('durable user preferences', () => {
       expect(db.get('SELECT modality_suspension_until FROM account')).toEqual(stored);
     },
   );
+  it('[INV-MOD-01] unavailable OS time fails open on reads and cannot create a new pause', () => {
+    const { db, preferences } = setup();
+    preferences.suspend('en-es', 'speaking');
+    const saved = db.get('SELECT modality_suspension_until FROM account');
+    const unavailable = new SqlitePreferences(db, () => null);
+    expect(unavailable.readCourse('en-es').suspensions.speaking).toBeNull();
+    expect(unavailable.readCourse('en-es').preferences.speaking).toBe(true);
+    expect(() => unavailable.suspend('en-es', 'listening')).toThrow(/device clock/i);
+    expect(db.get('SELECT modality_suspension_until FROM account')).toEqual(saved);
+  });
   it('[INV-MOD-01] account suspension survives course removal and expires after reboot', () => {
     const { db, clock, preferences } = setup();
     preferences.suspend('en-es', 'speaking');
