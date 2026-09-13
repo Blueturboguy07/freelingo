@@ -22,7 +22,12 @@ export function SectionTabs<T extends string>({
 }) {
   const { colors } = useUiTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ flexGrow: 1 }}
+      style={{ flexGrow: 0, flexShrink: 0 }}
+    >
       <View
         accessibilityRole="tablist"
         style={{

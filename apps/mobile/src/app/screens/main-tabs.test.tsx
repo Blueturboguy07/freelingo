@@ -122,6 +122,8 @@ describe('source-backed main tabs', () => {
     const action = ports();
     render(<ShopScreen snapshot={shop()} ports={action} />);
     expect(screen.getByText('2 / 2 EQUIPPED')).toBeTruthy();
+    expect(screen.getByText('Your Streak Freezes are at the 2-freeze limit')).toBeTruthy();
+    expect(screen.getByText('Parrot wardrobe')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Equipped' }).getAttribute('aria-disabled')).toBe(
       'true',
     );
