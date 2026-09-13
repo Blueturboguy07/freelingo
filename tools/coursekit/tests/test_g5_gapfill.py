@@ -62,6 +62,7 @@ from coursekit.runlog import RunLog, UpstreamStageMissing, read_entries
 from coursekit.stages import STAGES, StageContext, StageResult
 from coursekit.stages.g5_gapfill import (
     Slot,
+    _axis,
     authored_candidates_path,
     authored_candidates_paths,
     authored_shard_dir,
@@ -453,6 +454,7 @@ def gap_list(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "new_lemmas": sorted(new),
             "known_lemmas": sorted(set(allowed) - set(new)),
             "grammar_concept": "present tense",
+            "accepted_alternates": [],
         }
         for slot, (allowed, new) in windows.items()
     ]
@@ -556,6 +558,26 @@ def test_INV_PACK_10_a_candidate_one_accent_from_correct_is_discarded_not_correc
         "the multiset of emitted texts is not the multiset of authored texts: something "
         "rewrote a candidate into another candidate"
     )
+
+
+def test_INV_PACK_08_every_authored_alternate_runs_the_g5_axes(es_adapter: None) -> None:
+    """[INV-PACK-08] An invalid alternate rejects an otherwise valid answer set."""
+    rows = _one_slot(1)
+    gap = gap_list(rows)[0]
+    analyser_factory = ADAPTERS.get("es")
+    assert analyser_factory is not None
+    analyser = analyser_factory()
+    valid = next(
+        row for row in rows if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+    )
+    with_bad_alternate = {
+        **valid,
+        "accepted_alternates": [
+            {"text": "Xqzzy blorf nada.", "backtranslation": valid["backtranslation"]}
+        ],
+    }
+    axis, _analysis = _axis(with_bad_alternate, gap, analyser, set(), "1" * 16, MIN_TOKENS)
+    assert axis == "out_of_vocabulary"
 
 
 def _write_authored(
@@ -1284,6 +1306,7 @@ LESSON_ONE_WINDOW = frozenset({"bueno", "día", "hola", "noche", "tarde"})
 #: The nine slots this lane authored.
 LESSON_ONE_SLOTS = frozenset(Slot(1, 1, index) for index in range(9))
 
+
 def _ledger_lemmas(analysis: dict[str, Any]) -> list[str]:
     """The analysis's lemmas, and nothing on top of them any more.
 
@@ -1365,9 +1388,21 @@ def test_the_verbless_floor_is_relaxed_only_on_a_proved_window_over_10k_draws() 
     # A vocabulary whose tags span the three outcomes that matter. `hola` is `PROPN` and
     # `sí` is `INTJ` because those are the real tags of the two lemmas lesson 1 turns on.
     tagged = {
-        "bueno": "ADJ", "día": "NOUN", "hola": "PROPN", "noche": "NOUN", "tarde": "NOUN",
-        "sí": "INTJ", "no": "ADV", "por": "ADP", "favor": "NOUN", "adiós": "INTJ",
-        "ser": "AUX", "estar": "AUX", "haber": "AUX", "comer": "VERB", "hablar": "VERB",
+        "bueno": "ADJ",
+        "día": "NOUN",
+        "hola": "PROPN",
+        "noche": "NOUN",
+        "tarde": "NOUN",
+        "sí": "INTJ",
+        "no": "ADV",
+        "por": "ADP",
+        "favor": "NOUN",
+        "adiós": "INTJ",
+        "ser": "AUX",
+        "estar": "AUX",
+        "haber": "AUX",
+        "comer": "VERB",
+        "hablar": "VERB",
     }
     untagged = ("grumo", "zarpe", "flunco")
     vocabulary = sorted(tagged) + list(untagged)
@@ -1384,11 +1419,7 @@ def test_the_verbless_floor_is_relaxed_only_on_a_proved_window_over_10k_draws() 
         # The lexicon is a SUBSET of the tags, so a tagged lemma can also be missing from
         # the lexicon this call is handed — which is the `pos_by_lemma.get(...) is None`
         # branch arriving by draw rather than by construction.
-        lexicon = {
-            lemma: tag
-            for lemma, tag in tagged.items()
-            if rng.random() < 0.85
-        }
+        lexicon = {lemma: tag for lemma, tag in tagged.items() if rng.random() < 0.85}
         base = rng.choice((MIN_TOKENS, 4, 7))
 
         floor = min_tokens_for_slot(known, new, lexicon, base_min_tokens=base)
@@ -1487,6 +1518,7 @@ def _lesson_one_gap(slot_index: int, new_lemmas: list[str]) -> dict[str, Any]:
         "new_lemmas": new_lemmas,
         "known_lemmas": sorted(LESSON_ONE_WINDOW - set(new_lemmas)),
         "grammar_concept": "subject_pronouns",
+        "accepted_alternates": [],
     }
 
 
@@ -1854,11 +1886,7 @@ def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
     from coursekit.stages.g7_expand import ResolvedSlot, _gap_index, _gapped
 
     cloze_forms = {"fill_in_the_blank", "listen_for_the_missing_word", "complete_the_translation"}
-    cloze_rows = {
-        index
-        for index, row in enumerate(SENTENCE_FORM_PLAN)
-        if cloze_forms & set(row)
-    }
+    cloze_rows = {index for index, row in enumerate(SENTENCE_FORM_PLAN) if cloze_forms & set(row)}
     assert cloze_rows, "no plan row carries a cloze shape; this test is reading the wrong table"
 
     # The hazard itself, demonstrated rather than described, through the real analysis
@@ -1874,8 +1902,12 @@ def test_a_one_token_sentence_on_a_cloze_form_is_a_bare_blank() -> None:
             text=text,
             translation="",
             sid=None,
-            analysis={"analyser": "test", "tokens": rows, "lemmas": tokens,
-                      "display_tokens": tokens},
+            analysis={
+                "analyser": "test",
+                "tokens": rows,
+                "lemmas": tokens,
+                "display_tokens": tokens,
+            },
             candidate_id=None,
         )
         return _gapped(slot, tokens, _gap_index(tokens))
@@ -2033,10 +2065,10 @@ def test_the_lesson_one_shard_ships_none_of_the_eleven_word_lists() -> None:
     # happened: B9(a)+(c) moved the ledger, 18 authored slots stopped existing, and the
     # 363 rows keyed to them were moved to `content/es/candidates-orphaned/` — 16 of them
     # word lists (B19). `201 + 16 == 217`, measured, so nothing was edited away. The
-        # orphan tree is outside `COMMITTED_SHARDS`'s glob on purpose: those rows are not
-        # course content until a slot exists for them again. B19 round 4 moved `usted`
-        # from u1 to u23; ten more word-list rows followed their vanished slot into the
-        # orphan tree, so the live/orphan split is now 191/26 and the total stays 217.
+    # orphan tree is outside `COMMITTED_SHARDS`'s glob on purpose: those rows are not
+    # course content until a slot exists for them again. B19 round 4 moved `usted`
+    # from u1 to u23; ten more word-list rows followed their vanished slot into the
+    # orphan tree, so the live/orphan split is now 191/26 and the total stays 217.
     elsewhere = [
         row["text"]
         for path in COMMITTED_SHARDS
@@ -2141,3 +2173,77 @@ def test_analysis_is_null_on_exactly_the_rows_the_analyser_never_ran_on(
         assert analysis is not None, row["text"]
         assert analysis["lemmas"] and analysis["display_tokens"] and analysis["tokens"]
         assert analysis["analyser"]["model"], "the pin rides on the row, not on the run"
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        None,
+        "Hola",
+        ["Hola"],
+        [{"text": "", "backtranslation": {}}],
+        [{"text": "Hola", "backtranslation": None}],
+    ],
+)
+def test_INV_PACK_08_malformed_raw_alternates_fail_by_name_before_emission(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: object
+) -> None:
+    rows = _one_slot(1)
+    rows[0]["accepted_alternates"] = invalid
+    _write_authored(tmp_path, monkeypatch, rows)
+    stage_g4("es", gap_list(rows))
+    with pytest.raises(MissingInput, match="accepted_alternates"):
+        run_g5()
+
+
+def test_INV_PACK_08_g5_emits_explicit_surfaces_only_after_every_axis_passes(
+    es_adapter: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rows = _one_slot(1)
+    gap = gap_list(rows)[0]
+    factory = ADAPTERS.get("es")
+    assert factory is not None
+    analyser = factory()
+    valid = [
+        row for row in rows if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+    ]
+    assert len(valid) >= 2
+    preferred, alternate = valid[:2]
+    preferred["accepted_alternates"] = [
+        {"text": alternate["text"], "backtranslation": alternate["backtranslation"]}
+    ]
+    _write_authored(tmp_path, monkeypatch, rows)
+    stage_g4("es", [gap])
+    assert run_g5().ok
+    emitted = list(read_records("candidate", lang="es"))
+    chosen = next(row for row in emitted if row["text"] == preferred["text"])
+    assert chosen["accepted"]
+    assert chosen["accepted_alternates"] == [alternate["text"]]
+    assert all("accepted_alternates" in row for row in emitted)
+    assert Counter(row["text"] for row in emitted) == Counter(row["text"] for row in rows)
+
+
+@pytest.mark.parametrize(
+    "bad_kind,expected",
+    [("length", "length"), ("repeated", "duplicate"), ("same_as_preferred", "duplicate")],
+)
+def test_INV_PACK_08_every_alternate_obeys_length_and_uniqueness(
+    es_adapter: None, bad_kind: str, expected: str
+) -> None:
+    rows = _one_slot(1)
+    gap = gap_list(rows)[0]
+    factory = ADAPTERS.get("es")
+    assert factory is not None
+    analyser = factory()
+    valid = [
+        row for row in rows if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+    ]
+    preferred = dict(valid[0])
+    surface = valid[1]["text"]
+    if bad_kind == "length":
+        surface = " ".join([surface] * (MAX_TOKENS + 1))
+    elif bad_kind == "same_as_preferred":
+        surface = preferred["text"]
+    alternate = {"text": surface, "backtranslation": preferred["backtranslation"]}
+    preferred["accepted_alternates"] = [alternate] * (2 if bad_kind == "repeated" else 1)
+    assert _axis(preferred, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] == expected

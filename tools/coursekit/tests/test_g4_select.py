@@ -66,14 +66,30 @@ ES_CURRICULUM = REPO_ROOT / "content" / "es" / "curriculum.yaml"
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
     ]
 
 
 def ingested_rows() -> list[dict[str, Any]]:
     return read_jsonl(FIXTURES / "sentences.jsonl")
+
+
+def test_INV_PACK_10_g4_discards_a_reviewed_bad_corpus_pair_before_selection() -> None:
+    bad = {
+        **ingested_rows()[0],
+        "sentence_id": "reviewed-bad",
+        "text": "Esta mochila azul está pesada.",
+        "translation": "This blue backpack is heavy.",
+    }
+    analysis = {
+        **list(analyse_es_mini())[0],
+        "sentence_id": "reviewed-bad",
+    }
+
+    candidates, census = build_candidates([bad], [analysis])
+
+    assert candidates == []
+    assert census["review_rejected"] == 1
 
 
 def banded_rows() -> list[dict[str, Any]]:
@@ -608,9 +624,7 @@ def _stub_analyser(analyses: Mapping[str, Sequence[tuple[str, str]]]) -> Any:
 
     def analyse(texts: Sequence[str]) -> Any:
         for text in texts:
-            yield [
-                {"lemma": lemma, "pos": pos, "morph": ""} for lemma, pos in analyses[text]
-            ]
+            yield [{"lemma": lemma, "pos": pos, "morph": ""} for lemma, pos in analyses[text]]
 
     return analyse
 
@@ -681,10 +695,13 @@ def test_the_yield_command_reads_a_tatoeba_export_and_prints_json(
     )
     assert read_tatoeba(export) == list(rows)
 
-    assert main(
-        ["--corpus", str(export), "--lang", "es", "--sample", "0"],
-        analyse=_stub_analyser(rows),
-    ) == 0
+    assert (
+        main(
+            ["--corpus", str(export), "--lang", "es", "--sample", "0"],
+            analyse=_stub_analyser(rows),
+        )
+        == 0
+    )
     printed = json.loads(capsys.readouterr().out)
     assert printed["sentences"] == 2
     assert printed[f"short_{CANDIDATE_TOKENS_MIN}_to_{CANDIDATE_TOKENS_MAX}_tokens"] == 1

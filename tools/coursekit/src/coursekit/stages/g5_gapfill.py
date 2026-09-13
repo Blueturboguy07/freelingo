@@ -263,6 +263,25 @@ _AUTHORED_REQUIRED = (
 )
 
 
+def _alternate_entries(authored: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Validate raw authoring shape without interpreting or editing its surfaces."""
+    alternates = authored.get("accepted_alternates", [])
+    if not isinstance(alternates, list) or any(
+        not isinstance(entry, dict)
+        or set(entry) != {"text", "backtranslation"}
+        or not isinstance(entry["text"], str)
+        or not entry["text"]
+        or entry["text"].isspace()
+        or not isinstance(entry["backtranslation"], dict)
+        for entry in alternates
+    ):
+        raise MissingInput(
+            "accepted_alternates must be an array of {text, backtranslation} objects "
+            "with nonblank course-language text and a recorded rubric judgement"
+        )
+    return alternates
+
+
 def _read_one(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
     """Line number and row, for every non-blank line of one authored file."""
     with path.open(encoding="utf-8") as handle:
@@ -284,6 +303,10 @@ def _read_one(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
                     f"emits {AUTHORED_PROVENANCE!r} and nothing else, because the "
                     f"manifest's machine-authored percentage is counted off this field"
                 )
+            try:
+                _alternate_entries(row)
+            except MissingInput as exc:
+                raise MissingInput(f"{path.name} line {number}: {exc}") from exc
             yield number, row
 
 
@@ -460,6 +483,23 @@ def _axis(
     if dedup_hash(authored["text"]) in seen_in_unit:
         return "duplicate", carried
 
+    # Alternates are author claims, never generated synonyms. Treat the complete set
+    # as one acceptance contract: every surface must independently satisfy the same
+    # ledger, budget, length and duplicate axes as the preferred surface.
+    alternates = _alternate_entries(authored)
+    surfaces = [entry["text"] for entry in alternates]
+    if len(set(surfaces)) != len(surfaces) or authored["text"] in surfaces:
+        return "duplicate", carried
+    for alternate in surfaces:
+        alternate_row = dict(authored)
+        alternate_row["text"] = alternate
+        alternate_row["accepted_alternates"] = []
+        alternate_axis, _ = _axis(
+            alternate_row, gap, analyser, seen_in_unit, sentence_id, min_tokens
+        )
+        if alternate_axis is not None:
+            return alternate_axis, carried
+
     return None, carried
 
 
@@ -529,6 +569,7 @@ def gapfill(ctx: StageContext) -> StageResult:
             accepted = axis is None
             if accepted:
                 seen.add(dedup_hash(row["text"]))
+                seen.update(dedup_hash(entry["text"]) for entry in _alternate_entries(row))
                 if not slot_filled:
                     slot_filled = True
                     filled.append(str(slot))
@@ -544,6 +585,9 @@ def gapfill(ctx: StageContext) -> StageResult:
                     "slot_index": slot.slot_index,
                     "text": row["text"],
                     "translation": row["translation"],
+                    "accepted_alternates": [entry["text"] for entry in _alternate_entries(row)]
+                    if accepted
+                    else [],
                     "author": row["author"],
                     "generated_at": row["generated_at"],
                     "accepted": accepted,

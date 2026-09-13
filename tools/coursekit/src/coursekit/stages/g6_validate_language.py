@@ -56,7 +56,6 @@ from typing import Any
 from ..artifacts import artifact_path, read_records, write_records
 from ..config.g5 import GAPFILL_RUBRIC_FILENAME
 from ..config.g6 import (
-    B3_REVIEW_DEFECT_PAIRS,
     BACKTRANSLATION_AUTHORSHIP,
     BACKTRANSLATION_ENGINE_OPTION,
     BACKTRANSLATION_MIN_SCORE,
@@ -76,6 +75,7 @@ from ..config.g6 import (
     PERPLEXITY_ENGINE_OPTION,
 )
 from ..engines import ENGINES
+from ..pair_quality import reviewed_pair
 from ..runlog import require_successful
 from ..stages.g5_gapfill import authored_candidates_path, authored_candidates_paths
 from . import StageContext, StageResult, register_stage
@@ -162,6 +162,7 @@ def validate_language(ctx: StageContext) -> StageResult:
     rows = list(read_records("candidate", lang=ctx.lang))
     rejected_by_axis = dict.fromkeys(G6_REJECT_AXES, 0)
     checked = 0
+    checked_answers = 0
     perplexities: list[float] = []
     findings: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
@@ -171,14 +172,27 @@ def validate_language(ctx: StageContext) -> StageResult:
             out.append(row)
             continue
         checked += 1
-        axis, detail = _axis(
-            row,
-            ctx.lang,
-            grammar if grammar_probe["available"] else None,
-            perplexity if perplexity_probe["available"] else None,
-            backtranslation if backtranslation_probe["available"] else None,
-            perplexities,
-        )
+        axis = None
+        detail: dict[str, Any] = {}
+        surfaces = [
+            ("preferred", row["text"]),
+            *(("alternate", alternate) for alternate in row.get("accepted_alternates", [])),
+        ]
+        for answer_kind, surface in surfaces:
+            checked_answers += 1
+            checked_row = dict(row)
+            checked_row["text"] = surface
+            axis, detail = _axis(
+                checked_row,
+                ctx.lang,
+                grammar if grammar_probe["available"] else None,
+                perplexity if perplexity_probe["available"] else None,
+                backtranslation if backtranslation_probe["available"] else None,
+                perplexities,
+            )
+            if axis is not None:
+                detail = {"answer_kind": answer_kind, "answer": surface, **detail}
+                break
         if axis is None:
             out.append(row)
             continue
@@ -218,6 +232,7 @@ def validate_language(ctx: StageContext) -> StageResult:
             authored_candidates_path(ctx.lang).parent / GAPFILL_RUBRIC_FILENAME
         ),
         checked=checked,
+        checked_answers=checked_answers,
         rejected_by_axis=rejected_by_axis,
         findings=findings,
         slots_without_survivor=starved,
@@ -226,6 +241,10 @@ def validate_language(ctx: StageContext) -> StageResult:
         ),
         candidates_file=str(artifact_path(ctx.lang, "candidate")),
         text_unchanged=all(a["text"] == b["text"] for a, b in zip(rows, out, strict=True)),
+        alternates_unchanged=all(
+            a.get("accepted_alternates", []) == b.get("accepted_alternates", [])
+            for a, b in zip(rows, out, strict=True)
+        ),
     )
 
     if broken:
@@ -276,12 +295,14 @@ def _axis(
     perplexities: list[float],
 ) -> tuple[str | None, dict[str, Any]]:
     """The first G6 axis this candidate fails, or `None`. Never modifies the row."""
-    pair = (str(row["text"]), str(row["translation"]))
-    if pair in B3_REVIEW_DEFECT_PAIRS:
+    finding = reviewed_pair(lang, str(row["text"]), str(row["translation"]))
+    if finding is not None:
         return "review_defect", {
-            "text": pair[0],
-            "translation": pair[1],
-            "review": "P2 B3 2026-09-12",
+            "content_hash": finding.content_hash,
+            "text": finding.text,
+            "translation": finding.translation,
+            "review": finding.review,
+            "root_cause": finding.root_cause,
         }
 
     if perplexity is not None:
@@ -302,12 +323,12 @@ def _axis(
             return "grammar", {"matches": [match.to_json() for match in matches]}
 
     if backtranslation is not None:
-        score = backtranslation.score(row["text"])
+        score = backtranslation.score(row["text"], translation=row["translation"])
         if score is None or score < BACKTRANSLATION_MIN_SCORE:
             return "backtranslation", {
                 "score": score,
                 "minimum": BACKTRANSLATION_MIN_SCORE,
-                "judgement": backtranslation.judgement(row["text"]),
+                "judgement": backtranslation.judgement(row["text"], translation=row["translation"]),
             }
 
     return None, {}

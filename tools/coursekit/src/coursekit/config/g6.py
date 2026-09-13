@@ -297,12 +297,5 @@ G6_REJECT_AXES: Final[tuple[str, ...]] = (
     "backtranslation",
 )
 
-#: Exact corpus pairs refuted by the P2 B3 agent-scored sample on 2026-09-12. These are
-#: pairs, not lexical substitutions: both source sentences have valid translations and
-#: both English glosses fit other Spanish sentences. G6 narrows only the reviewed pair.
-B3_REVIEW_DEFECT_PAIRS: Final[frozenset[tuple[str, str]]] = frozenset(
-    {
-        ("No encuentro mi cartera.", "I lost my wallet."),
-        ("Hoy tendremos pescado de cena.", "We have fish for dinner today."),
-    }
-)
+#: `review_defect` is backed by `content/<lang>/review/rejected-pairs.jsonl`. It is an
+#: exact-pair quarantine shared with G4, not a lexical substitution or repair rule.

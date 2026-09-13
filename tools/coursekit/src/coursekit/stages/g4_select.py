@@ -67,6 +67,7 @@ from ..config.g4 import (
     YIELD_NOTE_KEY,
 )
 from ..ledger import surface_tokens
+from ..pair_quality import reviewed_pair
 from ..runlog import require_successful
 from . import StageContext, StageResult, register_stage
 from .g3_solve import GrammarConcept, curriculum_path, load_curriculum
@@ -111,6 +112,7 @@ def build_candidates(
     census = {
         "ingested": 0,
         "not_shippable": 0,
+        "review_rejected": 0,
         "wrong_length": 0,
         "not_analysed": 0,
         "candidates": 0,
@@ -120,6 +122,9 @@ def build_candidates(
         census["ingested"] += 1
         if row["licence_verdict"] != SHIPPABLE_VERDICT:
             census["not_shippable"] += 1
+            continue
+        if reviewed_pair(str(row["lang"]), str(row["text"]), str(row["translation"])):
+            census["review_rejected"] += 1
             continue
         token_count = int(row["token_count"])
         if not CANDIDATE_TOKENS_MIN <= token_count <= CANDIDATE_TOKENS_MAX:
@@ -274,8 +279,7 @@ def _split_new_lemmas(target: Sequence[str], lessons: int) -> list[list[str]]:
         return []
     per_lesson = min(MAX_NEW_LEMMAS_PER_LESSON, max(1, math.ceil(len(target) / lessons)))
     chunks = [
-        list(target[index : index + per_lesson])
-        for index in range(0, len(target), per_lesson)
+        list(target[index : index + per_lesson]) for index in range(0, len(target), per_lesson)
     ]
     while len(chunks) < lessons:
         chunks.append([])
@@ -336,11 +340,7 @@ def select(
 
             for slot_index in range(SLOTS_PER_LESSON):
                 report.slots += 1
-                pending = [
-                    lemma
-                    for lemma in target
-                    if lemma not in shown and lemma in index.known
-                ]
+                pending = [lemma for lemma in target if lemma not in shown and lemma in index.known]
                 # Introduce first. A slot that could have taught one of this lesson's own
                 # new words and instead practised an old one is how a unit fills every
                 # slot and still covers none of its target lexemes — measured on the
@@ -521,6 +521,9 @@ def _item(
         "new_lemmas": list(new_lemmas),
         "known_lemmas": list(known_lemmas),
         "grammar_concept": str(unit["grammar_concept"]),
+        # Corpus selection has no authoring surface. G5 may replace this empty set
+        # with independently validated, explicitly authored course-language answers.
+        "accepted_alternates": [],
     }
 
 
@@ -643,7 +646,9 @@ def select_items(ctx: StageContext) -> StageResult:
     ctx.entry.record_output("selected_item")
     ctx.entry.read = census["ingested"]
     ctx.entry.written = written
-    ctx.entry.rejected = census["not_shippable"] + census["wrong_length"]
+    ctx.entry.rejected = (
+        census["not_shippable"] + census["wrong_length"] + census["review_rejected"]
+    )
     ctx.entry.note(
         curriculum=str(curriculum_path(ctx.lang).name),
         **result.report.as_notes(),
@@ -761,9 +766,7 @@ def measure_candidate_yield(
     admitted = 0
     exhibiting = 0
     for tokens in analyse(chosen):
-        content = [
-            token for token in tokens if str(token["pos"]) not in LEDGER_EXCLUDED_POS
-        ]
+        content = [token for token in tokens if str(token["pos"]) not in LEDGER_EXCLUDED_POS]
         if not content:
             continue
         if {str(token["lemma"]) for token in content} <= ledger:

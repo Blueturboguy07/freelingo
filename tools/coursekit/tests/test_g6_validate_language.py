@@ -84,7 +84,37 @@ def test_INV_PACK_10_b3_exact_corpus_mistranslations_are_rejected_before_g7(
     axis, detail = _axis(row, "es", None, None, None, [])
 
     assert axis == "review_defect"
-    assert detail == {"text": text, "translation": translation, "review": "P2 B3 2026-09-12"}
+    from coursekit.pair_quality import pair_content_hash
+
+    assert detail == {
+        "content_hash": pair_content_hash(text, translation),
+        "text": text,
+        "translation": translation,
+        "review": "P2 B3 2026-09-12",
+        "root_cause": "mistranslation" if text == "No encuentro mi cartera." else "tense mismatch",
+    }
+    assert re.fullmatch(r"[0-9a-f]{64}", detail["content_hash"])
+
+
+@pytest.mark.parametrize(
+    ("text", "translation"),
+    [
+        ("Yo soy mal señor.", "I am a bad gentleman."),
+        ("Son pocos, no muchos.", "There are few, not many."),
+        ("En un país, veinte ciudades.", "Twenty cities in a country."),
+        ("Mi hermana está en la izquierda.", "My sister is on the left."),
+    ],
+)
+def test_INV_PACK_10_round_four_authored_defects_are_discarded_not_repaired(
+    text: str, translation: str
+) -> None:
+    row = {"text": text, "translation": translation}
+
+    axis, detail = _axis(row, "es", None, None, None, [])
+
+    assert axis == "review_defect"
+    assert detail["content_hash"]
+    assert row == {"text": text, "translation": translation}
 
 
 def test_INV_PACK_10_b3_rejection_is_exact_not_a_lexical_ban() -> None:
@@ -208,6 +238,7 @@ def _minimal_candidates(lang: str, accepted: bool) -> None:
                 "slot_index": 0,
                 "text": "Yo como pan.",
                 "translation": "I eat bread.",
+                "accepted_alternates": [],
                 "author": "agent",
                 "generated_at": "2026-09-12",
                 "accepted": accepted,
@@ -548,6 +579,31 @@ def test_INV_PACK_10_no_engine_is_handed_a_text_other_than_the_one_on_the_row(
         )
 
 
+def test_INV_PACK_08_g6_checks_every_authored_alternate_independently(
+    es_after_g5: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-08] A set cannot pass because only its preferred surface was checked."""
+    import coursekit.stages.g6_validate_language as stage_module
+
+    rows = list(read_records("candidate", lang="es"))
+    survivor = next(row for row in rows if row["accepted"])
+    survivor["accepted_alternates"] = ["Estoy cansada.", "Vivo en Madrid."]
+    write_records("candidate", rows, lang="es")
+    seen: list[str] = []
+
+    def recording_axis(row: dict[str, Any], *_args: Any, **_kwargs: Any) -> tuple[None, dict]:
+        seen.append(row["text"])
+        return None, {}
+
+    monkeypatch.setattr(stage_module, "_axis", recording_axis)
+    run_g6({})
+    assert survivor["text"] in seen
+    assert "Estoy cansada." in seen  # explicitly authored speaker gender
+    assert "Vivo en Madrid." in seen  # explicitly authored Spanish pro-drop
+    notes = read_entries("es", stage="g6")[-1]["notes"]
+    assert notes["checked_answers"] == notes["checked"] + 2
+
+
 def test_a_candidate_below_the_rubric_minimum_is_narrowed_by_name(
     es_after_g5: list[dict[str, Any]], spanish_sidecar: str, kenlm_model: Path
 ) -> None:
@@ -805,7 +861,9 @@ def test_INV_PACK_14_the_invocation_build_es_uses_names_a_language_engine(
 
 
 def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, es_adapter: None  # noqa: F811
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    es_adapter: None,  # noqa: F811
 ) -> None:
     """A course whose candidates live only in `content/es/candidates/*.jsonl`.
 
@@ -821,6 +879,17 @@ def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
     from coursekit.stages.g5_gapfill import authored_shard_dir
 
     rows = authored_rows(REAL_CANDIDATES)
+    alternate_surface = "Vivo en Madrid."
+    alternate_score = 4
+    rows[0]["accepted_alternates"] = [
+        {
+            "text": alternate_surface,
+            "backtranslation": {
+                **rows[0]["backtranslation"],
+                "score": alternate_score,
+            },
+        }
+    ]
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path / "content"))
     shard_dir = authored_shard_dir("es")
     shard_dir.mkdir(parents=True, exist_ok=True)
@@ -842,5 +911,113 @@ def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
     assert engine is not None
     probe = engine.probe("es")
     assert probe["available"], probe["reason"]
-    assert probe["detail"]["scored"] == len({row["text"] for row in rows})
+    assert probe["detail"]["scored"] == len({row["text"] for row in rows}) + 1
     assert engine.score(rows[0]["text"]) == rows[0]["backtranslation"]["score"]
+    assert engine.score(alternate_surface) == alternate_score
+
+
+def test_INV_PACK_14_rubric_meaning_is_keyed_by_the_exact_bilingual_pair(tmp_path: Path) -> None:
+    from coursekit.engines.backtranslation import AgentRubricEngine
+
+    def authored(text, translation, score, alternates=None):
+        return {
+            "text": text,
+            "translation": translation,
+            "backtranslation": {
+                "score": score,
+                "rubric_version": "1",
+                "back_translation": translation,
+            },
+            "accepted_alternates": alternates or [],
+        }
+
+    rows = [
+        authored("Estoy cansada.", "I am tired.", 2),
+        authored("Estoy cansada.", "I am hungry.", 4),
+        authored(
+            "Yo estoy cansada.",
+            "I am tired.",
+            4,
+            [
+                {
+                    "text": "Estoy cansada.",
+                    "backtranslation": {
+                        "score": 4,
+                        "rubric_version": "1",
+                        "back_translation": "I am tired.",
+                    },
+                }
+            ],
+        ),
+    ]
+    path = tmp_path / "authored.jsonl"
+    path.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+    engine = AgentRubricEngine(paths=(path,))
+    assert engine.probe("es")["available"]
+    # The favorable later judgement cannot overwrite the earlier contrary witness.
+    assert engine.score("Estoy cansada.", translation="I am tired.") == 2
+    assert engine.score("Estoy cansada.", translation="I am hungry.") == 4
+    assert engine.score("Estoy cansada.") is None  # ambiguous without the English side
+    assert engine.score("Estoy cansada.", translation="I am happy.") is None
+    axis, _ = _axis(
+        {"text": "Estoy cansada.", "translation": "I am tired."}, "es", None, None, engine, []
+    )
+    assert axis == "backtranslation"
+    # A reused engine must not keep scores for rows no longer in its input files.
+    path.write_text(json.dumps(rows[2]), encoding="utf-8")
+    assert engine.probe("es")["available"]
+    assert engine.score("Estoy cansada.", translation="I am hungry.") is None
+
+
+@pytest.mark.parametrize("score", [True, None, -1, 5])
+def test_INV_PACK_14_an_alternate_without_a_real_score_cannot_borrow_preferred_evidence(
+    tmp_path: Path, score: object
+) -> None:
+    from coursekit.engines.backtranslation import AgentRubricEngine
+
+    row = {
+        "text": "Yo vivo aquí.",
+        "translation": "I live here.",
+        "backtranslation": {"score": 4, "rubric_version": "1"},
+        "accepted_alternates": [{"text": "Vivo aquí.", "backtranslation": {"score": score}}],
+    }
+    path = tmp_path / "authored.jsonl"
+    path.write_text(json.dumps(row), encoding="utf-8")
+    probe = AgentRubricEngine(paths=(path,)).probe("es")
+    assert not probe["available"]
+    assert probe["backtranslation_engine"] == "none"
+
+
+def test_INV_PACK_08_bad_alternate_narrows_whole_candidate_without_rewriting(
+    es_after_g5: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import coursekit.stages.g6_validate_language as stage_module
+
+    rows = list(read_records("candidate", lang="es"))
+    survivor = next(row for row in rows if row["accepted"])
+    survivor["accepted_alternates"] = ["Explicit authored bad surface."]
+    write_records("candidate", rows, lang="es")
+    original = dict(survivor)
+
+    def rejecting_axis(row, *_args, **_kwargs):
+        return (
+            ("grammar", {"reason": "test witness"})
+            if row["text"] == survivor["accepted_alternates"][0]
+            else (None, {})
+        )
+
+    monkeypatch.setattr(stage_module, "_axis", rejecting_axis)
+    assert run_g6({}).ok
+    narrowed = next(
+        row
+        for row in read_records("candidate", lang="es")
+        if row["candidate_id"] == survivor["candidate_id"]
+    )
+    assert narrowed == {**original, "accepted": False, "reject_reason": "g6:grammar"}
+    finding = next(
+        row
+        for row in read_entries("es", stage="g6")[-1]["notes"]["findings"]
+        if row["candidate_id"] == survivor["candidate_id"]
+    )
+    assert finding["answer_kind"] == "alternate"
+    assert finding["answer"] == survivor["accepted_alternates"][0]

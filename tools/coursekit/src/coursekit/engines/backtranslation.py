@@ -5,7 +5,7 @@
 model. There is no API key for any provider in this environment and no local MT model in
 the dependency set, so the round trip cannot be run.
 
-The plan's ruling for exactly this situation is that the Opus agent building the lane is
+The plan's ruling for exactly this situation is that the agent building the lane is
 the author. So the check is the agent's own judgement of whether the English a learner
 will be shown is what the Spanish actually says, made against a published rubric
 (`content/<lang>/gapfill-rubric.md`), written into the authored candidates file at
@@ -28,7 +28,7 @@ is for: the artefact says which engine ran, and swapping one for another is visi
 score is not smuggleable across the G5 boundary — which is the contract working. The
 score lives where it was authored, in `content/<lang>/candidates.jsonl` and in every
 `content/<lang>/candidates/*.jsonl` shard, and this engine reads it from there, keyed by
-the candidate text.
+the exact candidate text and its English translation.
 
 ## Why it reads a LIST of files
 
@@ -62,11 +62,11 @@ __all__ = ["AgentRubricEngine", "build"]
 
 @dataclass(slots=True)
 class AgentRubricEngine:
-    """Rubric scores read from the authored candidate files, keyed by candidate text."""
+    """Authored rubric evidence keyed by both sides of the bilingual pair."""
 
     paths: tuple[Path, ...]
     id: str = "agent_rubric"
-    _scores: dict[str, dict[str, Any]] = field(default_factory=dict)
+    _scores: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
     _rubric_version: str = ""
 
     @property
@@ -75,6 +75,8 @@ class AgentRubricEngine:
         return self.paths[0] if self.paths else None
 
     def probe(self, lang: str) -> dict[str, Any]:
+        self._scores.clear()
+        self._rubric_version = ""
         present = [path for path in self.paths if path.exists()]
         if not present:
             named = ", ".join(str(path) for path in self.paths) or "nowhere"
@@ -91,15 +93,36 @@ class AgentRubricEngine:
         low, high = BACKTRANSLATION_SCORE_RANGE
         unscored: list[str] = []
         for row in _rows_of(present):
-            block = row.get("backtranslation")
-            if not isinstance(block, dict) or not isinstance(block.get("score"), int):
+            translation = row.get("translation")
+            alternates = row.get("accepted_alternates", [])
+            if not isinstance(translation, str) or not isinstance(alternates, list):
                 unscored.append(row.get("text", "<no text>"))
                 continue
-            if not low <= block["score"] <= high:
-                unscored.append(row.get("text", "<no text>"))
-                continue
-            self._scores[row["text"]] = block
-            self._rubric_version = block.get("rubric_version", self._rubric_version)
+            surfaces = [
+                {"text": row.get("text"), "backtranslation": row.get("backtranslation")},
+                *alternates,
+            ]
+            for surface_row in surfaces:
+                surface = surface_row.get("text") if isinstance(surface_row, dict) else None
+                block = (
+                    surface_row.get("backtranslation") if isinstance(surface_row, dict) else None
+                )
+                if (
+                    not isinstance(surface, str)
+                    or not surface
+                    or surface.isspace()
+                    or not isinstance(block, dict)
+                    or type(block.get("score")) is not int
+                    or not low <= block["score"] <= high
+                ):
+                    unscored.append(surface or row.get("text", "<no text>"))
+                    continue
+                key = (surface, translation)
+                previous = self._scores.get(key)
+                # A favorable duplicate cannot erase a contrary authored judgement.
+                if previous is None or block["score"] < previous["score"]:
+                    self._scores[key] = dict(block)
+                self._rubric_version = block.get("rubric_version", self._rubric_version)
 
         if unscored:
             return {
@@ -129,18 +152,21 @@ class AgentRubricEngine:
             },
         }
 
-    def score(self, text: str) -> int | None:
-        """The rubric score for one candidate, or `None` if it was never scored.
+    def _judgement_for(self, text: str, translation: str | None) -> dict[str, Any]:
+        if translation is not None:
+            return self._scores.get((text, translation), {})
+        matches = [block for (source, _), block in self._scores.items() if source == text]
+        # Legacy text-only callers remain supported only when the meaning is unique.
+        return matches[0] if len(matches) == 1 else {}
 
-        `None` is a rejection reason upstream, never a default pass: a sentence nobody
-        judged is not a sentence that survived judgement.
-        """
-        block = self._scores.get(text)
-        return None if block is None else int(block["score"])
+    def score(self, text: str, *, translation: str | None = None) -> int | None:
+        """Exact pair evidence; absent or ambiguous meaning never defaults to pass."""
+        block = self._judgement_for(text, translation)
+        return None if not block else int(block["score"])
 
-    def judgement(self, text: str) -> dict[str, Any]:
-        """The whole recorded judgement — the back-translation and the note with it."""
-        return dict(self._scores.get(text, {}))
+    def judgement(self, text: str, *, translation: str | None = None) -> dict[str, Any]:
+        """The exact pair's recorded judgement, never another meaning's score."""
+        return dict(self._judgement_for(text, translation))
 
 
 def _rows_of(paths: Iterable[Path]) -> list[dict[str, Any]]:
