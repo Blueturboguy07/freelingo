@@ -1,0 +1,710 @@
+{
+  "schemaVersion": 1,
+  "author": "Codex (Spanish first-unit authoring lane, 2026-09-13)",
+  "exercises": [
+    {
+      "exerciseId": "57b13098f7415a04",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Hello, good night.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Hola, buenas noches.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:noche:NOUN"
+      },
+      "explanation": "Buenas noches is the fixed evening or night greeting. Buenas agrees with the feminine plural noches.",
+      "notes": [
+        "Greeting hola is mis-tagged PROPN in this frozen analysis; retain the raw evidence for the current G1 repair."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "6b55ff456e5dbbce",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Hola, buenas tardes.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "Hello, good afternoon.",
+          "rank": 0
+        },
+        {
+          "surface": "Hi, good afternoon.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bueno:ADJ"
+      },
+      "explanation": "Buenas tardes means good afternoon. The greeting uses feminine plural buenas with tardes.",
+      "notes": [
+        "Frozen G1 correctly has tardes NOUN but SQL canonical tarde is ADV; this non-objective definition mismatch needs current source analysis."
+      ],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "fed7d95f643679e3",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Hello, yes. Goodbye.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Hola, sí. Adiós.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:sí:INTJ"
+      },
+      "explanation": "Sí with an accent means yes. Without an accent, si means if, so the accent distinguishes these words.",
+      "notes": [
+        "This is a sequence of three short greetings/responses rather than a natural single utterance. Frozen hola and adiós tags need source repair."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "8c9a4ec512ff1c5c",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Por favor, por favor.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "Please, please.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:favor:NOUN"
+      },
+      "explanation": "Por favor is the two-word expression for please. Repeating it repeats the request politely or urgently.",
+      "notes": [
+        "The objective is favor within the fixed expression por favor; no claim that isolated favor translates to please."
+      ],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "2907b15e7ef8cabf",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Yes, good morning.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Sí, buenos días.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:día:NOUN"
+      },
+      "explanation": "Buenos días is the morning greeting. Día is masculine, so the greeting uses buenos even though día ends in a.",
+      "notes": [
+        "The isolated reply needs a conversational context; the bilingual meaning is preserved."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "36ba32390399ac9f",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Please, yes.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Por favor, sí.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:sí:INTJ"
+      },
+      "explanation": "Por favor means please, and sí means yes. Keep the accent on the affirmative sí.",
+      "notes": [
+        "This elliptical request is grammatical but context-dependent."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "8a2eb946483984c3",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "I am not you.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Yo no soy tú.",
+          "rank": 0
+        },
+        {
+          "surface": "No soy tú.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "grammarConcept",
+        "itemRef": "gc:subject_pronouns"
+      },
+      "explanation": "Soy is the first-person form of ser. Spanish can omit yo because soy already identifies the speaker; tú is retained after soy here.",
+      "notes": [],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "8e7dafd338c5df2c",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Yo soy bueno.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "I am good.",
+          "rank": 0
+        },
+        {
+          "surface": "I'm good.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bueno:ADJ"
+      },
+      "explanation": "Bueno means good and agrees with the masculine speaker in this sentence. Soy is I am; yo makes the subject explicit.",
+      "notes": [
+        "Bueno can describe character or suitability; it is not the ordinary estar bien expression for feeling well."
+      ],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "464154843186dcc4",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "She's good.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Ella es buena.",
+          "rank": 0
+        },
+        {
+          "surface": "Es buena.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bueno:ADJ"
+      },
+      "explanation": "Buena is the feminine form of bueno. Ella can be omitted when context makes the subject clear.",
+      "notes": [
+        "The source selects a character/quality reading of English good; other contextual readings require their own evidence."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "866580071384c31d",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "No somos nosotros.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "It's not us.",
+          "rank": 0
+        },
+        {
+          "surface": "It is not us.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "grammarConcept",
+        "itemRef": "gc:subject_pronouns"
+      },
+      "explanation": "Somos is the we form of ser. Nosotros makes the group explicit; this sentence denies that we are the people in question.",
+      "notes": [
+        "Frozen analyzer normalizes nosotros to yo; preserve this ledger policy rather than creating a new lexeme ID."
+      ],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "348ce0ddd15072d4",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "You're not me.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "No eres yo.",
+          "rank": 0
+        },
+        {
+          "surface": "Tú no eres yo.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "grammarConcept",
+        "itemRef": "gc:subject_pronouns"
+      },
+      "explanation": "Eres is the tú form of ser. Spanish uses yo after ser in this identity contrast, even though English uses me.",
+      "notes": [
+        "An explicit tú is a valid alternate missing from the frozen G7 answer set."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "bd96be2777bca890",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Name, please.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Nombre, por favor.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:nombre:NOUN"
+      },
+      "explanation": "Nombre is name. Por favor makes this short request polite.",
+      "notes": [
+        "This source uses an elliptical request; a full question would need independently checked vocabulary and meaning."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "3169d6d072f39c99",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Sir, please.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Señor, por favor.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:favor:NOUN"
+      },
+      "explanation": "Señor addresses a man respectfully, and por favor means please. The comma separates the address from the request.",
+      "notes": [
+        "Frozen Señor is INTJ while SQL señor is PROPN; do not approve either as the lexical objective."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "2555d1a2ffc1bfc6",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Señora, por favor.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "Madam, please.",
+          "rank": 0
+        },
+        {
+          "surface": "Ma'am, please.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:favor:NOUN"
+      },
+      "explanation": "Señora is a respectful form of address for a woman. Madam and ma'am can express that address in English.",
+      "notes": [
+        "Frozen Señora is PROPN while SQL señora is NOUN; preserve this source defect for current analysis."
+      ],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "8d371d603ba6baee",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Good for you.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Bien por ti.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bien:ADV"
+      },
+      "explanation": "Bien por ti expresses good for you. After the preposition por, the second-person pronoun is ti rather than tú.",
+      "notes": [
+        "Context can make this congratulatory or sarcastic; this candidate has no spoken intonation or audio claim."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "ba369b2c6536fec7",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Encantado, mucho gusto.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "Pleased to meet you, a pleasure.",
+          "rank": 0
+        },
+        {
+          "surface": "Pleased to meet you, nice to meet you.",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:gusto:NOUN"
+      },
+      "explanation": "Encantado and mucho gusto are greeting formulas used when meeting someone. Mucho gusto literally refers to pleasure.",
+      "notes": [
+        "The source repeats two meeting formulas; its frozen English is stiff. Reviewer should consider a source-level naturalness rewrite, not silently change its identity here."
+      ],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "8844061cfdcc221d",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "Fine, thank you. And you?",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Bien, gracias. ¿Y tú?",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bien:ADV"
+      },
+      "explanation": "Bien answers that you are fine. ¿Y tú? asks the informal singular listener the same question back.",
+      "notes": [
+        "Frozen corpus punctuation differs from the new G1 punctuation work; no new engine pass is claimed."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "27adb987c8bb5e3d",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Bien. ¿Y tú?",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "Fine. And you?",
+          "rank": 0
+        },
+        {
+          "surface": "Well. And you?",
+          "rank": 1
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bien:ADV"
+      },
+      "explanation": "Bien is fine or well here. ¿Y tú? means and you, addressed to one person informally.",
+      "notes": [],
+      "introduction": "prompt"
+    },
+    {
+      "exerciseId": "8bd62a7a1c4ce632",
+      "shapeId": "typed_translate_forward",
+      "instruction": "Translate this sentence",
+      "prompt": "A pleasure and see you later.",
+      "promptLanguage": "en",
+      "answers": [
+        {
+          "surface": "Mucho gusto y hasta luego.",
+          "rank": 0
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:gusto:NOUN"
+      },
+      "explanation": "Mucho gusto is a pleasure in a meeting greeting. Hasta luego is the fixed expression see you later.",
+      "notes": [
+        "The combined greeting and farewell is context-dependent. Frozen hasta is ADV; do not infer its countability from that tag."
+      ],
+      "introduction": "wrong-feedback"
+    },
+    {
+      "exerciseId": "24012fdff4e4b81c",
+      "shapeId": "typed_translate_reverse",
+      "instruction": "Translate this sentence",
+      "prompt": "Tú no eres bueno.",
+      "promptLanguage": "es",
+      "answers": [
+        {
+          "surface": "You are not good.",
+          "rank": 0
+        },
+        {
+          "surface": "You aren't good.",
+          "rank": 1
+        },
+        {
+          "surface": "You're not good.",
+          "rank": 2
+        }
+      ],
+      "objective": {
+        "kind": "lexeme",
+        "itemRef": "lx:bueno:ADJ"
+      },
+      "explanation": "Eres is the tú form of ser and no negates it. Bueno is the masculine adjective good.",
+      "notes": [
+        "The English prompt does not encode the Spanish masculine agreement; reverse English answers do not create Spanish alternate scheduler forms."
+      ],
+      "introduction": "prompt"
+    }
+  ],
+  "lexicalDeclarations": {
+    "lx:noche:NOUN": {
+      "semantic": {
+        "prompt": "night",
+        "preferredSurface": "noche",
+        "register": "neutral",
+        "lexemes": [
+          "noche"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    },
+    "lx:bueno:ADJ": {
+      "semantic": {
+        "prompt": "good (adjective)",
+        "preferredSurface": "bueno",
+        "register": "neutral",
+        "lexemes": [
+          "bueno"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    },
+    "lx:sí:INTJ": {
+      "semantic": {
+        "prompt": "yes (affirmative response)",
+        "preferredSurface": "sí",
+        "register": "neutral",
+        "lexemes": [
+          "sí"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "particle",
+      "countable": false
+    },
+    "lx:favor:NOUN": {
+      "semantic": {
+        "prompt": "favor; in por favor, please",
+        "preferredSurface": "favor",
+        "register": "neutral",
+        "lexemes": [
+          "favor"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    },
+    "lx:día:NOUN": {
+      "semantic": {
+        "prompt": "day",
+        "preferredSurface": "día",
+        "register": "neutral",
+        "lexemes": [
+          "día"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    },
+    "lx:nombre:NOUN": {
+      "semantic": {
+        "prompt": "name",
+        "preferredSurface": "nombre",
+        "register": "neutral",
+        "lexemes": [
+          "nombre"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    },
+    "lx:bien:ADV": {
+      "semantic": {
+        "prompt": "well; fine",
+        "preferredSurface": "bien",
+        "register": "neutral",
+        "lexemes": [
+          "bien"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    },
+    "lx:gusto:NOUN": {
+      "semantic": {
+        "prompt": "pleasure; enjoyment",
+        "preferredSurface": "gusto",
+        "register": "neutral",
+        "lexemes": [
+          "gusto"
+        ],
+        "grammarConcepts": [],
+        "graphemes": []
+      },
+      "classification": "word",
+      "countable": true
+    }
+  },
+  "pathDeclaration": {
+    "schemaVersion": 1,
+    "packId": "freelingo-es",
+    "courseId": "en-es",
+    "packVersion": "0.1.0",
+    "languageName": "Spanish",
+    "scoreCeiling": 9,
+    "cefrChecked": false,
+    "declaredNodeTypes": [
+      "lesson"
+    ],
+    "legendaryDenominator": [
+      "lesson"
+    ],
+    "sections": [
+      {
+        "sectionIndex": 1,
+        "title": "First steps in Spanish",
+        "band": "very early A1",
+        "units": [
+          {
+            "unitId": "u001",
+            "unitIndex": 1,
+            "title": "Say hello and give your name",
+            "colourIndex": 0,
+            "nodes": [
+              {
+                "nodeId": "u001-candidate-level-1",
+                "type": "lesson",
+                "sessions": [
+                  {
+                    "lessonIndex": 1,
+                    "exerciseIds": []
+                  },
+                  {
+                    "lessonIndex": 2,
+                    "exerciseIds": []
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              },
+              {
+                "nodeId": "u001-candidate-level-2",
+                "type": "lesson",
+                "sessions": [
+                  {
+                    "lessonIndex": 3,
+                    "exerciseIds": []
+                  },
+                  {
+                    "lessonIndex": 4,
+                    "exerciseIds": []
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              },
+              {
+                "nodeId": "u001-candidate-level-3",
+                "type": "lesson",
+                "sessions": [
+                  {
+                    "lessonIndex": 5,
+                    "exerciseIds": []
+                  },
+                  {
+                    "lessonIndex": 6,
+                    "exerciseIds": []
+                  }
+                ],
+                "introducesScriptUnits": [],
+                "requiresScriptUnits": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "excluded": [
+    {
+      "exerciseId": "f07d99e2ad6b4708",
+      "reason": "Complex contrastive response with clitic/tag analysis and incomplete acceptable-answer evidence; defer."
+    },
+    {
+      "exerciseId": "c92ff56109dea595",
+      "reason": "Él se fue does not entail he walked away; frozen fue is lemmatized ser in an ir context."
+    },
+    {
+      "exerciseId": "9e3f72d5e9cd4caf",
+      "reason": "No os gusto uses vosotros morphology under the tu-only unit; frozen gusto is wrongly NOUN."
+    },
+    {
+      "exerciseId": "85dd39098aba341f",
+      "reason": "Cómo source has PRON tag and broad contextual interpretation; defer current analysis and alternative set."
+    },
+    {
+      "exerciseId": "566d941738611118",
+      "reason": "¿Cómo eres tú, señor? asks what someone is like, not how the person is doing; source pair is wrong."
+    },
+    {
+      "exerciseId": "8981424e9f4418f5",
+      "reason": "¿Cómo te fue? contains an ir reading but frozen fue is ser; preserve pending source analysis."
+    },
+    {
+      "exerciseId": "0fa9a8015fd21e81",
+      "reason": "Repetitive hola hola greeting and frozen hola PROPN; lower authoring preference for this bounded batch."
+    }
+  ]
+}
