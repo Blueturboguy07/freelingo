@@ -23,6 +23,7 @@
  * Screens: S118-S126 (economy surfaces), S132 (goal), S149 (data).
  */
 import type { Db } from './db.js';
+import { SCHEDULER_TABLES } from './scheduler-schema.js';
 
 export type SchemaRegion = 'account' | 'course_progress';
 
@@ -136,6 +137,12 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     purpose:
       'The resume row: nine indexed resume fields plus complete runtime JSON; graded kind and active lease are distinct, keyed (course_id, session_kind, node_ref).',
   },
+  ...SCHEDULER_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Complete surface cards, ordered learning evidence and staged answer receipts (INV-SCH-11, INV-SESS-07).',
+  })),
 ] as const;
 
 export const ACCOUNT_TABLES: readonly string[] = PROGRESS_TABLES.filter(
