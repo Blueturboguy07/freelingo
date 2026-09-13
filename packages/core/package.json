@@ -8,7 +8,20 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ceremony": "./src/ceremony/index.ts",
+    "./data": "./src/data/index.ts",
+    "./day": "./src/day/index.ts",
+    "./economy": "./src/economy/index.ts",
+    "./grading": "./src/grading/index.ts",
+    "./packs": "./src/packs/index.ts",
+    "./path": "./src/path/index.ts",
+    "./scheduler": "./src/scheduler/index.ts",
+    "./security": "./src/security/index.ts",
+    "./session": "./src/session/index.ts",
+    "./streak": "./src/streak/index.ts",
+    "./types": "./src/types/index.ts",
+    "./*": "./src/*/index.ts"
   },
   "scripts": {
     "test": "vitest run --project core"
