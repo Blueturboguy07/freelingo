@@ -84,7 +84,34 @@ def test_INV_PACK_10_b3_exact_corpus_mistranslations_are_rejected_before_g7(
     axis, detail = _axis(row, "es", None, None, None, [])
 
     assert axis == "review_defect"
-    assert detail == {"text": text, "translation": translation, "review": "P2 B3 2026-09-12"}
+    assert detail == {
+        "content_hash": detail["content_hash"],
+        "text": text,
+        "translation": translation,
+        "review": "P2 B3 2026-09-12",
+    }
+    assert re.fullmatch(r"[0-9a-f]{64}", detail["content_hash"])
+
+
+@pytest.mark.parametrize(
+    ("text", "translation"),
+    [
+        ("Yo soy mal señor.", "I am a bad gentleman."),
+        ("Son pocos, no muchos.", "There are few, not many."),
+        ("En un país, veinte ciudades.", "Twenty cities in a country."),
+        ("Mi hermana está en la izquierda.", "My sister is on the left."),
+    ],
+)
+def test_INV_PACK_10_round_four_authored_defects_are_discarded_not_repaired(
+    text: str, translation: str
+) -> None:
+    row = {"text": text, "translation": translation}
+
+    axis, detail = _axis(row, "es", None, None, None, [])
+
+    assert axis == "review_defect"
+    assert detail["content_hash"]
+    assert row == {"text": text, "translation": translation}
 
 
 def test_INV_PACK_10_b3_rejection_is_exact_not_a_lexical_ban() -> None:

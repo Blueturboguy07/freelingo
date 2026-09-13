@@ -56,7 +56,6 @@ from typing import Any
 from ..artifacts import artifact_path, read_records, write_records
 from ..config.g5 import GAPFILL_RUBRIC_FILENAME
 from ..config.g6 import (
-    B3_REVIEW_DEFECT_PAIRS,
     BACKTRANSLATION_AUTHORSHIP,
     BACKTRANSLATION_ENGINE_OPTION,
     BACKTRANSLATION_MIN_SCORE,
@@ -76,6 +75,7 @@ from ..config.g6 import (
     PERPLEXITY_ENGINE_OPTION,
 )
 from ..engines import ENGINES
+from ..pair_quality import reviewed_pair
 from ..runlog import require_successful
 from ..stages.g5_gapfill import authored_candidates_path, authored_candidates_paths
 from . import StageContext, StageResult, register_stage
@@ -276,12 +276,13 @@ def _axis(
     perplexities: list[float],
 ) -> tuple[str | None, dict[str, Any]]:
     """The first G6 axis this candidate fails, or `None`. Never modifies the row."""
-    pair = (str(row["text"]), str(row["translation"]))
-    if pair in B3_REVIEW_DEFECT_PAIRS:
+    finding = reviewed_pair(lang, str(row["text"]), str(row["translation"]))
+    if finding is not None:
         return "review_defect", {
-            "text": pair[0],
-            "translation": pair[1],
-            "review": "P2 B3 2026-09-12",
+            "content_hash": finding.content_hash,
+            "text": finding.text,
+            "translation": finding.translation,
+            "review": finding.review,
         }
 
     if perplexity is not None:

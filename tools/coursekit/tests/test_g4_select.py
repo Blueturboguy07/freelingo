@@ -76,6 +76,24 @@ def ingested_rows() -> list[dict[str, Any]]:
     return read_jsonl(FIXTURES / "sentences.jsonl")
 
 
+def test_INV_PACK_10_g4_discards_a_reviewed_bad_corpus_pair_before_selection() -> None:
+    bad = {
+        **ingested_rows()[0],
+        "sentence_id": "reviewed-bad",
+        "text": "Esta mochila azul está pesada.",
+        "translation": "This blue backpack is heavy.",
+    }
+    analysis = {
+        **list(analyse_es_mini())[0],
+        "sentence_id": "reviewed-bad",
+    }
+
+    candidates, census = build_candidates([bad], [analysis])
+
+    assert candidates == []
+    assert census["review_rejected"] == 1
+
+
 def banded_rows() -> list[dict[str, Any]]:
     return read_jsonl(FIXTURES / "banded.jsonl")
 

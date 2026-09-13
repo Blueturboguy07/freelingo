@@ -67,6 +67,7 @@ from ..config.g4 import (
     YIELD_NOTE_KEY,
 )
 from ..ledger import surface_tokens
+from ..pair_quality import reviewed_pair
 from ..runlog import require_successful
 from . import StageContext, StageResult, register_stage
 from .g3_solve import GrammarConcept, curriculum_path, load_curriculum
@@ -111,6 +112,7 @@ def build_candidates(
     census = {
         "ingested": 0,
         "not_shippable": 0,
+        "review_rejected": 0,
         "wrong_length": 0,
         "not_analysed": 0,
         "candidates": 0,
@@ -120,6 +122,9 @@ def build_candidates(
         census["ingested"] += 1
         if row["licence_verdict"] != SHIPPABLE_VERDICT:
             census["not_shippable"] += 1
+            continue
+        if reviewed_pair(str(row["lang"]), str(row["text"]), str(row["translation"])):
+            census["review_rejected"] += 1
             continue
         token_count = int(row["token_count"])
         if not CANDIDATE_TOKENS_MIN <= token_count <= CANDIDATE_TOKENS_MAX:
