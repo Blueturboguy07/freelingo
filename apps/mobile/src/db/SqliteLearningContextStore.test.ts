@@ -343,3 +343,84 @@ it('[INV-GRD-07] the actual failed grid replay binds only its verified first-wro
   );
   expect(store.load(course, 'session-1')?.slots.some((s) => s.itemId === 'lexeme3')).toBe(true);
 });
+
+const answerTargets = [
+  {
+    itemId: 'semantic-1',
+    surfaceId: 'sf:alternate',
+    surface: 'la niña',
+    role: 'recognition' as const,
+    rubyShown: false,
+    grade: 3 as const,
+  },
+  {
+    itemId: 'lex:second',
+    surfaceId: 'sf:second',
+    surface: 'gato',
+    role: 'recognition' as const,
+    rubyShown: false,
+    grade: 1 as const,
+  },
+];
+it('[INV-SCH-03][INV-SESS-01] staged exact target surfaces survive reload without changing the served canonical variant', () => {
+  const { db, store } = setup();
+  store.recordReceipt(course, 'session-1', receipt());
+  store.recordTargets(course, 'session-1', 0, answerTargets);
+  expect(new SqliteLearningContextStore(db).targets(course, 'session-1', 0)).toEqual(answerTargets);
+  expect(store.receipts(course, 'session-1')[0]?.surface).toBe(slot.surface);
+  store.recordTargets(course, 'session-1', 0, answerTargets);
+  expect(db.all('SELECT * FROM course_session_answer_target')).toHaveLength(2);
+  for (const changed of [
+    [],
+    answerTargets.slice(1),
+    [...answerTargets].reverse(),
+    answerTargets.map((t, i) => (i === 0 ? { ...t, grade: 1 as const } : t)),
+  ])
+    expect(() => store.recordTargets(course, 'session-1', 0, changed)).toThrow();
+});
+it('[INV-SCH-03] staged targets require the exact parent, nonempty complete set and unique semantic surface identities', () => {
+  const { store } = setup();
+  expect(() => store.recordTargets(course, 'session-1', 0, answerTargets)).toThrow(/parent/);
+  store.recordReceipt(course, 'session-1', receipt());
+  expect(() => store.recordTargets(course, 'session-1', 0, [])).toThrow();
+  expect(() =>
+    store.recordTargets(course, 'session-1', 0, [answerTargets[0]!, answerTargets[0]!]),
+  ).toThrow();
+  expect(store.targets(course, 'session-1', 0)).toEqual([]);
+});
+it('[INV-PER-03][INV-SESS-01] failure during the second staged target rolls back the answer and checkpoint transaction', () => {
+  const { db, store } = setup();
+  db.run(
+    "CREATE TRIGGER kill_staged BEFORE INSERT ON course_session_answer_target WHEN NEW.position=1 BEGIN SELECT RAISE(ABORT,'kill staged target');END",
+  );
+  const tx: Db = {
+    run: db.run.bind(db),
+    all: db.all.bind(db),
+    get: db.get.bind(db),
+    withExclusiveTransaction: (fn) => fn(),
+    close: () => {
+      throw Error('transaction view');
+    },
+  };
+  expect(() =>
+    db.withExclusiveTransaction(() => {
+      const writer = new SqliteLearningContextStore(tx);
+      writer.recordReceipt(course, 'session-1', receipt());
+      writer.recordTargets(course, 'session-1', 0, answerTargets);
+      writer.addActiveMs(course, 'session-1', 1000);
+    }),
+  ).toThrow('kill staged target');
+  expect(store.receipts(course, 'session-1')).toEqual([]);
+  expect(db.all('SELECT * FROM course_session_answer_target')).toEqual([]);
+  expect(store.load(course, 'session-1')?.activeMs).toBe(0);
+});
+it('[INV-SESS-01] gapped staged target order requires recovery and retains original evidence', () => {
+  const { db, store } = setup();
+  store.recordReceipt(course, 'session-1', receipt());
+  store.recordTargets(course, 'session-1', 0, answerTargets);
+  db.run('DROP TRIGGER course_session_answer_target_append_only_update');
+  db.run('UPDATE course_session_answer_target SET position=7 WHERE position=1');
+  const original = db.all('SELECT * FROM course_session_answer_target');
+  expect(() => store.targets(course, 'session-1', 0)).toThrow(/position/);
+  expect(db.all('SELECT * FROM course_session_answer_target')).toEqual(original);
+});
