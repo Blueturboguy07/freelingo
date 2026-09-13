@@ -1,3 +1,4 @@
+import { readLearningBoosts } from './learningBoosts';
 import type { Db, DbRow } from '@freelingo/schema';
 import {
   canonicalJson,
@@ -22,7 +23,6 @@ import {
   flavourRow,
   FLAVOUR_XP,
   recordGoalXp,
-  activeBoostFrom,
   activateBoost,
   grantBoost,
   SOCIETY_CHECKPOINTS,
@@ -406,7 +406,7 @@ function checkpointReached(db: Db, input: LearningRewardInput): boolean {
 function boostRows(db: Db, at: string, sequenceMs: number) {
   const rows = db.all('SELECT * FROM account_boost ORDER BY granted_at,grant_id'),
     out: DbRow[] = [];
-  let active: BoostState['activeBoost'] = null;
+  const projection = readLearningBoosts(db, { utcMs: Date.parse(at), monotonicMs: sequenceMs });
   const inventory: BoostState['inventory'][number][] = [];
   for (const r of rows) {
     if (
@@ -427,27 +427,11 @@ function boostRows(db: Db, at: string, sequenceMs: number) {
       out.push(r);
       continue;
     }
-    const found = activeBoostFrom(
-      {
-        ...grant,
-        activatedAtUtc: String(r.activated_at_utc),
-        activationSequenceMs: integer(r.activation_sequence_ms, 'boost sequence'),
-        durationSeconds: integer(r.duration_seconds, 'boost seconds', 1),
-        tamperHighWaterUtc: String(r.tamper_high_water_utc),
-      },
-      { nowUtc: at, sequenceMs },
-    );
-    if (found.active !== null) {
-      if (active !== null) return fail('multiple active boosts');
-      active = found.active;
-    }
-    out.push({
-      ...r,
-      tamper_high_water_utc: found.clamp.boost.tamperHighWaterUtc,
-      expires_at: found.active?.expiresAtUtc ?? at,
-    });
+    const update = projection.updates.find((u) => u.grantId === r.grant_id);
+    if (!update) return fail('boost projection changed');
+    out.push({ ...r, tamper_high_water_utc: update.highWaterUtc, expires_at: update.expiresAtUtc });
   }
-  return { rows: out, state: { activeBoost: active, inventory } satisfies BoostState };
+  return { rows: out, state: { activeBoost: projection.active, inventory } satisfies BoostState };
 }
 /** Only fully stamped committed lessons can prove calendar predicates. Legacy rows
  * with no captured completion stamp do not invent a lived day or move lifetime counters. */

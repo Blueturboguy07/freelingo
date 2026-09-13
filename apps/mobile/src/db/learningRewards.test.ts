@@ -1437,3 +1437,24 @@ it('[INV-ECO-27][INV-CER-01] a late ceremony failure rolls back the first learne
   }
   expect(proved).toBe(true);
 });
+
+it('[INV-ECO-02] completion cannot revive a boost whose persisted deadline was already shortened', () => {
+  const { db, input } = setup();
+  const shortened = new Date(epoch + 30000).toISOString();
+  db.run('INSERT INTO account_boost VALUES(?,?,?,?,?,?,?,?,?,?)', [
+    'old-shortened',
+    'xpBoost',
+    2,
+    15,
+    900,
+    new Date(epoch).toISOString(),
+    new Date(epoch).toISOString(),
+    1000,
+    new Date(epoch).toISOString(),
+    shortened,
+  ]);
+  apply(db, input);
+  expect(
+    db.get("SELECT expires_at FROM account_boost WHERE grant_id='old-shortened'")?.expires_at,
+  ).toBe(shortened);
+});
