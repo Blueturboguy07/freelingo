@@ -60,9 +60,31 @@ const PROGRESS_SCHEMA: Migration = {
   },
 };
 
+/** P3 runtime bridge, 2026-09-13. Graded describes the kind; active describes the
+ * global lease. A parked graded lesson retains its complete checkpoint. Legacy v2
+ * rows are preserved with a null runtime payload so the app can offer start-over
+ * explicitly instead of inventing the missing banner, replay and unfinished input. */
+const SESSION_RUNTIME: Migration = {
+  userVersion: 3,
+  name: 'complete-session-runtime-and-parked-lessons',
+  up(db) {
+    db.run(
+      'ALTER TABLE course_session_state ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))',
+    );
+    db.run(
+      'ALTER TABLE course_session_state ADD COLUMN runtime_json TEXT CHECK (runtime_json IS NULL OR json_valid(runtime_json))',
+    );
+    db.run('DROP INDEX one_graded_session_in_flight');
+    db.run(
+      'CREATE UNIQUE INDEX one_graded_session_in_flight ON course_session_state(is_active) WHERE is_graded = 1 AND is_active = 1',
+    );
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
+  SESSION_RUNTIME,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -91,6 +113,27 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
   0: [],
   1: ['account', 'committed_session'],
   2: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+  ],
+
+  3: [
     'account',
     'account_boost',
     'account_cosmetic',

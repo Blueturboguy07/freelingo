@@ -134,7 +134,7 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     name: 'course_session_state',
     region: 'course_progress',
     purpose:
-      'The resume row: all nine fields of the resume guarantee, keyed (course_id, session_kind, node_ref).',
+      'The resume row: nine indexed resume fields plus complete runtime JSON; graded kind and active lease are distinct, keyed (course_id, session_kind, node_ref).',
   },
 ] as const;
 

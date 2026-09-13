@@ -1109,7 +1109,9 @@
       "used_interstitial_keys_json": "[\"combo_2\"]",
       "input_mode": "tap",
       "hard_mode": 0,
-      "option_seeds_json": "{\"it_fr_02\":[2,0,1,3]}"
+      "option_seeds_json": "{\"it_fr_02\":[2,0,1,3]}",
+      "is_active": 1,
+      "runtime_json": null
     }
   ]
 }
