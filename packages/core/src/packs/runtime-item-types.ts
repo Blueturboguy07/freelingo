@@ -25,6 +25,17 @@ export interface RuntimeIntroduction {
   readonly language: string;
   readonly when: 'prompt' | 'wrong-feedback';
 }
+/** Exact reviewed target-language spelling scheduled for the real item/semantic ID.
+ * One canonical per target; matching accepted Spanish alternatives retain their own ID.
+ * Wrong/open-response attempts use canonical; English responses never replace it.
+ */
+export interface RuntimeSchedulerSurface {
+  readonly itemId: string;
+  readonly surfaceId: string;
+  readonly surface: string;
+  readonly language: string;
+  readonly canonical: boolean;
+}
 export interface VerifiedRuntimeItem {
   readonly schemaVersion: 1;
   readonly exerciseId: string;
@@ -36,6 +47,7 @@ export interface VerifiedRuntimeItem {
   readonly proof: RuntimeItemProof;
   readonly gradable: GradableItem;
   readonly presentation: LessonChallenge;
+  readonly schedulerSurfaces: readonly RuntimeSchedulerSurface[];
   readonly introductions: readonly RuntimeIntroduction[];
   readonly explanation: string;
   readonly grading: ExerciseGradingContext;
