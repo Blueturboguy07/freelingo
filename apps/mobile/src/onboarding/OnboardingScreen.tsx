@@ -438,7 +438,11 @@ function Body({ state, onEvent }: { state: OnboardingState; onEvent: Send }) {
       return <BodyText>Start with the highlighted lesson.</BodyText>;
   }
 }
-function Screen({ state, onEvent }: Pick<OnboardingScreenProps, 'state' | 'onEvent'>) {
+function Screen({
+  state,
+  onEvent,
+  onDiagnostics,
+}: Pick<OnboardingScreenProps, 'state' | 'onEvent' | 'onDiagnostics'>) {
   const { colors } = useUiTheme();
   const footer = state.screen !== 'restore';
   const disabled =
@@ -483,7 +487,9 @@ function Screen({ state, onEvent }: Pick<OnboardingScreenProps, 'state' | 'onEve
             onPress={() => onEvent({ type: 'back' })}
           />
         )}
-        <Heading style={{ color: colors.owl }}>freelingo</Heading>
+        <Pressable testID="app-title" onLongPress={onDiagnostics}>
+          <Heading style={{ color: colors.owl }}>freelingo</Heading>
+        </Pressable>
       </View>
       <ScrollView
         contentContainerStyle={{
@@ -527,10 +533,15 @@ function Screen({ state, onEvent }: Pick<OnboardingScreenProps, 'state' | 'onEve
     </View>
   );
 }
-export function OnboardingScreen({ state, onEvent, ...preferences }: OnboardingScreenProps) {
+export function OnboardingScreen({
+  state,
+  onEvent,
+  onDiagnostics,
+  ...preferences
+}: OnboardingScreenProps) {
   return (
     <UiProvider {...preferences}>
-      <Screen state={state} onEvent={onEvent} />
+      <Screen state={state} onEvent={onEvent} onDiagnostics={onDiagnostics} />
     </UiProvider>
   );
 }

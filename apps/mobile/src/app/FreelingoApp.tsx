@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 import {
   BodyText,
@@ -18,7 +18,7 @@ import { CeremonyScreen, NotificationsScreen, PracticeHubScreen, SettingsScreen 
 import type { LoopPorts, LoopRoute, SettingsRoute } from '../loop/contracts';
 import { createAppController } from './controller';
 import type { AppController, AppViewState } from './controller';
-import type { AppLifecyclePort } from './lifecycle';
+import type { AppBackRoute, AppLifecyclePort } from './lifecycle';
 import type {
   AppRuntime,
   AppSnapshot,
@@ -53,11 +53,17 @@ export interface FreelingoAppProps {
 }
 /** One effect owns one retained runtime, including React's setup/cleanup replay. */
 export function FreelingoApp({ services, lifecycle, onDiagnostics }: FreelingoAppProps) {
+  const active = useRef(true);
   const [controller, setController] = useState<AppController | null>(null);
   useEffect(() => {
     const next = createAppController(services);
     setController(next);
-    void next.open().catch(() => {});
+    void next
+      .open()
+      .then(() => {
+        if (!active.current) return next.background();
+      })
+      .catch(() => {});
     return () => {
       void next.dispose().catch(() => {});
     };
@@ -69,11 +75,14 @@ export function FreelingoApp({ services, lifecycle, onDiagnostics }: FreelingoAp
   );
   useEffect(() => {
     if (controller === null || lifecycle === undefined) return;
-    const offState = lifecycle.subscribe((active) => {
+    const offState = lifecycle.subscribe((isActive) => {
+      const changed = active.current !== isActive;
+      active.current = isActive;
+      if (!changed) return;
       if (controller.getState().status !== 'ready') return;
-      void (active ? controller.foreground() : controller.background()).catch(() => {});
+      void (isActive ? controller.foreground() : controller.background()).catch(() => {});
     });
-    const offBack = lifecycle.onBack(() => back(controller));
+    const offBack = lifecycle.onBack((route) => back(controller, route));
     return () => {
       offState();
       offBack();
@@ -88,7 +97,7 @@ export function FreelingoApp({ services, lifecycle, onDiagnostics }: FreelingoAp
 function ignore(promise: Promise<void>) {
   void promise.catch(() => {});
 }
-function back(controller: AppController): boolean {
+function back(controller: AppController, route: AppBackRoute = 'hardwareBack'): boolean {
   const current = controller.getState();
   if (current.status !== 'ready') return false;
   if (current.snapshot?.sessionOffer !== null && current.snapshot?.sessionOffer !== undefined) {
@@ -96,7 +105,7 @@ function back(controller: AppController): boolean {
     return true;
   }
   if (current.route === 'lesson') {
-    ignore(controller.dispatchLesson({ type: 'exit', route: 'hardwareBack' }));
+    ignore(controller.dispatchLesson({ type: 'exit', route }));
     return true;
   }
   if (current.route === 'document') {
@@ -206,6 +215,7 @@ function Shell({
       <OnboardingScreen
         {...snapshot.ui}
         state={snapshot.onboarding}
+        onDiagnostics={onDiagnostics === undefined ? undefined : () => onDiagnostics(runtime)}
         onEvent={(value) =>
           ignore(
             controller.perform(`onboarding:${JSON.stringify(value)}`, (r) =>

@@ -150,6 +150,23 @@ function lesson() {
   };
 }
 describe('real App screen composition', () => {
+  it('[INV-SESS-27] an inactive signal during startup is retained until the runtime opens', async () => {
+    const f = fixture();
+    let release!: (runtime: AppRuntime) => void;
+    const opening = new Promise<AppRuntime>((resolve) => {
+      release = resolve;
+    });
+    vi.mocked(f.services.open).mockReturnValue(opening);
+    render(<FreelingoApp services={f.services} lifecycle={f.lifecycle} />);
+    act(() => {
+      f.appState(false);
+    });
+    await act(async () => {
+      release(f.runtime);
+    });
+    await waitFor(() => expect(f.runtime.background).toHaveBeenCalledTimes(1));
+    expect(f.runtime.foreground).not.toHaveBeenCalled();
+  });
   it('[INV-SESS-01] repeated actual typed edits while the checkpoint is pending reach the runtime in order', async () => {
     const f = fixture();
     const content = lesson();
