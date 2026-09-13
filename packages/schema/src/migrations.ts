@@ -24,6 +24,12 @@ import {
   LEARNING_CONTEXT_ACCOUNT_TABLES,
 } from './learning-context-schema.js';
 
+import {
+  DAY_REWARD_SCHEMA_V7_DDL,
+  DAY_REWARD_ACCOUNT_TABLES,
+  DAY_REWARD_COURSE_TABLES,
+} from './day-reward-schema.js';
+
 export interface Migration {
   readonly userVersion: number;
   readonly name: string;
@@ -125,6 +131,14 @@ const DURABLE_LEARNING_CONTEXT: Migration = {
   },
 };
 
+const DURABLE_DAY_REWARD: Migration = {
+  userVersion: 7,
+  name: 'normalized-day-reward-and-frozen-ceremony',
+  up(db) {
+    for (const statement of DAY_REWARD_SCHEMA_V7_DDL) db.run(statement);
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
@@ -132,6 +146,7 @@ export const MIGRATIONS: readonly Migration[] = [
   DURABLE_SETTINGS,
   DURABLE_SCHEDULER,
   DURABLE_LEARNING_CONTEXT,
+  DURABLE_DAY_REWARD,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -265,6 +280,32 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
     ...SCHEDULER_TABLES,
     ...LEARNING_CONTEXT_COURSE_TABLES,
     ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+  ],
+
+  7: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
   ],
 };
 
