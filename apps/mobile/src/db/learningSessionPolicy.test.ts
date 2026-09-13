@@ -8,6 +8,8 @@ import {
   type Answer,
 } from '@freelingo/core/session';
 import { shouldStepUp } from './learningSessionPolicy';
+import { learningSessionPolicy } from './learningModePolicy';
+import { toLocalDay } from '@freelingo/core/day';
 function state(): SessionState {
   const queue = items(7, { type: 'typedTranslate' });
   const answers: Answer[] = queue.slice(0, 5).map((q, i) => ({
@@ -72,4 +74,14 @@ it('[INV-COM-12][INV-COM-09] actual core routing queues combo then the one suppo
   expect(result.state.pendingInterstitialKeys).toEqual(['combo.5_in_a_row', 'stepup:production']);
   expect(result.state.stepUpFired).toBe(true);
   expect(result.state.core.hardMode).toBe(true);
+});
+
+it('[INV-COM-12][INV-HUB-09] mode boundary uses the Hub Words no-step-up configuration despite its nodePractice carrier', () => {
+  const s = { ...state(), flavour: 'nodePractice' as const };
+  const config = learningSessionPolicy({
+    economyFlavour: 'hubWords',
+    origin: { kind: 'hub', offerId: 'words', localDay: toLocalDay('2026-09-13') },
+    targetNodeId: null,
+  }).config;
+  expect(shouldStepUp(s, () => true, config)).toBe(false);
 });

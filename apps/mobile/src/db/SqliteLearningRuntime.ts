@@ -6,7 +6,6 @@ import {
   exerciseSpec,
   step,
   resumeDecision,
-  DEFAULT_FLAVOUR_MATRIX,
   type SessionEvent,
   type StepDeps,
   type QueuedItem,
@@ -46,6 +45,7 @@ import { SqliteCeremonyStore } from './SqliteCeremonyStore';
 import { commitLearning } from './learningCompletion';
 import type { CeremonyPresentation, CeremonyAdvance } from '../loop/contracts';
 import type { LessonLaunch, SessionOffer, SessionOfferDecision } from '../app/ports';
+import { validateLearningSessionPolicy } from './learningModePolicy';
 
 function fail(message: string): never {
   throw new LearningDataError(message);
@@ -87,6 +87,7 @@ export class SqliteLearningRuntime {
       context.launch.nodeRef !== state.nodeRef
     )
       return fail('Saved session context does not match its checkpoint.');
+    validateLearningSessionPolicy(state, context.launch);
     const pack = this.ports.packs.get(state.courseId);
     if (
       !pack ||
@@ -553,9 +554,10 @@ export class SqliteLearningRuntime {
         if (!found.length) return fail('The required replay has no eligible authored source.');
         return found[0]!;
       };
+      const config = validateLearningSessionPolicy(source.state, source.context.launch);
       let lastGrade: RuntimeGrade | null = null;
       const deps: StepDeps = {
-        config: DEFAULT_FLAVOUR_MATRIX[source.state.flavour],
+        config,
         clock: { nowMs: () => clock.monotonicMs },
         grading: {
           grade: (request) => {
@@ -576,13 +578,17 @@ export class SqliteLearningRuntime {
             (v) => v.presentation.type === type && this.eligible(v, source, scheduler),
           ),
         stepUpTripped: (state) =>
-          shouldStepUp(state, (q) => {
-            try {
-              return this.eligible(choose(q), source, scheduler);
-            } catch {
-              return false;
-            }
-          }),
+          shouldStepUp(
+            state,
+            (q) => {
+              try {
+                return this.eligible(choose(q), source, scheduler);
+              } catch {
+                return false;
+              }
+            },
+            config,
+          ),
         matchPairs: (q) => choose(q).presentation.pairs ?? [],
         traceDefinition: (q) => choose(q).presentation.trace ?? null,
         modalityReplacement: (target, ctx) => {

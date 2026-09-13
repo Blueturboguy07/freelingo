@@ -9,6 +9,7 @@ import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import { SqliteSessionStore } from './SqliteSessionStore';
 import { SqliteLearningContextStore } from './SqliteLearningContextStore';
 import { SqliteLearningRuntime } from './SqliteLearningRuntime';
+import { commitLearning } from './learningCompletion';
 import { SqliteSchedulerStore } from './SqliteSchedulerStore';
 import { SqliteWordStore } from './SqliteWordStore';
 import { fixtureLexemes, observeFixtureLexemes } from './learningCompletion.fixtures';
@@ -1073,4 +1074,46 @@ it('[INV-SESS-12][INV-SESS-21] untouched stale-source start-over regenerates cur
   expect(f.db.all('SELECT * FROM course_attempt')).toEqual([]);
   expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
   expect(f.db.all('SELECT * FROM course_session_context')).toHaveLength(1);
+});
+
+it('[INV-SESS-01][INV-ECO-09] mode boundary rejects a restored checkpoint whose engine disagrees with its durable economy', async () => {
+  const f = setup();
+  f.sessions.activate({ ...f.initial, flavour: 'nodePractice' });
+  const before = f.db.get('SELECT total_changes() AS n');
+  expect(() => f.runtime.readSession()).toThrow(/engine.*economy/);
+  await expect(
+    f.runtime.dispatch({
+      type: 'input',
+      text: 'el gato',
+      caret: 7,
+      partialState: {},
+      gradeable: true,
+    }),
+  ).rejects.toThrow(/engine.*economy/);
+  expect(f.db.get('SELECT total_changes() AS n')).toEqual(before);
+});
+it('[INV-SESS-23][INV-ECO-09] mode boundary rejects even an audit-only terminal commit before any SQL writes', () => {
+  const f = setup(),
+    context = new SqliteLearningContextStore(f.db).load('en-es', 'session-1')!;
+  const before = f.db.get('SELECT total_changes() AS n');
+  expect(() =>
+    commitLearning(f.db, {
+      state: { ...f.initial, flavour: 'nodePractice', exited: 'quit' },
+      context: {
+        ...context,
+        completion: {
+          completedAtUtcMs: at,
+          completedAtMonotonicMs: 100,
+          completionZone: zone,
+          outcome: 'quit',
+          intendedAtUtc: new Date(at).toISOString(),
+        },
+      },
+      pack: f.getPack(),
+      resolve: () => {
+        throw Error('no answers');
+      },
+    }),
+  ).toThrow(/engine.*economy/);
+  expect(f.db.get('SELECT total_changes() AS n')).toEqual(before);
 });

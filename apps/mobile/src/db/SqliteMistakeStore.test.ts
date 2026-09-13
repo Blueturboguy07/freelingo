@@ -25,6 +25,7 @@ import type { LearningSchedulerTransition } from './learningTransitions';
 import { SqliteSchedulerStore } from './SqliteSchedulerStore';
 import { SqliteMistakeStore } from './SqliteMistakeStore';
 import { readPracticeMistakeOrigins } from './learningHubSources';
+import type { LearningLaunch } from './SqliteLearningContextStore';
 const opened: Db[] = [];
 afterEach(() => {
   opened.forEach((d) => d.close());
@@ -216,7 +217,25 @@ function setup() {
       wroteAttempt: result.wroteAttempt,
     };
     now += 86400000;
-    return { state, transitions: [transition] };
+    const launch: LearningLaunch = {
+      courseId: state.courseId,
+      sessionKind: state.sessionKind,
+      nodeRef: state.nodeRef,
+      start: {
+        sessionId: state.sessionId,
+        startedAtUtcMs: at,
+        startedAtMonotonicMs: 0,
+        startZone: { tzId: 'UTC', utcOffsetMinutes: 0, tzSource: 'iana' },
+      },
+      economyFlavour: state.flavour,
+      practiceItemRatio: 1,
+      longFormEntry: null,
+      boostAtStart: null,
+      packContentHash: 'a'.repeat(64),
+      origin: { kind: 'path' },
+      targetNodeId: state.nodeRef,
+    };
+    return { state, transitions: [transition], launch };
   };
   return { db, start, grade, persist, store: new SqliteMistakeStore(db), deps };
 }
@@ -348,4 +367,18 @@ it('[INV-HUB-09][INV-MIS-07] corrupted normalized mistake history cannot adverti
   f.store.apply(f.persist(f.grade(f.start('hub-origin'), true)));
   f.db.run("UPDATE course_mistake_state SET misses=99 WHERE course_id='en-es'");
   expect(() => readPracticeMistakeOrigins(f.db, 'en-es')).toThrow(/cache differs/);
+});
+
+it('[INV-MIS-01][INV-ECO-09] mode boundary rejects an engine and economy mismatch before writing a mistake', () => {
+  const f = setup();
+  const graded = f.grade(f.start('hub-words'), true),
+    input = f.persist(graded);
+  const launch: LearningLaunch = {
+    ...input.launch,
+    economyFlavour: 'hubWords',
+    origin: { kind: 'hub', offerId: 'words', localDay: toLocalDay('2026-09-13') },
+    targetNodeId: null,
+  };
+  expect(() => f.store.apply({ ...input, launch })).toThrow(/engine.*economy/);
+  expect(f.db.all('SELECT * FROM course_mistake_encounter')).toEqual([]);
 });
