@@ -8,7 +8,7 @@ import type {
   VerifiedRuntimeItem,
   RuntimeLexicalBinding,
 } from '../../../../packages/core/src/packs/runtime-item-types';
-import { registerSources } from './learningSources';
+import { registerSources, projectSourceRegistration } from './learningSources';
 const opened: Db[] = [];
 afterEach(() => {
   opened.forEach((db) => db.close());
@@ -162,3 +162,70 @@ it.each([
     expect(f.db.all('SELECT * FROM course_item')).toEqual([]);
   },
 );
+
+it('[INV-SCH-11][INV-HUB-09] source preview projects exact registration without any SQL writes or introductions', () => {
+  const f = fixture(),
+    before = f.db.all('SELECT * FROM course_item');
+  const initial = emptySchedulerState('UTC');
+  const projection = projectSourceRegistration(f.db, 'en-es', initial, [{ item: f.item }], clock);
+  expect(f.db.all('SELECT * FROM course_item')).toEqual(before);
+  expect(f.db.all('SELECT * FROM course_item_surface')).toEqual([]);
+  expect(f.db.all('SELECT * FROM course_surface_exposure')).toEqual([]);
+  expect(f.db.all('SELECT * FROM account_word')).toEqual([]);
+  expect(initial.rows.size).toBe(0);
+  expect(projection.newItems).toEqual([
+    { itemId: 'aggregate-grid', countable: false },
+    { itemId: 'lx:cat', countable: true },
+  ]);
+  expect(projection.scheduler).toEqual(f.register());
+  expect(
+    projectSourceRegistration(f.db, 'en-es', initial, [{ item: f.item }], clock).newItems,
+  ).toEqual([]);
+});
+it('[INV-ECO-27][INV-HUB-09] preview coalesces repeated sources but rejects conflicting future countability', () => {
+  const f = fixture(),
+    initial = emptySchedulerState('UTC');
+  const projected = projectSourceRegistration(
+    f.db,
+    'en-es',
+    initial,
+    [{ item: f.item }, { item: f.item }],
+    clock,
+  );
+  expect(projected.newItems).toHaveLength(2);
+  const conflicting = {
+    ...f.item,
+    lexicalBindings: [{ ...binding, countable: false, classification: 'particle' as const }],
+  };
+  expect(() =>
+    projectSourceRegistration(
+      f.db,
+      'en-es',
+      initial,
+      [{ item: f.item }, { item: conflicting }],
+      clock,
+    ),
+  ).toThrow(/countability/);
+  expect(f.db.all('SELECT * FROM course_item')).toEqual([]);
+  expect(initial.rows.size).toBe(0);
+});
+it('[INV-PACK-02][INV-HUB-09] read-only registration retains quarantine and the same existing countability guards', () => {
+  const f = fixture();
+  f.db.run(
+    "INSERT INTO course_item(course_id,item_id,countable,quarantined) VALUES('en-es','lx:cat',1,1)",
+  );
+  const before = f.db.all('SELECT * FROM course_item');
+  const p = projectSourceRegistration(
+    f.db,
+    'en-es',
+    emptySchedulerState('UTC'),
+    [{ item: f.item }],
+    clock,
+  );
+  expect(p.newItems).toEqual([{ itemId: 'aggregate-grid', countable: false }]);
+  expect(f.db.all('SELECT * FROM course_item')).toEqual(before);
+  f.db.run("UPDATE course_item SET countable=0 WHERE item_id='lx:cat'");
+  expect(() =>
+    projectSourceRegistration(f.db, 'en-es', emptySchedulerState('UTC'), [{ item: f.item }], clock),
+  ).toThrow(/countability/);
+});

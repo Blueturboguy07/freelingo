@@ -98,31 +98,37 @@ export function queuedSource(source: RuntimeSource, nodeRef: string): QueuedItem
     requiresAudio: spec.requiresAudio,
   };
 }
-export function registerSources(
-  db: Db,
+export interface SourceRegistrationProjection {
+  readonly scheduler: SchedulerState;
+  readonly newItems: readonly { readonly itemId: string; readonly countable: boolean }[];
+}
+/** Preview exact reviewed source registration without teaching, spending or SQL writes.
+ * Planned rows participate in the same countability checks as already persisted rows. */
+export function projectSourceRegistration(
+  db: Pick<Db, 'get'>,
   courseId: string,
   state: SchedulerState,
   sources: readonly Pick<RuntimeSource, 'item'>[],
   clock: LearningClock,
-): SchedulerState {
+): SourceRegistrationProjection {
+  const pending = new Map<string, boolean>();
+  const existingItem = (itemId: string) =>
+    db.get('SELECT countable,quarantined FROM course_item WHERE course_id=? AND item_id=?', [
+      courseId,
+      itemId,
+    ]) ??
+    (pending.has(itemId) ? { countable: Number(pending.get(itemId)), quarantined: 0 } : undefined);
   let next = state;
   for (const source of sources) {
     // SQL exercise.item_id is an aggregate accuracy/scheduling anchor, never a distinct
     // lexical word. Semantic child targets require their own signed countability proof.
-    const oldParent = db.get(
-      'SELECT countable,quarantined FROM course_item WHERE course_id=? AND item_id=?',
-      [courseId, source.item.itemId],
-    );
+    const oldParent = existingItem(source.item.itemId);
     if (
       oldParent &&
       (oldParent.countable !== 0 || ![0, 1].includes(oldParent.quarantined as number))
     )
       throw new LearningDataError('Aggregate item history needs counter reconciliation.');
-    if (!oldParent)
-      db.run('INSERT INTO course_item(course_id,item_id,countable,quarantined) VALUES(?,?,0,0)', [
-        courseId,
-        source.item.itemId,
-      ]);
+    if (!oldParent) pending.set(source.item.itemId, false);
     for (const surface of source.item.schedulerSurfaces) {
       if (surface.itemId !== source.item.itemId) {
         // The repository decoder proves the authored meaning and review hash. Join its
@@ -144,21 +150,14 @@ export function registerSources(
           binding.proof.sourceSha256 !== source.item.proof.sourceSha256
         )
           throw new LearningDataError('Lexical scheduler countability proof changed.');
-        const oldChild = db.get(
-          'SELECT countable,quarantined FROM course_item WHERE course_id=? AND item_id=?',
-          [courseId, surface.itemId],
-        );
+        const oldChild = existingItem(surface.itemId);
         if (
           oldChild &&
           (oldChild.countable !== Number(binding.countable) ||
             ![0, 1].includes(oldChild.quarantined as number))
         )
           throw new LearningDataError('Saved lexical countability changed.');
-        if (!oldChild)
-          db.run(
-            'INSERT INTO course_item(course_id,item_id,countable,quarantined) VALUES(?,?,?,0)',
-            [courseId, surface.itemId, Number(binding.countable)],
-          );
+        if (!oldChild) pending.set(surface.itemId, binding.countable);
       }
       const id = asItemId(surface.itemId),
         old = rowAt(next, id, surface.surface),
@@ -196,7 +195,28 @@ export function registerSources(
       }
     }
   }
-  return next;
+  return {
+    scheduler: next,
+    newItems: [...pending].map(([itemId, countable]) => ({ itemId, countable })),
+  };
+}
+/** Caller provides the write transaction. Preview and actual registration share every
+ * source guard; no registry insert occurs until the whole projection validates. */
+export function registerSources(
+  db: Db,
+  courseId: string,
+  state: SchedulerState,
+  sources: readonly Pick<RuntimeSource, 'item'>[],
+  clock: LearningClock,
+): SchedulerState {
+  const projection = projectSourceRegistration(db, courseId, state, sources, clock);
+  for (const row of projection.newItems)
+    db.run('INSERT INTO course_item(course_id,item_id,countable,quarantined) VALUES(?,?,?,0)', [
+      courseId,
+      row.itemId,
+      Number(row.countable),
+    ]);
+  return projection.scheduler;
 }
 /** Current eligibility and historical replay evidence are separate. A later unlock may
  * not retroactively authorize an earlier-node padding slot saved before it existed. */
@@ -235,6 +255,13 @@ export function sourceDeviceAllowed(
   courseId: string,
   item: VerifiedRuntimeItem,
 ): boolean {
+  // INV-A11Y-06: a gesture-graded source cannot enter a spoken-accessibility queue.
+  // Any substitute must remain a separately declared, eligible source variant.
+  if (
+    ports.screenReaderActive() &&
+    (item.gradable.family === 'character-trace' || item.presentation.type === 'characterTrace')
+  )
+    return false;
   if (
     [item.itemId, ...item.schedulerSurfaces.map((s) => s.itemId)].some(
       (id) =>

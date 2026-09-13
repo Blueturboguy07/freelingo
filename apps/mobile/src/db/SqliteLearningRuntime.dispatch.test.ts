@@ -198,6 +198,7 @@ function setup() {
     canRecognizeSpeech: () => false,
     hasTargetScriptInput: () => true,
     reduceMotion: () => false,
+    screenReaderActive: () => false,
   };
   const runtime = new SqliteLearningRuntime(db, ports);
   const request = {

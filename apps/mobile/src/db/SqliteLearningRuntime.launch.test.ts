@@ -149,6 +149,7 @@ function setup() {
     canRecognizeSpeech: () => false,
     hasTargetScriptInput: () => true,
     reduceMotion: () => false,
+    screenReaderActive: () => false,
   };
   const runtime = new SqliteLearningRuntime(db, ports);
   const request = {
@@ -662,5 +663,57 @@ it('[INV-SESS-05][INV-CRS-01] resuming a collision restores the saved course wit
   );
   expect(f.db.get('SELECT course_id FROM course_selection WHERE is_selected=1')?.course_id).toBe(
     'en-fr',
+  );
+});
+
+it('[INV-A11Y-06][INV-HUB-09] screen-reader mode excludes all tracing at the real launch boundary', async () => {
+  const f = launchSetup();
+  const original = f.pack.runtimeItem;
+  f.setPack({
+    ...f.pack,
+    runtimeItem: (id) => {
+      const source = original(id);
+      return {
+        ...source,
+        gradable: { ...source.gradable, family: 'character-trace' },
+        presentation: { ...source.presentation, type: 'characterTrace' },
+      };
+    },
+  });
+  const enabled = new SqliteLearningRuntime(f.db, { ...f.ports, screenReaderActive: () => true });
+  await expect(enabled.start('en-es', f.request)).rejects.toThrow(/eligible|available|due/i);
+  expect(f.db.all('SELECT * FROM course_session_context')).toEqual([]);
+  const disabled = new SqliteLearningRuntime(f.db, { ...f.ports, screenReaderActive: () => false });
+  await disabled.start('en-es', f.request);
+  expect(disabled.readSession()!.state.core.queue.every((q) => q.type === 'characterTrace')).toBe(
+    true,
+  );
+});
+it('[INV-A11Y-06][INV-SESS-21] screen-reader launch retains real declared non-tracing alternatives', async () => {
+  const f = launchSetup(),
+    original = f.pack.runtimeItem;
+  const ids = f.population.map((p) => p.exerciseId + '-trace');
+  f.path.forNode('node-1').node.sessions[0]!.exerciseIds.push(...ids);
+  f.setPack({
+    ...f.pack,
+    runtimeItem: (id) => {
+      if (!id.endsWith('-trace')) return original(id);
+      const source = original(id.slice(0, -6));
+      return {
+        ...source,
+        exerciseId: id,
+        gradable: { ...source.gradable, family: 'character-trace' },
+        presentation: { ...source.presentation, type: 'characterTrace' },
+      };
+    },
+  });
+  const runtime = new SqliteLearningRuntime(f.db, { ...f.ports, screenReaderActive: () => true });
+  await runtime.start('en-es', f.request);
+  expect(runtime.readSession()!.state.core.queue).toHaveLength(6);
+  expect(runtime.readSession()!.state.core.queue.every((q) => q.type === 'typedTranslate')).toBe(
+    true,
+  );
+  expect(f.db.all('SELECT exercise_id FROM course_session_slot').map((r) => r.exercise_id)).toEqual(
+    f.population.map((p) => p.exerciseId),
   );
 });
