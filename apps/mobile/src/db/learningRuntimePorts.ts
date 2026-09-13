@@ -27,6 +27,7 @@ export interface LearningRuntimePorts {
   readonly canRecognizeSpeech: (courseId: string, item: VerifiedRuntimeItem) => boolean;
   readonly hasTargetScriptInput: (language: string) => boolean;
   readonly reduceMotion: () => boolean;
+  readonly screenReaderActive: () => boolean;
 }
 export type LearningExposure = LessonExposure;
 export interface LearningSessionView {

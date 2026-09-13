@@ -130,6 +130,7 @@ function setup() {
     canRecognizeSpeech: () => false,
     hasTargetScriptInput: () => true,
     reduceMotion: () => false,
+    screenReaderActive: () => false,
   };
   const store = new SqliteSchedulerStore(db);
   store.save(
