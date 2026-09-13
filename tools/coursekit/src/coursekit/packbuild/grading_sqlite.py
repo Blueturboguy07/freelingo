@@ -48,6 +48,29 @@ def write_learning_extension(
         payload.provenance.get("exerciseRowsSha256") == content_hash(actual_rows),
         "grading exercise content changed after assembly",
     )
+    tag_cursor = connection.execute(
+        "SELECT * FROM exercise_item_tag ORDER BY exercise_id,item_kind,item_ref"
+    )
+    tag_columns = [column[0] for column in tag_cursor.description]
+    actual_tags = [dict(zip(tag_columns, row, strict=True)) for row in tag_cursor]
+    require(
+        payload.provenance.get("exerciseTagsSha256") == content_hash(actual_tags),
+        "grading objective tags changed after assembly",
+    )
+    from .objectives import objective_definitions
+
+    def actual_definitions(table):
+        cursor = connection.execute("SELECT * FROM " + table)
+        columns = [column[0] for column in cursor.description]
+        return [dict(zip(columns, row, strict=True)) for row in cursor]
+
+    require(
+        payload.provenance.get("objectiveDefinitionsSha256")
+        == content_hash(
+            objective_definitions(actual_definitions("unit"), actual_definitions("lexeme"))
+        ),
+        "grading objective definitions changed after assembly",
+    )
     cursor = connection.execute("SELECT exercise_id,item_id,unit_id,lesson_index FROM exercise")
     exercises = {row[0]: row[1:] for row in cursor}
     seen = set()

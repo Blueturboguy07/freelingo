@@ -154,6 +154,15 @@ def fixture():
         "openResponseMinimumLength": 4,
     }
     draft = {
+        "schedulerObjective": reviewed(
+            {
+                "exerciseId": "ex1",
+                "sourceId": "s1",
+                "sourceSha256": digest(source),
+                "kind": "lexeme",
+                "itemRef": "lx:cantar:VERB",
+            }
+        ),
         "shapeEvidence": {"kind": "simple"},
         "record": record,
         "shapeId": "typed_translate_forward",
@@ -200,8 +209,11 @@ def fixture():
     )
     return GradingBuildInputs(
         identity={"packId": "original", "courseId": "en-es", "version": "1.0.0", "lang": "es"},
-        units=[{"unit_id": "u1", "unit_index": 1}],
+        units=[{"unit_id": "u1", "unit_index": 1, "grammar_concept": "g1"}],
         lexemes=[{"lexeme_id": "lx:cantar:VERB", "lemma": "cantar", "pos": "VERB"}],
+        exercise_tags=[
+            {"exercise_id": "ex1", "item_kind": "lexeme", "item_ref": "cantar", "is_new": 1}
+        ],
         exercises=[
             {
                 "exercise_id": "ex1",
@@ -744,6 +756,8 @@ def test_INV_GRD_15_english_reverse_profile_uses_its_own_answer_and_word_evidenc
     assert payload.runtime_items[0]["schedulerSurfaces"] == [
         {
             "itemId": "i_existing",
+            "kind": "lexeme",
+            "itemRef": "lx:cantar:VERB",
             "surfaceId": surface_id("es", "Quiero cantar."),
             "surface": "Quiero cantar.",
             "language": "es",
@@ -804,6 +818,11 @@ def match_fixture():
         ("casa", "house"),
         ("libro", "book"),
         ("mesa", "table"),
+    ]
+    inputs.drafts[0].pop("schedulerObjective")
+    inputs.exercise_tags[:] = [
+        {"exercise_id": "ex1", "item_kind": "lexeme", "item_ref": left, "is_new": 1}
+        for left, _ in names
     ]
     inputs.lexemes[:] = [
         {"lexeme_id": "lx:" + left + ":NOUN", "lemma": left, "pos": "NOUN"} for left, _ in names
@@ -1168,4 +1187,172 @@ def test_INV_SCH_11_reverse_canonical_keeps_its_exact_target_language_and_source
     with pytest.raises(
         GradingBuildError, match="scheduler surface: missing/wrong source, target, or language"
     ):
+        build_grading_payload(inputs)
+
+
+def speaking_fixture():
+    inputs = fixture()
+    draft = inputs.drafts[0]
+    draft["shapeId"] = "speak_this_sentence"
+    draft["gradable"] = {"family": "speaking"}
+    draft["presentation"].update(type="speakSentence", audioRef="a-spoken")
+    draft["record"].update(type="speak", audio_ref="a-spoken")
+    inputs.exercises[0].update(type="speak", audio_id="a-spoken")
+    return inputs
+
+
+def test_INV_MOD_13_speaking_without_current_approved_analysis_is_unavailable():
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload
+
+    with pytest.raises(GradingBuildError, match="speech"):
+        build_grading_payload(speaking_fixture())
+
+
+def test_INV_SCH_11_sentence_without_reviewed_primary_objective_cannot_guess_kind():
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload
+
+    inputs = fixture()
+    inputs.drafts[0].pop("schedulerObjective", None)
+    with pytest.raises(GradingBuildError, match="objective"):
+        build_grading_payload(inputs)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "no-review",
+        "self-review",
+        "stale-review",
+        "wrong-source",
+        "stale-source",
+        "wrong-exercise",
+        "unknown-kind",
+        "unknown-ref",
+        "wrong-pos",
+        "untagged",
+        "wrong-tag-kind",
+        "not-in-source",
+        "no-tags",
+    ],
+)
+def test_INV_SCH_11_scheduler_objective_requires_current_review_and_exact_declarations(fault):
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload
+
+    inputs = fixture()
+    objective = inputs.drafts[0]["schedulerObjective"]
+    if fault == "no-review":
+        objective.pop("review")
+    if fault == "self-review":
+        objective["review"]["reviewer"] = objective["author"]
+    if fault == "stale-review":
+        objective["review"]["sha256"] = "0" * 64
+    if fault == "wrong-source":
+        objective["sourceId"] = "other"
+    if fault == "stale-source":
+        objective["sourceSha256"] = "0" * 64
+    if fault == "wrong-exercise":
+        objective["exerciseId"] = "other"
+    if fault == "unknown-kind":
+        objective["kind"] = "sentence"
+    if fault == "unknown-ref":
+        objective["itemRef"] = "unknown"
+    if fault == "wrong-pos":
+        objective["itemRef"] = "lx:cantar:NOUN"
+    if fault == "untagged":
+        inputs.exercise_tags[0]["item_ref"] = "querer"
+    if fault == "wrong-tag-kind":
+        inputs.exercise_tags[0]["item_kind"] = "grammar_concept"
+    if fault == "not-in-source":
+        inputs.lexemes.append({"lexeme_id": "lx:otro:ADJ", "lemma": "otro", "pos": "ADJ"})
+        objective["itemRef"] = "lx:otro:ADJ"
+        inputs.exercise_tags[0]["item_ref"] = "otro"
+    if fault == "no-tags":
+        inputs.exercise_tags = []
+    if fault not in {"no-review", "self-review", "stale-review"}:
+        inputs.drafts[0]["schedulerObjective"] = reviewed(
+            {k: v for k, v in objective.items() if k not in {"author", "review"}}
+        )
+    with pytest.raises(GradingBuildError, match="objective"):
+        build_grading_payload(inputs)
+
+
+def test_INV_SCH_11_reviewed_grammar_objective_preserves_aggregate_identity():
+    from coursekit.packbuild.grading import build_grading_payload
+
+    inputs = fixture()
+    inputs.units[0]["grammar_concept"] = "gc:original_concept"
+    inputs.exercise_tags.append(
+        {
+            "exercise_id": "ex1",
+            "item_kind": "grammar_concept",
+            "item_ref": "gc:original_concept",
+            "is_new": 1,
+        }
+    )
+    inputs.drafts[0]["schedulerObjective"] = reviewed(
+        {
+            "exerciseId": "ex1",
+            "sourceId": "s1",
+            "sourceSha256": digest(inputs.sources["s1"]),
+            "kind": "grammarConcept",
+            "itemRef": "gc:original_concept",
+        }
+    )
+    result = build_grading_payload(inputs)
+    assert result.runtime_items[0]["schedulerSurfaces"][0] | {} == {
+        "itemId": "i_existing",
+        "surfaceId": inputs.surface_catalog[0]["surfaceId"],
+        "surface": "Quiero cantar.",
+        "language": "es",
+        "canonical": True,
+        "kind": "grammarConcept",
+        "itemRef": "gc:original_concept",
+    }
+    assert result.provenance["exerciseTagsSha256"] == digest(
+        sorted(
+            inputs.exercise_tags, key=lambda r: (r["exercise_id"], r["item_kind"], r["item_ref"])
+        )
+    )
+    inputs.units[0]["grammar_concept"] = "gc:other"
+    from coursekit.packbuild.grading import GradingBuildError
+
+    with pytest.raises(GradingBuildError, match="objective"):
+        build_grading_payload(inputs)
+
+
+def approved_speaking_fixture():
+    from test_speech_payload import fixture as source_fixture
+
+    inputs = speaking_fixture()
+    data = source_fixture()
+    inputs.sources["s1"]["analysis"] = data["source"]["analysis"]
+    inputs.approvals["a1"].update(
+        sourceSha256=digest(inputs.sources["s1"]), speech=data["approval"]["speech"]
+    )
+    draft = inputs.drafts[0]
+    draft.update(
+        sourceSha256=digest(inputs.sources["s1"]), approvalSha256=digest(inputs.approvals["a1"])
+    )
+    objective = {
+        k: v for k, v in draft["schedulerObjective"].items() if k not in {"author", "review"}
+    }
+    objective["sourceSha256"] = draft["sourceSha256"]
+    draft["schedulerObjective"] = reviewed(objective)
+    expected = copy.deepcopy(inputs.approvals["a1"])
+    inputs.approval_check = lambda source, approval: approval == expected
+    return inputs
+
+
+def test_INV_MOD_13_current_speech_projection_is_consumed_by_real_producer_and_validator():
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload
+
+    inputs = approved_speaking_fixture()
+    payload = build_grading_payload(inputs)
+    assert payload.runtime_items[0]["speech"]["references"][0]["tokens"][0]["unit"] == "querer"
+    assert (
+        payload.runtime_items[0]["speech"]["references"][0]["sourceSha256"]
+        == inputs.drafts[0]["sourceSha256"]
+    )
+    inputs.approval_check = lambda source, approval: False
+    with pytest.raises(GradingBuildError, match="current language approval"):
         build_grading_payload(inputs)

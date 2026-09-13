@@ -16,7 +16,8 @@ response profiles. Other languages and script/reading item shapes fail explicitl
 
 Root integrates the shared G7 carrier, G9 tables and `LoadedPack` read side. Pass the
 actual rows G9 will write, including `exercise_id`, `item_id`, `unit_id`,
-`lesson_index`, `prompt`, `accepted_answers_json`, and actual declared lexeme IDs
+`lesson_index`, `prompt`, `accepted_answers_json`, the complete `exercise_tags`
+(`exercise_item_tag`) rows, and actual declared lexeme IDs
 with lemma/POS. The producer never reconstructs a semantic item ID from a label.
 Each actual exercise needs exactly one matching draft. Source placement, current
 accepted set and rendered instruction/body must agree with those actual rows.
@@ -105,7 +106,8 @@ Each input draft has these required fields:
 
 ```text
 {record,shapeId,shapeEvidence,sourceId,sourceSha256,approvalId,approvalSha256,
- profileId,responseLanguage,surfaceIds,gradable,presentation,explanation}
+ profileId,responseLanguage,surfaceIds,schedulerSurfaces,gradable,presentation,explanation,
+ schedulerObjective?}
 ```
 
 `record` is the current G7 record. `gradable` supplies the existing core
@@ -215,7 +217,7 @@ that the wrong-answer feedback was shown.
 
 The draft must explicitly declare `schedulerSurfaces:[{itemId,surfaceId,canonical}]`
 using reviewed catalog IDs. The runtime expands each to
-`{itemId,surfaceId,surface,language,canonical}` in the target course language. Ordinary
+`{itemId,kind,itemRef,surfaceId,surface,language,canonical}` in the target course language. Ordinary
 items have exactly one canonical for their actual SQL item ID and include every
 accepted target-language form, so a matched Spanish alternative is scheduled under
 its own exact surface. English reverse answers keep the explicit Spanish canonical.
@@ -224,3 +226,61 @@ not imply that it was introduced. Match grids declare one canonical displayed ta
 form for each of the five semantic left lexeme IDs. Extra unaccepted alternatives,
 missing current accepted forms, foreign-language targets, and unreviewed source
 bindings fail. These declarations never replace the independent display receipts.
+
+
+Every ordinary draft additionally supplies an independently reviewed
+`schedulerObjective:{exerciseId,sourceId,sourceSha256,kind,itemRef,author,review}`.
+`kind` is `lexeme` or `grammarConcept` for current Spanish shapes, and `itemRef`
+names the actual declared lexeme ID or grammar-concept ID. It is joined to the
+exact exercise tag; raw lemma tags resolve through the declared lexeme's lemma/POS.
+A lexical objective must occur in its exact source analysis. A grammar objective
+must equal the actual unit's declared concept. A sentence's mixed tags do not
+identify its primary objective: missing review fails rather than choosing the
+first tag. Match grids instead use each actual approved left lexeme, with no
+ordinary objective declaration. The existing aggregate exercise `itemId` remains
+the scheduler identity; the source objective proves its kind without changing it.
+All alternate surfaces of one target retain the same objective. Script/grapheme
+objectives remain unsupported until their actual source carrier is implemented.
+
+`exerciseTagsSha256` binds all supplied tag rows ordered by exercise ID/kind/ref.
+`objectiveDefinitionsSha256` binds all unit ID/index/grammar-concept fields and
+lexeme ID/lemma/POS fields, sorted by ID. The writer compares both projections
+against the actual inserted SQLite rows, along with the existing full exercise
+row digest, before committing. This catches same-ID source-definition changes.
+
+Speaking items require a current approval projection:
+
+```text
+speech:{policy:{algorithm:'stored-unit-f1-v1',threshold:0.7,
+ fallback:'normalized-levenshtein-v1',fallbackThreshold:0.7,
+ ignoredPunctuation:string[],fillers:string[]},
+ analyses:[{text,analysis,japaneseScript?}]}
+```
+
+The mandatory current `approval_check` must validate these exact surfaces, native
+analyses, and explicit normalization policy against the full upstream proof.
+For Japanese it must also establish current independent reading approval; the
+paired script's honest `unreviewed` field is structural evidence, not that approval.
+There are no default punctuation/filler lists or invented readings. The pure
+producer currently assembles Spanish courses; its separate speech helper also
+validates already supplied Japanese evidence without making Japanese packs ready.
+
+Each accepted spoken surface has exactly one native G1 record or G5 candidate
+analysis. The canonical analysis must equal the source snapshot's analysis, and
+alternates need their own. The producer derives ordered, duplicate-preserving units
+from `ledger.speaking_tokens`, carrying exact code-point spans. Japanese requires
+the full G1 analysis plus its validated paired script: contextual Mode-A token
+readings and the exact whole-sentence reading are carried separately from the
+analyzer's dictionary-linked lemma readings. Analysis, adapter, script and source
+hashes bind those facts; no runtime tokenizer or reanalysis is used.
+
+The optional runtime field `speech:SpeechEvidence` is mandatory for the speaking
+family and forbidden elsewhere. The decoder checks its closed fields, spans,
+accepted-surface IDs/order, exact source proof, response/target language and actual
+pack `ledger_unit`. The speaking grader consumes only actual recognizer segments
+(`segment`, `startTimeMillis`, `endTimeMillis`, `confidence`) when they align with
+the full transcript. Otherwise it compares the exact written/baked reading through
+the declared character fallback. Accepted speech returns the actual matched surface
+ID. Empty normalized audio is distinct from a failed pronunciation; the existing
+native/session amplitude gate remains upstream. Unit tests and synthetic SQLite
+roundtrips do not claim that native speech was heard or production content approved.

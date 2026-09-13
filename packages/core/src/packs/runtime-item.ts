@@ -1,3 +1,4 @@
+import { validateSpeechEvidence } from '../grading/speech.js';
 /**
  * Revision-1 production runtime items, 2026-09-13.
  *
@@ -292,7 +293,7 @@ function decodePayload(
   reader: PackReader,
   targetLanguage: string,
 ): VerifiedRuntimeItem {
-  const row = object(value, ROOT_FIELDS, 'payload');
+  const row = object(value, ROOT_FIELDS, 'payload', ['speech']);
   if (row.schemaVersion !== RUNTIME_ITEM_VERSION) fail('payload', 'unsupported revision');
   const exerciseId = text(row.exerciseId, 'exercise ID'),
     itemId = text(row.itemId, 'item ID'),
@@ -493,9 +494,34 @@ function decodePayload(
         fail('open response', 'required keyword was not taught in this lesson view');
     }
   }
+  if (shape.family === 'speaking') {
+    let speech;
+    try {
+      speech = validateSpeechEvidence(row.speech, grading.pack);
+    } catch (error) {
+      fail('speech', error instanceof Error ? error.message : 'invalid source evidence');
+    }
+    const ledger = reader.get<{ value: string }>(
+      "SELECT value FROM meta WHERE key = 'ledger_unit'",
+    );
+    if (
+      speech.language !== responseLanguage ||
+      speech.language !== targetLanguage ||
+      ledger?.value !== speech.ledgerUnit ||
+      speech.references.length !== forms.length ||
+      speech.references.some(
+        (reference, index) =>
+          reference.sourceId !== sourceId ||
+          reference.sourceSha256 !== proof.sourceSha256 ||
+          reference.surfaceId !== forms[index]!.surfaceId ||
+          reference.text !== forms[index]!.surface,
+      )
+    )
+      fail('speech', 'exact source/accepted language/declared ledger join mismatch');
+  } else if (row.speech !== undefined) fail('speech', 'proof belongs to a different family');
   const schedulerRows = entries(
     row.schedulerSurfaces,
-    ['itemId', 'surfaceId', 'surface', 'language', 'canonical'],
+    ['itemId', 'surfaceId', 'surface', 'language', 'canonical', 'kind', 'itemRef'],
     'scheduler surfaces',
   );
   const targets =
@@ -519,12 +545,50 @@ function decodePayload(
       id !== 'sf_' + sha256Hex(JSON.stringify([targetLanguage, surface])).slice(0, 32)
     )
       fail('scheduler surfaces', 'wrong target/language/identity');
+    const objectiveRef = text(mapping.itemRef, 'scheduler objective reference');
+    let tagKind: string, tagRef: string;
+    if (mapping.kind === 'lexeme') {
+      const declared = reader.get<{ lemma: string }>(
+        'SELECT lemma FROM lexeme WHERE lexeme_id = ?',
+        [objectiveRef],
+      );
+      if (!declared) fail('scheduler objective', 'declared lexeme is missing');
+      tagKind = 'lexeme';
+      tagRef = declared.lemma;
+    } else if (mapping.kind === 'grammarConcept') {
+      if (
+        !reader.get('SELECT concept_id FROM grammar_concept WHERE concept_id = ?', [objectiveRef])
+      )
+        fail('scheduler objective', 'declared concept is missing');
+      if (
+        reader.get<{ grammar_concept: string }>(
+          'SELECT grammar_concept FROM unit WHERE unit_id = ?',
+          [unitId],
+        )?.grammar_concept !== objectiveRef
+      )
+        fail('scheduler objective', 'concept differs from actual unit declaration');
+      tagKind = 'grammar_concept';
+      tagRef = objectiveRef;
+    } else fail('scheduler objective', 'unsupported source kind');
+    if (
+      !reader.get(
+        'SELECT item_ref FROM exercise_item_tag WHERE exercise_id = ? AND item_kind = ? AND item_ref = ?',
+        [exerciseId, tagKind, tagRef],
+      )
+    )
+      fail('scheduler objective', 'exact exercise tag is missing');
+    if (shape.family === 'match' && (mapping.kind !== 'lexeme' || objectiveRef !== target))
+      fail('scheduler objective', 'match must name its actual left lexeme');
     const key = JSON.stringify([target, id]);
     if (schedulerKeys.has(key)) fail('scheduler surfaces', 'duplicate target surface');
     schedulerKeys.add(key);
   }
   for (const [target, displayed] of targets) {
     const mappings = schedulerRows.filter((mapping) => mapping.itemId === target);
+    if (
+      new Set(mappings.map((mapping) => JSON.stringify([mapping.kind, mapping.itemRef]))).size !== 1
+    )
+      fail('scheduler objective', 'target alternatives carry different objectives');
     if (mappings.filter((mapping) => mapping.canonical === true).length !== 1)
       fail('scheduler surfaces', 'exactly one canonical target surface required');
     if (shape.family === 'match') {

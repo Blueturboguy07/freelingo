@@ -268,6 +268,7 @@ class GradingBuildInputs:
     units: Sequence[Mapping[str, Any]]
     lexemes: Sequence[Mapping[str, Any]]
     exercises: Sequence[Mapping[str, Any]]
+    exercise_tags: Sequence[Mapping[str, Any]]
     profiles: Sequence[Mapping[str, Any]]
     lessons: Sequence[Mapping[str, Any]]
     drafts: Sequence[Mapping[str, Any]]
@@ -697,6 +698,9 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
     lexemes = index(inputs.lexemes, "lexeme_id", "lexeme")
     exercises = index(inputs.exercises, "exercise_id", "exercise")
     require(bool(exercises), "exercise population is empty")
+    from .objectives import objective_definitions, validate_objective_tags
+
+    validate_objective_tags(inputs.exercise_tags, exercises)
     profiles = index(inputs.profiles, "profileId", "profile")
     dictionaries = {}
     for source in inputs.dictionaries:
@@ -894,7 +898,7 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             )
     runtime, bindings, seen = [], [], set()
     for draft in inputs.drafts:
-        fields(draft, DRAFT_FIELDS, "runtime draft/explanation")
+        fields(draft, DRAFT_FIELDS, "runtime draft/explanation", {"schedulerObjective"})
         record = draft["record"]
         exercise_id = record.get("exercise_id")
         exercise = exercises.get(exercise_id)
@@ -1064,6 +1068,11 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             isinstance(draft["schedulerSurfaces"], list) and draft["schedulerSurfaces"],
             "scheduler surfaces: explicit mappings missing",
         )
+        from .objectives import scheduler_objectives
+
+        objectives = scheduler_objectives(
+            draft, exercise, source, units[unit_id], lexemes, inputs.exercise_tags, targets
+        )
         scheduler_surfaces, scheduler_keys = [], set()
         for binding in draft["schedulerSurfaces"]:
             fields(binding, {"itemId", "surfaceId", "canonical"}, "scheduler surface binding")
@@ -1080,7 +1089,12 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
             require(key not in scheduler_keys, "scheduler surface: duplicate mapping")
             scheduler_keys.add(key)
             scheduler_surfaces.append(
-                {**binding, "surface": row["surface"], "language": row["language"]}
+                {
+                    **binding,
+                    **objectives[binding["itemId"]],
+                    "surface": row["surface"],
+                    "language": row["language"],
+                }
             )
         for target, displayed in targets.items():
             mappings = [row for row in scheduler_surfaces if row["itemId"] == target]
@@ -1144,6 +1158,24 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
                 {key: row[key] for key in ("surfaceId", "surface", "language")}
                 | {"when": intro["when"]}
             )
+        speech = {}
+        if gradable["family"] == "speaking":
+            from .speech import build_speech_evidence
+
+            require(
+                draft["responseLanguage"] == inputs.identity["lang"],
+                "speech: wrong response language",
+            )
+            speech = {
+                "speech": build_speech_evidence(
+                    language=inputs.identity["lang"],
+                    source_id=draft["sourceId"],
+                    source=source,
+                    source_sha256=draft["sourceSha256"],
+                    approval=approval,
+                    accepted=forms,
+                )
+            }
         runtime.append(
             {
                 "schemaVersion": WIRE_VERSION,
@@ -1169,6 +1201,7 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
                 "introductions": introductions,
                 "schedulerSurfaces": scheduler_surfaces,
                 "explanation": explanation["text"],
+                **speech,
             }
         )
         bindings.append(
@@ -1196,6 +1229,15 @@ def _build_grading_payload(inputs: GradingBuildInputs) -> GradingPayload:
         "runtimeSha256": content_hash(runtime),
         "exerciseRowsSha256": content_hash(
             sorted(inputs.exercises, key=lambda row: row["exercise_id"])
+        ),
+        "objectiveDefinitionsSha256": content_hash(
+            objective_definitions(inputs.units, inputs.lexemes)
+        ),
+        "exerciseTagsSha256": content_hash(
+            sorted(
+                inputs.exercise_tags,
+                key=lambda row: (row["exercise_id"], row["item_kind"], row["item_ref"]),
+            )
         ),
         "surfaceCatalogSha256": content_hash(inputs.surface_catalog),
         "teachingSha256": content_hash(inputs.teaching),

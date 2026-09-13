@@ -56,6 +56,8 @@ function payload() {
     schedulerSurfaces: [
       {
         itemId: 'i_actual',
+        kind: 'lexeme',
+        itemRef: 'lx:cantar:VERB',
         surfaceId: accepted[0]!.surfaceId,
         surface: accepted[0]!.surface,
         language: 'es',
@@ -158,12 +160,15 @@ function database(value: unknown = payload()) {
   const db = new DatabaseSync(':memory:');
   handles.push(db);
   db.exec(`CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-    CREATE TABLE unit(unit_id TEXT PRIMARY KEY);
+    CREATE TABLE unit(unit_id TEXT PRIMARY KEY,grammar_concept TEXT);
+    CREATE TABLE grammar_concept(concept_id TEXT PRIMARY KEY);
+    CREATE TABLE exercise_item_tag(exercise_id TEXT,item_kind TEXT,item_ref TEXT,is_new INTEGER);
+    INSERT INTO exercise_item_tag VALUES('ex1','lexeme','cantar',1);
     CREATE TABLE lexeme(lexeme_id TEXT PRIMARY KEY,lemma TEXT,pos TEXT);
     CREATE TABLE exercise(exercise_id TEXT PRIMARY KEY,item_id TEXT,unit_id TEXT,lesson_index INTEGER,type TEXT,prompt TEXT,accepted_answers_json TEXT,distractors_json TEXT,audio_id TEXT,illustration_ref TEXT,source_sentence_id TEXT);
     CREATE TABLE audio(audio_id TEXT PRIMARY KEY,clip_hash TEXT,path TEXT,duration_ms INTEGER,bytes INTEGER);
     CREATE TABLE exercise_runtime(exercise_id TEXT PRIMARY KEY NOT NULL REFERENCES exercise(exercise_id) ON DELETE CASCADE,payload_json TEXT NOT NULL CHECK(json_valid(payload_json)),payload_sha256 TEXT NOT NULL);
-    INSERT INTO unit VALUES ('u1');
+    INSERT INTO unit VALUES ('u1','gc:original');
     INSERT INTO lexeme VALUES ('lx:cantar:VERB','cantar','VERB');`);
   db.prepare('INSERT INTO exercise VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(
     'ex1',
@@ -467,6 +472,8 @@ function gapPayload() {
     schedulerSurfaces: [
       {
         itemId: 'i_actual',
+        kind: 'lexeme',
+        itemRef: 'lx:cantar:VERB',
         surfaceId: form.surfaceId,
         surface: form.surface,
         language: 'es',
@@ -622,6 +629,8 @@ function matchPayload() {
     },
     schedulerSurfaces: pairs.map((pair) => ({
       itemId: pair.leftLexemeId,
+      kind: 'lexeme',
+      itemRef: pair.leftLexemeId,
       surfaceId: surfaceId('es', pair.left),
       surface: pair.left,
       language: 'es',
@@ -640,6 +649,10 @@ function matchDatabase(value = matchPayload()) {
       result.db
         .prepare('INSERT INTO lexeme VALUES(?,?,?)')
         .run(`lx:${side}${i}:NOUN`, `${side}${i}`, 'NOUN');
+  for (let i = 0; i < 5; i++)
+    result.db
+      .prepare('INSERT INTO exercise_item_tag VALUES(?,?,?,?)')
+      .run('ex1', 'lexeme', `source${i}`, 1);
   return result;
 }
 it('[INV-GRD-08] preserves semantic lexeme identities independently from visible pair IDs', () => {
@@ -713,12 +726,98 @@ it.each(['prompt', 'missing-keyword', 'unknown-keyword', 'untaught'])(
   },
 );
 
+function speechEvidence() {
+  const base = payload();
+  return {
+    schemaVersion: 1,
+    language: 'es',
+    ledgerUnit: 'lemma',
+    policy: {
+      algorithm: 'stored-unit-f1-v1',
+      threshold: 0.7,
+      fallback: 'normalized-levenshtein-v1',
+      fallbackThreshold: 0.7,
+      ignoredPunctuation: ['.'],
+      fillers: [],
+    },
+    references: [
+      {
+        surfaceId: base.gradable.accepted[0]!.surfaceId,
+        text: 'Quiero cantar.',
+        sourceId: base.proof.sourceId,
+        sourceSha256: base.proof.sourceSha256,
+        analysisSha256: '4'.repeat(64),
+        adapterFingerprint: 'original-independent-analysis',
+        tokens: [
+          { unit: 'querer', surface: 'Quiero', start: 0, end: 6 },
+          { unit: 'cantar', surface: 'cantar', start: 7, end: 13 },
+        ],
+      },
+    ],
+  };
+}
+function speakingPayload() {
+  const base = listeningPayload();
+  return {
+    ...base,
+    gradable: { ...base.gradable, family: 'speaking' },
+    presentation: { ...base.presentation, type: 'speakSentence' },
+    speech: speechEvidence(),
+  };
+}
+function speakingDatabase(value: unknown = speakingPayload()) {
+  const result = listeningDatabase(value);
+  result.db.exec("UPDATE exercise SET type='speak'");
+  result.db.prepare('INSERT INTO meta VALUES(?,?)').run('ledger_unit', 'lemma');
+  return result;
+}
+it('[INV-MOD-13] a speaking item without baked source evidence is unavailable', () => {
+  const value = speakingPayload();
+  Reflect.deleteProperty(value, 'speech');
+  const { reader } = speakingDatabase(value);
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
+});
+it('[INV-MOD-13] returns exact accepted source-bound speech units from actual SQL payload', () => {
+  const value = speakingPayload(),
+    { reader } = speakingDatabase(value);
+  expect(readRuntimeItem(reader, identity, 'ex1').speech).toEqual(value.speech);
+});
+it.each([
+  'source-id',
+  'source-digest',
+  'reference-id',
+  'reference-text',
+  'missing-reference',
+  'extra-reference',
+  'bad-span',
+  'language',
+  'ledger-missing',
+  'ledger-wrong',
+])('[INV-MOD-13] rejects a speech proof with a stale exact join: %s', (fault) => {
+  const value = speakingPayload();
+  const ref = value.speech.references[0]!;
+  if (fault === 'source-id') ref.sourceId = 'unrelated-source';
+  if (fault === 'source-digest') ref.sourceSha256 = '5'.repeat(64);
+  if (fault === 'reference-id') ref.surfaceId = surfaceId('es', 'Otro.');
+  if (fault === 'reference-text') ref.text = 'Otro.';
+  if (fault === 'missing-reference') value.speech.references = [];
+  if (fault === 'extra-reference') value.speech.references.push({ ...ref });
+  if (fault === 'bad-span') ref.tokens[0]!.surface = 'Other';
+  if (fault === 'language') value.speech.language = 'en';
+  const { reader, db } = speakingDatabase(value);
+  if (fault === 'ledger-missing') db.exec("DELETE FROM meta WHERE key='ledger_unit'");
+  if (fault === 'ledger-wrong')
+    db.exec("UPDATE meta SET value='morpheme_mode_a' WHERE key='ledger_unit'");
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
+});
+
 it('[INV-GRD-22] a speaking audio button does not hide the explicitly declared prompt', () => {
   const base = listeningPayload();
   const value = {
     ...base,
     gradable: { ...base.gradable, family: 'speaking' },
     presentation: { ...base.presentation, type: 'speakSentence' },
+    speech: speechEvidence(),
     introductions: [
       {
         surfaceId: surfaceId('en', base.presentation.prompt),
@@ -728,8 +827,7 @@ it('[INV-GRD-22] a speaking audio button does not hide the explicitly declared p
       },
     ],
   };
-  const { reader, db } = listeningDatabase(value);
-  db.exec("UPDATE exercise SET type='speak'");
+  const { reader } = speakingDatabase(value);
   expect(readRuntimeItem(reader, identity, 'ex1').introductions).toEqual(value.introductions);
 });
 
@@ -741,6 +839,8 @@ describe('explicit target-language scheduling forms', () => {
     value.presentation.acceptedAnswers.push(surface);
     value.schedulerSurfaces.push({
       itemId: value.itemId,
+      kind: 'lexeme',
+      itemRef: 'lx:cantar:VERB',
       surfaceId: surfaceId('es', surface),
       surface,
       language: 'es',
@@ -781,6 +881,8 @@ describe('explicit target-language scheduling forms', () => {
     if (fault === 'unaccepted-alternate')
       value.schedulerSurfaces.push({
         itemId: value.itemId,
+        kind: 'lexeme',
+        itemRef: 'lx:cantar:VERB',
         surfaceId: surfaceId('es', surface),
         surface,
         language: 'es',
@@ -829,4 +931,67 @@ describe('explicit target-language scheduling forms', () => {
     const { reader } = matchDatabase(value);
     expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(/scheduler/);
   });
+});
+
+it('[INV-SCH-11] a mixed sentence item cannot become a lexeme through an absent objective', () => {
+  const value = payload();
+  Reflect.deleteProperty(value.schedulerSurfaces[0]!, 'kind');
+  Reflect.deleteProperty(value.schedulerSurfaces[0]!, 'itemRef');
+  expect(() => decode(value)).toThrow(PackFormatError);
+});
+
+it.each([
+  'unknown-kind',
+  'unknown-id',
+  'missing-tag',
+  'different-kind',
+  'different-ref',
+  'different-exercise',
+  'conflicting-alternate',
+])('[INV-SCH-11] the scheduler objective joins the exact SQL item declaration: %s', (fault) => {
+  const value = payload();
+  const objective = value.schedulerSurfaces[0]!;
+  if (fault === 'unknown-kind') objective.kind = 'sentence';
+  if (fault === 'unknown-id') objective.itemRef = 'unknown';
+  if (fault === 'conflicting-alternate')
+    value.schedulerSurfaces.push({
+      ...objective,
+      canonical: false,
+      kind: 'grammarConcept',
+      itemRef: 'gc:other',
+    });
+  const { reader, db } = database(value);
+  if (fault === 'missing-tag') db.exec('DELETE FROM exercise_item_tag');
+  if (fault === 'different-kind')
+    db.exec("UPDATE exercise_item_tag SET item_kind='grammar_concept'");
+  if (fault === 'different-ref') db.exec("UPDATE exercise_item_tag SET item_ref='other'");
+  if (fault === 'different-exercise') db.exec("UPDATE exercise_item_tag SET exercise_id='other'");
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
+});
+it('[INV-SCH-11] a reviewed declared grammar objective retains the aggregate item identity', () => {
+  const value = payload();
+  value.schedulerSurfaces[0]!.kind = 'grammarConcept';
+  value.schedulerSurfaces[0]!.itemRef = 'gc:original';
+  const { reader, db } = database(value);
+  db.exec(
+    "INSERT INTO grammar_concept VALUES('gc:original');INSERT INTO exercise_item_tag VALUES('ex1','grammar_concept','gc:original',1)",
+  );
+  expect(readRuntimeItem(reader, identity, 'ex1').schedulerSurfaces[0]).toMatchObject({
+    itemId: 'i_actual',
+    kind: 'grammarConcept',
+    itemRef: 'gc:original',
+  });
+  db.exec('DELETE FROM grammar_concept');
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
+});
+
+it('[INV-SCH-11] an existing tagged grammar concept must still be this actual unit objective', () => {
+  const value = payload();
+  value.schedulerSurfaces[0]!.kind = 'grammarConcept';
+  value.schedulerSurfaces[0]!.itemRef = 'gc:original';
+  const { reader, db } = database(value);
+  db.exec(
+    "INSERT INTO grammar_concept VALUES('gc:original'),('gc:other'); INSERT INTO exercise_item_tag VALUES('ex1','grammar_concept','gc:original',1); UPDATE unit SET grammar_concept='gc:other'",
+  );
+  expect(() => readRuntimeItem(reader, identity, 'ex1')).toThrow(PackFormatError);
 });
