@@ -27,6 +27,7 @@ import { SqlitePreferences } from './SqlitePreferences';
 import { gradeRuntimeItem, targetsForRuntimeAnswer, type RuntimeGrade } from './learningGrading';
 import { shouldStepUp } from './learningSessionPolicy';
 import { prepareLearningLaunch } from './learningLaunch';
+import { completionIntentFor } from './learningCompletionIntent';
 import {
   LearningUnavailableError,
   registerSources,
@@ -595,15 +596,16 @@ export class SqliteLearningRuntime {
           );
         }
         new SqliteSessionStore(db, () => new Date(clock.utcMs).toISOString()).put(finalState);
-        if (finalState.exited !== null) {
-          contexts.freezeCompletion(source.state.courseId, source.state.sessionId, {
-            completedAtUtcMs: clock.utcMs,
-            completedAtMonotonicMs: clock.monotonicMs,
-            completionZone: clock.zone,
-            outcome: finalState.exited === 'quit' ? 'quit' : 'completed',
-            intendedAtUtc: new Date(clock.utcMs).toISOString(),
-          });
-        }
+        const savedContext = contexts.load(source.state.courseId, source.state.sessionId)!;
+        const intent = completionIntentFor(
+          source.state,
+          finalState,
+          savedContext,
+          contexts.receipts(source.state.courseId, source.state.sessionId),
+          clock,
+        );
+        if (intent !== null && savedContext.completion === null)
+          contexts.freezeCompletion(source.state.courseId, source.state.sessionId, intent);
       });
       this.activeClock =
         this.foregrounded && finalState.exited === null

@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { migrate, type Db } from '@freelingo/schema';
 import { createNodeDb } from '../../../../packages/testkit/src/nodeDb';
-import { freshSession, type SessionState } from '@freelingo/core/session';
+import { freshSession, DEFAULT_FLAVOUR_MATRIX, type SessionState } from '@freelingo/core/session';
 import { ES_PACK, ES_UNIT } from '../../../../packages/core/src/grading/packs/es';
 import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/runtime-item-types';
 import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
@@ -64,6 +64,7 @@ function setup() {
         canonical: true,
       },
     ],
+    lexicalBindings: [],
     introductions: [
       { surfaceId: 'sf:en-cat', surface: 'the cat', language: 'en', when: 'prompt' },
       { surfaceId: 'sf:gato', surface: 'el gato', language: 'es', when: 'wrong-feedback' },
@@ -351,4 +352,128 @@ it('[INV-ECO-20][INV-PER-03] a failed background checkpoint cannot accrue the la
   now = 103100;
   await runtime.dispatch({ type: 'check' });
   expect(f.db.get('SELECT active_ms FROM course_session_context')?.active_ms).toBe(1000);
+});
+
+function finiteSetup() {
+  const f = setup();
+  const contexts = new SqliteLearningContextStore(f.db),
+    context = contexts.load('en-es', 'session-1')!;
+  f.sessions.delete('en-es', 'graded', 'node-1');
+  f.db.run('DELETE FROM course_session_context');
+  contexts.create({ ...context.launch, economyFlavour: 'legendary' }, context.slots);
+  const allowance = DEFAULT_FLAVOUR_MATRIX.legendary.mistakeAllowance!;
+  f.sessions.activate({
+    ...f.initial,
+    flavour: 'legendary',
+    core: { ...f.initial.core, hearts: { kind: 'pips', total: allowance, remaining: allowance } },
+  });
+  f.db.run('INSERT INTO course_item(course_id,item_id,countable) VALUES(?,?,0)', [
+    'en-es',
+    f.item.itemId,
+  ]);
+  let scheduler = registerRows(emptySchedulerState('UTC'), [
+    { itemId: asItemId(f.item.itemId), surface: 'el gato', kind: 'lexeme' },
+  ]);
+  scheduler = introduce(scheduler, asItemId(f.item.itemId), 'el gato', new Date(at - 86400000));
+  new SqliteSchedulerStore(f.db).save('en-es', scheduler);
+  return { ...f, contexts };
+}
+it('[INV-ECO-16][INV-PER-03] allowance exhaustion freezes failed time through replay, kill and later End session', async () => {
+  const f = finiteSetup();
+  let now = 100;
+  const ports = { ...f.ports, clock: () => ({ utcMs: at + now - 100, monotonicMs: now, zone }) };
+  let runtime = new SqliteLearningRuntime(f.db, ports);
+  for (let i = 0; i < 20 && runtime.readSession()?.state.shellState !== 'outOfHearts'; i++) {
+    now += 1000;
+    const shell = runtime.readSession()!.state.shellState;
+    if (shell === 'challenge.idle' || shell === 'challenge.armed') {
+      await runtime.dispatch({
+        type: 'input',
+        text: 'el perro',
+        caret: 8,
+        partialState: {},
+        gradeable: true,
+      });
+      await runtime.dispatch({ type: 'check' });
+    } else await runtime.dispatch({ type: 'continue' });
+  }
+  const failed = runtime.readSession()!.state;
+  expect(failed.shellState).toBe('outOfHearts');
+  expect(failed.exited).toBeNull();
+  expect(failed.core.answers.at(-1)!.exerciseIndex).toBeLessThan(0);
+  const frozen = f.contexts.load('en-es', 'session-1')!.completion;
+  expect(frozen).toMatchObject({
+    outcome: 'failed',
+    completedAtUtcMs: at + now - 100,
+    completedAtMonotonicMs: now,
+  });
+  now += 3600000;
+  runtime = new SqliteLearningRuntime(f.db, ports);
+  await runtime.dispatch({ type: 'endSession', route: 'closeButton' });
+  expect(f.contexts.load('en-es', 'session-1')!.completion).toEqual(frozen);
+  expect(f.sessions.get('en-es', 'graded', 'node-1')?.exited).toBe('quit');
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+});
+it('[INV-ECO-16] ordinary quit never manufactures an allowance-failure award intent', async () => {
+  const f = finiteSetup();
+  await f.runtime.dispatch({
+    type: 'input',
+    text: 'el gato',
+    caret: 7,
+    partialState: {},
+    gradeable: true,
+  });
+  await f.runtime.dispatch({ type: 'check' });
+  await f.runtime.dispatch({ type: 'exit', route: 'closeButton' });
+  await f.runtime.dispatch({ type: 'endSession', route: 'closeButton' });
+  expect(f.contexts.load('en-es', 'session-1')!.completion?.outcome).toBe('quit');
+});
+it('[INV-ECO-16][INV-PER-03] corrupt exhausted allowance without real grade receipts cannot become a failed intent', async () => {
+  const f = finiteSetup(),
+    state = f.sessions.get('en-es', 'graded', 'node-1')!;
+  f.sessions.put({
+    ...state,
+    shellState: 'outOfHearts',
+    core: { ...state.core, hearts: { kind: 'pips', total: 3, remaining: 0 } },
+  });
+  await expect(f.runtime.dispatch({ type: 'endSession', route: 'closeButton' })).rejects.toThrow(
+    /failure|allowance|receipt/,
+  );
+  expect(f.contexts.load('en-es', 'session-1')!.completion).toBeNull();
+});
+
+it('[INV-ECO-16][INV-PER-03] frozen failed intent rejects a new grade after the actual Keep learning cursor', async () => {
+  const f = finiteSetup();
+  for (let i = 0; i < 20 && f.runtime.readSession()?.state.shellState !== 'outOfHearts'; i++) {
+    const shell = f.runtime.readSession()!.state.shellState;
+    if (shell === 'challenge.idle' || shell === 'challenge.armed') {
+      await f.runtime.dispatch({
+        type: 'input',
+        text: 'el perro',
+        caret: 8,
+        partialState: {},
+        gradeable: true,
+      });
+      await f.runtime.dispatch({ type: 'check' });
+    } else await f.runtime.dispatch({ type: 'continue' });
+  }
+  const frozen = f.contexts.load('en-es', 'session-1')!.completion,
+    answers = f.runtime.readSession()!.state.core.answers;
+  await f.runtime.dispatch({ type: 'exit', route: 'closeButton' });
+  expect(f.runtime.readSession()!.state.shellState).toBe('quitDialog');
+  await f.runtime.dispatch({ type: 'keepLearning' });
+  expect(f.runtime.readSession()!.state.shellState).toBe('challenge.idle');
+  await f.runtime.dispatch({
+    type: 'input',
+    text: 'el gato',
+    caret: 7,
+    partialState: {},
+    gradeable: true,
+  });
+  await expect(f.runtime.dispatch({ type: 'check' })).rejects.toThrow(
+    /frozen failure|terminal grade|completion is frozen/,
+  );
+  expect(f.runtime.readSession()!.state.core.answers).toEqual(answers);
+  expect(f.contexts.load('en-es', 'session-1')!.completion).toEqual(frozen);
+  expect(f.db.all('SELECT * FROM course_session_answer_receipt')).toHaveLength(answers.length);
 });
