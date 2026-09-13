@@ -1,4 +1,4 @@
-/** Speaking carrier proposal frozen 2026-09-13 under INV-MOD-13 / EC-MOD-27.
+/** Speaking carrier frozen 2026-09-13 under INV-MOD-13 / EC-MOD-27.
  * Expected units are produced by coursekit. No runtime tokenizer or analyser.
  */
 import type { GradingPack } from './types.js';
@@ -7,6 +7,8 @@ export interface SpeechSegment {
   readonly segment: string;
   readonly startTimeMillis: number;
   readonly endTimeMillis: number;
+  /** SDK confidence: -1 means unavailable; it does not alter grading thresholds. */
+  readonly confidence: number;
 }
 export interface SpeechExpectedToken {
   /** Exact entry from ledger.speaking_tokens, preserving duplicates and order. */
