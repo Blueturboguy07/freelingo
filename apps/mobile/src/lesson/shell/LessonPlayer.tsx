@@ -55,6 +55,9 @@ function PlayerContent({
   const [reportOpen, setReportOpen] = useState(false);
   const [mediaStatus, setMediaStatus] = useState('');
   const [recording, setRecording] = useState(false);
+  const [inputLevel, setInputLevel] = useState(0);
+  const permissionHandled = useRef<string | null>(null);
+  const announcedObservation = useRef<string | null>(null);
   const stop = useRef<(() => void) | null>(null);
   const requestEpoch = useRef(0);
   const requestKey = `${challenge?.itemId ?? ''}:${state.currentReplay?.item.id ?? state.core.queue[state.core.index]?.id ?? ''}`;
@@ -78,6 +81,81 @@ function PlayerContent({
         : baseKind;
   const chatReading = kind === 'chat' && state.inFlight.partialState['chatRead'] !== true;
   const audioRequired = challenge !== null && exerciseSpec(challenge.type).requiresAudio;
+  const currentSlot = state.currentReplay?.item ?? state.core.queue[state.core.index];
+  const latestObservation = state.modality.observations.at(-1);
+  const observation = latestObservation?.slotId === currentSlot?.id ? latestObservation : undefined;
+  const replacementMissing =
+    currentSlot !== undefined && state.modality.unavailableSlotIds.includes(currentSlot.id);
+  const modalityMessage = replacementMissing
+    ? 'This lesson needs a non-speaking or non-audio exercise from the course. Check the course download to continue.'
+    : observation?.reviewKind === 'no_audio'
+      ? state.modality.blockedFamilies.includes('speaking')
+        ? 'We couldn’t hear you. We’ll use exercises without speaking for the rest of this lesson.'
+        : 'We couldn’t hear you. Try again when you’re ready.'
+      : observation?.reviewKind === 'transient'
+        ? 'Microphone Access Problem. Try again or choose Can’t speak now.'
+        : observation?.reviewKind === 'interrupted'
+          ? 'Recording was interrupted. Try again when you’re ready.'
+          : observation?.reviewKind === 'permission_denied'
+            ? 'Microphone is off. We’ll use exercises without speaking.'
+            : observation?.reviewKind === 'skipped'
+              ? `${observation.family === 'speaking' ? 'Speaking' : 'Listening'} exercises are paused. They’ll turn back on in 1 hour.`
+              : observation?.reviewKind === 'pronunciation_failure'
+                ? 'Let’s try that pronunciation again. You can also choose Can’t speak now.'
+                : observation?.reviewKind === 'speech_ungraded'
+                  ? 'That attempt wasn’t graded. Try again when you’re ready.'
+                  : '';
+  useEffect(() => {
+    if (
+      observation !== undefined &&
+      observation.id !== announcedObservation.current &&
+      modalityMessage
+    ) {
+      announcedObservation.current = observation.id;
+      media.announce(modalityMessage);
+    }
+  }, [observation, modalityMessage, media]);
+  useEffect(() => {
+    if (
+      interactive &&
+      baseKind === 'speak' &&
+      challenge !== null &&
+      currentSlot !== undefined &&
+      media.capabilities.microphonePermission === 'denied' &&
+      permissionHandled.current !== requestKey
+    ) {
+      permissionHandled.current = requestKey;
+      onEvent({
+        type: 'speechError',
+        eventId: `permission:${requestKey}`,
+        slotId: currentSlot.id,
+        itemId: challenge.itemId,
+        error: 'permission-denied',
+      });
+    }
+  }, [
+    interactive,
+    baseKind,
+    challenge,
+    currentSlot,
+    media.capabilities.microphonePermission,
+    requestKey,
+    onEvent,
+  ]);
+  const skipModality = (family: 'speaking' | 'listening') => {
+    if (!interactive || challenge === null || currentSlot === undefined) return;
+    requestEpoch.current++;
+    stop.current?.();
+    setRecording(false);
+    onEvent({
+      type: 'modalitySkip',
+      eventId: `skip:${requestKey}:${state.modality.observations.length}`,
+      slotId: currentSlot.id,
+      itemId: challenge.itemId,
+      family,
+    });
+  };
+
   const currentInput = useRef(state.inFlight);
   currentInput.current = state.inFlight;
   useEffect(() => {
@@ -95,6 +173,7 @@ function PlayerContent({
   useEffect(() => {
     setMediaStatus('');
     setRecording(false);
+    setInputLevel(0);
     setComposing(false);
     return () => {
       requestEpoch.current++;
@@ -173,6 +252,8 @@ function PlayerContent({
   const speak = () => {
     if (
       challenge === null ||
+      currentSlot === undefined ||
+      replacementMissing ||
       !interactive ||
       !media.capabilities.canRecognize ||
       media.capabilities.announcementInFlight ||
@@ -192,6 +273,11 @@ function PlayerContent({
     let settled = false;
     const current = () =>
       !settled && epoch === requestEpoch.current && key === currentRequestKey.current;
+    const observationKey = {
+      eventId: `asr:${requestKey}:${state.modality.observations.length}`,
+      slotId: currentSlot.id,
+      itemId: challenge.itemId,
+    };
     setRecording(true);
     setMediaStatus('Listening…');
     stop.current = media.recognize(
@@ -201,31 +287,32 @@ function PlayerContent({
           if (!current()) return;
           settled = true;
           setRecording(false);
-          if (result.transcript.trim() === '') {
-            setMediaStatus('We couldn’t hear you. Try again when you’re ready.');
-            return;
-          }
-          setMediaStatus(result.transcript);
-          input(
-            result.transcript,
-            result.transcript.length,
-            {
-              ...currentInput.current.partialState,
-              transcript: result.transcript,
-              amplitude: result.amplitude,
-            },
-            true,
+          setInputLevel(
+            Math.max(0, Math.min(1, Number.isFinite(result.amplitude) ? result.amplitude : 0)),
           );
+          setMediaStatus('');
+          onEvent({
+            type: 'speechResult',
+            ...observationKey,
+            transcript: result.transcript,
+            amplitude: result.amplitude,
+          });
         },
         onError: (error) => {
           if (!current()) return;
           settled = true;
           setRecording(false);
-          setMediaStatus(
-            error === 'permission-denied'
-              ? 'Microphone is off. Open Settings to turn it on.'
-              : 'Recording was interrupted. Try again when you’re ready.',
-          );
+          setMediaStatus('');
+          onEvent({
+            type: 'speechError',
+            ...observationKey,
+            error:
+              error === 'permission-denied'
+                ? 'permission-denied'
+                : error === 'interrupted'
+                  ? 'interrupted'
+                  : 'transient',
+          });
         },
       },
     );
@@ -369,6 +456,14 @@ function PlayerContent({
                 </View>
               ) : null}
               {mediaStatus ? <BodyText>{mediaStatus}</BodyText> : null}
+              {modalityMessage ? <BodyText>{modalityMessage}</BodyText> : null}
+              {replacementMissing ? (
+                <Button3D
+                  label="Check course download"
+                  tone="neutral"
+                  onPress={() => media.remediate('no-content')}
+                />
+              ) : null}
               {controls !== null && kind === 'bank' ? <BankControls {...controls} /> : null}
               {controls !== null && kind === 'match' ? (
                 <MatchControls
@@ -401,10 +496,17 @@ function PlayerContent({
               {kind === 'speak' ? (
                 <>
                   <Button3D
-                    label={recording ? 'Stop recording' : 'Tap to speak'}
+                    label={
+                      recording
+                        ? 'Stop recording'
+                        : observation?.reviewKind === 'transient'
+                          ? 'Retry recording'
+                          : 'Tap to speak'
+                    }
                     tone="macaw"
                     disabled={
                       !interactive ||
+                      replacementMissing ||
                       media.capabilities.announcementInFlight ||
                       !media.capabilities.canRecognize
                     }
@@ -413,8 +515,19 @@ function PlayerContent({
                   <Button3D
                     label="Can’t speak now"
                     tone="neutral"
-                    onPress={() => onEvent({ type: 'skip' })}
+                    onPress={() => skipModality('speaking')}
                   />
+                  {observation?.reviewKind === 'no_audio' ? (
+                    <View
+                      accessibilityRole="progressbar"
+                      accessibilityLabel="Microphone input level"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(inputLevel * 100)}
+                    >
+                      <BodyText>Input level: {Math.round(inputLevel * 100)}%</BodyText>
+                    </View>
+                  ) : null}
                   {!media.capabilities.canRecognize ? (
                     <Button3D
                       label="Review speaking settings"
@@ -440,7 +553,7 @@ function PlayerContent({
                 <Button3D
                   label="Can’t listen now"
                   tone="neutral"
-                  onPress={() => onEvent({ type: 'skip' })}
+                  onPress={() => skipModality('listening')}
                 />
               ) : null}
               {(kind === 'bank' || kind === 'typed') && (challenge.bank?.length ?? 0) > 0 ? (
