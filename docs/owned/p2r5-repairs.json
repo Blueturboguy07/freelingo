@@ -1,0 +1,64 @@
+{
+  "$comment": "Round5 repairs strengthen tests for already-owned P2 invariants. No duplicate ownership and no claim that the P2 gate has passed. CI and sample evidence belong in P2-REPORT.md once measured.",
+  "phase": "P2",
+  "round": 5,
+  "task": "p2r5-repairs",
+  "owned": [],
+  "branches": [
+    "codex/p2r5-deps",
+    "codex/p2r5-upstream",
+    "codex/p2r5-g7",
+    "codex/p2r5-signing",
+    "codex/p2r5-sample",
+    "codex/p2r5-integration"
+  ],
+  "additionalTests": {
+    "INV-GRD-03": [
+      "tools/coursekit/tests/test_artifacts.py",
+      "tools/coursekit/tests/test_g7_expand.py"
+    ],
+    "INV-PACK-06": [
+      "tools/coursekit/tests/test_g4_select.py",
+      "tools/coursekit/tests/test_pair_quality.py"
+    ],
+    "INV-PACK-08": [
+      "tools/coursekit/tests/test_g5_gapfill.py",
+      "tools/coursekit/tests/test_g6_validate_language.py"
+    ],
+    "INV-PACK-14": [
+      "tools/coursekit/tests/test_review_integrity.py",
+      "tools/coursekit/tests/test_review_freshness.py",
+      "tools/coursekit/tests/test_g6_validate_language.py"
+    ],
+    "INV-PACK-18": [
+      "tools/coursekit/tests/test_signing.py",
+      "tools/coursekit/tests/test_signing_pkcs8.py",
+      "tools/coursekit/tests/test_signing_workflow.py",
+      "packages/core/src/packs/real-pack.test.ts"
+    ],
+    "INV-PACK-41": [
+      "tools/coursekit/tests/test_artifacts.py",
+      "tools/coursekit/tests/test_g7_expand.py",
+      "tools/coursekit/tests/test_review_integrity.py"
+    ],
+    "INV-AUD-08": [
+      "tools/coursekit/tests/test_review_freshness.py"
+    ],
+    "INV-PACK-07": [
+      "tools/coursekit/tests/test_g7_expand.py"
+    ],
+    "INV-PACK-40": [
+      "tools/coursekit/tests/test_g7_expand.py"
+    ],
+    "INV-PACK-10": [
+      "tools/coursekit/tests/test_g5_gapfill.py",
+      "tools/coursekit/tests/test_g6_validate_language.py"
+    ]
+  },
+  "limits": [
+    "Agent review remains PROVISIONAL (unreviewed by a paid native speaker).",
+    "Local Python verification deselects the optional live SimAlign agreement test after a network stall; G7 shipping must still use the real aligner.",
+    "Local unit and mutation checks do not replace a current CI-built, validated, reviewed, signed pack.",
+    "P3-P8 screens are not implemented; existing native evidence exercises database persistence only."
+  ]
+}

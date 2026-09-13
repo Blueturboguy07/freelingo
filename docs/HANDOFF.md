@@ -1,6 +1,13 @@
-# Handoff — 2026-09-12
+# Handoff — desktop takeover, 2026-09-13 UTC
 
-The build was run by Claude (Fable 5.1) as an orchestrated workflow from 2026-09-11 to 2026-09-12 and stopped at a safe point so that Codex can continue it with the same method. Everything is committed and pushed. Read `AGENTS.md` first; this file says exactly where things stand and what to do next.
+The original Claude handoff was superseded by a Codex CLI run and then this desktop
+task. The founder requested that the CLI be stopped and all work continue here. The CLI
+was stopped; existing edits and worktrees were preserved. Read `AGENTS.md`, then
+**`docs/P2-TAKEOVER.md`** for the current checkpoint and authorized round-5 plan.
+
+P2 is still red. P0/P1 are green; the mobile entry point is still the P0 database smoke
+test. P3–P8 have not started. The round-4 branch table and environment history below are
+retained for recovery and must not be mistaken for current branch/integration status.
 
 ## Where the build stands
 
@@ -8,10 +15,10 @@ The build was run by Claude (Fable 5.1) as an orchestrated workflow from 2026-09
 |---|---|---|
 | P0 Foundation | **GREEN** | `docs/P0-REPORT.md`. Monorepo, CI on the public repo, testkit, six invariants at 10k+ cases, pack-signing key custody, persistence gate proven on the Android emulator and the iOS simulator (Maestro flow `e2e/flows/p0-db-path.yaml`; iOS needed the pnpm patch for `expo-modules-jsi` and the CI pin to Xcode 26.2). |
 | P1 Engine | **GREEN** | `docs/P1-REPORT.md`. `packages/core` complete for §1–§10, §13, §14 engine parts and SEC-01/02; 1,258 tests, 230 fast-check properties; 13 ids deferred to P3–P5 by design (listed in `docs/owned/journey.json`). Mutation job produces no score yet (non-gating, see B7). |
-| P2 Spanish pack | **RED after three rounds; round 4 in flight** | `docs/P2-REPORT.md` (and `P2-REPORT-round1/2.md`), `docs/P2-BLOCKERS.md`. The pipeline exists end to end but **no Spanish pack has ever been produced on `main`** because G5 fails on 22 empty candidate slots (B19). Round 4's six branches are pushed (below). |
+| P2 Spanish pack | **RED; authorized round 5 in progress** | `docs/P2-TAKEOVER.md`. G0–G9 produced a local pack; the latest completed CI build reached signing and failed on the key format. The historical draw measured 51/300 wrong, PROVISIONAL (unreviewed by a paid native speaker). Current repairs cover content quality, review/source identity and signed CI artifacts. |
 | P3–P8 | not started | briefs in `docs/phases/P3.md … P8.md` |
 
-## The six round-4 branches (pushed to origin; worktrees under `~/freelingo-wt/`)
+## Historical round-4 branch table (original handoff)
 
 | Branch | Purpose | State when stopped |
 |---|---|---|
@@ -33,7 +40,7 @@ Founder rulings so far are in `~/duolingo-research/DECISIONS-LOG.md` (2026-09-12
 - **B20 (infra)**: the reporter timeout is runner speed, not the suite; the fix lane is `p2r4/ci-reporter-timeout`. Until fixed, a red `ci.yml` with all tests passing is re-run once before it counts.
 - **B7 (non-gating)**: Stryker `coverageAnalysis: off` and tighter INV-DAT generators, P3 chore.
 
-## What to do next, in order
+## Historical round-4 recovery order
 
 1. `git fetch origin && git checkout main && git pull`. Rebuild the worktrees if `~/freelingo-wt/` is gone: `git worktree add ~/freelingo-wt/<name> <branch>` for each round-4 branch.
 2. Land **`p2r4/ci-reporter-timeout`** first (small, unblocks trustworthy CI), then the code half of **`p2r4/sample-accent-rate`**.
@@ -71,4 +78,4 @@ cd ~/freelingo && ~/.npm-global/bin/codex --sandbox danger-full-access --ask-for
 
 ## Kickoff prompt for Codex
 
-> Read `AGENTS.md` and `docs/HANDOFF.md`, then `docs/P2-BLOCKERS.md` and `docs/phases/P2.md`. Continue P2 round 4 from the six pushed branches in the order the handoff gives, following the build loop in `AGENTS.md` (test first, adversarial self-review, integrate with CI evidence, `GATE:` line in the report). Run every long command in the background and poll. When P2 is green, continue with `docs/phases/P3.md` through `P8.md` without stopping, unless a gate is red twice, in which case ask me.
+> Read `AGENTS.md`, `docs/HANDOFF.md` and `docs/P2-TAKEOVER.md`, then `docs/P2-BLOCKERS.md` and `docs/phases/P2.md`. Continue the authorized P2 round-5 repairs from the actual git/worktree state; preserve existing work and follow the build loop (test first, independent adversarial review, sequential integration and real CI evidence). Run long commands in logged background jobs. Once P2 is green, continue P3 through P8 without stopping between phases, unless a gate is red twice, in which case ask me.
