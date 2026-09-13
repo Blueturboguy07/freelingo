@@ -371,13 +371,41 @@ function decodePayload(
     fail('presentation', 'actual instruction/body mismatch');
   const introductionKeys = new Set<string>();
   for (const value of array(row.introductions, 'introductions')) {
-    const intro = object(value, ['surfaceId', 'surface', 'language', 'when'], 'introductions');
+    const intro = object(value, ['surfaceId', 'surface', 'language', 'when'], 'introductions', [
+      'location',
+      'optionId',
+    ]);
     const surface = text(intro.surface, 'introductions surface');
     const language = text(intro.language, 'introductions language');
     const id = text(intro.surfaceId, 'introductions identity');
     if (id !== 'sf_' + sha256Hex(JSON.stringify([language, surface])).slice(0, 32))
       fail('introductions', 'surface identity mismatch');
-    if (intro.when === 'prompt') {
+    if (intro.location !== undefined || intro.optionId !== undefined) {
+      if (intro.location !== 'option' || intro.when !== 'prompt')
+        fail('introductions', 'invalid option location');
+      const optionId = text(intro.optionId, 'introduction option ID');
+      const option = array(presentation.options, 'introduction options')
+        .map((value) =>
+          object(value, ['id', 'text'], 'introduction option', ['imageUri', 'imageDescription']),
+        )
+        .find((option) => option.id === optionId);
+      if (
+        type !== 'pictureSelect' ||
+        presentation.introduction !== 'word' ||
+        language !== targetLanguage ||
+        option?.text !== surface ||
+        !forms.some((form) => form.surfaceId === id) ||
+        !array(row.schedulerSurfaces, 'introduction scheduler targets').some((value) => {
+          const mapping = object(
+            value,
+            ['itemId', 'kind', 'itemRef', 'surfaceId', 'surface', 'language', 'canonical'],
+            'introduction target',
+          );
+          return mapping.surfaceId === id && mapping.kind === 'lexeme';
+        })
+      )
+        fail('introductions', 'option is not the visible correct NEW WORD target');
+    } else if (intro.when === 'prompt') {
       // Same visible prompt predicate as the actual LessonPlayer. An optional audio
       // button does not hide speaking/text prompts. The carrier names the language.
       if (

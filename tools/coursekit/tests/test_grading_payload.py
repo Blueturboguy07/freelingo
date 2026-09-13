@@ -1356,3 +1356,164 @@ def test_INV_MOD_13_current_speech_projection_is_consumed_by_real_producer_and_v
     inputs.approval_check = lambda source, approval: False
     with pytest.raises(GradingBuildError, match="current language approval"):
         build_grading_payload(inputs)
+
+
+def picture_introduction_fixture():
+    inputs = fixture()
+    source = copy.deepcopy(inputs.sources["s1"])
+    source.update(
+        text="cantar",
+        translation="to sing",
+        analysis={
+            "tokens": [
+                {"surface": "cantar", "lemma": "cantar", "pos": "VERB", "start": 0, "end": 6}
+            ]
+        },
+    )
+    rewrite_answers(inputs, ["cantar"], "to sing", source=source)
+    draft = inputs.drafts[0]
+    draft.update(shapeId="picture_select", gradable={"family": "select"})
+    draft["schedulerObjective"] = reviewed(
+        {
+            "exerciseId": "ex1",
+            "sourceId": "s1",
+            "sourceSha256": digest(source),
+            "kind": "lexeme",
+            "itemRef": "lx:cantar:VERB",
+        }
+    )
+    draft["record"].update(type="match", distractors=["contar", "bailar"])
+    inputs.exercises[0].update(
+        type="match", preferred_surface="cantar", distractors_json=json.dumps(["contar", "bailar"])
+    )
+    draft["presentation"].update(
+        type="pictureSelect",
+        introduction="word",
+        promptLanguage="en",
+        options=[
+            {
+                "id": id,
+                "text": word,
+                "imageUri": "original/" + id + ".png",
+                "imageDescription": "Original fixture for " + word,
+            }
+            for id, word in [("correct", "cantar"), ("other1", "contar"), ("other2", "bailar")]
+        ],
+    )
+    row = {k: v for k, v in inputs.surface_catalog[0].items() if k not in {"author", "review"}}
+    row["introduction"] = {
+        "exerciseId": "ex1",
+        "unitId": "u1",
+        "lessonIndex": 1,
+        "when": "prompt",
+        "location": "option",
+        "optionId": "correct",
+    }
+    inputs.surface_catalog[0] = reviewed(row)
+    return inputs
+
+
+def test_INV_SCH_11_picture_new_word_introduces_exact_visible_correct_target_option():
+    from coursekit.packbuild.grading import build_grading_payload
+
+    inputs = picture_introduction_fixture()
+    row = build_grading_payload(inputs).runtime_items[0]
+    assert row["introductions"] == [
+        {
+            "surfaceId": inputs.surface_catalog[0]["surfaceId"],
+            "surface": "cantar",
+            "language": "es",
+            "when": "prompt",
+            "location": "option",
+            "optionId": "correct",
+        }
+    ]
+    assert row["presentation"]["prompt"] == "to sing"
+    assert row["presentation"]["promptLanguage"] == "en"
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing-id",
+        "wrong-id",
+        "distractor-id",
+        "missing-marker",
+        "grammar-marker",
+        "wrong-shape",
+        "feedback",
+        "unknown-location",
+        "grammar-objective",
+        "foreign-language",
+    ],
+)
+def test_INV_SCH_11_option_introduction_is_an_exact_declared_new_word_beat(fault):
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload, surface_id
+
+    inputs = picture_introduction_fixture()
+    draft = inputs.drafts[0]
+    row = {k: v for k, v in inputs.surface_catalog[0].items() if k not in {"author", "review"}}
+    intro = row["introduction"]
+    if fault == "missing-id":
+        del intro["optionId"]
+    if fault == "wrong-id":
+        intro["optionId"] = "missing"
+    if fault == "distractor-id":
+        intro["optionId"] = "other1"
+    if fault == "missing-marker":
+        del draft["presentation"]["introduction"]
+    if fault == "grammar-marker":
+        draft["presentation"]["introduction"] = "grammar"
+    if fault == "wrong-shape":
+        draft["shapeId"] = "meaning_select"
+        draft["presentation"]["type"] = "meaningSelect"
+    if fault == "feedback":
+        intro["when"] = "wrong-feedback"
+    if fault == "unknown-location":
+        intro["location"] = "answer-cache"
+    if fault == "grammar-objective":
+        inputs.exercise_tags.append(
+            {"exercise_id": "ex1", "item_kind": "grammar_concept", "item_ref": "g1", "is_new": 1}
+        )
+        draft["schedulerObjective"] = reviewed(
+            {
+                "exerciseId": "ex1",
+                "sourceId": "s1",
+                "sourceSha256": draft["sourceSha256"],
+                "kind": "grammarConcept",
+                "itemRef": "g1",
+            }
+        )
+    if fault == "foreign-language":
+        original = {**row, "introduction": None}
+        inputs.surface_catalog[0] = reviewed(original)
+        row.update(language="en", surfaceId=surface_id("en", "cantar"))
+        inputs.surface_catalog.append(reviewed(row))
+    else:
+        inputs.surface_catalog[0] = reviewed(row)
+    with pytest.raises(GradingBuildError, match="introduction"):
+        build_grading_payload(inputs)
+
+
+def test_INV_SCH_11_orphan_option_id_does_not_turn_a_legacy_prompt_into_an_option_witness():
+    from coursekit.packbuild.grading import GradingBuildError, build_grading_payload, surface_id
+
+    inputs = fixture()
+    prompt = inputs.drafts[0]["presentation"]["prompt"]
+    row = {
+        "surfaceId": surface_id("en", prompt),
+        "language": "en",
+        "surface": prompt,
+        "rank": 0,
+        "sourceIds": ["s1"],
+        "introduction": {
+            "exerciseId": "ex1",
+            "unitId": "u1",
+            "lessonIndex": 1,
+            "when": "prompt",
+            "optionId": "unbound",
+        },
+    }
+    inputs.surface_catalog.append(reviewed(row))
+    with pytest.raises(GradingBuildError, match="introduction"):
+        build_grading_payload(inputs)
