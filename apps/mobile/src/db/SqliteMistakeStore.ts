@@ -3,13 +3,14 @@ import {
   applyEncounter as reviewMistake,
   isGradedAttempt,
   exerciseSpec,
-  DEFAULT_FLAVOUR_MATRIX,
   type SessionState,
   type MistakeRow,
 } from '@freelingo/core/session';
 import { toLocalDay } from '@freelingo/core/day';
 import type { LearningSchedulerTransition } from './learningTransitions';
 import { LearningDataError } from './SqliteSchedulerStore';
+import { validateLearningSessionPolicy } from './learningModePolicy';
+import type { LearningLaunch } from './SqliteLearningContextStore';
 export interface SavedMistake {
   readonly row: MistakeRow;
   readonly misses: number;
@@ -18,6 +19,7 @@ export interface SavedMistake {
   readonly retiredAtUtcMs: number | null;
 }
 export interface MistakeCommitInput {
+  readonly launch: LearningLaunch;
   readonly state: SessionState;
   readonly transitions: readonly LearningSchedulerTransition[];
 }
@@ -205,8 +207,16 @@ export class SqliteMistakeStore {
   }
   apply(input: MistakeCommitInput): void {
     this.db.withExclusiveTransaction(() => {
-      const { state } = input,
-        found = this.histories(state.courseId);
+      const { state, launch } = input;
+      const config = validateLearningSessionPolicy(state, launch);
+      if (
+        launch.courseId !== state.courseId ||
+        launch.start.sessionId !== state.sessionId ||
+        launch.nodeRef !== state.nodeRef ||
+        launch.sessionKind !== state.sessionKind
+      )
+        return fail('launch binding');
+      const found = this.histories(state.courseId);
       let previous = [-1, -1];
       for (const t of input.transitions) {
         if (
@@ -294,7 +304,7 @@ export class SqliteMistakeStore {
             t.answer.queue !== 'main' ||
             !t.answer.wrong ||
             !exerciseSpec(t.answer.type).punitive ||
-            !DEFAULT_FLAVOUR_MATRIX[state.flavour].recyclesMistakes
+            !config.recyclesMistakes
           )
             return fail('new mistake has no actual main-queue origin');
         }

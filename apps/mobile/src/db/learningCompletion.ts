@@ -1,3 +1,4 @@
+import { validateLearningSessionPolicy } from './learningModePolicy';
 import type { Db } from '@freelingo/schema';
 import {
   canonicalJson,
@@ -269,6 +270,7 @@ export function commitLearning(db: Db, input: LearningCompletionInput): Ceremony
     context.launch.start.sessionId !== state.sessionId
   )
     fail('missing original completion source');
+  validateLearningSessionPolicy(state, context.launch);
   if (
     completion.outcome === 'quit'
       ? state.exited !== 'quit'
@@ -400,7 +402,7 @@ export function commitLearning(db: Db, input: LearningCompletionInput): Ceremony
     }
   // INV-SESS-23: audit-only completion is deliberately not a committed session.
   if (!state.core.answers.some(isGradedAttempt)) return null;
-  new SqliteMistakeStore(db).apply({ state, transitions });
+  new SqliteMistakeStore(db).apply({ state, transitions, launch: context.launch });
   const pathAfter = progress(db, input, pathBefore, items),
     schedulerAfter = store.load(state.courseId, completion.completionZone.tzId);
   if (!equal([...scheduler.rows.keys()], [...schedulerAfter.rows.keys()]))

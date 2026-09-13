@@ -1,3 +1,4 @@
+import { validateLearningSessionPolicy } from './learningModePolicy';
 import { readLearningBoosts } from './learningBoosts';
 import type { Db, DbRow } from '@freelingo/schema';
 import {
@@ -217,12 +218,13 @@ function validate(input: LearningRewardInput, db: Db): DbRow {
     c.launch.packContentHash !== pack.contentHash
   )
     return fail('session or pack binding');
+  const config = validateLearningSessionPolicy(s, c.launch);
   if (gradedAttemptCount(s) === 0) return fail('terminal graded state required');
   if (c.completion.outcome === 'failed') {
     // Exhaustion is durable before the learner dismisses S060. The final graded
     // answer can be a negative-index replay or the aggregate of a partial match grid.
     const terminal = s.core.answers.at(-1),
-      allowance = DEFAULT_FLAVOUR_MATRIX[s.flavour].mistakeAllowance;
+      allowance = config.mistakeAllowance;
     if (
       s.core.hearts.kind !== 'pips' ||
       s.core.hearts.remaining !== 0 ||

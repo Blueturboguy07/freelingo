@@ -474,10 +474,19 @@ it('[INV-REC-02][INV-REC-05] a third actual recovery lesson repaints only missed
   const { db, input } = setup();
   history(db, [8, 9, 10], [11, 12], true);
   const state = { ...input.state, flavour: 'recovery' as const };
+  db.run('DELETE FROM course_session_context WHERE session_id=?', [state.sessionId]);
   apply(db, {
     ...input,
     state,
-    context: { ...input.context, launch: { ...input.context.launch, economyFlavour: 'recovery' } },
+    context: {
+      ...input.context,
+      launch: {
+        ...input.context.launch,
+        economyFlavour: 'recovery',
+        origin: { kind: 'path' },
+        targetNodeId: state.nodeRef,
+      },
+    },
   });
   expect(db.get('SELECT streak FROM account')!.streak).toBe(4);
   expect(
@@ -1457,4 +1466,13 @@ it('[INV-ECO-02] completion cannot revive a boost whose persisted deadline was a
   expect(
     db.get("SELECT expires_at FROM account_boost WHERE grant_id='old-shortened'")?.expires_at,
   ).toBe(shortened);
+});
+
+it('[INV-ECO-09][INV-CER-01] mode boundary refuses a reward when the serialized engine and economy disagree', () => {
+  const { db, input } = setup();
+  const state = { ...input.state, flavour: 'lesson' as const };
+  new SqliteSessionStore(db).put(state);
+  const before = db.get('SELECT total_changes() AS n');
+  expect(() => planLearningRewards(db, { ...input, state })).toThrow(/engine.*economy/);
+  expect(db.get('SELECT total_changes() AS n')).toEqual(before);
 });

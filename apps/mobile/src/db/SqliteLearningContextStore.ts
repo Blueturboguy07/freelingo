@@ -14,7 +14,6 @@ import {
 } from '@freelingo/core/session';
 import { LONG_FORM_XP_KEYS, type LongFormEntryPoint } from '@freelingo/core/economy';
 import {
-  SESSION_FLAVOURS,
   SESSION_OUTCOMES,
   type SessionFlavour,
   type SessionOutcomeKind,
@@ -22,6 +21,11 @@ import {
 } from '@freelingo/core/types';
 import type { EncounterRole } from '@freelingo/core/scheduler';
 import { LearningDataError, type SchedulerTargetEvidence } from './SqliteSchedulerStore';
+import {
+  LEARNING_ECONOMY_FLAVOURS,
+  learningSessionPolicy,
+  validateLearningSessionPolicy,
+} from './learningModePolicy';
 
 export interface LearningLaunch {
   readonly courseId: string;
@@ -162,7 +166,7 @@ function readLaunch(r: DbRow): LearningLaunch {
     if (Date.parse(boost.expiresAtUtc) < Date.parse(boost.startedAtUtc))
       return fail('boost interval');
   }
-  return {
+  const launch: LearningLaunch = {
     courseId: text(r.course_id, 'course'),
     sessionKind: oneOf(r.session_kind, SESSION_KINDS, 'session kind'),
     nodeRef: text(r.node_ref, 'node'),
@@ -172,7 +176,7 @@ function readLaunch(r: DbRow): LearningLaunch {
       startedAtMonotonicMs: num(r.started_at_monotonic_ms, 'start monotonic'),
       startZone: zone(r, 'start_'),
     },
-    economyFlavour: oneOf(r.economy_flavour, SESSION_FLAVOURS, 'economy flavour'),
+    economyFlavour: oneOf(r.economy_flavour, LEARNING_ECONOMY_FLAVOURS, 'economy flavour'),
     practiceItemRatio: num(r.practice_item_ratio, 'practice ratio', 0, 1),
     longFormEntry:
       r.long_form_entry === null ? null : oneOf(r.long_form_entry, LONG_FORM_XP_KEYS, 'entry'),
@@ -188,6 +192,8 @@ function readLaunch(r: DbRow): LearningLaunch {
         : { kind: origin },
     targetNodeId: optional(r.target_node_id, 'target node'),
   };
+  learningSessionPolicy(launch);
+  return launch;
 }
 function launchRow(l: LearningLaunch): DbRow {
   const b = l.boostAtStart,
@@ -460,6 +466,7 @@ export class SqliteLearningContextStore {
     });
   }
   private checkState(context: LearningContext, state: SessionState): void {
+    validateLearningSessionPolicy(state, context.launch);
     if (
       state.sessionId !== context.launch.start.sessionId ||
       state.courseId !== context.launch.courseId ||

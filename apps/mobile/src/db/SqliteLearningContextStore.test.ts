@@ -9,10 +9,10 @@ import {
   freshSession,
   item,
   step,
-  DEFAULT_FLAVOUR_MATRIX,
   type StepDeps,
   type SessionState,
 } from '@freelingo/core/session';
+import { learningSessionPolicy } from './learningModePolicy';
 import { createNodeDb } from '../../../../packages/testkit/src/nodeDb';
 import {
   SqliteLearningContextStore,
@@ -215,7 +215,7 @@ it('[INV-DAY-04] corrupt civil stamps and partial receipts remain recoverable in
 });
 
 const engineDeps: StepDeps = {
-  config: DEFAULT_FLAVOUR_MATRIX.lesson,
+  config: learningSessionPolicy(launch).config,
   grading: { grade: () => ({ kind: 'wrong' }) },
   clock: { nowMs: () => 10 },
   isTypeEligible: () => true,
@@ -226,6 +226,7 @@ function engineStart(
 ): SessionState {
   const state = freshSession({
     sessionId: launch.start.sessionId,
+    flavour: learningSessionPolicy(launch).engineFlavour,
     courseId: course,
     nodeRef: launch.nodeRef,
     queue: [{ ...item(1, { type }), itemId: slot.itemId }],
@@ -423,4 +424,25 @@ it('[INV-SESS-01] gapped staged target order requires recovery and retains origi
   const original = db.all('SELECT * FROM course_session_answer_target');
   expect(() => store.targets(course, 'session-1', 0)).toThrow(/position/);
   expect(db.all('SELECT * FROM course_session_answer_target')).toEqual(original);
+});
+
+it.each(['story', 'radio', 'roleplay', 'timedChallenge'] as const)(
+  '[INV-SESS-21][INV-ECO-09] mode boundary refuses unsupported %s contexts before persistence',
+  (economyFlavour) => {
+    const db = open();
+    seed(db);
+    const store = new SqliteLearningContextStore(db);
+    expect(() => store.create({ ...launch, economyFlavour }, [slot])).toThrow(
+      /economy flavour|unsupported/,
+    );
+    expect(db.all('SELECT * FROM course_session_context')).toEqual([]);
+  },
+);
+it('[INV-HUB-06][INV-ECO-09] mode boundary refuses a Hub economy identity under path origin', () => {
+  const db = open();
+  seed(db);
+  expect(() =>
+    new SqliteLearningContextStore(db).create({ ...launch, origin: { kind: 'path' } }, [slot]),
+  ).toThrow(/Hub origin/);
+  expect(db.all('SELECT * FROM course_session_context')).toEqual([]);
 });

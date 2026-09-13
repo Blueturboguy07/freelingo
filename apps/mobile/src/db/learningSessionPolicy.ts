@@ -3,6 +3,7 @@ import {
   isGradedAttempt,
   type QueuedItem,
   type SessionState,
+  type SessionFlavourConfig,
 } from '@freelingo/core/session';
 import { roleOfExerciseType } from '@freelingo/core/scheduler';
 /** Freelingo application heuristic, approved 2026-09-13; no measured Duolingo
@@ -11,8 +12,9 @@ export const LEARNING_STEP_UP_POLICY = { consecutiveMainSuccesses: 5 } as const;
 export function shouldStepUp(
   state: SessionState,
   eligible: (item: QueuedItem) => boolean,
+  config: SessionFlavourConfig = DEFAULT_FLAVOUR_MATRIX[state.flavour],
 ): boolean {
-  const kind = DEFAULT_FLAVOUR_MATRIX[state.flavour].stepUp;
+  const kind = config.stepUp;
   if (
     kind === null ||
     state.stepUpFired ||
