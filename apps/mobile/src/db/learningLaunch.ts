@@ -2,6 +2,9 @@ import type { Db } from '@freelingo/schema';
 import { allUnits, nodeUnlocked, isComplete, specFor } from '@freelingo/core/path';
 import {
   generateSession,
+  applyStartOverExclusion,
+  type StartOverPlan,
+  type QueuedItem,
   seedFor,
   DEFAULT_FLAVOUR_MATRIX,
   SESSION_FLAVOURS,
@@ -113,6 +116,7 @@ export function prepareLearningLaunch(
   clock: LearningClock,
   courseId: string,
   request: LessonLaunch,
+  startOver?: StartOverPlan,
 ): PreparedLearningLaunch {
   const pack = ports.packs.get(courseId);
   if (!pack || pack.courseId !== courseId)
@@ -205,7 +209,10 @@ export function prepareLearningLaunch(
       })
     );
   };
-  const candidates = selected.filter(eligible);
+  const excluded = new Set(startOver?.excludedItemIds ?? []);
+  const candidates = selected.filter(
+    (source) => !excluded.has(source.item.itemId) && eligible(source),
+  );
   const sourceByExercise = new Map(all.map((s) => [s.item.exerciseId, s]));
   // Ordinary path padding uses this frozen eligibility snapshot as provenance. It
   // does not masquerade as either of the two spent-marker entry points (2026-09-13).
@@ -266,8 +273,10 @@ export function prepareLearningLaunch(
     db.get('SELECT session_id FROM course_session_context WHERE session_id=?', [sessionId])
   )
     throw new LearningDataError('A fresh session identity is required.');
-  const queueCandidates = candidates.map((s) => queuedSource(s, node.id)),
-    padding = dueInPool.map((s) => queuedSource(s, node.id));
+  const filter = (items: readonly QueuedItem[]) =>
+    startOver ? applyStartOverExclusion(items, startOver) : items;
+  const queueCandidates = filter(candidates.map((s) => queuedSource(s, node.id))),
+    padding = filter(dueInPool.map((s) => queuedSource(s, node.id)));
   const admitted = [...candidates, ...dueInPool];
   const ids = new Set(admitted.map((s) => s.item.itemId));
   const audioIds = new Set(
