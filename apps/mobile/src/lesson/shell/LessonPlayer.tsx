@@ -41,6 +41,8 @@ export function LessonPlayer(props: LessonPlayerProps) {
 function PlayerContent({
   state,
   challenge,
+  exerciseId,
+  onExposure,
   onEvent,
   media,
   onReport,
@@ -82,6 +84,57 @@ function PlayerContent({
   const chatReading = kind === 'chat' && state.inFlight.partialState['chatRead'] !== true;
   const audioRequired = challenge !== null && exerciseSpec(challenge.type).requiresAudio;
   const currentSlot = state.currentReplay?.item ?? state.core.queue[state.core.index];
+  const challengeVisible =
+    challenge !== null &&
+    (interactive || banner || state.shellState === 'grading' || state.shellState === 'quitDialog');
+  const exposed = useRef(new Set<string>());
+  useEffect(() => {
+    if (
+      !onExposure ||
+      !exerciseId ||
+      !challenge ||
+      !currentSlot ||
+      currentSlot.itemId !== challenge.itemId
+    )
+      return;
+    const identity = {
+      sessionId: state.sessionId,
+      slotId: currentSlot.id,
+      itemId: challenge.itemId,
+      exerciseId,
+    };
+    const emit = (when: 'prompt' | 'wrong-feedback') => {
+      const key = JSON.stringify([
+        identity.sessionId,
+        identity.slotId,
+        identity.itemId,
+        identity.exerciseId,
+        when,
+      ]);
+      if (exposed.current.has(key)) return;
+      exposed.current.add(key);
+      onExposure({ ...identity, when });
+    };
+    if (challengeVisible && (!audioRequired || kind === 'chat') && challenge.prompt.trim())
+      emit('prompt');
+    if (state.shellState === 'banner.wrong' && challenge.acceptedAnswers[0]?.trim())
+      emit('wrong-feedback');
+  }, [
+    onExposure,
+    exerciseId,
+    challenge,
+    currentSlot,
+    state.sessionId,
+    state.shellState,
+    challengeVisible,
+    audioRequired,
+    kind,
+  ]);
+  const retryNote =
+    interactive && state.lastVerdict?.kind === 'noVerdict' ? state.lastVerdict.note : null;
+  useEffect(() => {
+    if (retryNote) media.announce(retryNote);
+  }, [retryNote, state.lastVerdict, media]);
   const latestObservation = state.modality.observations.at(-1);
   const observation = latestObservation?.slotId === currentSlot?.id ? latestObservation : undefined;
   const replacementMissing =
@@ -426,11 +479,7 @@ function PlayerContent({
               </BodyText>
             </Panel>
           ) : null}
-          {challenge !== null &&
-          (interactive ||
-            banner ||
-            state.shellState === 'grading' ||
-            state.shellState === 'quitDialog') ? (
+          {challenge !== null && challengeVisible ? (
             <>
               {state.core.hardMode || challenge.hard ? (
                 <BodyText style={{ color: colors.bee }}>HARD EXERCISE</BodyText>
@@ -459,6 +508,7 @@ function PlayerContent({
               ) : null}
               {mediaStatus ? <BodyText>{mediaStatus}</BodyText> : null}
               {modalityMessage ? <BodyText>{modalityMessage}</BodyText> : null}
+              {retryNote ? <BodyText>{retryNote}</BodyText> : null}
               {replacementMissing ? (
                 <Button3D
                   label="Check course download"

@@ -234,6 +234,9 @@ function Shell({
         {...snapshot.lesson}
         media={runtime.media}
         onEvent={event}
+        onExposure={(exposure) =>
+          ignore(controller.perform('lesson:exposure', (r) => r.recordExposure(exposure), false))
+        }
         onComplete={() =>
           ignore(controller.perform('lesson:complete', (r) => r.completeLesson(), true, true))
         }

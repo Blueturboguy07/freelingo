@@ -8,7 +8,7 @@ export interface PathLaunch {
 }
 export interface PathScreenProps extends UiPreferences {
   readonly model: PathModel | null;
-  readonly status?: 'loading' | 'ready' | 'pack-missing';
+  readonly status?: 'loading' | 'ready' | 'pack-missing' | 'history-unavailable';
   readonly selectedNodeId: string | null;
   readonly onSelectNode: (id: string | null) => void;
   readonly onLaunch: (request: PathLaunch) => void;

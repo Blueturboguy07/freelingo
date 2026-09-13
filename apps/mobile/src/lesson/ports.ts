@@ -1,5 +1,5 @@
 import type { SpeechSegment } from '@freelingo/core/grading';
-import type { LessonChallenge } from '@freelingo/core/presentation';
+import type { LessonChallenge, LessonExposure } from '@freelingo/core/presentation';
 import type { SessionEvent, SessionState } from '@freelingo/core/session';
 import type { UiPreferences } from '@freelingo/ui';
 
@@ -53,6 +53,9 @@ export interface LessonMediaPort {
 export interface LessonPlayerProps extends UiPreferences {
   readonly state: SessionState;
   readonly challenge: LessonChallenge | null;
+  /** Exact saved pack variant; required whenever the production exposure callback is bound. */
+  readonly exerciseId?: string;
+  readonly onExposure?: (exposure: LessonExposure) => void;
   readonly onEvent: (event: SessionEvent) => void;
   readonly media: LessonMediaPort;
   readonly onSnooze?: (itemId: string) => void;

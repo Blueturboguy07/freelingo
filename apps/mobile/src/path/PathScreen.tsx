@@ -121,6 +121,16 @@ function PathContent({
         <Heading>Loading your path…</Heading>
       </View>
     );
+  if (status === 'history-unavailable')
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.snow, padding: SPACE.md }}>
+        <Heading>Your saved path needs review</Heading>
+        <BodyText>
+          This course was saved before complete path history was recorded. Your saved progress is
+          preserved.
+        </BodyText>
+      </View>
+    );
   if (model === null || status === 'pack-missing')
     return (
       <View style={{ flex: 1, backgroundColor: colors.snow, padding: SPACE.md }}>

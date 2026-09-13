@@ -380,3 +380,19 @@ it('[INV-TYP-04] loop typography follows both declared theme palettes rather tha
     'rgb(241, 247, 251)',
   );
 });
+
+it('[INV-PACK-04] unknown installed audio size is never displayed as zero or the expected total', () => {
+  const data = settings();
+  render(
+    <SettingsScreen
+      route="courses"
+      snapshot={{
+        ...data,
+        courses: data.courses.map((course) => ({ ...course, audioBytes: null })),
+      }}
+      ports={ports()}
+    />,
+  );
+  expect(screen.getByText(/Audio size unavailable/)).toBeTruthy();
+  expect(screen.queryByText(/0 MB audio/)).toBeNull();
+});

@@ -25,7 +25,7 @@ export interface CourseSummary {
   readonly courseId: string;
   readonly name: string;
   readonly progressLabel: string;
-  readonly audioBytes: number;
+  readonly audioBytes: number | null;
 }
 export interface SettingsSnapshot {
   readonly courseId: string;

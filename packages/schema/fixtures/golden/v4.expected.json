@@ -358,6 +358,7 @@
       "pack_content_hash": null
     }
   ],
+  "course_attempt_target": [],
   "course_ceremony": [],
   "course_checkpoint_claim": [],
   "course_daily_refresh_item": [],
@@ -1228,6 +1229,8 @@
       "legendary_awarded_at": null
     }
   ],
+  "course_path_jump": [],
+  "course_path_state": [],
   "course_progress": [
     {
       "course_id": "en-es",
@@ -1263,8 +1266,10 @@
   "course_scheduler_anomaly": [],
   "course_scheduler_hold": [],
   "course_scheduler_mastery": [],
+  "course_script_introduction": [],
   "course_selection": [],
   "course_session_answer_receipt": [],
+  "course_session_answer_target": [],
   "course_session_commit_link": [],
   "course_session_context": [],
   "course_session_slot": [],
@@ -1292,5 +1297,6 @@
       "is_active": 1,
       "runtime_json": null
     }
-  ]
+  ],
+  "course_surface_exposure": []
 }

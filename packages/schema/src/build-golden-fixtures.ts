@@ -351,6 +351,56 @@ function seedV7(db: Db): void {
   db.run("INSERT INTO course_checkpoint_claim VALUES ('en-es','n_000','2026-09-10','s_golden_1')");
 }
 
+function seedV8(db: Db): void {
+  seedV7(db);
+  db.run('INSERT INTO course_surface_exposure VALUES (?,?,?,?,?,?,?,?,?,?)', [
+    'en-es',
+    'sf-fixture-hablo',
+    'hablo',
+    'es',
+    's_pending',
+    'slot-b',
+    'exercise-variant-b',
+    'a'.repeat(64),
+    'prompt',
+    1789214400000,
+  ]);
+  db.run(
+    "INSERT INTO course_session_answer_target VALUES ('en-es','s_pending',-2,'it_es_00','sf-fixture-hablamos','hablamos','recognition',0,3,0)",
+  );
+  db.run(
+    "INSERT INTO course_attempt_target VALUES ('en-es','s_surface',-2,'it_es_00','sf-fixture-hablo','hablo','production',0,3,0,'scheduled',1789300800000)",
+  );
+}
+
+function seedV9(db: Db): void {
+  seedV8(db);
+  db.run("INSERT INTO course_path_state VALUES ('en-es',1789214400000,1,1)");
+  db.run(
+    "INSERT INTO committed_session(session_id,committed_at,outcome) VALUES ('s_path_jump','2026-09-13T10:00:00Z','completed')",
+  );
+  db.run(
+    "INSERT INTO course_session_commit_link VALUES ('s_path_jump','en-es','n_008','jumpHere',NULL,NULL)",
+  );
+  db.run("INSERT INTO course_path_jump VALUES ('en-es','u_01','s_path_jump')");
+  // New v9 witness only: explicit observed script receipt, never a backfill of old data.
+  db.run("INSERT INTO course_progress(course_id,added_at) VALUES ('en-ja','2026-09-13')");
+  db.run("INSERT INTO course_path_state VALUES ('en-ja',1789214400000,0,0)");
+  db.run('INSERT INTO course_surface_exposure VALUES (?,?,?,?,?,?,?,?,?,?)', [
+    'en-ja',
+    'sf:golden-a',
+    'あ',
+    'ja',
+    's_script',
+    'slot-a',
+    'ex-a',
+    'a'.repeat(64),
+    'prompt',
+    1789214400000,
+  ]);
+  db.run("INSERT INTO course_script_introduction VALUES ('en-ja','kana-a','sf:golden-a')");
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -359,6 +409,8 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   5: seedV5,
   6: seedV6,
   7: seedV7,
+  8: seedV8,
+  9: seedV9,
 };
 
 /* ------------------------------------------------------------------------ build */

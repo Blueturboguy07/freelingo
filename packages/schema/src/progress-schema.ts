@@ -30,7 +30,9 @@ import {
 } from './learning-context-schema.js';
 
 import { DAY_REWARD_ACCOUNT_TABLES, DAY_REWARD_COURSE_TABLES } from './day-reward-schema.js';
+import { LEARNING_EVIDENCE_COURSE_TABLES } from './learning-evidence-schema.js';
 
+import { PATH_STATE_COURSE_TABLES } from './path-state-schema.js';
 export type SchemaRegion = 'account' | 'course_progress';
 
 export interface TableSpec {
@@ -47,6 +49,12 @@ export interface TableSpec {
  * without a migration that creates it fails the same test from the other side.
  */
 export const PROGRESS_TABLES: readonly TableSpec[] = [
+  ...PATH_STATE_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Known path viewport and permanent source-proven jump/script facts (INV-PATH-06/15/21).',
+  })),
   /* ------------------------------------------------------------ account region */
   {
     name: 'account',
@@ -165,6 +173,12 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     region: 'account',
     purpose:
       'Normalized day, freeze and recovery facts; monotone global reward claims (INV-DAY-06, INV-FRZ-03, INV-CER-01).',
+  })),
+  ...LEARNING_EVIDENCE_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Immutable observed teaching and semantic FSRS target receipts (INV-GRD-11, INV-SCH-11).',
   })),
   ...DAY_REWARD_COURSE_TABLES.map((name): TableSpec => ({
     name,

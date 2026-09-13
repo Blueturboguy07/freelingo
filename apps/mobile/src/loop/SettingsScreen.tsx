@@ -168,7 +168,10 @@ export function SettingsScreen({
               <Text style={styles.title}>{c.name}</Text>
               <Label>{c.courseId === snapshot.courseId ? 'Current' : c.progressLabel}</Label>
               <Label muted>
-                {c.progressLabel} · {Math.round(c.audioBytes / 1024 / 1024)} MB audio
+                {c.progressLabel} ·{' '}
+                {c.audioBytes === null
+                  ? 'Audio size unavailable'
+                  : `${Math.round(c.audioBytes / 1024 / 1024)} MB audio`}
               </Label>
               {c.courseId !== snapshot.courseId && (
                 <Action
