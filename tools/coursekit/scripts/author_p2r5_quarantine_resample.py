@@ -257,6 +257,50 @@ ALTERNATES = {
 }
 
 
+# English friend/student has no gender cue in these eight reviewed reserve pairs.
+# Both existing Spanish canonicals are independently authored and mean that English.
+ALTERNATES.update(
+    {
+        ((26, 151, 4), "Mi amiga quiere una beca."): [
+            ("Mi amigo quiere una beca.", "My friend wants a scholarship."),
+        ],
+        ((26, 151, 4), "Mi amigo quiere una beca."): [
+            ("Mi amiga quiere una beca.", "My friend wants a scholarship."),
+        ],
+        ((26, 151, 4), "El alumno tiene una beca."): [
+            ("La alumna tiene una beca.", "The student has a scholarship."),
+        ],
+        ((26, 151, 4), "La alumna tiene una beca."): [
+            ("El alumno tiene una beca.", "The student has a scholarship."),
+        ],
+        ((26, 151, 5), "El alumno quiere estudiar en la biblioteca."): [
+            (
+                "La alumna quiere estudiar en la biblioteca.",
+                "The student wants to study in the library.",
+            ),
+        ],
+        ((26, 151, 5), "La alumna quiere estudiar en la biblioteca."): [
+            (
+                "El alumno quiere estudiar en la biblioteca.",
+                "The student wants to study in the library.",
+            ),
+        ],
+        ((26, 151, 5), "Mi amiga quiere estudiar en la biblioteca."): [
+            (
+                "Mi amigo quiere estudiar en la biblioteca.",
+                "My friend wants to study in the library.",
+            ),
+        ],
+        ((26, 151, 5), "Mi amigo quiere estudiar en la biblioteca."): [
+            (
+                "Mi amiga quiere estudiar en la biblioteca.",
+                "My friend wants to study in the library.",
+            ),
+        ],
+    }
+)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--selected-items", required=True, type=Path)

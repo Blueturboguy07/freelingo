@@ -65,3 +65,23 @@ def test_INV_PACK_10_quarantine_resamples_do_not_collide_with_older_shards() -> 
             continue
         for _, row in _read_one(path):
             assert (json.dumps(row["slot"], sort_keys=True), row["text"]) not in new_keys
+
+
+def test_INV_PACK_08_gender_neutral_reserves_record_both_reviewed_answers() -> None:
+    rows = {row["text"]: row for _, row in _read_one(PATH)}
+    pairs = (
+        ("Mi amiga quiere una beca.", "Mi amigo quiere una beca."),
+        ("El alumno tiene una beca.", "La alumna tiene una beca."),
+        (
+            "El alumno quiere estudiar en la biblioteca.",
+            "La alumna quiere estudiar en la biblioteca.",
+        ),
+        (
+            "Mi amiga quiere estudiar en la biblioteca.",
+            "Mi amigo quiere estudiar en la biblioteca.",
+        ),
+    )
+    for left, right in pairs:
+        assert rows[left]["translation"] == rows[right]["translation"]
+        assert [a["text"] for a in rows[left]["accepted_alternates"]] == [right]
+        assert [a["text"] for a in rows[right]["accepted_alternates"]] == [left]
