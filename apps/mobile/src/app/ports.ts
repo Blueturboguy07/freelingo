@@ -1,7 +1,7 @@
 import type { HubInput, HubOffer } from '@freelingo/core/hub';
 import type { NotificationSettingsSnapshot } from '@freelingo/core/notifications';
 import type { SessionEvent, SessionState } from '@freelingo/core/session';
-import type { LessonChallenge } from '@freelingo/core/presentation';
+import type { LessonChallenge, LessonExposure } from '@freelingo/core/presentation';
 import type { UiPreferences } from '@freelingo/ui';
 import type { OpenedProgressDb } from '../db/ExpoDb';
 import type { PersistenceStatus } from '../db/startPersistence';
@@ -52,6 +52,7 @@ export interface AppSnapshot {
   readonly notifications: NotificationSettingsSnapshot | null;
   readonly lesson: {
     readonly state: SessionState;
+    readonly exerciseId: string;
     readonly challenge: LessonChallenge | null;
   } | null;
   readonly ceremony: CeremonyPresentation | null;
@@ -74,6 +75,8 @@ export interface AppRuntime {
   launchLesson(request: LessonLaunch): Promise<void>;
   resolveSessionOffer(decision: SessionOfferDecision): Promise<void>;
   dispatchLesson(event: SessionEvent): Promise<void>;
+  /** Persist only exact approved surfaces proved by this actual rendered source. */
+  recordExposure(exposure: LessonExposure): Promise<void>;
   /** Idempotently consumes the already-generated completion writes; never computes a second reward.
    * Presentation may enter saving/failed/committed. dispatch + onComplete cannot double-commit. */
   completeLesson(): Promise<void>;

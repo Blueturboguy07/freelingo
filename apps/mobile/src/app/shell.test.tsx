@@ -93,6 +93,7 @@ function fixture() {
         lesson: state.exited === null ? { ...snapshot.lesson, state } : null,
       };
     }),
+    recordExposure: vi.fn(async () => {}),
     completeLesson: vi.fn(async () => {}),
     reportItem: vi.fn(async () => {}),
     snoozeItem: vi.fn(async () => {}),
@@ -135,6 +136,7 @@ function lesson() {
   const state = freshSession({ queue: [item(1, { type: 'meaningSelect' })] });
   return {
     state,
+    exerciseId: 'exercise-1',
     challenge: {
       itemId: 'item-1',
       type: 'meaningSelect' as const,
@@ -305,4 +307,19 @@ describe('real App screen composition', () => {
     expect(f.runtime.background).toHaveBeenCalledTimes(1);
     expect(f.services.open).toHaveBeenCalledTimes(1);
   });
+});
+
+it('[INV-SCH-11] App forwards exact visible source exposure to its durable runtime', async () => {
+  const f = fixture();
+  f.set({ lesson: lesson() });
+  render(<FreelingoApp services={f.services} />);
+  await waitFor(() =>
+    expect(f.runtime.recordExposure).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      slotId: 'slot-1',
+      itemId: 'item-1',
+      exerciseId: 'exercise-1',
+      when: 'prompt',
+    }),
+  );
 });
