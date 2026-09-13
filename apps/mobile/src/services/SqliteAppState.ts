@@ -124,10 +124,20 @@ export class SqliteAppState {
     text(courseId, 'course');
     time(nowUtc);
     this.db.withExclusiveTransaction(() => {
+      const existed = this.db.get('SELECT course_id FROM course_progress WHERE course_id=?', [
+        courseId,
+      ]);
       this.db.run('INSERT OR IGNORE INTO course_progress(course_id,added_at) VALUES(?,?)', [
         courseId,
         nowUtc,
       ]);
+      // Only this explicit fresh creation proves a known-empty history. Selecting a
+      // legacy course must never erase uncertainty about old jumps/script teaching.
+      if (!existed)
+        this.db.run(
+          'INSERT INTO course_path_state(course_id,initialized_at_utc_ms,viewing_section,daily_refresh_unlocked) VALUES(?,?,0,0)',
+          [courseId, Date.parse(nowUtc)],
+        );
       this.db.run('UPDATE course_selection SET is_selected=0 WHERE is_selected=1');
       this.db.run(
         'INSERT INTO course_selection(course_id,is_selected) VALUES(?,1) ON CONFLICT(course_id) DO UPDATE SET is_selected=1',

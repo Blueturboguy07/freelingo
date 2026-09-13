@@ -196,3 +196,36 @@ describe('durable application selection S001–S009 / S133', () => {
     expect(() => app.selectCourse('en-fr', 'invalid')).toThrow(/time/i);
   });
 });
+
+it('[INV-PATH-06] explicit fresh selection initializes known-empty history exactly once; legacy selection stays unknown', () => {
+  const { db, app } = setup();
+  db.run("INSERT INTO course_progress(course_id,added_at) VALUES('en-fr',?)", [now]);
+  app.selectCourse('en-es', now);
+  expect(db.get('SELECT * FROM course_path_state')).toEqual({
+    course_id: 'en-es',
+    initialized_at_utc_ms: Date.parse(now),
+    viewing_section: 0,
+    daily_refresh_unlocked: 0,
+  });
+  app.selectCourse('en-es', '2026-09-14T10:00:00.000Z');
+  expect(db.get('SELECT initialized_at_utc_ms FROM course_path_state')?.initialized_at_utc_ms).toBe(
+    Date.parse(now),
+  );
+  app.selectCourse('en-fr', now);
+  expect(db.get("SELECT * FROM course_path_state WHERE course_id='en-fr'")).toBeUndefined();
+});
+it('[INV-PER-03] fresh course and path initialization roll back together after an interrupted selection', () => {
+  const { db } = setup();
+  const guarded = {
+    ...db,
+    run(sql: string, params?: readonly unknown[]) {
+      db.run(sql, params);
+      if (sql.includes('INSERT INTO course_path_state')) throw Error('path initialization kill');
+    },
+  };
+  expect(() => new SqliteAppState(guarded).selectCourse('en-es', now)).toThrow(
+    'path initialization kill',
+  );
+  expect(db.all('SELECT * FROM course_progress')).toEqual([]);
+  expect(db.all('SELECT * FROM course_path_state')).toEqual([]);
+});
