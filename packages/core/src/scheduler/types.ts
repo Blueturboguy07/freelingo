@@ -1,3 +1,5 @@
+import type { ExerciseType } from '../session/types.js';
+
 /**
  * The scheduler's vocabulary.
  *
@@ -114,36 +116,49 @@ export type ReviewKind = (typeof REVIEW_KINDS)[number];
  *
  * "No lexeme reaches a production type within `min_hours_between_introduction_and_production`
  * of its introduction" — so the scheduler needs the role, not the exercise type. The
- * mapping from the eleven exercise types to a role is `EXERCISE_ROLES` below; it is the
+ * mapping from the declared exercise types to a role is `EXERCISE_ROLES` below; it is the
  * scheduler's own classification, not an economy constant.
  */
 export const ENCOUNTER_ROLES = ['recognition', 'production'] as const;
 export type EncounterRole = (typeof ENCOUNTER_ROLES)[number];
 
 /**
- * The role each exercise type plays for the item it teaches.
- *
- * Keyed by the product-map type names (S032-S042; S043 is out of v1). Kept as a plain
- * record rather than a union over `ExerciseType` so that this file stays importable
- * before the shared type surface lands, and so a pack that adds a type does not fail to
- * compile — an unknown type resolves to `recognition`, the safe side of EC-SCH-11.
+ * INV-SCH-10/EC-SCH-11: explicit lexical-production classification for the actual
+ * registry names. Selection-only recognition remains available before four hours.
+ * Character-only activities preserve the historical recognition role here: the
+ * lexical delay must not newly prevent a learner tracing an introduced grapheme.
+ * This is independent of registry family (e.g. pronunciationSelect is speaking
+ * family but requires recognition, while typed dictation produces orthography).
  */
-export const EXERCISE_ROLES: Readonly<Record<string, EncounterRole>> = {
+export const EXERCISE_ROLES: Readonly<Record<ExerciseType, EncounterRole>> = {
   pictureSelect: 'recognition',
   matchPairs: 'recognition',
   meaningSelect: 'recognition',
-  listening: 'recognition',
-  readRespond: 'recognition',
-  character: 'recognition',
   wordBankTranslate: 'production',
   typedTranslate: 'production',
-  completeTheChat: 'production',
-  gapFill: 'production',
-  speak: 'production',
+  completeChat: 'production',
+  listenTapWhatYouHear: 'recognition',
+  listenTypeWhatYouHear: 'production',
+  listenMissingWord: 'production',
+  listenRepeat: 'production',
+  listenAndRespond: 'production',
+  gapFillSelect: 'recognition',
+  gapFillTyped: 'production',
+  completeWord: 'production',
+  typeWordEnding: 'production',
+  readAndRespond: 'production',
+  speakSentence: 'production',
+  pronunciationSelect: 'recognition',
+  characterSelect: 'recognition',
+  characterTrace: 'recognition',
+  characterBuild: 'recognition',
+  learnCharacters: 'recognition',
 };
 
 export function roleOfExerciseType(type: string): EncounterRole {
-  return EXERCISE_ROLES[type] ?? 'recognition';
+  if (!Object.hasOwn(EXERCISE_ROLES, type))
+    throw new RangeError('Scheduler exercise type is undeclared.');
+  return EXERCISE_ROLES[type as ExerciseType];
 }
 
 /** One answered exercise, as the session hands it to the scheduler. */
