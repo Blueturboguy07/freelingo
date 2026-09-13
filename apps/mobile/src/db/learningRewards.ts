@@ -74,10 +74,11 @@ import { SqliteDayStore, type PersistedDayState } from './SqliteDayStore';
 import { SqliteCeremonyStore } from './SqliteCeremonyStore';
 import { serialiseCeremonyReceipt, type CeremonyReceipt } from './ceremonyCodec';
 import { LearningDataError } from './SqliteSchedulerStore';
+import { SqliteWordStore, type LearningWordPlan } from './SqliteWordStore';
 
-/** Source-backed reward slice. Scholar/Reviewer require the pending owned WordStore
- * plan; Strategist requires a real guidebook display receipt. Their existing counters
- * remain unchanged until those source features exist, rather than inventing increments.
+/** Source-backed reward slice. Scholar consumes the owned WordStore plan; Reviewer
+ * still needs an explicit FSRS-retirement rule and Strategist a real guidebook display
+ * receipt. Those existing counters remain unchanged until their source features exist.
  * These are actual before/after views inside the runtime's one completion transaction.
  * The runtime owns source/attempt validation, scheduler updates and path progress. */
 export interface LearningRewardInput {
@@ -99,6 +100,8 @@ export interface LearningRewardPlan {
 }
 interface Planned {
   readonly db: Db;
+  readonly wordStore: SqliteWordStore;
+  readonly wordPlan: LearningWordPlan;
   readonly fingerprint: string;
   readonly writerFacts: { readonly context: LearningContext; readonly graded: number };
   readonly streakGoal: CeremonyState['account']['streakGoal'];
@@ -802,6 +805,13 @@ export function planLearningRewards(db: Db, input: LearningRewardInput): Learnin
   };
   const graded = gradedAttemptCount(state);
   const exposed = reviewedExposure(db, input);
+  const wordStore = new SqliteWordStore(db);
+  const wordPlan = wordStore.prepare({
+    courseId: state.courseId,
+    sessionId: state.sessionId,
+    schedulerBefore: input.schedulerBefore,
+    transitions: input.transitions,
+  });
   const score = advanceScore(
     previousScore,
     {
@@ -913,8 +923,14 @@ export function planLearningRewards(db: Db, input: LearningRewardInput): Learnin
   };
   const crossings: TierCrossing[] = [];
   for (const achievement of ACHIEVEMENTS) {
-    const before = integer(account[achievement.counterColumn], achievement.counterColumn),
-      after = counters[achievement.counterColumn] ?? before;
+    const before =
+      achievement.counterColumn === 'words_learned'
+        ? wordPlan.before.wordsLearned
+        : integer(account[achievement.counterColumn], achievement.counterColumn);
+    const after =
+      achievement.counterColumn === 'words_learned'
+        ? wordPlan.after.wordsLearned
+        : (counters[achievement.counterColumn] ?? before);
     for (let tier = 0; tier < achievement.tiers.length; tier++) {
       const threshold = achievement.tiers[tier]!;
       if (
@@ -1097,6 +1113,8 @@ export function planLearningRewards(db: Db, input: LearningRewardInput): Learnin
   const plan = freeze({ sessionId: state.sessionId, courseId: state.courseId, award, receipt });
   plans.set(plan, {
     db,
+    wordStore,
+    wordPlan,
     fingerprint: fingerprint(db),
     writerFacts: { context: JSON.parse(canonicalJson(context)) as LearningContext, graded },
     accountCounters: counters,
@@ -1175,6 +1193,9 @@ export function writeLearningRewards(db: Db, plan: LearningRewardPlan): Ceremony
       c.launch.origin.kind === 'hub' ? c.launch.origin.offerId : null,
       c.launch.origin.kind === 'hub' ? c.launch.origin.localDay : null,
     ]);
+    // Only the owning store can apply this evidence. Its permanent source session
+    // now exists, while no other counter/reward write has altered its read facts.
+    p.wordStore.apply(p.wordPlan);
     new SqliteDayStore(db).save(p.day);
     if (r.rewardLocalDay !== null) {
       const goal = p.goals.get(r.rewardLocalDay);

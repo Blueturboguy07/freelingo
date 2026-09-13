@@ -11,8 +11,12 @@ import {
   asItemId,
   asSessionId,
   rowAt,
+  MASTERY_STABILITY_DAYS,
 } from '@freelingo/core/scheduler';
 import { SqliteSchedulerStore } from './SqliteSchedulerStore';
+import { SqliteWordStore } from './SqliteWordStore';
+import { SqliteSessionStore } from './SqliteSessionStore';
+import { contentHashItemId } from '../../../../packages/core/src/packs/items';
 import type { LearningSchedulerTransition } from './learningTransitions';
 import {
   freshSession,
@@ -42,12 +46,12 @@ afterEach(() => {
 });
 const epoch = Date.parse('2026-09-13T12:00:00Z');
 const zone = { tzId: 'UTC', utcOffsetMinutes: 0, tzSource: 'fixed_offset' } as const;
-function completed(sessionId = 'session-1'): SessionState {
+function completed(sessionId = 'session-1', itemId = 'item-1'): SessionState {
   let state = freshSession({
     sessionId,
     flavour: 'nodePractice',
     nodeRef: 'u001:learn',
-    queue: [item(1, { nodeRef: 'u001:learn' })],
+    queue: [{ ...item(1, { nodeRef: 'u001:learn' }), itemId }],
     motivationalMessages: false,
     monotonicMs: 1000,
   });
@@ -78,6 +82,7 @@ function completed(sessionId = 'session-1'): SessionState {
 function setup(sessionId = 'session-1') {
   const db = createNodeDb();
   migrate(db);
+  new SqliteWordStore(db).initializeFreshHistory(epoch, { databaseWasCreated: true });
   close.push(() => db.close());
   db.run(
     "INSERT INTO course_progress(course_id,added_at,pack_content_hash,pack_state,score_unlocked,score_ceiling_beat_shown) VALUES('en-es','2026-09-13',?,'installed',0,0)",
@@ -160,12 +165,41 @@ function setup(sessionId = 'session-1') {
     pathBefore: path,
     pathAfter: path,
   };
+  persistRewardSource(db, input);
   return { db, input };
+}
+function persistRewardSource(db: Db, input: LearningRewardInput) {
+  new SqliteSessionStore(db).put(input.state);
+  const contexts = new SqliteLearningContextStore(db);
+  if (contexts.load(input.state.courseId, input.state.sessionId)) return;
+  // Explicit source checkpoints for reward-only fixtures: no lexical or scheduling
+  // targets are declared here. Word-review fixtures below supply every real target.
+  db.run('DELETE FROM course_session_context WHERE course_id=?', [input.state.courseId]);
+  const slots = input.state.core.queue.map((q) => ({
+    slotId: q.id,
+    itemId: q.itemId,
+    exerciseId: 'reward-source:' + q.id,
+    surface: 'gato',
+    role: 'recognition' as const,
+    rubyShown: false,
+  }));
+  contexts.create(input.context.launch, slots);
+  for (const answer of input.state.core.answers) {
+    const slot = slots.find((s) => s.slotId === answer.slotId)!;
+    contexts.recordReceipt(input.state.courseId, input.state.sessionId, {
+      ...slot,
+      exerciseIndex: answer.exerciseIndex,
+      answeredAtUtcMs: input.context.launch.start.startedAtUtcMs,
+      answeredLocalDay: input.context.startedLocalDay,
+      activeMs: 100,
+    });
+  }
 }
 function scoped(db: Db): Db {
   return { ...db, withExclusiveTransaction: <T>(fn: () => T) => fn() };
 }
 function apply(db: Db, input: LearningRewardInput) {
+  persistRewardSource(db, input);
   return db.withExclusiveTransaction(() => {
     const tx = scoped(db);
     return writeLearningRewards(tx, planLearningRewards(tx, input));
@@ -508,6 +542,12 @@ function checkpointFixture(wrongIndices: number[], skipReceipt = -1, sessionId =
     role: 'recognition' as const,
     rubyShown: false,
   }));
+  for (const answer of state.core.answers) {
+    if (!slots.some((s) => s.slotId === answer.slotId)) {
+      const original = slots.find((s) => s.itemId === answer.itemId)!;
+      slots.push({ ...original, slotId: answer.slotId });
+    }
+  }
   const context: LearningContext = {
     ...input.context,
     slots,
@@ -520,14 +560,17 @@ function checkpointFixture(wrongIndices: number[], skipReceipt = -1, sessionId =
     completion: { ...input.context.completion!, outcome: 'failed' },
   };
   const store = new SqliteLearningContextStore(db);
+  db.run('DELETE FROM course_session_context');
+  db.run('DELETE FROM course_session_answer_receipt');
+  new SqliteSessionStore(db).put(state);
   store.create(context.launch, slots);
   for (const answer of state.core.answers) {
-    if (answer.exerciseIndex < 0 || answer.exerciseIndex === skipReceipt) continue;
+    if (skipReceipt >= 0 && answer.exerciseIndex === skipReceipt) continue;
     const slot = slots.find((s) => s.slotId === answer.slotId)!;
     store.recordReceipt('en-es', sessionId, {
       ...slot,
       exerciseIndex: answer.exerciseIndex,
-      answeredAtUtcMs: epoch + answer.exerciseIndex * 100,
+      answeredAtUtcMs: epoch + state.core.answers.indexOf(answer) * 100,
       answeredLocalDay: toLocalDay('2026-09-13'),
       activeMs: 100,
     });
@@ -563,6 +606,8 @@ function checkpointFixture(wrongIndices: number[], skipReceipt = -1, sessionId =
         acceptedAnswers: ['gato'],
       },
       introductions: [],
+      schedulerSurfaces: [],
+      lexicalBindings: [],
       explanation: 'Test repository boundary',
       grading: { profileId: 'es', responseLanguage: 'es', pack: ES_PACK, unit: ES_UNIT },
     };
@@ -591,7 +636,8 @@ it('[INV-ECO-16] failure on the checkpoint boundary, or a missing exact first-se
   const boundary = checkpointFixture([0, 1, 9]);
   expect(apply(boundary.db, boundary.input).result.committed?.xp).toBe(0);
   const missing = checkpointFixture([0, 10, 11], 0);
-  expect(apply(missing.db, missing.input).result.committed?.xp).toBe(0);
+  expect(() => apply(missing.db, missing.input)).toThrow(/incomplete source receipt/i);
+  expect(missing.db.all('SELECT * FROM committed_session')).toEqual([]);
 });
 
 function atTime(
@@ -854,6 +900,8 @@ it('[INV-CER-11] equal-value SQLite reloads do not create exposure; only the act
     activeMs: 100,
   };
   const contexts = new SqliteLearningContextStore(db);
+  db.run('DELETE FROM course_session_context');
+  db.run('DELETE FROM course_session_answer_receipt');
   contexts.create(input.context.launch, [receipt]);
   contexts.recordReceipt('en-es', input.state.sessionId, receipt);
   db.run('INSERT INTO course_session_answer_target VALUES(?,?,?,?,?,?,?,?,?,?)', [
@@ -963,4 +1011,429 @@ it('[INV-ECO-16][INV-COM-06] a shortened mutable queue cannot redefine the fixed
     },
   };
   expect(apply(db, shortened).state.session.xp).toBe(0);
+});
+
+function wordRuntime(): VerifiedRuntimeItem {
+  const semantic = {
+    prompt: 'a domestic feline',
+    preferredSurface: 'gato',
+    register: 'neutral',
+    lexemes: ['gato'],
+    grammarConcepts: [],
+    graphemes: [],
+  };
+  const proof = {
+    sourceId: 'source-cat',
+    sourceSha256: 'a'.repeat(64),
+    approvalId: 'review-cat',
+    approvalSha256: 'a'.repeat(64),
+    draftSha256: 'a'.repeat(64),
+  };
+  return {
+    schemaVersion: 1,
+    exerciseId: 'exercise-cat',
+    itemId: 'item-1',
+    unitId: 'u001',
+    lessonIndex: 1,
+    profileId: 'es',
+    responseLanguage: 'es',
+    proof,
+    gradable: {
+      itemId: 'item-1',
+      family: 'select',
+      accepted: [{ surfaceId: 'sf:cat', surface: 'gato', rank: 1 }],
+    },
+    presentation: {
+      itemId: 'item-1',
+      type: 'meaningSelect',
+      instruction: 'Select',
+      prompt: 'cat',
+      promptLanguage: 'en',
+      language: 'es',
+      acceptedAnswers: ['gato'],
+    },
+    introductions: [
+      { surfaceId: 'sf:cat', surface: 'gato', language: 'es', when: 'wrong-feedback' },
+    ],
+    schedulerSurfaces: [
+      {
+        itemId: 'item-1',
+        surfaceId: 'sf:cat',
+        surface: 'gato',
+        language: 'es',
+        kind: 'lexeme',
+        itemRef: 'lx:gato:NOUN',
+        canonical: true,
+      },
+    ],
+    lexicalBindings: [
+      {
+        schedulerItemId: 'item-1',
+        surfaceId: 'sf:cat',
+        surface: 'gato',
+        language: 'es',
+        lexemeId: 'lx:gato:NOUN',
+        lemma: 'gato',
+        pos: 'NOUN',
+        wordItemId: contentHashItemId(semantic),
+        semantic,
+        countable: true,
+        classification: 'word',
+        proof: {
+          sourceId: proof.sourceId,
+          sourceSha256: proof.sourceSha256,
+          declarationSha256: 'a'.repeat(64),
+          bindingSha256: 'a'.repeat(64),
+        },
+      },
+    ],
+    explanation: 'A cat.',
+    grading: { profileId: 'es', responseLanguage: 'es', pack: ES_PACK, unit: ES_UNIT },
+  };
+}
+function observedWordFixture(base = setup(), exact = wordRuntime()) {
+  base.db.run(
+    "INSERT INTO course_item(course_id,item_id,countable,quarantined) VALUES('en-es',?,0,0)",
+    [exact.itemId],
+  );
+  base.db.run('INSERT INTO course_surface_exposure VALUES(?,?,?,?,?,?,?,?,?,?)', [
+    'en-es',
+    exact.lexicalBindings[0]!.surfaceId,
+    exact.lexicalBindings[0]!.surface,
+    'es',
+    'display-session',
+    'display-slot',
+    exact.exerciseId,
+    base.input.pack.contentHash,
+    'wrong-feedback',
+    epoch + 1,
+  ]);
+  new SqliteWordStore(base.db).recordIntroduction({
+    courseId: 'en-es',
+    packContentHash: base.input.pack.contentHash,
+    item: exact,
+    surfaceId: exact.lexicalBindings[0]!.surfaceId,
+  });
+  return { ...base, exact };
+}
+function actualWordReview(
+  f: ReturnType<typeof observedWordFixture>,
+  n: number,
+): LearningRewardInput {
+  const { db, input: base, exact } = f,
+    sessionId = 'word-session-' + exact.itemId + '-' + n,
+    at = epoch + 2 ** n * 86400000;
+  const state = completed(sessionId, exact.itemId),
+    answer = state.core.answers[0]!;
+  const target = {
+    itemId: answer.itemId,
+    surfaceId: exact.lexicalBindings[0]!.surfaceId,
+    surface: exact.lexicalBindings[0]!.surface,
+    role: 'recognition' as const,
+    rubyShown: false,
+    grade: 3 as const,
+  };
+  const binding = {
+    slotId: answer.slotId,
+    exerciseId: exact.exerciseId,
+    itemId: answer.itemId,
+    surface: target.surface,
+    role: target.role,
+    rubyShown: false,
+  };
+  const receipt = {
+    ...binding,
+    exerciseIndex: answer.exerciseIndex,
+    answeredAtUtcMs: at,
+    answeredLocalDay: toLocalDay(new Date(at).toISOString().slice(0, 10)),
+    activeMs: 1000,
+  };
+  const context: LearningContext = {
+    ...base.context,
+    launch: {
+      ...base.context.launch,
+      start: { ...base.context.launch.start, sessionId, startedAtUtcMs: at - 1000 },
+    },
+    slots: [binding],
+    completion: {
+      ...base.context.completion!,
+      completedAtUtcMs: at + 1000,
+      intendedAtUtc: new Date(at + 1000).toISOString(),
+    },
+  };
+  db.run('DELETE FROM course_session_context');
+  db.run('DELETE FROM course_session_answer_receipt');
+  new SqliteSessionStore(db).put(state);
+  const contexts = new SqliteLearningContextStore(db);
+  contexts.create(context.launch, [binding]);
+  contexts.recordReceipt('en-es', sessionId, receipt);
+  contexts.recordTargets('en-es', sessionId, answer.exerciseIndex, [target]);
+  const scheduler = new SqliteSchedulerStore(db);
+  let before = scheduler.load('en-es', 'UTC');
+  if (!rowAt(before, asItemId(answer.itemId), target.surface)) {
+    before = registerRows(before, [
+      { itemId: asItemId(answer.itemId), surface: target.surface, kind: 'lexeme' },
+    ]);
+    before = introduce(before, asItemId(answer.itemId), target.surface, new Date(epoch + 1));
+    scheduler.save('en-es', before);
+    before = scheduler.load('en-es', 'UTC');
+  }
+  const result = applyEncounter(before, {
+    sessionId: asSessionId(sessionId),
+    exerciseIndex: answer.exerciseIndex,
+    itemId: asItemId(target.itemId),
+    surface: target.surface,
+    targetSurfaceId: target.surfaceId,
+    role: target.role,
+    grade: target.grade,
+    at: new Date(at),
+  });
+  scheduler.save('en-es', result.state, [
+    {
+      sessionId,
+      exerciseId: exact.exerciseId,
+      packContentHash: base.pack.contentHash,
+      answer,
+      surface: target.surface,
+      role: target.role,
+      rubyShown: false,
+      answeredAtUtc: new Date(at).toISOString(),
+      activeMs: 1000,
+      targets: [target],
+    },
+  ]);
+  const transition: LearningSchedulerTransition = {
+    courseId: 'en-es',
+    sessionId,
+    answerOrdinal: 0,
+    targetPosition: 0,
+    answer,
+    receipt,
+    target,
+    runtimeItem: exact,
+    packContentHash: base.pack.contentHash,
+    before: rowAt(before, asItemId(target.itemId), target.surface)!,
+    after: rowAt(result.state, asItemId(target.itemId), target.surface)!,
+    review: result.review,
+    wroteAttempt: result.wroteAttempt,
+  };
+  const pack = {
+    ...base.pack,
+    runtimeItem: (id: string) => {
+      if (id !== exact.exerciseId) throw Error('unknown source');
+      return exact;
+    },
+  };
+  const path = readPathModel(db, pack);
+  return {
+    ...base,
+    state,
+    context,
+    pack,
+    transitions: [transition],
+    schedulerBefore: before,
+    schedulerAfter: scheduler.load('en-es', 'UTC'),
+    pathBefore: path,
+    pathAfter: path,
+  };
+}
+it('[INV-ECO-27][INV-CER-01] the reward owner commits actual word-review history and its first learned counter with rewards', () => {
+  const f = observedWordFixture();
+  let qualified = 0,
+    learned = false;
+  for (let n = 1; n <= 7; n++) {
+    const input = actualWordReview(f, n),
+      t = input.transitions[0]!;
+    if (t.review?.kind === 'scheduled')
+      qualified = t.after!.card.stability >= MASTERY_STABILITY_DAYS ? qualified + 1 : 0;
+    learned ||= qualified >= 2;
+    apply(f.db, input);
+    expect(new SqliteWordStore(f.db).readCounters()).toEqual({
+      wordsIntroduced: 1,
+      wordsLearned: Number(learned),
+    });
+    expect(f.db.all('SELECT * FROM account_word_review')).toHaveLength(n);
+  }
+  expect(learned).toBe(true);
+  expect(f.db.get('SELECT words_learned,items_retired FROM account')).toEqual({
+    words_learned: 1,
+    items_retired: 0,
+  });
+});
+it('[INV-ECO-27] a scalar learned count without permanent word evidence cannot influence reward planning', () => {
+  const f = observedWordFixture(),
+    input = actualWordReview(f, 1);
+  f.db.run('UPDATE account SET words_learned=1');
+  expect(() => planLearningRewards(f.db, input)).toThrow(/word/i);
+  expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+});
+
+it.each([false, true])(
+  '[INV-SESS-23][INV-CER-10] actual zero-graded quit (skip=%s) cannot enter the reward archive',
+  (skip) => {
+    const { db, input } = setup();
+    let state = freshSession({
+      sessionId: 'empty-quit',
+      flavour: 'nodePractice',
+      nodeRef: 'u001:learn',
+      queue: [item(1, { nodeRef: 'u001:learn' }), item(2, { nodeRef: 'u001:learn' })],
+      motivationalMessages: false,
+    });
+    const deps: StepDeps = {
+      config: DEFAULT_FLAVOUR_MATRIX.nodePractice,
+      grading: {
+        grade: () => {
+          throw Error('quit cannot invoke grading');
+        },
+      },
+      clock: { nowMs: () => 1000 },
+      isTypeEligible: () => true,
+      stepUpTripped: () => false,
+    };
+    state = step(state, { type: 'rendered' }, deps).state;
+    if (skip) state = step(state, { type: 'skip' }, deps).state;
+    state = step(state, { type: 'exit', route: 'closeButton' }, deps).state;
+    state = step(state, { type: 'endSession', route: 'closeButton' }, deps).state;
+    expect(state.exited).toBe('quit');
+    expect(state.core.answers.every((a) => a.skipped)).toBe(true);
+    const context: LearningContext = {
+      ...input.context,
+      launch: {
+        ...input.context.launch,
+        start: { ...input.context.launch.start, sessionId: state.sessionId },
+      },
+      completion: { ...input.context.completion!, outcome: 'quit' },
+    };
+    const before = db.get(
+      'SELECT lifetime_xp,gems,streak,words_learned,words_introduced FROM account',
+    );
+    expect(() => apply(db, { ...input, state, context })).toThrow(/graded state/i);
+    expect(db.all('SELECT * FROM committed_session')).toEqual([]);
+    expect(db.all('SELECT * FROM course_ceremony')).toEqual([]);
+    expect(
+      db.get('SELECT lifetime_xp,gems,streak,words_learned,words_introduced FROM account'),
+    ).toEqual(before);
+    expect(db.all('SELECT * FROM account_word_review')).toEqual([]);
+    expect(db.all('SELECT * FROM account_daily_xp')).toEqual([]);
+    expect(db.all('SELECT * FROM account_achievement_award')).toEqual([]);
+  },
+);
+
+// Source doubles remain explicit; each word is actually observed and every review
+// below goes through core FSRS and both SQLite source/word writers. No cached total
+// or permanent learned row is seeded directly to reach Scholar's real first tier.
+const SCHOLAR_WORDS =
+  'gato:cat|perro:dog|casa:house|pan:bread|agua:water|libro:book|mesa:table|silla:chair|niño:boy|niña:girl|hombre:man|mujer:woman|madre:mother|padre:father|hermano:brother|hermana:sister|amigo:friend|escuela:school|ciudad:city|país:country|calle:street|puerta:door|ventana:window|cama:bed|ropa:clothing|zapato:shoe|sombrero:hat|camisa:shirt|pantalón:trousers|fruta:fruit|manzana:apple|pera:pear|naranja:orange|limón:lemon|arroz:rice|carne:meat|pescado:fish|pollo:chicken|huevo:egg|leche:milk|queso:cheese|café:coffee|té:tea|azúcar:sugar|sal:salt|noche:night|día:day|semana:week|mes:month|año:year'.split(
+    '|',
+  );
+function scholarSource(entry: string, index: number): VerifiedRuntimeItem {
+  const [lemma, meaning] = entry.split(':') as [string, string],
+    base = wordRuntime(),
+    itemId = 'word-' + index,
+    surfaceId = 'sf:word:' + index;
+  const semantic = {
+    ...base.lexicalBindings[0]!.semantic,
+    prompt: meaning,
+    preferredSurface: lemma,
+    lexemes: [lemma],
+  };
+  const proof = { ...base.proof, sourceId: 'source:' + lemma };
+  const binding = {
+    ...base.lexicalBindings[0]!,
+    schedulerItemId: itemId,
+    surfaceId,
+    surface: lemma,
+    lemma,
+    lexemeId: 'lx:' + lemma + ':NOUN',
+    wordItemId: contentHashItemId(semantic),
+    semantic,
+    proof: { ...base.lexicalBindings[0]!.proof, sourceId: proof.sourceId },
+  };
+  return {
+    ...base,
+    itemId,
+    exerciseId: 'exercise:' + index,
+    proof,
+    gradable: { ...base.gradable, itemId, accepted: [{ surfaceId, surface: lemma, rank: 1 }] },
+    presentation: { ...base.presentation, itemId, prompt: meaning, acceptedAnswers: [lemma] },
+    introductions: [{ surfaceId, surface: lemma, language: 'es', when: 'wrong-feedback' }],
+    schedulerSurfaces: [
+      {
+        ...base.schedulerSurfaces[0]!,
+        itemId,
+        surfaceId,
+        surface: lemma,
+        itemRef: binding.lexemeId,
+      },
+    ],
+    lexicalBindings: [binding],
+  };
+}
+it('[INV-ECO-13][INV-ECO-27][INV-CER-07] Scholar crosses its actual 50-word tier from verified union deltas and pays once', () => {
+  const base = setup();
+  const fixtures = SCHOLAR_WORDS.map((entry, index) =>
+    observedWordFixture(base, scholarSource(entry, index)),
+  );
+  expect(fixtures).toHaveLength(50);
+  const crossings: unknown[] = [];
+  for (let n = 1; n <= 7; n++)
+    for (const f of fixtures) {
+      const receipt = apply(base.db, actualWordReview(f, n));
+      crossings.push(
+        ...receipt.state.account.achievementCrossings.filter((c) => c.achievementId === 'scholar'),
+      );
+    }
+  expect(new SqliteWordStore(base.db).readCounters()).toEqual({
+    wordsIntroduced: 50,
+    wordsLearned: 50,
+  });
+  expect(crossings).toEqual([
+    expect.objectContaining({ achievementId: 'scholar', tier: 0, gems: 25 }),
+  ]);
+  expect(
+    base.db.all("SELECT tier_index FROM account_achievement_award WHERE achievement_id='scholar'"),
+  ).toEqual([{ tier_index: 0 }]);
+  const before = base.db.get('SELECT gems FROM account')!.gems;
+  const last = apply(base.db, actualWordReview(fixtures[0]!, 8));
+  expect(last.state.account.achievementCrossings.some((c) => c.achievementId === 'scholar')).toBe(
+    false,
+  );
+  expect(Number(base.db.get('SELECT gems FROM account')!.gems) - Number(before)).toBe(
+    last.result.committed!.gems,
+  );
+}, 120000);
+it('[INV-ECO-27][INV-CER-01] a late ceremony failure rolls back the first learned claim and retry applies it once', () => {
+  const f = observedWordFixture();
+  let streak = 0,
+    proved = false;
+  for (let n = 1; n <= 7; n++) {
+    const input = actualWordReview(f, n),
+      t = input.transitions[0]!;
+    if (t.review?.kind === 'scheduled')
+      streak = t.after!.card.stability >= MASTERY_STABILITY_DAYS ? streak + 1 : 0;
+    if (streak < 2) {
+      apply(f.db, input);
+      continue;
+    }
+    const before = f.db.all('SELECT * FROM account_word_review');
+    f.db.run(
+      "CREATE TRIGGER word_reward_kill BEFORE INSERT ON course_ceremony BEGIN SELECT RAISE(ABORT,'word reward kill'); END",
+    );
+    expect(() => apply(f.db, input)).toThrow('word reward kill');
+    expect(f.db.all('SELECT * FROM account_word_review')).toEqual(before);
+    expect(f.db.all('SELECT * FROM account_word_learning')).toEqual([]);
+    expect(
+      f.db.get('SELECT session_id FROM committed_session WHERE session_id=?', [
+        input.state.sessionId,
+      ]),
+    ).toBeUndefined();
+    expect(new SqliteWordStore(f.db).readCounters().wordsLearned).toBe(0);
+    f.db.run('DROP TRIGGER word_reward_kill');
+    apply(f.db, input);
+    expect(new SqliteWordStore(f.db).readCounters().wordsLearned).toBe(1);
+    expect(f.db.all('SELECT * FROM account_word_learning')).toHaveLength(1);
+    proved = true;
+    break;
+  }
+  expect(proved).toBe(true);
 });
