@@ -467,6 +467,25 @@ function seedV12(db: Db): void {
   );
 }
 
+function seedV13(db: Db): void {
+  seedV12(db);
+  const first = db.get(
+    'SELECT * FROM course_surface_exposure ORDER BY course_id,surface_id LIMIT 1',
+  )!;
+  db.run('INSERT INTO course_source_exposure VALUES(?,?,?,?,?,?,?,?,?,?)', [
+    first.course_id,
+    first.surface_id,
+    first.surface,
+    first.language,
+    's-source-display',
+    'slot-source-display',
+    'ex-source-display',
+    first.pack_content_hash,
+    'prompt',
+    1789300800000,
+  ]);
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -480,6 +499,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   10: seedV10,
   11: seedV11,
   12: seedV12,
+  13: seedV13,
 };
 
 /* ------------------------------------------------------------------------ build */

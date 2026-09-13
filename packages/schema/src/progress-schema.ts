@@ -23,6 +23,7 @@
  * Screens: S118-S126 (economy surfaces), S132 (goal), S149 (data).
  */
 import type { Db } from './db.js';
+import { DISPLAY_SOURCE_COURSE_TABLES } from './display-source-schema.js';
 import { SCHEDULER_TABLES } from './scheduler-schema.js';
 import {
   LEARNING_CONTEXT_COURSE_TABLES,
@@ -191,12 +192,14 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     purpose:
       'Normalized day, freeze and recovery facts; monotone global reward claims (INV-DAY-06, INV-FRZ-03, INV-CER-01).',
   })),
-  ...LEARNING_EVIDENCE_COURSE_TABLES.map((name): TableSpec => ({
-    name,
-    region: 'course_progress',
-    purpose:
-      'Immutable observed teaching and semantic FSRS target receipts (INV-GRD-11, INV-SCH-11).',
-  })),
+  ...[...LEARNING_EVIDENCE_COURSE_TABLES, ...DISPLAY_SOURCE_COURSE_TABLES].map(
+    (name): TableSpec => ({
+      name,
+      region: 'course_progress',
+      purpose:
+        'Immutable observed teaching and semantic FSRS target receipts (INV-GRD-11, INV-SCH-11).',
+    }),
+  ),
   ...DAY_REWARD_COURSE_TABLES.map((name): TableSpec => ({
     name,
     region: 'course_progress',
