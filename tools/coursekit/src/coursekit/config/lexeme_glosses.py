@@ -6,6 +6,18 @@ GLOSSARY_RELATIVE_PATH: Final[str] = "authoring/lexeme-glosses.jsonl"
 GLOSSARY_SCHEMA_VERSION: Final[int] = 1
 GLOSSARY_LICENCE: Final[str] = "CC-BY-NC-SA-4.0"
 GLOSSARY_LEXICAL_POS: Final[tuple[str, ...]] = (
-    "ADJ", "ADP", "ADV", "AUX", "CCONJ", "DET", "INTJ", "NOUN", "NUM", "PART",
-    "PRON", "PROPN", "SCONJ", "VERB",
+    "ADJ",
+    "ADP",
+    "ADV",
+    "AUX",
+    "CCONJ",
+    "DET",
+    "INTJ",
+    "NOUN",
+    "NUM",
+    "PART",
+    "PRON",
+    "PROPN",
+    "SCONJ",
+    "VERB",
 )
