@@ -41,15 +41,19 @@ _AUTHOR_FIELDS = {
     "licence": {"const": GLOSSARY_LICENCE},
 }
 _REVIEW = {
-    "type": "object", "additionalProperties": False,
+    "type": "object",
+    "additionalProperties": False,
     "required": ["reviewer", "verdict", "note", "content_hash"],
     "properties": {
-        "reviewer": _TEXT, "verdict": {"enum": ["accepted", "rejected"]}, "note": _TEXT,
+        "reviewer": _TEXT,
+        "verdict": {"enum": ["accepted", "rejected"]},
+        "note": _TEXT,
         "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     },
 }
 GLOSSARY_ROW_SCHEMA = {
-    "type": "object", "additionalProperties": False,
+    "type": "object",
+    "additionalProperties": False,
     "required": [*_AUTHOR_FIELDS, "review"],
     "properties": {**_AUTHOR_FIELDS, "review": {"anyOf": [{"type": "null"}, _REVIEW]}},
 }
@@ -70,8 +74,12 @@ def gloss_content_hash(row: Mapping[str, Any]) -> str:
     Review metadata is excluded. Editing an authored meaning, POS, alternate, evidence
     or attribution requires a fresh independent review even if the key is unchanged.
     """
-    payload = json.dumps({key: row[key] for key in _AUTHOR_FIELDS}, ensure_ascii=False,
-                         sort_keys=True, separators=(",", ":"))
+    payload = json.dumps(
+        {key: row[key] for key in _AUTHOR_FIELDS},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(unicodedata.normalize("NFC", payload).encode("utf-8")).hexdigest()
 
 
@@ -135,12 +143,17 @@ def load_glossary(lang: str) -> dict[tuple[str, str, str], ReviewedGloss]:
         if review["verdict"] != "accepted":
             continue
         entries[key] = ReviewedGloss(
-            lang=lang, lemma=row["lemma"], pos=row["pos"], citation_gloss=row["citation_gloss"],
-            valid_alternates=tuple(row["valid_alternates"]), sense_evidence=row["sense_evidence"],
-            author=row["author"], reviewer=review["reviewer"], content_hash=review["content_hash"],
+            lang=lang,
+            lemma=row["lemma"],
+            pos=row["pos"],
+            citation_gloss=row["citation_gloss"],
+            valid_alternates=tuple(row["valid_alternates"]),
+            sense_evidence=row["sense_evidence"],
+            author=row["author"],
+            reviewer=review["reviewer"],
+            content_hash=review["content_hash"],
         )
     return entries
-
 
 
 def load_glossary_by_lemma(lang: str) -> dict[str, tuple[ReviewedGloss, ...]]:
@@ -152,5 +165,7 @@ def load_glossary_by_lemma(lang: str) -> dict[str, tuple[ReviewedGloss, ...]]:
     grouped: dict[str, list[ReviewedGloss]] = {}
     for (_lang, lemma, _pos), entry in load_glossary(lang).items():
         grouped.setdefault(lemma, []).append(entry)
-    return {lemma: tuple(sorted(entries, key=lambda entry: entry.pos))
-            for lemma, entries in grouped.items()}
+    return {
+        lemma: tuple(sorted(entries, key=lambda entry: entry.pos))
+        for lemma, entries in grouped.items()
+    }
