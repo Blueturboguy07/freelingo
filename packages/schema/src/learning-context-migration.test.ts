@@ -148,6 +148,9 @@ describe('durable launch, daily pools and startup', () => {
       db.run("INSERT INTO course_hub_day VALUES ('en-es','2026-09-12',0)");
       db.run("INSERT INTO course_hub_choice VALUES ('en-es','2026-09-12','choice-a',0)");
       db.run(
+        "INSERT INTO committed_session(session_id,committed_at) VALUES ('s-complete','2026-09-12T12:00:00Z')",
+      );
+      db.run(
         "INSERT INTO course_hub_completion VALUES ('en-es','2026-09-12','fallback-offer','s-complete')",
       );
       expect(db.get('SELECT offer_id FROM course_hub_completion')).toEqual({

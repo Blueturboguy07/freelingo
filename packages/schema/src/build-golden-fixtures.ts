@@ -323,6 +323,34 @@ function seedV6(db: Db): void {
   db.run("INSERT INTO course_daily_refresh_item VALUES ('en-es','2026-09-12','it_es_01',0)");
 }
 
+function seedV7(db: Db): void {
+  seedV6(db);
+  db.run(
+    "UPDATE account SET last_processed_day='2026-09-10',last_processed_month='2026-09',freeze_cap=3,streak_goal_declined=1,streak_goal_presentations=2",
+  );
+  db.run(
+    "UPDATE account_day SET disposition='completed',grace_credited=1,streak_satisfied=1,goal_xp_at_grant=20 WHERE local_day='2026-09-10'",
+  );
+  db.run("INSERT INTO account_streak_break VALUES (1,'2026-09-11',37)");
+  db.run("INSERT INTO account_streak_break_day VALUES ('2026-09-11',1)");
+  db.run("INSERT INTO account_streak_break_day VALUES ('2026-09-12',1)");
+  db.run("INSERT INTO account_recovery_challenge VALUES (1,'2026-09-11',37,'2026-09-13',3,2,NULL)");
+  db.run("INSERT INTO account_month_settlement VALUES ('2026-09','2026-08','2026-09-01')");
+  db.run("INSERT INTO account_long_absence VALUES ('2025-06-01','2025-08-01',61,2)");
+  db.run("INSERT INTO account_streak_repair VALUES ('2026-08','2026-08-20',22)");
+  db.run("INSERT INTO account_streak_repair_day VALUES ('2026-08','2026-08-19')");
+  db.run(
+    "INSERT INTO account_freeze_grant VALUES ('capped-fixture','reward_chest',NULL,'2026-09-10',1,0)",
+  );
+  db.run(
+    "INSERT INTO account_achievement_award VALUES ('sage',0,'2026-09-10T20:06:00Z','s_golden_1')",
+  );
+  db.run(
+    "INSERT INTO course_session_commit_link VALUES ('s_golden_1','en-es','n_000','lesson',NULL,NULL)",
+  );
+  db.run("INSERT INTO course_checkpoint_claim VALUES ('en-es','n_000','2026-09-10','s_golden_1')");
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
@@ -330,6 +358,7 @@ const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   4: seedV2,
   5: seedV5,
   6: seedV6,
+  7: seedV7,
 };
 
 /* ------------------------------------------------------------------------ build */

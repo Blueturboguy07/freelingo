@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { setImmediate } from 'node:timers/promises';
 import fc from 'fast-check';
 import { PROPERTY_RUNS, createNodeDb } from '@freelingo/testkit';
 import { planCommit } from '@freelingo/core';
@@ -212,13 +213,18 @@ describe('migration atomicity', () => {
     }
   });
 
-  it('[INV-PER-03] a kill during any migration never half-applies it, for any starting state', () => {
-    fc.assert(
-      fc.property(
+  // 10,000 real SQLite migration/kill histories now span seven versions. Keep the
+  // complete property population; its measured v7 run exceeds the generic 60s timeout.
+  it('[INV-PER-03] a kill during any migration never half-applies it, for any starting state', async () => {
+    let histories = 0;
+    await fc.assert(
+      fc.asyncProperty(
         fc.integer({ min: 1, max: TOTAL_STATEMENTS }),
         fc.integer({ min: 0, max: LATEST_USER_VERSION - 1 }),
         fc.integer({ min: 0, max: 100_000 }),
-        (killAt, startVersion, xp) => {
+        async (killAt, startVersion, xp) => {
+          // Let worker RPC progress without skipping or sharing any migration history.
+          if (histories++ % 100 === 0) await setImmediate();
           const inner = createNodeDb();
           // Bring the database to `startVersion` cleanly, with a row in it.
           for (const migration of MIGRATIONS) {
@@ -254,7 +260,7 @@ describe('migration atomicity', () => {
       ),
       { numRuns: PROPERTY_RUNS },
     );
-  });
+  }, 300_000);
 
   it('[INV-PER-03] falsifier: bumping user_version outside the transaction is caught', () => {
     // The bug the invariant forbids, written out: DDL committed, version bumped after.
