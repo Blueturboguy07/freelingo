@@ -207,6 +207,7 @@ def _selected(sentence_id: str) -> dict[str, Any]:
         "new_lemmas": ["gato"],
         "known_lemmas": ["el"],
         "grammar_concept": "concept-1",
+        "accepted_alternates": [],
     }
 
 

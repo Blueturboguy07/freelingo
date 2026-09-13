@@ -143,6 +143,7 @@ def _slot(
     analysis: dict[str, Any] | None = None,
     sid: str | None = None,
     candidate_id: str | None = None,
+    accepted_alternates: tuple[str, ...] = (),
 ) -> ResolvedSlot:
     return ResolvedSlot(
         text=text,
@@ -150,6 +151,7 @@ def _slot(
         sid=sid,
         analysis=analysis,
         candidate_id=candidate_id,
+        accepted_alternates=accepted_alternates,
     )
 
 
@@ -819,6 +821,7 @@ def _write_ledger(lang: str = LANG) -> None:
                 "new_lemmas": NEW_LEMMAS_BY_SLOT[slot],
                 "known_lemmas": [lemma for _s, lemma, _p in tokens],
                 "grammar_concept": "present tense -er verbs",
+                "accepted_alternates": [],
             }
         )
 
@@ -956,6 +959,7 @@ def _write_gap_ledger(gaps: list[dict[str, Any]]) -> None:
                 "new_lemmas": gap.get("new_lemmas", []),
                 "known_lemmas": ["el", "pan", "estar", "caliente"],
                 "grammar_concept": "present tense -er verbs",
+                "accepted_alternates": [],
             }
         )
         if gap.get("candidate", True):
@@ -969,6 +973,7 @@ def _write_gap_ledger(gaps: list[dict[str, Any]]) -> None:
                     "slot_index": gap["slot_index"],
                     "text": gap["text"],
                     "translation": gap["translation"],
+                    "accepted_alternates": list(gap.get("accepted_alternates", [])),
                     "author": "test",
                     "generated_at": "2026-09-12",
                     "accepted": True,
@@ -997,6 +1002,7 @@ _AUTHORED = {
     "slot_index": 8,  # 8 % 5 == 3 -> the fill_in_the_blank row of SENTENCE_FORM_PLAN
     "text": "Los libros están sobre las mesas.",
     "translation": "The books are on the tables.",
+    "accepted_alternates": ["Los libros están sobre las mesas"],
     "new_lemmas": [],
     "analysis": _analysis(
         [
@@ -1089,6 +1095,25 @@ def test_B16_the_gap_distractors_come_from_the_analysis_lemma_not_the_surface() 
     # And the item's lemma tags are the ANALYSIS's lemmas, not casefolded surfaces.
     assert "libro" in cloze["item_tags"]["lemmas"]
     assert "libros" not in cloze["item_tags"]["lemmas"]
+
+
+def test_INV_PACK_08_authored_alternates_reach_only_whole_sentence_answers() -> None:
+    """[INV-PACK-08] G7 preserves the set without widening cloze tolerance."""
+    whole_sentence = {**_AUTHORED, "slot_index": 9}
+    _write_gap_ledger([whole_sentence])
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+    records = [dict(record) for record in read_records("exercise", lang=LANG)]
+    alternate = _AUTHORED["accepted_alternates"][0]
+    authored = [row for row in records if row["source_sentence_id"] is None]
+    assert any(alternate in row["accepted_answers"] for row in authored)
+    _write_gap_ledger([_AUTHORED])
+    result = _build()
+    assert result.exit_code == EXIT_OK, result.output
+    records = [dict(record) for record in read_records("exercise", lang=LANG)]
+    authored = [row for row in records if row["source_sentence_id"] is None]
+    clozes = [row for row in authored if row["type"] == "cloze"]
+    assert clozes and all(alternate not in row["accepted_answers"] for row in clozes)
 
 
 def test_INV_PACK_07_a_word_or_fixed_phrase_is_a_lexeme_item_not_a_sentence_one() -> None:

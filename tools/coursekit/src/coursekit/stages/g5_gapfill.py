@@ -460,6 +460,31 @@ def _axis(
     if dedup_hash(authored["text"]) in seen_in_unit:
         return "duplicate", carried
 
+    # Alternates are author claims, never generated synonyms. Treat the complete set
+    # as one acceptance contract: every surface must independently satisfy the same
+    # ledger, budget, length and duplicate axes as the preferred surface.
+    alternates = authored.get("accepted_alternates", [])
+    if not isinstance(alternates, list) or any(
+        not isinstance(entry, dict)
+        or not isinstance(entry.get("text"), str)
+        or not entry["text"]
+        or not isinstance(entry.get("backtranslation"), dict)
+        for entry in alternates
+    ):
+        return "out_of_vocabulary", carried
+    surfaces = [entry["text"] for entry in alternates]
+    if len(set(surfaces)) != len(surfaces) or authored["text"] in surfaces:
+        return "duplicate", carried
+    for alternate in surfaces:
+        alternate_row = dict(authored)
+        alternate_row["text"] = alternate
+        alternate_row["accepted_alternates"] = []
+        alternate_axis, _ = _axis(
+            alternate_row, gap, analyser, seen_in_unit, sentence_id, min_tokens
+        )
+        if alternate_axis is not None:
+            return alternate_axis, carried
+
     return None, carried
 
 
@@ -544,6 +569,9 @@ def gapfill(ctx: StageContext) -> StageResult:
                     "slot_index": slot.slot_index,
                     "text": row["text"],
                     "translation": row["translation"],
+                    "accepted_alternates": [
+                        entry["text"] for entry in row.get("accepted_alternates", [])
+                    ],
                     "author": row["author"],
                     "generated_at": row["generated_at"],
                     "accepted": accepted,

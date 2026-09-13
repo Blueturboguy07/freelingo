@@ -208,6 +208,7 @@ def _minimal_candidates(lang: str, accepted: bool) -> None:
                 "slot_index": 0,
                 "text": "Yo como pan.",
                 "translation": "I eat bread.",
+                "accepted_alternates": [],
                 "author": "agent",
                 "generated_at": "2026-09-12",
                 "accepted": accepted,
@@ -548,6 +549,31 @@ def test_INV_PACK_10_no_engine_is_handed_a_text_other_than_the_one_on_the_row(
         )
 
 
+def test_INV_PACK_08_g6_checks_every_authored_alternate_independently(
+    es_after_g5: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """[INV-PACK-08] A set cannot pass because only its preferred surface was checked."""
+    import coursekit.stages.g6_validate_language as stage_module
+
+    rows = list(read_records("candidate", lang="es"))
+    survivor = next(row for row in rows if row["accepted"])
+    survivor["accepted_alternates"] = ["Estoy cansada.", "Vivo en Madrid."]
+    write_records("candidate", rows, lang="es")
+    seen: list[str] = []
+
+    def recording_axis(row: dict[str, Any], *_args: Any, **_kwargs: Any) -> tuple[None, dict]:
+        seen.append(row["text"])
+        return None, {}
+
+    monkeypatch.setattr(stage_module, "_axis", recording_axis)
+    run_g6({})
+    assert survivor["text"] in seen
+    assert "Estoy cansada." in seen  # explicitly authored speaker gender
+    assert "Vivo en Madrid." in seen  # explicitly authored Spanish pro-drop
+    notes = read_entries("es", stage="g6")[-1]["notes"]
+    assert notes["checked_answers"] == notes["checked"] + 2
+
+
 def test_a_candidate_below_the_rubric_minimum_is_narrowed_by_name(
     es_after_g5: list[dict[str, Any]], spanish_sidecar: str, kenlm_model: Path
 ) -> None:
@@ -821,6 +847,17 @@ def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
     from coursekit.stages.g5_gapfill import authored_shard_dir
 
     rows = authored_rows(REAL_CANDIDATES)
+    alternate_surface = "Vivo en Madrid."
+    alternate_score = 4
+    rows[0]["accepted_alternates"] = [
+        {
+            "text": alternate_surface,
+            "backtranslation": {
+                **rows[0]["backtranslation"],
+                "score": alternate_score,
+            },
+        }
+    ]
     monkeypatch.setenv("COURSEKIT_CONTENT_ROOT", str(tmp_path / "content"))
     shard_dir = authored_shard_dir("es")
     shard_dir.mkdir(parents=True, exist_ok=True)
@@ -842,5 +879,6 @@ def test_INV_PACK_14_the_rubric_scores_are_read_from_the_shards_as_well(
     assert engine is not None
     probe = engine.probe("es")
     assert probe["available"], probe["reason"]
-    assert probe["detail"]["scored"] == len({row["text"] for row in rows})
+    assert probe["detail"]["scored"] == len({row["text"] for row in rows}) + 1
     assert engine.score(rows[0]["text"]) == rows[0]["backtranslation"]["score"]
+    assert engine.score(alternate_surface) == alternate_score

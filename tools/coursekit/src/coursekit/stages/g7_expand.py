@@ -276,6 +276,8 @@ class ResolvedSlot:
     analysis: Mapping[str, Any] | None
     #: The authored row this slot came from, for the message an error has to name.
     candidate_id: str | None
+    #: Explicit authored course-language answer surfaces, already independently gated.
+    accepted_alternates: tuple[str, ...] = ()
 
 
 def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
@@ -314,6 +316,7 @@ def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
             sid=None,
             analysis=analysis,
             candidate_id=str(candidate["candidate_id"]),
+            accepted_alternates=tuple(candidate["accepted_alternates"]),
         )
     sid = item["sentence_id"]
     if sid not in inputs.texts:
@@ -324,6 +327,7 @@ def _resolve(inputs: ExpansionInputs, item: Mapping[str, Any]) -> ResolvedSlot:
         sid=sid,
         analysis=inputs.analysed.get(sid),
         candidate_id=None,
+        accepted_alternates=tuple(item["accepted_alternates"]),
     )
 
 
@@ -616,7 +620,7 @@ def _sentence_draft(
     item_key = f"sentence:{sid}" if sid else f"concept:{concept}"
     reverse = chosen.direction == "l2_to_l1"
     body = translation if chosen.direction == "l1_to_l2" else text
-    accepted: tuple[str, ...] = (text,) if not reverse else (translation,)
+    accepted: tuple[str, ...] = (text, *slot.accepted_alternates) if not reverse else (translation,)
     distractors: tuple[str, ...] = ()
 
     if chosen.id in {"word_bank_forward", "word_bank_reverse", "tap_what_you_hear"}:

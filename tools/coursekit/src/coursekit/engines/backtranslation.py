@@ -100,6 +100,23 @@ class AgentRubricEngine:
                 continue
             self._scores[row["text"]] = block
             self._rubric_version = block.get("rubric_version", self._rubric_version)
+            for alternate in row.get("accepted_alternates", []):
+                surface = alternate.get("text") if isinstance(alternate, dict) else None
+                alternate_block = (
+                    alternate.get("backtranslation") if isinstance(alternate, dict) else None
+                )
+                if (
+                    not isinstance(surface, str)
+                    or not isinstance(alternate_block, dict)
+                    or not isinstance(alternate_block.get("score"), int)
+                    or not low <= alternate_block["score"] <= high
+                ):
+                    unscored.append(surface or row.get("text", "<no text>"))
+                    continue
+                self._scores[surface] = alternate_block
+                self._rubric_version = alternate_block.get(
+                    "rubric_version", self._rubric_version
+                )
 
         if unscored:
             return {

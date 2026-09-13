@@ -2,6 +2,7 @@
   "candidates": [
     {
       "accepted": true,
+      "accepted_alternates": [],
       "analysis": null,
       "author": "opus-5 (agent-authored, no API key in this environment)",
       "candidate_id": "9abf1889f7f35a9c",
@@ -355,6 +356,7 @@
     {
       "gap": false,
       "grammar_concept": "present-estar",
+      "accepted_alternates": [],
       "known_lemmas": [],
       "lang": "es",
       "lesson_index": 1,
@@ -368,6 +370,7 @@
     {
       "gap": false,
       "grammar_concept": "present-estar",
+      "accepted_alternates": [],
       "known_lemmas": ["hola"],
       "lang": "es",
       "lesson_index": 1,
@@ -381,6 +384,7 @@
     {
       "gap": false,
       "grammar_concept": "present-estar",
+      "accepted_alternates": [],
       "known_lemmas": ["hola"],
       "lang": "es",
       "lesson_index": 2,
@@ -394,6 +398,7 @@
     {
       "gap": false,
       "grammar_concept": "present-ser",
+      "accepted_alternates": [],
       "known_lemmas": ["ser"],
       "lang": "es",
       "lesson_index": 1,
@@ -407,6 +412,7 @@
     {
       "gap": false,
       "grammar_concept": "present-ser",
+      "accepted_alternates": [],
       "known_lemmas": ["dónde"],
       "lang": "es",
       "lesson_index": 1,
@@ -420,6 +426,7 @@
     {
       "gap": true,
       "grammar_concept": "present-ser",
+      "accepted_alternates": [],
       "known_lemmas": ["ser"],
       "lang": "es",
       "lesson_index": 2,

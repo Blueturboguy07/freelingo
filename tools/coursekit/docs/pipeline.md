@@ -87,6 +87,14 @@ Nine records over ten stages: **G6 emits none**. It validates G5 candidates in p
 writes a runlog entry, which is what a downstream validator reads to learn that G6 ran
 and what it concluded.
 
+`selected_item.accepted_alternates` and `candidate.accepted_alternates` are closed,
+required arrays of explicit course-language answer surfaces. G4 initializes the set
+empty; G5 accepts authored `{text, backtranslation}` entries and carries their surfaces
+only after independently applying its ledger gates,
+G6 independently applies each configured language engine to every surface, and G7 adds
+the survivors only to whole-sentence L1→L2 answer sets. The pipeline does not infer
+synonyms or alter cloze/word-bank answer contracts.
+
 Three properties make it a contract rather than a suggestion:
 
 1. Every schema is `additionalProperties: false`. A lane cannot smuggle a field past a

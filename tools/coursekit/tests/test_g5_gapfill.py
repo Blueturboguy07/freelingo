@@ -62,6 +62,7 @@ from coursekit.runlog import RunLog, UpstreamStageMissing, read_entries
 from coursekit.stages import STAGES, StageContext, StageResult
 from coursekit.stages.g5_gapfill import (
     Slot,
+    _axis,
     authored_candidates_path,
     authored_candidates_paths,
     authored_shard_dir,
@@ -453,6 +454,7 @@ def gap_list(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "new_lemmas": sorted(new),
             "known_lemmas": sorted(set(allowed) - set(new)),
             "grammar_concept": "present tense",
+            "accepted_alternates": [],
         }
         for slot, (allowed, new) in windows.items()
     ]
@@ -556,6 +558,30 @@ def test_INV_PACK_10_a_candidate_one_accent_from_correct_is_discarded_not_correc
         "the multiset of emitted texts is not the multiset of authored texts: something "
         "rewrote a candidate into another candidate"
     )
+
+
+def test_INV_PACK_08_every_authored_alternate_runs_the_g5_axes(es_adapter: None) -> None:
+    """[INV-PACK-08] An invalid alternate rejects an otherwise valid answer set."""
+    rows = _one_slot(1)
+    gap = gap_list(rows)[0]
+    analyser_factory = ADAPTERS.get("es")
+    assert analyser_factory is not None
+    analyser = analyser_factory()
+    valid = next(
+        row
+        for row in rows
+        if _axis(row, gap, analyser, set(), "0" * 16, MIN_TOKENS)[0] is None
+    )
+    with_bad_alternate = {
+        **valid,
+        "accepted_alternates": [
+            {"text": "Xqzzy blorf nada.", "backtranslation": valid["backtranslation"]}
+        ],
+    }
+    axis, _analysis = _axis(
+        with_bad_alternate, gap, analyser, set(), "1" * 16, MIN_TOKENS
+    )
+    assert axis == "out_of_vocabulary"
 
 
 def _write_authored(
@@ -1487,6 +1513,7 @@ def _lesson_one_gap(slot_index: int, new_lemmas: list[str]) -> dict[str, Any]:
         "new_lemmas": new_lemmas,
         "known_lemmas": sorted(LESSON_ONE_WINDOW - set(new_lemmas)),
         "grammar_concept": "subject_pronouns",
+        "accepted_alternates": [],
     }
 
 

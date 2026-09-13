@@ -494,7 +494,8 @@
       "gap": false,
       "new_lemmas": [],
       "known_lemmas": [],
-      "grammar_concept": "being"
+      "grammar_concept": "being",
+      "accepted_alternates": []
     },
     {
       "schema_version": 1,
@@ -507,7 +508,8 @@
       "gap": false,
       "new_lemmas": [],
       "known_lemmas": [],
-      "grammar_concept": "being"
+      "grammar_concept": "being",
+      "accepted_alternates": []
     },
     {
       "schema_version": 1,
@@ -520,7 +522,8 @@
       "gap": false,
       "new_lemmas": [],
       "known_lemmas": [],
-      "grammar_concept": "being"
+      "grammar_concept": "being",
+      "accepted_alternates": []
     },
     {
       "schema_version": 1,
@@ -533,7 +536,8 @@
       "gap": false,
       "new_lemmas": [],
       "known_lemmas": [],
-      "grammar_concept": "being"
+      "grammar_concept": "being",
+      "accepted_alternates": []
     },
     {
       "schema_version": 1,
@@ -546,7 +550,8 @@
       "gap": false,
       "new_lemmas": [],
       "known_lemmas": [],
-      "grammar_concept": "numbers"
+      "grammar_concept": "numbers",
+      "accepted_alternates": []
     },
     {
       "schema_version": 1,
@@ -559,7 +564,8 @@
       "gap": false,
       "new_lemmas": [],
       "known_lemmas": [],
-      "grammar_concept": "numbers"
+      "grammar_concept": "numbers",
+      "accepted_alternates": []
     }
   ],
   "expected_blocking": {

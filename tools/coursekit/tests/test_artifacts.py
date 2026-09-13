@@ -79,7 +79,7 @@ from coursekit.runlog import (
 #: G1's analysis across the G5 -> G7 boundary so G7 stops resolving a distractor by
 #: SURFACE. Previous value
 #: `3e2f6a6849cdb5a8815a5bc18f13d751742438ee6596d5267da3031bf703d0f2`.
-FROZEN_CONTRACT_DIGEST = "1e743a0c70077d64dcaae319a8763b909d8fa8a5ad01d6e0bba17a45a5102c7d"
+FROZEN_CONTRACT_DIGEST = "e7248ff99085195ca2781e272376bc906e1aa239630281d831f5d5cd2ebfab77"
 
 
 def test_the_contract_digest_is_frozen() -> None:
@@ -306,6 +306,7 @@ def _candidate(**overrides: object) -> dict[str, object]:
         "slot_index": 0,
         "text": "Buenas tardes",
         "translation": "Good afternoon",
+        "accepted_alternates": ["Muy buenas tardes"],
         "author": "agent:opus",
         "generated_at": "2026-09-12T00:00:00Z",
         "accepted": True,
@@ -325,6 +326,18 @@ def test_a_candidate_carries_its_analysis_across_the_boundary() -> None:
     # The lemma at the gap index, not the surface. This is the bug, in one assertion.
     assert row["analysis"]["tokens"][1]["lemma"] == "tarde"
     assert row["analysis"]["tokens"][1]["surface"] == "tardes"
+    assert row["accepted_alternates"] == ["Muy buenas tardes"]
+
+
+def test_INV_PACK_08_accepted_alternates_are_a_closed_unique_nonempty_set() -> None:
+    """[INV-PACK-08] Every authored accepted answer has an explicit contract slot."""
+    validate_record("candidate", _candidate(accepted_alternates=["Vivo en Madrid."]))
+    with pytest.raises(ArtifactError):
+        validate_record("candidate", _candidate(accepted_alternates=[""]))
+    with pytest.raises(ArtifactError):
+        validate_record(
+            "candidate", _candidate(accepted_alternates=["Vivo en Madrid."] * 2)
+        )
 
 
 def test_the_analysis_is_the_g1_shape_and_cannot_drift_from_it() -> None:

@@ -521,6 +521,9 @@ def _item(
         "new_lemmas": list(new_lemmas),
         "known_lemmas": list(known_lemmas),
         "grammar_concept": str(unit["grammar_concept"]),
+        # Corpus selection has no authoring surface. G5 may replace this empty set
+        # with independently validated, explicitly authored course-language answers.
+        "accepted_alternates": [],
     }
 
 

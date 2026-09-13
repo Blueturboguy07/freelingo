@@ -162,6 +162,7 @@ def validate_language(ctx: StageContext) -> StageResult:
     rows = list(read_records("candidate", lang=ctx.lang))
     rejected_by_axis = dict.fromkeys(G6_REJECT_AXES, 0)
     checked = 0
+    checked_answers = 0
     perplexities: list[float] = []
     findings: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
@@ -171,14 +172,27 @@ def validate_language(ctx: StageContext) -> StageResult:
             out.append(row)
             continue
         checked += 1
-        axis, detail = _axis(
-            row,
-            ctx.lang,
-            grammar if grammar_probe["available"] else None,
-            perplexity if perplexity_probe["available"] else None,
-            backtranslation if backtranslation_probe["available"] else None,
-            perplexities,
-        )
+        axis = None
+        detail: dict[str, Any] = {}
+        surfaces = [
+            ("preferred", row["text"]),
+            *(("alternate", alternate) for alternate in row["accepted_alternates"]),
+        ]
+        for answer_kind, surface in surfaces:
+            checked_answers += 1
+            checked_row = dict(row)
+            checked_row["text"] = surface
+            axis, detail = _axis(
+                checked_row,
+                ctx.lang,
+                grammar if grammar_probe["available"] else None,
+                perplexity if perplexity_probe["available"] else None,
+                backtranslation if backtranslation_probe["available"] else None,
+                perplexities,
+            )
+            if axis is not None:
+                detail = {"answer_kind": answer_kind, "answer": surface, **detail}
+                break
         if axis is None:
             out.append(row)
             continue
@@ -218,6 +232,7 @@ def validate_language(ctx: StageContext) -> StageResult:
             authored_candidates_path(ctx.lang).parent / GAPFILL_RUBRIC_FILENAME
         ),
         checked=checked,
+        checked_answers=checked_answers,
         rejected_by_axis=rejected_by_axis,
         findings=findings,
         slots_without_survivor=starved,

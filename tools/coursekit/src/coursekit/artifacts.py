@@ -294,6 +294,7 @@ SELECTED_ITEM = _object(
         "new_lemmas": {"type": "array", "items": _NONEMPTY},
         "known_lemmas": {"type": "array", "items": _NONEMPTY},
         "grammar_concept": _NONEMPTY,
+        "accepted_alternates": {"type": "array", "uniqueItems": True, "items": _NONEMPTY},
     },
     "SelectedItem",
     (
@@ -316,6 +317,7 @@ CANDIDATE = _object(
         "slot_index": {"type": "integer", "minimum": 0},
         "text": _NONEMPTY,
         "translation": _NONEMPTY,
+        "accepted_alternates": {"type": "array", "uniqueItems": True, "items": _NONEMPTY},
         "author": _NONEMPTY,
         "generated_at": _NONEMPTY,
         "accepted": {"type": "boolean"},

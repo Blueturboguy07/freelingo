@@ -88,6 +88,7 @@ def _slot(
         "new_lemmas": new,
         "known_lemmas": known,
         "grammar_concept": f"concept-{unit}",
+        "accepted_alternates": [],
     }
 
 
