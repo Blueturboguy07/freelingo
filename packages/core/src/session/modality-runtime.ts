@@ -220,8 +220,13 @@ export function retrySpeechVerdict(
 ): StepResult {
   const item = current(state);
   if (item === undefined) return result(state, deps);
+  // External event IDs are opaque. A legal caller ID can resemble this internal prefix,
+  // so select an unused persisted ID instead of assuming namespaces never overlap.
+  const used = new Set(state.modality.observations.map((row) => row.id));
+  let sequence = state.modality.observations.length;
+  while (used.has(`speech-grade:${item.id}:${sequence}`)) sequence += 1;
   const observation: ModalityObservation = {
-    id: `speech-grade:${item.id}:${state.modality.observations.length}`,
+    id: `speech-grade:${item.id}:${sequence}`,
     slotId: item.id,
     itemId: item.itemId,
     family: 'speaking',
