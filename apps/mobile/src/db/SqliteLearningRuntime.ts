@@ -1,5 +1,14 @@
 import type { Db } from '@freelingo/schema';
-import { exerciseSpec, type QueuedItem, type SessionState } from '@freelingo/core/session';
+import {
+  exerciseSpec,
+  step,
+  resumeDecision,
+  DEFAULT_FLAVOUR_MATRIX,
+  type SessionEvent,
+  type StepDeps,
+  type QueuedItem,
+  type SessionState,
+} from '@freelingo/core/session';
 import type { LessonExposure } from '@freelingo/core/presentation';
 import type { VerifiedInstalledPack } from '../packs/installedPackPorts';
 import type { VerifiedRuntimeItem } from '../../../../packages/core/src/packs/runtime-item-types';
@@ -10,7 +19,26 @@ import {
   type LearningContext,
   type LessonSlotBinding,
 } from './SqliteLearningContextStore';
-import { LearningDataError } from './SqliteSchedulerStore';
+import { LearningDataError, SqliteSchedulerStore } from './SqliteSchedulerStore';
+import { type SchedulerState, asItemId } from '@freelingo/core/scheduler';
+import { localDayOfStamp } from '@freelingo/core/day';
+import { SqliteDayStore, type PersistedDayState } from './SqliteDayStore';
+import { SqlitePreferences } from './SqlitePreferences';
+import { gradeRuntimeItem, targetsForRuntimeAnswer, type RuntimeGrade } from './learningGrading';
+import { shouldStepUp } from './learningSessionPolicy';
+import { prepareLearningLaunch } from './learningLaunch';
+import {
+  LearningUnavailableError,
+  registerSources,
+  sourceBinding,
+  sourceDeviceAllowed,
+  sourceIsKnownAndEligible,
+  sourceUnlockedAt,
+} from './learningSources';
+import { readPathModel } from '../services/readPathModel';
+import { SqlitePoolStore } from './SqlitePoolStore';
+import { SqliteCeremonyStore } from './SqliteCeremonyStore';
+import type { LessonLaunch, SessionOffer, SessionOfferDecision } from '../app/ports';
 
 function fail(message: string): never {
   throw new LearningDataError(message);
@@ -52,11 +80,6 @@ export class SqliteLearningRuntime {
       context.launch.nodeRef !== state.nodeRef
     )
       return fail('Saved session context does not match its checkpoint.');
-    const queued = state.currentReplay?.item ?? state.core.queue[state.core.index];
-    if (!queued) return null;
-    const binding = context.slots.find((s) => s.slotId === queued.id);
-    if (!binding || binding.itemId !== queued.itemId || queued.nodeRef !== state.nodeRef)
-      return fail('Saved exercise binding is unavailable.');
     const pack = this.ports.packs.get(state.courseId);
     if (
       !pack ||
@@ -64,40 +87,117 @@ export class SqliteLearningRuntime {
       pack.contentHash !== context.launch.packContentHash
     )
       return fail('The saved lesson requires its original verified pack.');
-    const item = pack.runtimeItem(binding.exerciseId);
+    const current = state.currentReplay?.item ?? state.core.queue[state.core.index];
+    const prior = state.core.answers.at(-1);
+    const binding = context.slots.find((s) => s.slotId === (current?.id ?? prior?.slotId));
+    if (!binding) return fail('Saved exercise binding is unavailable.');
+    let queued = current;
+    if (!queued) {
+      if (!prior || !['interstitial', 'mistakeReview', 'outOfHearts'].includes(state.shellState))
+        return fail('A challenge has no current queue slot.');
+      const previous = pack.runtimeItem(binding.exerciseId),
+        spec = exerciseSpec(previous.presentation.type),
+        canonical = previous.schedulerSurfaces.filter((s) => s.canonical);
+      queued = {
+        id: binding.slotId,
+        itemId: prior.itemId,
+        type: prior.type,
+        family: spec.family,
+        nodeRef: state.nodeRef,
+        conceptId: canonical.length === 1 ? canonical[0]!.itemRef : previous.itemId,
+        requiresAudio: spec.requiresAudio,
+      };
+    }
+    const item = this.savedItem(state, context, queued, binding, pack);
+    return { state, context, queued, binding, pack, item };
+  }
+  private savedItem(
+    state: SessionState,
+    context: LearningContext,
+    queued: QueuedItem,
+    binding: LessonSlotBinding,
+    pack: VerifiedInstalledPack,
+  ): VerifiedRuntimeItem {
+    const item = pack.runtimeItem(binding.exerciseId),
+      canonical = sourceBinding(item, binding.slotId);
     if (
       item.exerciseId !== binding.exerciseId ||
       item.itemId !== binding.itemId ||
-      item.presentation.itemId !== binding.itemId ||
-      item.gradable.itemId !== binding.itemId ||
-      item.presentation.type !== queued.type
+      item.itemId !== queued.itemId ||
+      item.presentation.itemId !== item.itemId ||
+      item.gradable.itemId !== item.itemId ||
+      item.presentation.type !== queued.type ||
+      queued.nodeRef !== state.nodeRef ||
+      canonical.surface !== binding.surface ||
+      canonical.role !== binding.role ||
+      canonical.rubyShown !== binding.rubyShown
     )
       return fail('The decoded exercise does not match the saved variant.');
-    const path = pack.pack.path();
-    const targetNode = context.launch.targetNodeId;
-    if (context.launch.origin.kind === 'path' && targetNode !== state.nodeRef)
+    const path = pack.pack.path(),
+      target = context.launch.targetNodeId;
+    if (context.launch.origin.kind === 'path' && target !== state.nodeRef)
       return fail('Saved path node changed.');
-    const destinations =
-      targetNode !== null
-        ? [path.forNode(targetNode)]
-        : path.sections.flatMap((section) =>
-            section.units.flatMap((unit) =>
-              unit.nodes.map((node) => ({ node, unitId: unit.unitId })),
-            ),
-          );
+    const contains = (
+      node: { sessions: readonly { lessonIndex: number; exerciseIds: readonly string[] }[] },
+      unitId: string,
+    ) =>
+      unitId === item.unitId &&
+      node.sessions.some(
+        (session) =>
+          session.lessonIndex === item.lessonIndex && session.exerciseIds.includes(item.exerciseId),
+      );
+    if (target !== null) {
+      const destination = path.forNode(target);
+      if (contains(destination.node, destination.unitId)) return item;
+    }
+    if (!Array.isArray(path.sections as unknown))
+      return fail('The saved exercise no longer belongs to its declared node.');
+    const placements = path.sections.flatMap((section) =>
+      section.units.flatMap((unit) =>
+        unit.nodes.filter((node) => contains(node, unit.unitId)).map((node) => ({ node, unit })),
+      ),
+    );
+    if (placements.length !== 1)
+      return fail('The saved exercise no longer belongs to one declared node.');
+    if (context.launch.origin.kind !== 'path')
+      return fail('Saved non-path source planning evidence is unavailable.');
+    const placement = placements[0]!,
+      position = path.forNode(placement.node.nodeId),
+      start = context.launch.start;
+    const day = localDayOfStamp(new Date(start.startedAtUtcMs), start.startZone);
+    const header = this.db.get(
+      'SELECT opened_at_utc_ms FROM course_review_pool_day WHERE course_id=? AND local_day=?',
+      [state.courseId, day],
+    );
+    const pool = new SqlitePoolStore(this.db).load(state.courseId, day);
     if (
-      !destinations.some(
-        (destination) =>
-          destination.unitId === item.unitId &&
-          destination.node.sessions.some(
-            (session) =>
-              session.lessonIndex === item.lessonIndex &&
-              session.exerciseIds.includes(item.exerciseId),
-          ),
+      !header ||
+      typeof header.opened_at_utc_ms !== 'number' ||
+      header.opened_at_utc_ms > start.startedAtUtcMs ||
+      !pool?.pool.itemIds.includes(asItemId(item.itemId))
+    )
+      return fail('Earlier-node source lacks its frozen launch pool receipt.');
+    const at = {
+      utcMs: start.startedAtUtcMs,
+      monotonicMs: start.startedAtMonotonicMs,
+      zone: start.startZone,
+    };
+    const scheduler = new SqliteSchedulerStore(this.db).load(state.courseId, start.startZone.tzId);
+    if (
+      !sourceIsKnownAndEligible(item, scheduler, at) ||
+      !sourceUnlockedAt(
+        this.db,
+        pack,
+        readPathModel(this.db, pack),
+        {
+          unitIndex: position.unitIndex,
+          nodeIndex: placement.unit.nodes.findIndex((n) => n.nodeId === placement.node.nodeId),
+        },
+        at.utcMs,
       )
     )
-      return fail('The saved exercise no longer belongs to its declared node.');
-    return { state, context, queued, binding, pack, item };
+      return fail('Earlier-node source was not eligible when this session started.');
+    return item;
   }
   readSession(): LearningSessionView | null {
     const source = this.activeSource();
@@ -105,7 +205,11 @@ export class SqliteLearningRuntime {
       ? {
           exerciseId: source.binding.exerciseId,
           state: source.state,
-          challenge: source.item.presentation,
+          challenge:
+            source.state.currentReplay !== null ||
+            source.state.core.index < source.state.core.queue.length
+              ? source.item.presentation
+              : null,
         }
       : null;
   }
@@ -191,5 +295,461 @@ export class SqliteLearningRuntime {
         }
       }),
     );
+  }
+  private activeClock: { sessionId: string; monotonicMs: number } | null = null;
+  private foregrounded = false;
+  private clock() {
+    const clock = this.ports.clock();
+    if (
+      !Number.isSafeInteger(clock.utcMs) ||
+      !Number.isFinite(new Date(clock.utcMs).getTime()) ||
+      !Number.isFinite(clock.monotonicMs) ||
+      clock.monotonicMs < 0
+    )
+      return fail('Invalid learning clock.');
+    return clock;
+  }
+  /** Store adapters join this one outer transaction. They never open nested native transactions. */
+  private scopedDb(): Db {
+    return {
+      run: this.db.run.bind(this.db),
+      all: this.db.all.bind(this.db),
+      get: this.db.get.bind(this.db),
+      withExclusiveTransaction: (work) => work(),
+      close: () => {
+        throw new LearningDataError('A transaction view cannot close the database.');
+      },
+    };
+  }
+  private accrueActive(state: SessionState, at: number, db: Db): void {
+    const prior = this.activeClock;
+    if (
+      this.foregrounded &&
+      prior?.sessionId === state.sessionId &&
+      state.exited === null &&
+      !['quitDialog', 'tips', 'interstitial', 'mistakeReview', 'outOfHearts'].includes(
+        state.shellState,
+      )
+    ) {
+      const delta = Math.max(0, Math.floor(at - prior.monotonicMs));
+      if (delta > 0)
+        new SqliteLearningContextStore(db).addActiveMs(state.courseId, state.sessionId, delta);
+    }
+  }
+  readScheduler(courseId: string): SchedulerState {
+    return new SqliteSchedulerStore(this.db).load(courseId, this.clock().zone.tzId);
+  }
+  readDay(): PersistedDayState {
+    return new SqliteDayStore(this.db).load();
+  }
+  foreground(): Promise<void> {
+    return this.serial(() => {
+      const clock = this.clock(),
+        state = new SqliteSessionStore(this.db).activeGraded();
+      // A process restart/background gap is never inferred as time spent answering.
+      this.foregrounded = true;
+      this.activeClock =
+        state && state.exited === null
+          ? { sessionId: state.sessionId, monotonicMs: clock.monotonicMs }
+          : null;
+    });
+  }
+  background(): Promise<void> {
+    return this.serial(() => {
+      try {
+        const clock = this.clock(),
+          state = new SqliteSessionStore(this.db).activeGraded();
+        if (state)
+          this.db.withExclusiveTransaction(() =>
+            this.accrueActive(state, clock.monotonicMs, this.scopedDb()),
+          );
+      } finally {
+        // The app is backgrounded even when its final SQL checkpoint fails.
+        this.foregrounded = false;
+        this.activeClock = null;
+      }
+    });
+  }
+  /** Exact same-node authored variants. Used only when the actual engine selects a
+   * replay or requests a modality replacement; this never invents a new exercise. */
+  private nodeItems(source: ActiveSource): readonly VerifiedRuntimeItem[] {
+    const path = source.pack.pack.path(),
+      nodeId = source.context.launch.targetNodeId;
+    if (nodeId === null) return [source.item];
+    const nodes = [path.forNode(nodeId)];
+    if (
+      !nodes.some((n) =>
+        n.node.sessions.some((s) => s.exerciseIds.includes(source.item.exerciseId)),
+      )
+    ) {
+      for (const section of path.sections)
+        for (const unit of section.units)
+          for (const node of unit.nodes)
+            if (node.sessions.some((s) => s.exerciseIds.includes(source.item.exerciseId)))
+              nodes.push(path.forNode(node.nodeId));
+    }
+    const values = nodes.flatMap((node) =>
+      node.node.sessions.flatMap((session) =>
+        session.exerciseIds.map((id) => {
+          const item = source.pack.runtimeItem(id);
+          if (
+            item.exerciseId !== id ||
+            item.unitId !== node.unitId ||
+            item.lessonIndex !== session.lessonIndex
+          )
+            return fail('Authored replacement changed its declared destination.');
+          return item;
+        }),
+      ),
+    );
+    return [...new Map(values.map((item) => [item.exerciseId, item])).values()];
+  }
+  private eligible(
+    item: VerifiedRuntimeItem,
+    source: ActiveSource,
+    scheduler: SchedulerState,
+  ): boolean {
+    if (
+      !sourceDeviceAllowed(this.db, this.ports, source.state.courseId, item) ||
+      !sourceIsKnownAndEligible(item, scheduler, this.clock())
+    )
+      return false;
+    try {
+      this.savedItem(
+        source.state,
+        source.context,
+        { ...source.queued, itemId: item.itemId, type: item.presentation.type },
+        sourceBinding(item, source.queued.id),
+        source.pack,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private bindingFor(item: VerifiedRuntimeItem, slotId: string): LessonSlotBinding {
+    return sourceBinding(item, slotId);
+  }
+  dispatch(event: SessionEvent): Promise<void> {
+    return this.serial(() => {
+      const source = this.activeSource();
+      if (!source) return;
+      const clock = this.clock();
+      let finalState: SessionState = source.state;
+      this.db.withExclusiveTransaction(() => {
+        const db = this.scopedDb(),
+          contexts = new SqliteLearningContextStore(db);
+        const scheduler = registerSources(
+          db,
+          source.state.courseId,
+          this.readScheduler(source.state.courseId),
+          [{ item: source.item }],
+          clock,
+        );
+        new SqliteSchedulerStore(db).save(source.state.courseId, scheduler);
+        const candidates = this.nodeItems(source);
+        const changes = new Map<string, VerifiedRuntimeItem>();
+        const choose = (item: QueuedItem): VerifiedRuntimeItem => {
+          if (
+            item.id === source.queued.id &&
+            item.itemId === source.item.itemId &&
+            item.type === source.item.presentation.type
+          )
+            return source.item;
+          const bound = source.context.slots.find((b) => b.slotId === item.id);
+          if (bound) {
+            const value = source.pack.runtimeItem(bound.exerciseId);
+            if (value.itemId === item.itemId && value.presentation.type === item.type) return value;
+          }
+          const found = candidates.filter(
+            (v) =>
+              v.itemId === item.itemId &&
+              v.presentation.type === item.type &&
+              this.eligible(v, source, scheduler),
+          );
+          if (!found.length) return fail('The required replay has no eligible authored source.');
+          return found[0]!;
+        };
+        let lastGrade: RuntimeGrade | null = null;
+        const deps: StepDeps = {
+          config: DEFAULT_FLAVOUR_MATRIX[source.state.flavour],
+          clock: { nowMs: () => clock.monotonicMs },
+          grading: {
+            grade: (request) => {
+              lastGrade = gradeRuntimeItem(choose(request.item), request, {
+                introducedSurfaceIds: new Set(
+                  this.db
+                    .all('SELECT surface_id FROM course_surface_exposure WHERE course_id=?', [
+                      source.state.courseId,
+                    ])
+                    .map((r) => String(r.surface_id)),
+                ),
+              });
+              return lastGrade.session;
+            },
+          },
+          isTypeEligible: (type) =>
+            candidates.some(
+              (v) => v.presentation.type === type && this.eligible(v, source, scheduler),
+            ),
+          stepUpTripped: (state) =>
+            shouldStepUp(state, (q) => {
+              try {
+                return this.eligible(choose(q), source, scheduler);
+              } catch {
+                return false;
+              }
+            }),
+          matchPairs: (q) => choose(q).presentation.pairs ?? [],
+          traceDefinition: (q) => choose(q).presentation.trace ?? null,
+          modalityReplacement: (target, ctx) => {
+            const found = candidates.find((v) => {
+              const spec = exerciseSpec(v.presentation.type),
+                canonical = v.schedulerSurfaces.filter((s) => s.canonical);
+              const concept = canonical.length === 1 ? canonical[0]!.itemRef : v.itemId;
+              return (
+                concept === target.conceptId &&
+                (source.state.currentReplay?.item.id !== target.id || v.itemId === target.itemId) &&
+                !ctx.excludedItemIds.includes(v.itemId) &&
+                (ctx.family !== 'speaking' || spec.family !== 'speaking') &&
+                (ctx.family !== 'listening' || !spec.requiresAudio) &&
+                this.eligible(v, source, scheduler)
+              );
+            });
+            if (!found) return null;
+            changes.set(target.id, found);
+            const spec = exerciseSpec(found.presentation.type);
+            return {
+              ...target,
+              itemId: found.itemId,
+              type: found.presentation.type,
+              family: spec.family,
+              requiresAudio: spec.requiresAudio,
+            };
+          },
+        };
+        this.accrueActive(source.state, clock.monotonicMs, db);
+        let result = step(source.state, event, deps);
+        // The actual checker runs inside this same exclusive transaction; the controlled
+        // player does not emit fabricated verdicts or own a separate grading effect.
+        if (result.state.shellState === 'grading')
+          result = step(result.state, { type: 'graded' }, deps);
+        finalState = result.state;
+        if (result.suspendFamily)
+          new SqlitePreferences(db, this.ports.modalityClock).suspend(
+            source.state.courseId,
+            result.suspendFamily,
+          );
+        for (const [slotId, item] of changes) {
+          const q =
+            finalState.currentReplay?.item.id === slotId
+              ? finalState.currentReplay.item
+              : finalState.core.queue.find((q) => q.id === slotId);
+          if (q?.itemId === item.itemId)
+            contexts.replaceSlot(
+              source.state.courseId,
+              source.state.sessionId,
+              this.bindingFor(item, slotId),
+              { before: source.state, after: finalState },
+            );
+        }
+        for (const answer of finalState.core.answers.slice(source.state.core.answers.length)) {
+          if (answer.slotId !== source.queued.id || answer.itemId !== source.item.itemId)
+            return fail('A grade changed its served source.');
+          contexts.recordReceipt(source.state.courseId, source.state.sessionId, {
+            ...source.binding,
+            exerciseIndex: answer.exerciseIndex,
+            answeredAtUtcMs: clock.utcMs,
+            answeredLocalDay: localDayOfStamp(new Date(clock.utcMs), clock.zone),
+            activeMs: contexts.load(source.state.courseId, source.state.sessionId)!.activeMs,
+          });
+          const targets = targetsForRuntimeAnswer(source.item, answer, {
+            targetLanguage: source.pack.pack.meta.lang,
+            rubyShown: source.binding.rubyShown,
+            responseSurfaceId: (lastGrade as RuntimeGrade | null)?.responseSurfaceId ?? null,
+            partialState: finalState.inFlight.partialState,
+          });
+          if (targets.length)
+            contexts.recordTargets(
+              source.state.courseId,
+              source.state.sessionId,
+              answer.exerciseIndex,
+              targets,
+            );
+        }
+        const replay = finalState.currentReplay?.item;
+        if (replay && !source.context.slots.some((b) => b.slotId === replay.id)) {
+          const mistake = finalState.mistakes.find(
+            (m) => replay.id === `${m.slotId}#replay${m.recyclesServed}`,
+          );
+          if (!mistake) return fail('Replay source history is unavailable.');
+          const original = source.context.slots.find((b) => b.slotId === mistake.slotId);
+          if (!original) return fail('Replay base slot is unavailable.');
+          const originalItem = source.pack.runtimeItem(original.exerciseId);
+          contexts.addReplaySlot(
+            finalState,
+            mistake.slotId,
+            this.bindingFor(choose(replay), replay.id),
+            originalItem.presentation.pairs?.map((p) => p.leftItemId) ?? [],
+          );
+        }
+        new SqliteSessionStore(db, () => new Date(clock.utcMs).toISOString()).put(finalState);
+        if (finalState.exited !== null) {
+          contexts.freezeCompletion(source.state.courseId, source.state.sessionId, {
+            completedAtUtcMs: clock.utcMs,
+            completedAtMonotonicMs: clock.monotonicMs,
+            completionZone: clock.zone,
+            outcome: finalState.exited === 'quit' ? 'quit' : 'completed',
+            intendedAtUtc: new Date(clock.utcMs).toISOString(),
+          });
+        }
+      });
+      this.activeClock =
+        this.foregrounded && finalState.exited === null
+          ? { sessionId: finalState.sessionId, monotonicMs: clock.monotonicMs }
+          : null;
+    });
+  }
+  private offer: {
+    readonly value: SessionOffer;
+    readonly courseId: string;
+    readonly request: LessonLaunch;
+    readonly resumable: boolean;
+  } | null = null;
+  readOffer(): SessionOffer | null {
+    return this.offer?.value ?? null;
+  }
+  private savedResolves(state: SessionState): boolean {
+    const context = new SqliteLearningContextStore(this.db).load(state.courseId, state.sessionId),
+      pack = this.ports.packs.get(state.courseId);
+    if (!context || !pack || pack.contentHash !== context.launch.packContentHash) return false;
+    try {
+      return [
+        ...state.core.queue,
+        ...(state.currentReplay ? [state.currentReplay.item] : []),
+      ].every((q) => {
+        const binding = context.slots.find((b) => b.slotId === q.id);
+        if (!binding) return false;
+        this.savedItem(state, context, q, binding, pack);
+        return true;
+      });
+    } catch {
+      return false;
+    }
+  }
+  start(courseId: string, request: LessonLaunch): Promise<void> {
+    return this.serial(() => this.startNow(courseId, request));
+  }
+  private startNow(courseId: string, request: LessonLaunch): void {
+    const clock = this.clock();
+    let started: SessionState | null = null;
+    this.db.withExclusiveTransaction(() => {
+      const db = this.scopedDb(),
+        sessions = new SqliteSessionStore(db, () => new Date(clock.utcMs).toISOString());
+      if (
+        db.get('SELECT course_id FROM course_selection WHERE is_active=1')?.course_id !== courseId
+      )
+        throw new LearningDataError('Select the course before launching its lesson.');
+      const active = sessions.activeGraded();
+      if (active?.exited !== null && active !== null)
+        throw new LearningUnavailableError(
+          'Finish the saved completion before starting another session.',
+        );
+      if (new SqliteCeremonyStore(db, () => new Date(clock.utcMs).toISOString()).pending())
+        throw new LearningUnavailableError(
+          'Finish the saved celebration before starting another session.',
+        );
+      const nodeRef = request.kind === 'path' ? request.request.nodeId : null;
+      const own = nodeRef === null ? null : sessions.get(courseId, 'graded', nodeRef);
+      if (active && active !== own && active.sessionId !== own?.sessionId) {
+        this.offer = {
+          value: {
+            kind: 'collision',
+            sessionId: active.sessionId,
+            lessonLabel: active.nodeRef,
+            exerciseIndex: active.core.index,
+            exerciseCount: active.core.queue.length,
+          },
+          courseId,
+          request,
+          resumable: this.savedResolves(active),
+        };
+        return;
+      }
+      if (own) {
+        const resolves = this.savedResolves(own),
+          decision = resumeDecision({
+            state: own,
+            nowMonotonicMs: clock.monotonicMs,
+            queueResolvesInPack: resolves,
+          });
+        if (decision.kind !== 'silentResume') {
+          this.offer = {
+            value: { kind: 'resume', sessionId: own.sessionId, lessonLabel: own.nodeRef },
+            courseId,
+            request,
+            resumable: resolves,
+          };
+          return;
+        }
+        sessions.activate(own);
+        started = own;
+        return;
+      }
+      const prepared = prepareLearningLaunch(db, this.ports, clock, courseId, request);
+      new SqliteLearningContextStore(db).create(prepared.launch, prepared.slots);
+      sessions.activate(prepared.state);
+      started = prepared.state;
+    });
+    if (started !== null) {
+      this.offer = null;
+      this.foregrounded = true;
+      this.activeClock = {
+        sessionId: (started as SessionState).sessionId,
+        monotonicMs: clock.monotonicMs,
+      };
+    }
+  }
+  resolveOffer(decision: SessionOfferDecision): Promise<void> {
+    return this.serial(() => {
+      const pending = this.offer;
+      if (!pending) return;
+      if (decision === 'cancel') {
+        this.offer = null;
+        return;
+      }
+      if (decision === 'resume') {
+        if (!pending.resumable)
+          throw new LearningUnavailableError(
+            'The saved source is unavailable; start over is required.',
+          );
+        const clock = this.clock();
+        this.db.withExclusiveTransaction(() => {
+          const sessions = new SqliteSessionStore(this.scopedDb()),
+            state = sessions.all().find((s) => s.sessionId === pending.value.sessionId);
+          if (!state || !this.savedResolves(state))
+            throw new LearningDataError('The saved lesson changed while the choice was open.');
+          if (
+            !this.db.get('SELECT course_id FROM course_selection WHERE course_id=?', [
+              state.courseId,
+            ])
+          )
+            throw new LearningDataError('The saved lesson course selection is unavailable.');
+          this.db.run('UPDATE course_selection SET is_active=0 WHERE is_active=1');
+          this.db.run('UPDATE course_selection SET is_active=1 WHERE course_id=?', [
+            state.courseId,
+          ]);
+          sessions.activate(state);
+        });
+        this.offer = null;
+        this.foregrounded = true;
+        this.activeClock = { sessionId: pending.value.sessionId, monotonicMs: clock.monotonicMs };
+        return;
+      }
+      throw new LearningUnavailableError(
+        'The old lesson must finish its durable quit commit before regeneration.',
+      );
+    });
   }
 }

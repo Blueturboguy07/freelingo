@@ -83,6 +83,8 @@ function setup() {
         surfaceId: 'sf:gato',
         surface: 'el gato',
         language: 'es',
+        kind: 'lexeme',
+        itemRef: 'gato',
         canonical: true,
       },
     ],

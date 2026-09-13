@@ -46,7 +46,15 @@ function runtime(patch: Partial<VerifiedRuntimeItem> = {}): VerifiedRuntimeItem 
       acceptedAnswers: ['el gato'],
     },
     schedulerSurfaces: [
-      { itemId: 'item-1', surfaceId: 'gato', surface: 'el gato', language: 'es', canonical: true },
+      {
+        itemId: 'item-1',
+        surfaceId: 'gato',
+        surface: 'el gato',
+        language: 'es',
+        kind: 'lexeme',
+        itemRef: 'gato',
+        canonical: true,
+      },
     ],
     introductions: [],
     explanation: 'A cat.',
@@ -104,8 +112,8 @@ it('[INV-GRD-03] calls the actual three-tier checker and preserves its full verd
   const r = runtime();
   expect(gradeRuntimeItem(r, input(r, 'el gato'), learner).session.kind).toBe('correct');
   const soft = gradeRuntimeItem(r, input(r, 'el ga to'), learner);
-  expect(soft.feedback.softCorrected).toBe(true);
-  expect(soft.session).toEqual({ kind: 'softCorrect', note: soft.feedback.note });
+  expect(soft.feedback!.softCorrected).toBe(true);
+  expect(soft.session).toEqual({ kind: 'softCorrect', note: soft.feedback!.note });
   expect(gradeRuntimeItem(r, input(r, 'el perro'), learner).session.kind).toBe('wrong');
 });
 it('[INV-GRD-13] uses each exact response profile and never an ambient language fixture', () => {
@@ -267,12 +275,22 @@ it('[INV-SCH-11] actual accepted Spanish alternate schedules its own signed targ
       ],
     },
     schedulerSurfaces: [
-      { itemId: 'item-1', surfaceId: 'gato', surface: 'el gato', language: 'es', canonical: true },
+      {
+        itemId: 'item-1',
+        surfaceId: 'gato',
+        surface: 'el gato',
+        language: 'es',
+        kind: 'lexeme',
+        itemRef: 'gato',
+        canonical: true,
+      },
       {
         itemId: 'item-1',
         surfaceId: 'felino',
         surface: 'el felino',
         language: 'es',
+        kind: 'lexeme',
+        itemRef: 'gato',
         canonical: false,
       },
     ],
@@ -348,11 +366,13 @@ it('[INV-GRD-20][INV-SCH-11] one actual gap keeps its per-gap approved matched s
       surfaceId: f.surfaceId,
       surface: f.surface,
       language: 'es',
+      kind: 'lexeme',
+      itemRef: 'gato',
       canonical: i === 0,
     })),
   });
   const grade = gradeRuntimeItem(r, input(r, 'felino'), learner);
-  expect(grade.feedback.matchedSurfaceId).toBeNull();
+  expect(grade.feedback!.matchedSurfaceId).toBeNull();
   expect(grade.responseSurfaceId).toBe('feline');
   expect(
     targetsForRuntimeAnswer(
@@ -384,6 +404,8 @@ it('[INV-SESS-13][INV-SCH-11] actual grid taps schedule each touched semantic ta
         surfaceId: 'sf:' + p.leftId,
         surface: p.left,
         language: 'es',
+        kind: 'lexeme',
+        itemRef: 'gato',
         canonical: true,
       })),
     });
