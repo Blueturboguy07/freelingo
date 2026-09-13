@@ -9,3 +9,10 @@ Four schema falsifiers and fourteen initial real producer→SQLite checks first 
 Final affected gate: 118 Python checks and 118 TypeScript schema/loader/grading checks, zero failures or skips; Ruff, typecheck and lint exit 0. Evidence: /private/tmp/p3-grading-g9-reviewed.{log,xml,exit}, /private/tmp/p3-pack-learning-reviewed.xml. Independent witnesses: /private/tmp/p3-pack-learning-review/test_exact_writer.py (5 initial failures, 2 controls; all 7 pass unchanged after repair). The first notice test had a missing local helper; corrected and replayed against the old loader to record the actual lost-notice RED at /private/tmp/p3-dictionary-notice-red2.xml before green2.
 
 Remaining integration: the production G9 stage must assemble its current reviewed population and call this optional writer path; runtime-item decoding, exact visible introduction events and actual authored Spanish grading data are separate work. No production approval, missing dictionary owner, language-review result or answer surface is supplied by a fallback.
+
+
+## Native verification producer boundary — 2026-09-13
+
+G8's 16-character clip identity describes generation inputs, not delivered file bytes. G9 now includes signed `audioFiles` entries measured from each delivered Opus file (relative path, byte count, SHA-256). The signing block also carries the exact compact Python payload bytes, bound to all unsigned manifest fields; this preserves numeric spellings such as `1.0` and `1e-07` when native JavaScript verifies the signature. Existing Python signatures remain verifiable without the additive payload field.
+
+Three real producer counterexamples were red before the change. All 49 manifest/signing tests and Ruff pass. Independent review passed 13 additional Python witnesses and 8 repository/SQLite witnesses, including actual Python signing through the native repository with floats and Unicode; report `/private/tmp/p3-installed-pack-review/report.md`. No content population, production signing, CI phase gate or release was performed.

@@ -285,3 +285,17 @@ def test_non_ascii_in_a_manifest_survives_canonicalisation() -> None:
     signed = sign_manifest(manifest, key=a_key())
     verify_manifest(signed, trusted_spki=public_key_spki(a_key()))
     assert "español".encode() in canonical_manifest_bytes(manifest)
+
+
+def test_INV_PACK_18_signing_carries_exact_python_payload_for_native_numeric_parity() -> None:
+    manifest = {**a_manifest(), "proof": [1.0, -0.0, 1e-7, 1e20, "日本語"]}
+    signed = sign_manifest(manifest, key=a_key())
+    assert base64.b64decode(signed["signature"]["payload"]) == canonical_manifest_bytes(manifest)
+    verify_manifest(signed, trusted_spki=public_key_spki(a_key()))
+
+
+def test_INV_PACK_18_exact_payload_must_match_manifest() -> None:
+    signed = sign_manifest(a_manifest(), key=a_key())
+    signed["signature"]["payload"] = base64.b64encode(b'{"wrong":true}').decode()
+    with pytest.raises(SignatureInvalid, match="payload"):
+        verify_manifest(signed, trusted_spki=public_key_spki(a_key()))
