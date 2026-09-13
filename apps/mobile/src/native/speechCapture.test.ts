@@ -164,3 +164,13 @@ it('[INV-PLAT-09] native interruption already schedules shutdown and must not en
   await r.capture.whenIdle();
   expect(r.callbacks.onError).toHaveBeenCalledWith('interrupted');
 });
+
+it('[INV-MOD-10] native audio-capture failure is a transient route error, distinct from interruption', async () => {
+  const r = rig();
+  await r.capture.begin('es-ES', r.callbacks);
+  r.emit('error', { error: 'audio-capture' });
+  r.emit('end', null);
+  await r.capture.whenIdle();
+  expect(r.callbacks.onError).toHaveBeenCalledWith('route');
+  expect(r.callbacks.onResult).not.toHaveBeenCalled();
+});
