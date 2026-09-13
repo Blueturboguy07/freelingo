@@ -1,11 +1,16 @@
 import { afterEach, expect, it } from 'vitest';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createNodeDb } from '@freelingo/testkit';
 import type { Db } from './db.js';
 import { migrate, MIGRATIONS, currentUserVersion } from './migrations.js';
 import { regionViolations } from './progress-schema.js';
 const opened: Db[] = [];
+const directories: string[] = [];
 afterEach(() => {
   opened.splice(0).forEach((db) => db.close());
+  directories.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true }));
 });
 const hash = 'a'.repeat(64),
   at = 1789300800000;
@@ -78,4 +83,67 @@ it('[INV-PER-03] interruption while creating exact display evidence leaves the e
     db.get("SELECT name FROM sqlite_master WHERE name='course_source_exposure'"),
   ).toBeUndefined();
   expect(db.get('SELECT * FROM course_surface_exposure')).toEqual(first);
+});
+
+it('[INV-ECO-27][INV-PER-03] SQLite REPLACE cannot rewrite an exact source receipt when recursive triggers are disabled', () => {
+  const db = setup();
+  observed(db);
+  db.run('PRAGMA recursive_triggers=OFF');
+  const before = db.get('SELECT * FROM course_source_exposure');
+  expect(() =>
+    db.run(
+      "INSERT OR REPLACE INTO course_source_exposure VALUES('en-es','sf-cat','gato','es','rewritten','slot-second','ex-second',?,'prompt',?)",
+      [hash, at + 2000],
+    ),
+  ).toThrow();
+  expect(db.get('SELECT * FROM course_source_exposure')).toEqual(before);
+});
+it.each([
+  ['account_word_state', 'initialized_at_utc_ms'],
+  ['account_word', 'introduced_at_utc_ms'],
+  ['account_word_learning', 'learned_at_utc_ms'],
+  ['account_word_review', 'reviewed_at_utc_ms'],
+  ['account_word_review', 'word_sequence'],
+] as const)(
+  '[INV-ECO-27][INV-PER-03] permanent %s cannot replace its existing evidence through %s',
+  (table, field) => {
+    const dir = mkdtempSync(join(tmpdir(), 'freelingo-replace-history-'));
+    directories.push(dir);
+    const path = join(dir, 'progress.db');
+    copyFileSync(new URL('../fixtures/golden/v12.db', import.meta.url), path);
+    const db = createNodeDb({ location: path });
+    opened.push(db);
+    migrate(db);
+    db.run('PRAGMA recursive_triggers=OFF');
+    const all = db.all('SELECT * FROM ' + table),
+      original = all[0]!;
+    const changed = { ...original, [field]: (original[field] as number) + 1 };
+    const names = Object.keys(changed);
+    expect(() =>
+      db.run(
+        'INSERT OR REPLACE INTO ' +
+          table +
+          '(' +
+          names.join(',') +
+          ') VALUES(' +
+          names.map(() => '?').join(',') +
+          ')',
+        Object.values(changed),
+      ),
+    ).toThrow();
+    expect(db.all('SELECT * FROM ' + table)).toEqual(all);
+  },
+);
+
+it('[INV-ECO-27][INV-SCH-11] REPLACE cannot move the first teaching instant even without a later source child', () => {
+  const db = setup();
+  db.run('PRAGMA recursive_triggers=OFF');
+  const before = db.get('SELECT * FROM course_surface_exposure');
+  expect(() =>
+    db.run(
+      "INSERT OR REPLACE INTO course_surface_exposure VALUES('en-es','sf-cat','gato','es','s-new','slot-new','ex-new',?,'prompt',?)",
+      [hash, at + 1000],
+    ),
+  ).toThrow();
+  expect(db.get('SELECT * FROM course_surface_exposure')).toEqual(before);
 });
