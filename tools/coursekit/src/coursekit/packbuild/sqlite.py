@@ -31,7 +31,7 @@ import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..config import PACK_LICENCE, PACK_TABLES
 from ..config.g9 import (
@@ -52,6 +52,10 @@ from ..config.g9 import (
 )
 from ..config.validate import RTL_LANGUAGES, RTL_META_ROW_ID
 from . import register_writer
+
+if TYPE_CHECKING:
+    from ..conversation_evidence import ApprovedConversation
+    from ..selected_sources import SelectedSource
 
 __all__ = [
     "PackInputs",
@@ -245,6 +249,11 @@ class PackInputs:
     #: The validated sample summary, or None before a sheet has been scored.
     review: Mapping[str, Any] | None = None
     meta_extra: Mapping[str, str] = field(default_factory=dict)
+    extra_exposure_lemmas: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    selected_sources: tuple[SelectedSource, ...] = ()
+    approved_conversations: Mapping[tuple[int, int, int], ApprovedConversation] = field(
+        default_factory=dict
+    )
 
 
 def shipped_sentences(inputs: PackInputs) -> list[Mapping[str, Any]]:
@@ -308,6 +317,13 @@ def shipped_sentences(inputs: PackInputs) -> list[Mapping[str, Any]]:
             "attribution_owner": AUTHORED_ATTRIBUTION_OWNER,
         }
 
+    from .conversations import extra_corpus_sentences
+
+    for record in extra_corpus_sentences(inputs):
+        identifier = str(record["sentence_id"])
+        if identifier in shipped and shipped[identifier] != record:
+            raise ValueError(f"conflicting conversation source identity {identifier}")
+        shipped[identifier] = dict(record)
     return [shipped[key] for key in sorted(shipped)]
 
 
@@ -374,6 +390,9 @@ def meta_rows(inputs: PackInputs) -> list[dict[str, Any]]:
                 "value": json.dumps(credit, sort_keys=True, ensure_ascii=False),
             }
         )
+    from .conversations import metadata_rows
+
+    rows.extend(metadata_rows(inputs))
     for key, value in sorted(inputs.meta_extra.items()):
         rows.append({"key": key, "value": value})
     return rows
@@ -534,12 +553,18 @@ def _slot_indices(inputs: PackInputs) -> dict[str, int]:
     """Number the actual lesson rows in the prerequisite order V2 validates."""
     from ..artifacts import first_accepted_candidates
     from ..teaching_order import order_exercises, selection_order_hints
+    from .conversations import exposure_lemmas
 
     chosen = first_accepted_candidates(inputs.candidates, lang=inputs.lang)
     hints = selection_order_hints(inputs.selected, chosen)
     ordered: dict[str, int] = {}
     counts: dict[tuple[int, int], int] = {}
-    for exercise in order_exercises(inputs.units, inputs.exercises, hints=hints):
+    for exercise in order_exercises(
+        inputs.units,
+        inputs.exercises,
+        hints=hints,
+        extra_exposure_lemmas=exposure_lemmas(inputs),
+    ):
         key = (int(exercise["unit_index"]), int(exercise["lesson_index"]))
         ordered[str(exercise["exercise_id"])] = counts.get(key, 0)
         counts[key] = counts.get(key, 0) + 1

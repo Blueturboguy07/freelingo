@@ -40,7 +40,18 @@ def order_exercises(
     exercises: Iterable[Mapping[str, Any]],
     *,
     hints: OrderHints | None = None,
+    extra_exposure_lemmas: Mapping[str, Iterable[str]] | None = None,
 ) -> list[Mapping[str, Any]]:
+    exercises = tuple(exercises)
+    extras = {key: frozenset(value) for key, value in (extra_exposure_lemmas or {}).items()}
+    if set(extras) - {str(row["exercise_id"]) for row in exercises}:
+        raise ValueError("exposure evidence names an unknown exercise")
+
+    def visible_lemmas(row):
+        return frozenset(str(lemma) for lemma in row["item_tags"]["lemmas"]) | extras.get(
+            str(row["exercise_id"]), frozenset()
+        )
+
     introduced: dict[str, int] = {}
     for unit in sorted(units, key=lambda row: int(row["unit_index"])):
         for lemma in unit["target_lemmas"]:
@@ -57,7 +68,7 @@ def order_exercises(
         def priority(
             row: Mapping[str, Any], unit: int = unit, lesson: int = lesson
         ) -> tuple[float, int, str]:
-            tags = row["item_tags"]["lemmas"]
+            tags = visible_lemmas(row)
             source_key = (unit, lesson, str(row.get("source_sentence_id")))
             # A match follows the latest introduction it needs; a single-word form
             # can precede the sentence that reserved the same lemma's first slot.
@@ -76,7 +87,7 @@ def order_exercises(
                     if len(
                         {
                             str(lemma)
-                            for lemma in row["item_tags"]["lemmas"]
+                            for lemma in visible_lemmas(row)
                             if str(lemma) not in seen and introduced.get(str(lemma), unit) == unit
                         }
                     )
@@ -86,5 +97,5 @@ def order_exercises(
             )
             exercise = remaining.pop(eligible)
             ordered.append(exercise)
-            seen.update(str(lemma) for lemma in exercise["item_tags"]["lemmas"])
+            seen.update(visible_lemmas(exercise))
     return ordered

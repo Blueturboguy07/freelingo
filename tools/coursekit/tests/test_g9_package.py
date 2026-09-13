@@ -86,16 +86,14 @@ def test_INV_PACK_14_g9_sources_review_fields_from_the_validated_sample_summary(
     monkeypatch.setattr(g9_package, "licences_seen", lambda lang: [])
     monkeypatch.setattr(g9_package, "_validator_report", lambda lang: {})
 
-    inputs = g9_package._pack_inputs(
-        SimpleNamespace(lang="es", options={"defect_rate": "0.99"})
-    )
+    inputs = g9_package._pack_inputs(SimpleNamespace(lang="es", options={"defect_rate": "0.99"}))
 
     assert inputs.review == review
     assert inputs.defect_rate == 0.01
 
 
 @pytest.fixture(autouse=True)
-def _g9_is_registered() -> None:
+def _g9_is_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     """Re-register G9 if a previous test cleared the registry.
 
     `conftest.empty_registry` calls `STAGES.reset_for_tests()`, which clears the entries
@@ -112,6 +110,15 @@ def _g9_is_registered() -> None:
         import coursekit.stages.g9_package as stage_module
 
         importlib.reload(stage_module)
+
+    # This historical seven-exercise seed isolates SQLite/audio/licence packaging.
+    # Its empty chat context is explicit; real current-plan/G6 caller refusals and
+    # dialogue storage are exercised without this stub in test_pack_conversations.
+    from coursekit.stages import g9_package
+
+    monkeypatch.setattr(
+        g9_package, "resolve_current_conversations", lambda *args, **kwargs: ((), {})
+    )
 
 
 SEED = json.loads((repo_root() / FIXTURE_PACK_RELPATH / "seed.json").read_text(encoding="utf-8"))
@@ -571,8 +578,8 @@ def test_the_stage_declares_only_the_artefact_kinds_it_reads() -> None:
     """A `reads` tuple is a contract a reader believes; an unread kind in it is a lie."""
     stage = STAGES.get(PACK_STAGE_ID)
     assert stage is not None
-    source = (
-        repo_root() / "tools/coursekit/src/coursekit/stages/g9_package.py"
-    ).read_text(encoding="utf-8")
+    source = (repo_root() / "tools/coursekit/src/coursekit/stages/g9_package.py").read_text(
+        encoding="utf-8"
+    )
     collected = set(re.findall(r'_collect\(lang, "([a-z_]+)"\)', source))
     assert set(stage.reads) == collected

@@ -50,7 +50,10 @@ from ..config.validate import (
     WITHIN_SECTION_DIFFICULTY_FALL_SEVERITY,
     allowed_licences_for,
 )
+from ..conversation_evidence import ConversationEvidenceError
+from ..conversation_inputs import current_conversation_exposures
 from ..ledger import letter_runs
+from ..selected_sources import SourceEvidenceError
 from . import Finding, ValidatorContext, register_validator
 
 __all__ = [
@@ -217,6 +220,35 @@ def shipped_items(lang: str) -> tuple[ShippedItem, ...]:
     return tuple(items)
 
 
+def all_shipped_text_items(lang: str) -> tuple[ShippedItem, ...]:
+    """Licence/font population includes extra role rows; V11 keeps selected slots."""
+    canonical = shipped_items(lang)
+    try:
+        exposed = current_conversation_exposures(lang, _read_optional("exercise", lang) or ())
+    except (ConversationEvidenceError, SourceEvidenceError) as exc:
+        raise SuiteInputMissing(f"unapproved conversation exposure: {exc}") from exc
+    existing_ids = {item.item_id for item in canonical}
+    additional = {}
+    for slot, _approved, roles in exposed.values():
+        for role in roles.values():
+            if role.source_id in existing_ids or role.source_id in additional:
+                continue
+            source = role.source
+            additional[role.source_id] = ShippedItem(
+                *slot,
+                role.source_id,
+                "corpus",
+                role.text,
+                role.translation,
+                str(source["licence"]),
+                str(source["licence_verdict"]),
+                bool(source["attribution_required"]),
+                source.get("attribution_owner"),
+                int(source["token_count"]),
+            )
+    return (*canonical, *(additional[key] for key in sorted(additional)))
+
+
 def _deciles(lang: str) -> dict[str, int]:
     return {row["lemma"].lower(): row["decile"] for row in _read("banded_lemma", lang)}
 
@@ -304,7 +336,7 @@ def every_sentence_carries_a_resolved_licence(ctx: ValidatorContext) -> list[Fin
     are excluded at ingest, not at package time" is then enforced nowhere.
     """
     try:
-        items = shipped_items(ctx.lang)
+        items = all_shipped_text_items(ctx.lang)
     except SuiteInputMissing as exc:
         return [_input_missing("V10", exc)]
 
@@ -639,7 +671,7 @@ def direction_and_font_coverage(ctx: ValidatorContext) -> list[Finding]:
     that needs `true` would ship without it.
     """
     try:
-        items = shipped_items(ctx.lang)
+        items = all_shipped_text_items(ctx.lang)
     except SuiteInputMissing as exc:
         return [_input_missing("V12", exc)]
 

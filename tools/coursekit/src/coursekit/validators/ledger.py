@@ -60,6 +60,7 @@ from ..config.g4 import (
     MAX_NEW_LEMMAS_PER_LESSON,
     MAX_USES_PER_SENTENCE_PER_UNIT,
 )
+from ..conversation_inputs import current_conversation_exposures
 from ..runlog import require_successful
 from ..teaching_order import OrderHints, order_exercises, selection_order_hints
 from . import Finding, ValidatorContext, register_validator
@@ -120,11 +121,14 @@ class Ledger:
 
     #: Real selected sentence occurrences. Unfilled gaps do not enter V9's denominator.
     sentence_uses: tuple[SentenceUse, ...] = ()
+    extra_sentence_uses: tuple[SentenceUse, ...] = ()
     #: Chosen authored IDs may only supply evidence in their exact unit/lesson.
     authored_contexts: dict[str, tuple[int, int]] = field(default_factory=dict)
     order_hints: OrderHints = field(default_factory=lambda: ({}, {}))
     source_contexts: dict[str, frozenset[tuple[int, int]]] = field(default_factory=dict)
     selection_checked: bool = False
+    extra_exposure_lemmas: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    extra_exposure_forms: Mapping[str, frozenset[tuple[str, str]]] = field(default_factory=dict)
 
     def content_lemmas(self, exercise: Mapping[str, Any]) -> frozenset[str]:
         """What is really in an exercise.
@@ -146,11 +150,29 @@ class Ledger:
             return self.forms_of[str(sentence_id)]
         return None
 
+    def exposure_lemmas(self, exercise: Mapping[str, Any]) -> frozenset[str]:
+        """All visible roles count as exposure without becoming taught item tags."""
+        return self.content_lemmas(exercise) | self.extra_exposure_lemmas.get(
+            str(exercise["exercise_id"]), frozenset()
+        )
+
+    def exposure_forms(self, exercise: Mapping[str, Any]) -> frozenset[tuple[str, str]] | None:
+        content = self.content_forms(exercise)
+        extra = self.extra_exposure_forms.get(str(exercise["exercise_id"]))
+        if content is None and extra is None:
+            return None
+        return (content or frozenset()) | (extra or frozenset())
+
     def last_lesson(self) -> int:
         return max((int(ex["lesson_index"]) for ex in self.exercises), default=0)
 
     def in_course_order(self) -> list[Mapping[str, Any]]:
-        return order_exercises(self.units, self.exercises, hints=self.order_hints)
+        return order_exercises(
+            self.units,
+            self.exercises,
+            hints=self.order_hints,
+            extra_exposure_lemmas=self.extra_exposure_lemmas,
+        )
 
 
 def build_ledger(
@@ -162,6 +184,8 @@ def build_ledger(
     selected: Iterable[Mapping[str, Any]] | None = None,
     candidates: Iterable[Mapping[str, Any]] = (),
     ingested: Iterable[Mapping[str, Any]] = (),
+    extra_exposure_lemmas: Mapping[str, Iterable[str]] | None = None,
+    extra_exposure_forms: Mapping[str, Iterable[tuple[str, str]]] | None = None,
 ) -> Ledger:
     """Join selected slots to exact G1 or first surviving G5 analyses after G6.
 
@@ -169,6 +193,14 @@ def build_ledger(
     shortfalls at warning severity forever. Reserves and rejected candidates are not
     evidence for what ships, even when their text happens to match an exercise.
     """
+    exercise_rows = tuple(exercises)
+    exercise_ids = {str(row["exercise_id"]) for row in exercise_rows}
+    exposure_lemmas = {
+        key: frozenset(value) for key, value in (extra_exposure_lemmas or {}).items()
+    }
+    exposure_forms = {key: frozenset(value) for key, value in (extra_exposure_forms or {}).items()}
+    if (set(exposure_lemmas) | set(exposure_forms)) - exercise_ids:
+        raise ValueError("exposure evidence names an unknown exercise")
     unit_rows = tuple(sorted(units, key=lambda unit: int(unit["unit_index"])))
     introduction_unit: dict[str, int] = {}
     target_lemmas: dict[int, tuple[str, ...]] = {}
@@ -237,7 +269,7 @@ def build_ledger(
     return Ledger(
         lang=lang,
         units=unit_rows,
-        exercises=tuple(exercises),
+        exercises=exercise_rows,
         introduction_unit=introduction_unit,
         target_lemmas=target_lemmas,
         concept_of=concept_of,
@@ -255,6 +287,8 @@ def build_ledger(
             for sid in {use.source_id for use in uses}
         },
         selection_checked=selected is not None,
+        extra_exposure_lemmas=exposure_lemmas,
+        extra_exposure_forms=exposure_forms,
     )
 
 
@@ -279,15 +313,34 @@ def _analysis_matches(candidate: Mapping[str, Any]) -> bool:
 def load_ledger(lang: str) -> Ledger:
     """Read the ledger out of a run directory. Raises if a stage it needs never ran."""
     require_successful(lang, ["g3", "g4", "g7"])
-    return build_ledger(
+    exercises = tuple(read_records("exercise", lang=lang))
+    exposed = current_conversation_exposures(lang, exercises)
+    extra_lemmas, extra_forms, extra_uses = {}, {}, []
+    for eid, (slot, _approved, roles) in exposed.items():
+        extra_lemmas[eid] = frozenset().union(*(role.lemmas for role in roles.values()))
+        extra_forms[eid] = frozenset(
+            (str(token["lemma"]), str(token.get("morph", "")))
+            for role in roles.values()
+            for token in role.analysis["tokens"]
+            if token["pos"] not in LEDGER_EXCLUDED_POS
+        )
+        extra_uses.extend(
+            SentenceUse(*slot, role.source_id, dedup_hash(role.text)) for role in roles.values()
+        )
+    ledger = build_ledger(
         lang,
         read_records("unit_assignment", lang=lang),
-        read_records("exercise", lang=lang),
+        exercises,
         analysed=read_records("analysed_sentence", lang=lang),
         selected=read_records("selected_item", lang=lang),
         candidates=read_records("candidate", lang=lang),
         ingested=read_records("ingested_sentence", lang=lang),
+        extra_exposure_lemmas=extra_lemmas,
+        extra_exposure_forms=extra_forms,
     )
+    from dataclasses import replace
+
+    return replace(ledger, extra_sentence_uses=tuple(extra_uses))
 
 
 def _severity(ledger: Ledger, unit_index: int) -> tuple[str, str]:
@@ -308,7 +361,7 @@ def check_v1(ledger: Ledger) -> list[Finding]:
     findings: list[Finding] = []
     for exercise in ledger.in_course_order():
         unit_index = int(exercise["unit_index"])
-        for lemma in sorted(ledger.content_lemmas(exercise)):
+        for lemma in sorted(ledger.exposure_lemmas(exercise)):
             introduced = ledger.introduction_unit.get(lemma)
             if introduced is None:
                 findings.append(
@@ -408,7 +461,7 @@ def check_v2(ledger: Ledger) -> list[Finding]:
     for exercise in ledger.in_course_order():
         unit_index = int(exercise["unit_index"])
         key = (unit_index, int(exercise["lesson_index"]))
-        lemmas = ledger.content_lemmas(exercise)
+        lemmas = ledger.exposure_lemmas(exercise)
         first_here = lemmas - seen_lemmas
         new_lemmas = {
             lemma
@@ -430,7 +483,7 @@ def check_v2(ledger: Ledger) -> list[Finding]:
                 )
             )
 
-        forms = ledger.content_forms(exercise)
+        forms = ledger.exposure_forms(exercise)
         if forms is not None:
             new_forms = {
                 form for form in forms if form not in seen_forms and form[0] in seen_lemmas
@@ -644,12 +697,15 @@ def check_v9(ledger: Ledger) -> list[Finding]:
     per_unit: dict[int, dict[str, int]] = {}
     first_unit: dict[str, int] = {}
     repeats = 0
-    sourced = 0
-
+    sourced = len(ledger.sentence_uses)
+    occurrences = {
+        (use.unit_index, use.lesson_index, use.slot_index, use.text_hash): use
+        for use in (*ledger.sentence_uses, *ledger.extra_sentence_uses)
+    }
     for use in sorted(
-        ledger.sentence_uses, key=lambda row: (row.unit_index, row.lesson_index, row.slot_index)
+        occurrences.values(),
+        key=lambda row: (row.unit_index, row.lesson_index, row.slot_index, row.text_hash),
     ):
-        sourced += 1
         unit_index = use.unit_index
         identity = use.text_hash
         counts = per_unit.setdefault(unit_index, {})

@@ -30,6 +30,7 @@ be a stage nobody could run locally.
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -39,7 +40,9 @@ from .. import __version__
 from ..artifacts import read_records, stage_dir, write_records
 from ..config import ARTIFACT_SCHEMA_VERSION, BUILD_STAGE_IDS, PACK_STAGE_ID, TOOL_NAME
 from ..config.g9 import AUDIO_DIRNAME, PACK_DB_FILENAME
+from ..conversation_inputs import resolve_current_conversations
 from ..packbuild.attribution import attribution_violations
+from ..packbuild.conversations import exposure_lemmas
 from ..packbuild.manifest import build_manifest, manifest_violations, write_manifest
 from ..packbuild.sqlite import PackInputs, build_rows, row_id_for, write_pack
 from ..runlog import licences_seen, read_entries, require_successful
@@ -92,7 +95,7 @@ def _pack_inputs(ctx: StageContext) -> PackInputs:
     lang = ctx.lang
     options = ctx.options
     review = derive_review(lang)
-    return PackInputs(
+    inputs = PackInputs(
         lang=lang,
         pack_id=options.get("pack_id", f"freelingo-{lang}"),
         course_id=options.get("course_id", f"en-{lang}"),
@@ -114,6 +117,21 @@ def _pack_inputs(ctx: StageContext) -> PackInputs:
         ),
         review=review,
     )
+    if not inputs.selected:
+        # Empty-input callers still receive no fabricated approval; G9's actual
+        # writers refuse to package a population without selected slots.
+        return inputs
+    sources, approved = resolve_current_conversations(
+        lang,
+        selected=inputs.selected,
+        candidates=inputs.candidates,
+        ingested=inputs.sentences,
+        analysed=_collect(lang, "analysed_sentence"),
+        units=inputs.units,
+        banded=inputs.lemmas,
+    )
+    inputs = replace(inputs, selected_sources=sources, approved_conversations=approved)
+    return replace(inputs, extra_exposure_lemmas=exposure_lemmas(inputs))
 
 
 def _stage_audio_bank(
@@ -181,6 +199,7 @@ def _publish(staging: Path, pack_dir: Path) -> Path:
     PACK_STAGE_ID,
     reads=(
         "ingested_sentence",
+        "analysed_sentence",
         "banded_lemma",
         "unit_assignment",
         "selected_item",
