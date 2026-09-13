@@ -171,7 +171,7 @@ it('[INV-MOD-13] missing or invalid reviewed speech evidence cannot fall back to
     ),
   ).toThrow(/speech evidence/);
 });
-it('[INV-MOD-13][INV-MOD-17] actual engine retries a rejected capture and grades a later accepted capture once', () => {
+it('[INV-MOD-13] actual engine retries a rejected capture and grades a later accepted capture once', () => {
   const runtime = source();
   const deps: StepDeps = {
     config: DEFAULT_FLAVOUR_MATRIX.lesson,
