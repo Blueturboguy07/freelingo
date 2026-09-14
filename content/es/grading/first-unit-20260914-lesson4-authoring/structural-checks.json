@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "recognitionExercises": 6,
+  "distinctLexemeIds": 6,
+  "rawCandidates": 100,
+  "rawCandidatesBySlot": {
+    "4": 20,
+    "5": 20,
+    "6": 20,
+    "7": 20,
+    "8": 20
+  },
+  "rawOrderAndLedgerMatch": true,
+  "selectedHashesMatch": true,
+  "oneAcceptedOptionEach": true,
+  "canonicalGlossesMatch": true,
+  "canonicalAnalysisRan": false,
+  "independentReviewComplete": false,
+  "sourceApprovalIssued": false,
+  "existingTextOverlaps": 8,
+  "newExactTextsAgainstRecordedBank": 92,
+  "filesSha256": {
+    "README.md": "724fb7d92a54ac306dce61205501727ec63cc2f07af8d2f7091298a6657b303d",
+    "authoring.json": "7bf5a0f822f92c39909978d114aa229b16328d83e1b7b76cb5a19ea79ce5b3e0",
+    "existing-text-overlaps.json": "916bd633e0e6e24a9cb9eacf180e3ed438f06dbe039ad4343fc745ab8474e954",
+    "raw-g5-proposals.jsonl": "41df3e71d93faa5935ce9f9015c8f7505388c0f7ffa86e96f392fcc5fd4957df",
+    "source-inputs.json": "6e7f2619935e6b9520cf68ce3d6625a80f62fdfad3f166e6302869cd3397f886"
+  }
+}

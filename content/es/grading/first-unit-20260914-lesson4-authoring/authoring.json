@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "author": "Codex /root, Spanish lesson4 author",
+  "licence": "CC-BY-NC-SA-4.0",
+  "authoredAt": "2026-09-14",
+  "status": "authoring-proposal; independent source/content review pending",
+  "sourceInputs": "source-inputs.json",
+  "sourceInputsSha256": "6e7f2619935e6b9520cf68ce3d6625a80f62fdfad3f166e6302869cd3397f886",
+  "recognitionAdditions": [
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "nombre",
+      "translation": "name",
+      "lemma": "nombre",
+      "pos": "NOUN",
+      "lexemeId": "lx:nombre:NOUN",
+      "unitIndex": 1,
+      "lessonIndex": 4,
+      "g4SlotIndex": 4,
+      "selectedSha256": "1fe6e027db0d9230e1a30db77b71ff49f04990c4ad122d5957581805f7ff6029",
+      "exerciseSlotIndex": 0,
+      "introduction": "word",
+      "instruction": "Select the meaning for “nombre”",
+      "answers": [
+        {
+          "surface": "name",
+          "rank": 0
+        }
+      ],
+      "options": [
+        {
+          "id": "answer",
+          "text": "name"
+        },
+        {
+          "id": "distractor-1",
+          "text": "night"
+        },
+        {
+          "id": "distractor-2",
+          "text": "goodbye"
+        }
+      ],
+      "explanation": "Nombre means name.",
+      "classification": "word",
+      "countable": true,
+      "rationale": "The exact new target in G4 slot4 is introduced through its reviewed noun sense."
+    },
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "apellido",
+      "translation": "surname",
+      "lemma": "apellido",
+      "pos": "NOUN",
+      "lexemeId": "lx:apellido:NOUN",
+      "unitIndex": 1,
+      "lessonIndex": 4,
+      "g4SlotIndex": 5,
+      "selectedSha256": "3eccb8abc690968c06c99a3a02bf2a26fa9d10f72465f9488b6c0dafa0713121",
+      "exerciseSlotIndex": 1,
+      "introduction": "word",
+      "instruction": "Select the meaning for “apellido”",
+      "answers": [
+        {
+          "surface": "surname",
+          "rank": 0
+        },
+        {
+          "surface": "last name",
+          "rank": 1
+        },
+        {
+          "surface": "family name",
+          "rank": 2
+        }
+      ],
+      "options": [
+        {
+          "id": "answer",
+          "text": "surname"
+        },
+        {
+          "id": "distractor-1",
+          "text": "night"
+        },
+        {
+          "id": "distractor-2",
+          "text": "hello"
+        }
+      ],
+      "explanation": "Apellido means surname or last name.",
+      "classification": "word",
+      "countable": true,
+      "rationale": "The distractors exclude name, which could also describe a surname, so there is only one defensible choice."
+    },
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "señor",
+      "translation": "gentleman",
+      "lemma": "señor",
+      "pos": "NOUN",
+      "lexemeId": "lx:señor:NOUN",
+      "unitIndex": 1,
+      "lessonIndex": 4,
+      "g4SlotIndex": 6,
+      "selectedSha256": "62835b1e904bc09fc7ee0cf6fa760126d8e94f59a9293f2a475a1ecf5297c674",
+      "exerciseSlotIndex": 2,
+      "introduction": "word",
+      "instruction": "Select the meaning for “señor”",
+      "answers": [
+        {
+          "surface": "gentleman",
+          "rank": 0
+        },
+        {
+          "surface": "sir",
+          "rank": 1
+        },
+        {
+          "surface": "man",
+          "rank": 2
+        }
+      ],
+      "options": [
+        {
+          "id": "answer",
+          "text": "gentleman"
+        },
+        {
+          "id": "distractor-1",
+          "text": "goodbye"
+        },
+        {
+          "id": "distractor-2",
+          "text": "night"
+        }
+      ],
+      "explanation": "Señor can mean gentleman or be used to address a man politely as sir.",
+      "classification": "word",
+      "countable": true,
+      "rationale": "Use the common noun/address sense; do not make Mr., man, sir or Lord a false distractor."
+    },
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "señora",
+      "translation": "lady",
+      "lemma": "señora",
+      "pos": "NOUN",
+      "lexemeId": "lx:señora:NOUN",
+      "unitIndex": 1,
+      "lessonIndex": 4,
+      "g4SlotIndex": 7,
+      "selectedSha256": "12b16dba9c0998ce00eab9c5630402d93292b213ccf39d9c556b0f2f18e5b52f",
+      "exerciseSlotIndex": 3,
+      "introduction": "word",
+      "instruction": "Select the meaning for “señora”",
+      "answers": [
+        {
+          "surface": "lady",
+          "rank": 0
+        },
+        {
+          "surface": "woman",
+          "rank": 1
+        },
+        {
+          "surface": "madam",
+          "rank": 2
+        },
+        {
+          "surface": "ma’am",
+          "rank": 3
+        },
+        {
+          "surface": "ma'am",
+          "rank": 4
+        }
+      ],
+      "options": [
+        {
+          "id": "answer",
+          "text": "lady"
+        },
+        {
+          "id": "distractor-1",
+          "text": "day"
+        },
+        {
+          "id": "distractor-2",
+          "text": "surname"
+        }
+      ],
+      "explanation": "Señora can refer to an adult woman or address her politely.",
+      "classification": "word",
+      "countable": true,
+      "rationale": "Use the common noun/address sense. Do not infer marriage from the bare word or use another supported address as a distractor."
+    },
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "mucho",
+      "translation": "a lot",
+      "lemma": "mucho",
+      "pos": "ADV",
+      "lexemeId": "lx:mucho:ADV",
+      "unitIndex": 1,
+      "lessonIndex": 4,
+      "g4SlotIndex": 8,
+      "selectedSha256": "2255f3e8857d9950500857dd4d226a1a4cea0c241db324afc40177de2fdb028b",
+      "exerciseSlotIndex": 4,
+      "introduction": "word",
+      "instruction": "Select the meaning for “mucho”",
+      "answers": [
+        {
+          "surface": "a lot",
+          "rank": 0
+        },
+        {
+          "surface": "much",
+          "rank": 1
+        }
+      ],
+      "options": [
+        {
+          "id": "answer",
+          "text": "a lot"
+        },
+        {
+          "id": "distractor-1",
+          "text": "late"
+        },
+        {
+          "id": "distractor-2",
+          "text": "well"
+        }
+      ],
+      "explanation": "Mucho means a lot or much in this adverb sense.",
+      "classification": "word",
+      "countable": true,
+      "rationale": "The declared target is ADV. Do not automatically use adjective/determiner forms such as muchas or blindly emit the contextual alternate very."
+    },
+    {
+      "sourceKind": "lexical-authoring-proposal",
+      "text": "yo",
+      "translation": "I",
+      "lemma": "yo",
+      "pos": "PRON",
+      "lexemeId": "lx:yo:PRON",
+      "unitIndex": 1,
+      "lessonIndex": 4,
+      "g4SlotIndex": 0,
+      "selectedSha256": "4440aa7851289e223ab97f91fdfdb449abf12f7692fbf38a320557b5e6fa2847",
+      "exerciseSlotIndex": 5,
+      "introduction": "word",
+      "instruction": "Select the meaning for “yo”",
+      "answers": [
+        {
+          "surface": "I",
+          "rank": 0
+        }
+      ],
+      "options": [
+        {
+          "id": "answer",
+          "text": "I"
+        },
+        {
+          "id": "distractor-1",
+          "text": "you"
+        },
+        {
+          "id": "distractor-2",
+          "text": "he"
+        }
+      ],
+      "explanation": "Yo is the Spanish subject pronoun I.",
+      "classification": "word",
+      "countable": true,
+      "rationale": "The sixth item uses the exact known lexeme yo from G4 slot0; it is a separate lexical proposal, not a relabeling or replacement of the retained corpus sentence No eres yo. Actual prior introduction remains a runtime fact."
+    }
+  ],
+  "recognitionPopulation": {
+    "courseId": "en-es",
+    "unitIndex": 1,
+    "lessonIndex": 4,
+    "exerciseSlotIndices": [0, 1, 2, 3, 4, 5],
+    "physicalExercises": 6,
+    "distinctLexemeIds": 6,
+    "sourceApprovalIssued": false,
+    "runtimeEligibilityProven": false,
+    "topologyPolicy": "Preserve the existing three levels and six sessions. These are lesson4 source proposals only."
+  },
+  "rawGapInventory": "raw-g5-proposals.jsonl",
+  "nativeReviewLabel": "PROVISIONAL (unreviewed by a paid native speaker)"
+}
