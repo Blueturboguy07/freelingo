@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "80cfb62a899cc8e4ce2f5d91a871d559cc17e955",
+  "sourceSha256": {
+    "apps/mobile/src/native/lessonAudioMode.ts": "b4e97a3dd164b4de70410ed5add77c0e2ead898ad4dfb268c79a48e9cd7b05a9",
+    "apps/mobile/src/native/lessonAudioMode.test.ts": "4f5393269923f997903ecda492a195b404ed37838ffbd671e1980e0c4f8d1d5f",
+    "apps/mobile/src/native/expoLessonMedia.ts": "3419d35ff8bfef6a55b1f746a5ba60ab7ef18afd836681833157b9ce7cd34e4e",
+    "apps/mobile/src/native/expoLessonMedia.test.ts": "0d279e06818abf380703c97a480caf08a253832809a0d80a93cad8a880b27b32"
+  },
+  "evidence": {
+    "focused-final": {
+      "xmlSha256": "27cd6cac2648bdade54d2b886a50be011a429294c31871a8c0933e04baba21d5",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "21",
+        "failures": "0",
+        "errors": "0",
+        "time": "0.06367725"
+      }
+    },
+    "disposed-read-red": {
+      "xmlSha256": "d1930726528baf1a353239518e4b61e3b1a742c49b94eafcf4429211cb83c7b7",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "11",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.007422875"
+      }
+    },
+    "initial-collection-red": {
+      "xmlSha256": "f974a401682f55f37f46d2d3bd714bfd1ed1ee6c960de1ae3aa51e42dc6c2b97",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "time": "0"
+      }
+    },
+    "reviewed-final": {
+      "xmlSha256": "385ceea2c484485efc68aa44731ba886655a6355b35587b522351f39d9d0549c",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "28",
+        "failures": "0",
+        "errors": "0",
+        "time": "0.064078626"
+      }
+    },
+    "activation-red": {
+      "xmlSha256": "d441402c3870d7447c0236ca87fcee437fbf656d14dd05d8df0e4476b85e4023",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "12",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.005730459"
+      }
+    },
+    "exact-assets-red": {
+      "xmlSha256": "f82f0816f6968ef36fea22e8baf4a62c0245c030c788104db137aabcd8a03301",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "16",
+        "failures": "4",
+        "errors": "0",
+        "time": "0.007236458"
+      }
+    },
+    "null-disarm-red": {
+      "xmlSha256": "bf55378f11454f2e9925825ff93bae4df80e20d6aa76c54fb5bd9fbdbc678181",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "18",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.003961667"
+      }
+    },
+    "voice-order": {
+      "xmlSha256": "4391ad2e79a16994cc67e9e3de48de40485d44eee32529f1524be52b3e9f3bdf",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "12",
+        "failures": "0",
+        "errors": "0",
+        "time": "0.007880292"
+      }
+    }
+  },
+  "mutants": [
+    {
+      "name": "activation-pending",
+      "exit": 1,
+      "xmlSha256": "96409b33c42f90200519d5b102a06f6bc53380bb0d024a08a4a342bf66b39277",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "18",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.005638542"
+      }
+    },
+    {
+      "name": "asset-binding",
+      "exit": 1,
+      "xmlSha256": "4aa753d8725f5ca3bfa9da747e92811f859f27d13cc3c70e47fdcd73766bd7a1",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "18",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.005065292"
+      }
+    },
+    {
+      "name": "disposed-read",
+      "exit": 1,
+      "xmlSha256": "05dd6093796837d45fe316b5e6a9510c042d301a65232f62ee83756973b54502",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "18",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.005311042"
+      }
+    },
+    {
+      "name": "post-cue-cancellation",
+      "exit": 1,
+      "xmlSha256": "15dcdacd199134ad3cf10f146846c5a6e076ff3765c0ea82d29700f2118c7a85",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "18",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.005851959"
+      }
+    },
+    {
+      "name": "source-binding",
+      "exit": 1,
+      "xmlSha256": "13721ab9b698dbebfb7d16b0218e938890b8a7b32f9fe36d035951d8f4d20b4b",
+      "xmlSummary": {
+        "name": "vitest tests",
+        "tests": "18",
+        "failures": "1",
+        "errors": "0",
+        "time": "0.004740083"
+      }
+    }
+  ],
+  "staticChecks": {
+    "typescript": "four-file compilation exit 0 after review fixes",
+    "eslint": "four files exit 0 after review fixes",
+    "format": "four files pass"
+  },
+  "nativeDeviceGate": false,
+  "voiceOrderHarness": "/private/tmp/p3-media-voice-order; two selected actual playback tests, no production edits"
+}
