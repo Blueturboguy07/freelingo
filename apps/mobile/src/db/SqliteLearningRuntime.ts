@@ -1,4 +1,8 @@
 import type { Db } from '@freelingo/schema';
+import type { HubInput, HubDailyState } from '@freelingo/core/hub';
+import { SqliteHubReadModel } from './SqliteHubReadModel';
+import { hubModeAtLaunch, hubSourceWasSupported } from './learningHubEvidence';
+import { allHubSources } from './learningHubSources';
 import {
   planStartOver,
   quitDecision,
@@ -167,11 +171,14 @@ export class SqliteLearningRuntime {
     );
     if (placements.length !== 1)
       return fail('The saved exercise no longer belongs to one declared node.');
-    if (context.launch.origin.kind !== 'path')
+    if (context.launch.origin.kind !== 'path' && context.launch.origin.kind !== 'hub')
       return fail('Saved non-path source planning evidence is unavailable.');
     const placement = placements[0]!,
       position = path.forNode(placement.node.nodeId),
       start = context.launch.start;
+    const hub = context.launch.origin.kind === 'hub' ? hubModeAtLaunch(state, context) : null;
+    if (hub && !hubSourceWasSupported(this.db, state, context, item, position.unitIndex))
+      return fail('Saved Hub source did not support its requested mode.');
     const day = localDayOfStamp(new Date(start.startedAtUtcMs), start.startZone);
     const header = this.db.get(
       'SELECT opened_at_utc_ms FROM course_review_pool_day WHERE course_id=? AND local_day=?',
@@ -179,10 +186,12 @@ export class SqliteLearningRuntime {
     );
     const pool = new SqlitePoolStore(this.db).load(state.courseId, day);
     if (
-      !header ||
-      typeof header.opened_at_utc_ms !== 'number' ||
-      header.opened_at_utc_ms > start.startedAtUtcMs ||
-      !pool?.pool.itemIds.includes(asItemId(item.itemId))
+      (!hub || hub.kind === 'today') &&
+      (!header ||
+        typeof header.opened_at_utc_ms !== 'number' ||
+        header.opened_at_utc_ms > start.startedAtUtcMs ||
+        !pool?.pool.itemIds.includes(asItemId(item.itemId)) ||
+        (hub?.kind === 'today' && pool.pool.spentBy.get(asItemId(item.itemId)) !== 'todaysReview'))
     )
       return fail('Earlier-node source lacks its frozen launch pool receipt.');
     const at = {
@@ -419,6 +428,12 @@ export class SqliteLearningRuntime {
   readScheduler(courseId: string): SchedulerState {
     return new SqliteSchedulerStore(this.db).load(courseId, this.clock().zone.tzId);
   }
+  readHub(courseId: string): HubInput {
+    return new SqliteHubReadModel(this.db, this.ports).read(courseId);
+  }
+  saveHubDaily(state: HubDailyState): Promise<void> {
+    return this.serial(() => new SqliteHubReadModel(this.db, this.ports).save(state));
+  }
   readDay(): PersistedDayState {
     return new SqliteDayStore(this.db).load();
   }
@@ -456,7 +471,12 @@ export class SqliteLearningRuntime {
   private nodeItems(source: ActiveSource): readonly VerifiedRuntimeItem[] {
     const path = source.pack.pack.path(),
       nodeId = source.context.launch.targetNodeId;
-    if (nodeId === null) return [source.item];
+    if (nodeId === null) {
+      if (source.context.launch.origin.kind !== 'hub') return [source.item];
+      return allHubSources(source.pack)
+        .map((s) => s.item)
+        .filter((item) => this.eligible(item, source, this.readScheduler(source.state.courseId)));
+    }
     const nodes = [path.forNode(nodeId)];
     if (
       !nodes.some((n) =>
@@ -841,7 +861,12 @@ export class SqliteLearningRuntime {
         throw new LearningUnavailableError(
           'Finish the saved celebration before starting another session.',
         );
-      const nodeRef = request.kind === 'path' ? request.request.nodeId : null;
+      const nodeRef =
+        request.kind === 'path'
+          ? request.request.nodeId
+          : request.kind === 'hub'
+            ? request.offer.id
+            : null;
       const own = nodeRef === null ? null : sessions.get(courseId, 'graded', nodeRef);
       if (active && active !== own && active.sessionId !== own?.sessionId) {
         this.offer = {

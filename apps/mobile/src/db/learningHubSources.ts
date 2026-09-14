@@ -9,6 +9,7 @@ import type { LearningRuntimePorts, LearningClock } from './learningRuntimePorts
 import { SqliteMistakeStore } from './SqliteMistakeStore';
 import { LearningDataError } from './SqliteSchedulerStore';
 import {
+  declaredNodeSources,
   sourceDeviceAllowed,
   sourceIsKnownAndEligible,
   sourceUnlockedAt,
@@ -48,15 +49,18 @@ export function practiceModesFor(
 export function readPracticeMistakeOrigins(
   db: Db,
   courseId: string,
+  atUtcMs?: number,
 ): ReadonlyMap<string, ExerciseType> {
   const origins = new Map<string, ExerciseType>();
-  for (const mistake of new SqliteMistakeStore(db).load(courseId)) {
+  const store = new SqliteMistakeStore(db);
+  const history = atUtcMs === undefined ? store.load(courseId) : store.loadAt(courseId, atUtcMs);
+  for (const mistake of history) {
     if (mistake.retiredAtUtcMs !== null) continue;
     const row = db.get(
       `SELECT p.exercise_type FROM course_mistake_encounter e
        JOIN course_attempt p ON p.course_id=e.course_id AND p.session_id=e.session_id AND p.exercise_index=e.exercise_index
-       WHERE e.course_id=? AND e.item_id=? AND e.correct=0 ORDER BY e.sequence DESC LIMIT 1`,
-      [courseId, mistake.row.itemId],
+       WHERE e.course_id=? AND e.item_id=? AND e.correct=0 AND (? IS NULL OR e.answered_at_utc_ms<=?) ORDER BY e.sequence DESC LIMIT 1`,
+      [courseId, mistake.row.itemId, atUtcMs ?? null, atUtcMs ?? null],
     );
     const type = row?.exercise_type;
     if (typeof type !== 'string' || !EXERCISE_TYPES.some((declared) => declared === type))
@@ -104,4 +108,19 @@ export function readHubPracticeSources(
       },
     ];
   });
+}
+
+const indices = new WeakMap<VerifiedInstalledPack, readonly RuntimeSource[]>();
+export function allHubSources(pack: VerifiedInstalledPack): readonly RuntimeSource[] {
+  let existing = indices.get(pack);
+  if (existing) return existing;
+  existing = pack.pack
+    .path()
+    .sections.flatMap((section) =>
+      section.units.flatMap((unit) =>
+        unit.nodes.flatMap((node) => declaredNodeSources(pack, node.nodeId)),
+      ),
+    );
+  indices.set(pack, existing);
+  return existing;
 }

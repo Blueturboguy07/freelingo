@@ -226,10 +226,21 @@ export function buildHub(input: HubInput): HubModel {
     evictions.push({ itemId: m.itemId, reason: 'overflow' });
   const kept = mistakes.slice(0, HUB_CONFIG.mistakeCap);
   const missed = new Set(kept.map((m) => m.itemId));
+  const pendingRewind = (unit: number): boolean => {
+    const id = `${input.localDay}/${input.courseId}/rewind/${unit}`;
+    return (
+      input.daily?.courseId === input.courseId &&
+      input.daily.localDay === input.localDay &&
+      input.daily.choiceIds.includes(id) &&
+      !input.daily.completedIds.includes(id) &&
+      input.unitLastOfferedDays[unit] === input.localDay
+    );
+  };
   const rewindUnits = input.completedUnitIndices.filter(
     (u) =>
       u !== input.currentUnitIndex &&
-      (input.unitLastOfferedDays[u] === undefined ||
+      (pendingRewind(u) ||
+        input.unitLastOfferedDays[u] === undefined ||
         civilDaysBetween(input.unitLastOfferedDays[u], input.localDay) >=
           HUB_CONFIG.rewindCooldownDays),
   );
@@ -237,7 +248,10 @@ export function buildHub(input: HubInput): HubModel {
     due
       .filter((i) => supports(i, 'rewind') && i.unitIndex === unit)
       .reduce((n, i) => n + now - millis(i.dueAtUtc), 0);
+  // Saving the fixed daily menu records an offer, not a completed attempt. Keep
+  // that still-eligible occurrence until it is done; cooldown governs new offers.
   const rewind =
+    rewindUnits.find((u) => pendingRewind(u) && overdue(u) > 0) ??
     rewindUnits.filter((u) => overdue(u) > 0).sort((a, b) => overdue(b) - overdue(a) || a - b)[0] ??
     null;
   const pools: Record<Exclude<HubKind, 'path'>, readonly HubItem[]> = {

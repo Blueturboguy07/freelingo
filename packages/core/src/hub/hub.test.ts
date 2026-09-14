@@ -369,3 +369,39 @@ it('[INV-HUB-05] legacy empty daily state initializes once without losing comple
   expect(model.daily.completedIds).toEqual([completed]);
   expect(model.daily.choiceIds.length).toBeLessThanOrEqual(4);
 });
+
+it('[INV-HUB-08][INV-PATH-23] a saved unfinished Rewind remains launchable, but completion and the next six local days keep its cooldown', () => {
+  const input = hubInput(),
+    id = '2026-09-13/en-es/rewind/1';
+  const saved = {
+    ...input,
+    daily: {
+      courseId: 'en-es',
+      localDay: day,
+      choiceIds: [id],
+      completedIds: [] as string[],
+      cursor: 0,
+    },
+    unitLastOfferedDays: { 1: day },
+  };
+  expect(buildHub(saved).modes.find((m) => m.kind === 'rewind')!.offer?.id).toBe(id);
+  expect(
+    buildHub({ ...saved, daily: { ...saved.daily, completedIds: [id] } }).modes.find(
+      (m) => m.kind === 'rewind',
+    )!.offer,
+  ).toBeNull();
+  expect(
+    buildHub({
+      ...saved,
+      localDay: toLocalDay('2026-09-19'),
+      nowUtc: '2026-09-19T15:00:00Z',
+    }).modes.find((m) => m.kind === 'rewind')!.offer,
+  ).toBeNull();
+  expect(
+    buildHub({
+      ...saved,
+      localDay: toLocalDay('2026-09-20'),
+      nowUtc: '2026-09-20T15:00:00Z',
+    }).modes.find((m) => m.kind === 'rewind')!.offer?.unitIndex,
+  ).toBe(1);
+});
