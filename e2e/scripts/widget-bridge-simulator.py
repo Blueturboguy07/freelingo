@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import tempfile
 
@@ -15,9 +16,26 @@ APP_ID = "org.freelingo.app"
 GROUP_ID = "group.org.freelingo.app.widget"
 
 
-def run(args, output):
+# Named E2E harness resource bounds, 2026-09-14; not a widget or OS policy.
+COMMAND_TIMEOUT_SECONDS = 30
+DRIVER_AND_FLOW_TIMEOUT_SECONDS = 180
+
+
+def run(args, output, timeout=COMMAND_TIMEOUT_SECONDS):
     with output.open("w") as log:
-        return subprocess.run(args, stdout=log, stderr=subprocess.STDOUT).returncode
+        process = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            return process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            log.write("\nDiagnostic subprocess deadline exceeded; terminating owned process group.\n")
+            log.flush()
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            return 124
 
 
 def main():
@@ -29,7 +47,7 @@ def main():
     out = args.artifacts.resolve()
     out.mkdir(parents=True, exist_ok=False)
     root = Path(__file__).resolve().parents[2]
-    groups = subprocess.check_output(["xcrun", "simctl", "get_app_container", args.device, APP_ID, "groups"], text=True)
+    groups = subprocess.check_output(["xcrun", "simctl", "get_app_container", args.device, APP_ID, "groups"], text=True, timeout=COMMAND_TIMEOUT_SECONDS)
     matches = [line.split("\t", 1)[1] for line in groups.splitlines() if line.startswith(GROUP_ID + "\t")]
     if len(matches) != 1:
         raise RuntimeError("Expected exactly one entitled widget App Group")
@@ -54,8 +72,8 @@ def main():
         launch = ["xcrun", "simctl", "openurl", args.device, args.url] if args.url else ["xcrun", "simctl", "launch", args.device, APP_ID]
         if run(launch, out / "launch.log") != 0:
             raise RuntimeError("Simulator launch failed")
-        code = run(["maestro", "--device", args.device, "test", str(root / "e2e/flows/p5-widget-bridge.yaml"),
-                    "--format", "junit", "--output", str(out / "report.xml"), "--test-output-dir", str(out / "maestro")], out / "maestro.log")
+        code = run(["maestro", "--device", args.device, "test", str(root / "e2e/diagnostics/widget-bridge/probe.yaml"),
+                    "--format", "junit", "--output", str(out / "report.xml"), "--test-output-dir", str(out / "maestro")], out / "maestro.log", timeout=DRIVER_AND_FLOW_TIMEOUT_SECONDS)
     finally:
         run(["xcrun", "simctl", "terminate", args.device, APP_ID], out / "final-terminate.log")
         if existed:

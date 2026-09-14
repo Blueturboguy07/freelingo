@@ -6,6 +6,18 @@ appId: org.freelingo.app
 name: p5-widget-bridge
 tags: [p5, widget, native-bridge]
 ---
+# iOS asks before opening the explicit development-client URL on first use.
+- runFlow:
+    when:
+      visible: 'Open in .*Freelingo.*'
+    commands:
+      - tapOn:
+          text: Open
+- runFlow:
+    when:
+      visible: 'This is the developer menu.*'
+    commands:
+      - back
 - extendedWaitUntil:
     visible:
       id: app-title
