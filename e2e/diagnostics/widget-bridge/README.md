@@ -9,3 +9,7 @@ Use `python3 e2e/scripts/widget-bridge-simulator.py --device <UDID> --artifacts 
 The probe itself refuses an absent baseline. Never run the flow directly against learner state or initialize missing history as a successful source. The fixture has `snapshotJson: null` and contains no invented learner values. Backup files stay local to the chosen artifact directory.
 
 Focused evidence: `/private/tmp/p5-widget-bridge-probe/final2.xml` has 14 passing probe/UI/native-port tests, with root/mobile typechecks and focused lint passing. Four private mutations of readback, restore, reload, and release are killed in `/private/tmp/p5-widget-bridge-mutants/results.json`. The simulator flow result is separate evidence recorded by the harness.
+
+The flow deliberately lives outside `e2e/flows`: native CI runs that default directory on both platforms without this iOS-only fixture harness. Tags are not an exclusion mechanism. Each simulator command has a 30-second bound; the combined Maestro driver/flow has a 180-second bound, after which the harness terminates its own process group and still restores the original publication. These are diagnostic resource limits, not runtime or WidgetKit timing promises.
+
+The original run at isolated source `2ab02b0280af60c64fc979253473343c53b8c71d` failed with `IOSDriverTimeoutException` before executing the flow. `/private/tmp/p5-widget-ios-simulator/run1/result.json` records Maestro exit 1 and exact restoration of original file absence. It is not a bridge pass.
