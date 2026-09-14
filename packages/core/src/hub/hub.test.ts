@@ -54,7 +54,7 @@ export const hubInput = (): HubInput => ({
 });
 
 describe('P4 Practice Hub source selection', () => {
-  it('[INV-HUB-03] a two-item mistake set stays two and pays two tenths of the real mode award', () => {
+  it('[INV-HUB-03] a two-item mistake set stays two and pays its capped physical-item award', () => {
     const input = hubInput();
     const model = buildHub({
       ...input,
@@ -67,7 +67,7 @@ describe('P4 Practice Hub source selection', () => {
     });
     const offer = model.modes.find((m) => m.kind === 'mistakes')!.offer!;
     expect(offer.itemIds).toEqual(['casa', 'gato']);
-    expect(offer.advertisedXp).toBe(2);
+    expect(offer.advertisedXp).toBe(1);
   });
   it('[INV-HUB-01] other-course mistakes are explicit switch links, never active-course items', () => {
     const model = buildHub({
@@ -272,7 +272,7 @@ it('[INV-ECO-15] the Hub offer uses pre-cap proration and carries the ratio used
     ladders: { hubMistakes: { sessionsCompleted: 0, xpAwarded: 59 } },
   });
   const offer = model.modes.find((m) => m.kind === 'mistakes')!.offer!;
-  expect(offer.advertisedXp).toBe(1);
+  expect(offer.advertisedXp).toBe(0);
   expect(offer.practiceItemRatio).toBe(0.1);
 });
 it('[INV-ECO-02] the Hub advertises the current boost and drops it at expiry before a new start', () => {
@@ -285,11 +285,11 @@ it('[INV-ECO-02] the Hub advertises the current boost and drops it at expiry bef
       expiresAtUtc: '2026-09-13T15:10:00Z',
     },
   };
-  expect(buildHub(input).modes.find((m) => m.kind === 'mistakes')!.offer!.advertisedXp).toBe(2);
+  expect(buildHub(input).modes.find((m) => m.kind === 'mistakes')!.offer!.advertisedXp).toBe(1);
   expect(
     buildHub({ ...input, nowUtc: '2026-09-13T15:10:00Z' }).modes.find((m) => m.kind === 'mistakes')!
       .offer!.advertisedXp,
-  ).toBe(1);
+  ).toBe(0);
 });
 
 it('[INV-HUB-04] a first cold visit does not strand the hero after the first lesson on the same local day', () => {

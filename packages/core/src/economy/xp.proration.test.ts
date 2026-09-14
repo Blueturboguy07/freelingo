@@ -15,7 +15,7 @@ it('[INV-HUB-03] a small practice pool prorates the gross award before the remai
       ladderStateToday: { sessionsCompleted: 0, xpAwarded: 59 },
     }).awardedXp,
   ).toBe(1);
-  expect(awardForSession({ ...input, practiceItemRatio: 0.2 }).awardedXp).toBe(2);
+  expect(awardForSession({ ...input, practiceItemRatio: 0.2 }).awardedXp).toBe(1);
 });
 it('[INV-ECO-15] omitted and full pool ratios preserve every existing award field; zero pays zero', () => {
   expect(awardForSession({ ...input, practiceItemRatio: 1 })).toEqual(awardForSession(input));
@@ -40,6 +40,6 @@ it('[INV-ECO-02] small pools still apply the actual start boost, ladder and laps
     boostAtSessionStart,
     ladderStateToday: { sessionsCompleted: 1, xpAwarded: 0 },
   };
-  expect(awardForSession(small).awardedXp).toBe(2);
-  expect(awardForSession({ ...small, committedAtUtc: '2026-09-13T13:00:00Z' }).awardedXp).toBe(1);
+  expect(awardForSession(small).awardedXp).toBe(1);
+  expect(awardForSession({ ...small, committedAtUtc: '2026-09-13T13:00:00Z' }).awardedXp).toBe(0);
 });
