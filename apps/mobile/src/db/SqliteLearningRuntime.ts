@@ -1,5 +1,10 @@
 import type { Db } from '@freelingo/schema';
-import type { HubInput, HubDailyState } from '@freelingo/core/hub';
+import { buildHub, type HubInput, type HubDailyState } from '@freelingo/core/hub';
+import {
+  readResumeCandidate,
+  type ResumeInspection,
+  type ExpectedResumeCandidate,
+} from './learningResume';
 import { SqliteHubReadModel } from './SqliteHubReadModel';
 import { hubModeAtLaunch, hubSourceWasSupported } from './learningHubEvidence';
 import { allHubSources } from './learningHubSources';
@@ -49,7 +54,7 @@ import { SqliteCeremonyStore } from './SqliteCeremonyStore';
 import { commitLearning } from './learningCompletion';
 import type { CeremonyPresentation, CeremonyAdvance } from '../loop/contracts';
 import type { LessonLaunch, SessionOffer, SessionOfferDecision } from '../app/ports';
-import { validateLearningSessionPolicy } from './learningModePolicy';
+import { validateLearningSessionPolicy, learningSessionPolicy } from './learningModePolicy';
 
 function fail(message: string): never {
   throw new LearningDataError(message);
@@ -811,16 +816,103 @@ export class SqliteLearningRuntime {
   private offer: {
     readonly value: SessionOffer;
     readonly courseId: string;
-    readonly request: LessonLaunch;
+    readonly request: LessonLaunch | null;
     readonly resumable: boolean;
+    readonly inspected?: {
+      readonly packContentHash: string;
+      readonly selectedCourseId: string | null;
+    };
   } | null = null;
   readOffer(): SessionOffer | null {
     return this.offer?.value ?? null;
   }
+  readResumableCourse(courseId: string): ResumeInspection {
+    const result = readResumeCandidate(this.db, courseId, (state) => this.savedResolves(state));
+    return result.status === 'ready' ? { status: 'ready', candidate: result.candidate } : result;
+  }
+  prepareResumeOffer(courseId: string, expected: ExpectedResumeCandidate): Promise<void> {
+    return this.serial(() => {
+      const result = this.readResumableCourse(courseId);
+      if (result.status !== 'ready')
+        throw new LearningUnavailableError('The saved lesson is unavailable for resume.');
+      if (
+        result.candidate.sessionId !== expected.sessionId ||
+        result.candidate.packContentHash !== expected.packContentHash
+      )
+        throw new LearningDataError('The inspected saved lesson changed.');
+      if (this.offer) {
+        if (
+          this.offer.inspected &&
+          this.offer.value.kind === 'resume' &&
+          this.offer.courseId === courseId &&
+          this.offer.value.sessionId === expected.sessionId &&
+          this.offer.inspected.packContentHash === expected.packContentHash
+        )
+          return;
+        throw new LearningDataError('Resolve the existing session offer first.');
+      }
+      const selected = this.db.get(
+        'SELECT course_id FROM course_selection WHERE is_active=1',
+      )?.course_id;
+      if (selected !== undefined && typeof selected !== 'string')
+        throw new LearningDataError('Invalid selected course.');
+      this.offer = {
+        value: {
+          kind: 'resume',
+          sessionId: result.candidate.sessionId,
+          lessonLabel: result.candidate.nodeRef,
+        },
+        courseId,
+        request: null,
+        resumable: true,
+        inspected: {
+          packContentHash: expected.packContentHash,
+          selectedCourseId: selected ?? null,
+        },
+      };
+    });
+  }
+  /** Reconstruct a fresh request only after explicit START OVER, inside its rollback boundary.
+   * Inspection never reads a new offer, reserves a pool, or runs the generator. */
+  private restartRequestFor(state: SessionState, context: LearningContext): LessonLaunch {
+    const pack = this.ports.packs.get(state.courseId);
+    if (!pack || pack.contentHash !== context.launch.packContentHash)
+      throw new LearningUnavailableError('The saved lesson requires its original verified pack.');
+    const launch = context.launch;
+    if (launch.origin.kind === 'path' && launch.targetNodeId === state.nodeRef) {
+      const source = pack.pack.path().forNode(state.nodeRef);
+      return {
+        kind: 'path',
+        request: {
+          nodeId: state.nodeRef,
+          unitIndex: source.unitIndex,
+          flavour: learningSessionPolicy(launch).engineFlavour,
+        },
+      };
+    }
+    if (launch.origin.kind === 'hub' && launch.targetNodeId === null) {
+      const mode = hubModeAtLaunch(state, context);
+      const offer = buildHub(this.readHub(state.courseId)).modes.find(
+        (m) =>
+          m.kind === mode.kind &&
+          (mode.unitIndex === null || m.offer?.unitIndex === mode.unitIndex),
+      )?.offer;
+      if (!offer)
+        throw new LearningUnavailableError('A fresh set for this saved Hub mode is unavailable.');
+      return { kind: 'hub', offer };
+    }
+    throw new LearningUnavailableError('The saved entry requires its explicit restart surface.');
+  }
   private savedResolves(state: SessionState): boolean {
     const context = new SqliteLearningContextStore(this.db).load(state.courseId, state.sessionId),
       pack = this.ports.packs.get(state.courseId);
-    if (!context || !pack || pack.contentHash !== context.launch.packContentHash) return false;
+    if (
+      !context ||
+      !pack ||
+      pack.courseId !== state.courseId ||
+      pack.contentHash !== context.launch.packContentHash
+    )
+      return false;
     try {
       return [
         ...state.core.queue,
@@ -934,6 +1026,17 @@ export class SqliteLearningRuntime {
         this.offer = null;
         return;
       }
+      if (pending.inspected) {
+        const inspection = this.readResumableCourse(pending.courseId);
+        if (
+          inspection.status !== 'ready' ||
+          inspection.candidate.sessionId !== pending.value.sessionId ||
+          inspection.candidate.packContentHash !== pending.inspected.packContentHash
+        )
+          throw new LearningUnavailableError(
+            'The inspected saved lesson is unavailable or changed.',
+          );
+      }
       if (decision === 'resume') {
         if (!pending.resumable)
           throw new LearningUnavailableError(
@@ -993,8 +1096,8 @@ export class SqliteLearningRuntime {
           );
         if (
           old.exited !== null ||
-          db.get('SELECT course_id FROM course_selection WHERE is_active=1')?.course_id !==
-            pending.courseId ||
+          (db.get('SELECT course_id FROM course_selection WHERE is_active=1')?.course_id ??
+            null) !== (pending.inspected ? pending.inspected.selectedCourseId : pending.courseId) ||
           !db.get('SELECT course_id FROM course_selection WHERE course_id=?', [old.courseId])
         )
           throw new LearningDataError('The offered session or course selection changed.');
@@ -1052,7 +1155,7 @@ export class SqliteLearningRuntime {
         db.run('UPDATE course_selection SET is_active=1 WHERE course_id=?', [pending.courseId]);
         runtime.startNow(
           pending.courseId,
-          pending.request,
+          pending.request ?? runtime.restartRequestFor(old, context),
           old.courseId === pending.courseId
             ? { plan, previousSessionId: old.sessionId }
             : undefined,
