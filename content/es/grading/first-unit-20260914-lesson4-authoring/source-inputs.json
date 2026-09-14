@@ -1,0 +1,1477 @@
+{
+  "worklistSha256": "e244f088dcefa438b94b97fb98725f4053373090ec8c28dbc84091a0c3973fc9",
+  "sourceRoot": "/private/tmp/p2r5-source-freeze-20260913",
+  "unit": {
+    "function": "greetings and self-introduction",
+    "grammar_concept": "subject_pronouns",
+    "lang": "es",
+    "level_count": 3,
+    "recycled_lemmas": [],
+    "register_slot": "binary_t_v",
+    "schema_version": 1,
+    "section_cefr": "A1",
+    "section_index": 1,
+    "target_lemmas": [
+      "hola",
+      "bueno",
+      "día",
+      "tarde",
+      "noche",
+      "adiós",
+      "gracia",
+      "por",
+      "favor",
+      "sí",
+      "no",
+      "yo",
+      "tú",
+      "él",
+      "ser",
+      "nombre",
+      "apellido",
+      "señor",
+      "señora",
+      "mucho",
+      "gusto",
+      "encantado",
+      "cómo",
+      "bien",
+      "mal",
+      "hasta",
+      "luego",
+      "y"
+    ],
+    "unit_index": 1,
+    "unit_title": "Say hello and give your name"
+  },
+  "unitSha256": "d29f0f6cbcbf468ca23f7cf4266608729e4b6452130ad44411fa26b967514845",
+  "sourceSlots": [
+    {
+      "slot": [1, 4, 0],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": false,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": [],
+        "provenance": "corpus",
+        "schema_version": 1,
+        "sentence_id": "ad87747e1f2f6498",
+        "slot_index": 0,
+        "unit_index": 1
+      },
+      "selectedSha256": "4440aa7851289e223ab97f91fdfdb449abf12f7692fbf38a320557b5e6fa2847",
+      "canonicalCorpus": {
+        "attribution_owner": "ecorralest101",
+        "attribution_required": true,
+        "corpus": "Tatoeba",
+        "corpus_version": "2026-09-12",
+        "dedup_hash": "2379330ec5b447b23f7e532085f1c8dd",
+        "l1": "en",
+        "lang": "es",
+        "licence": "CC-BY-2.0-FR",
+        "licence_verdict": "shippable",
+        "schema_version": 1,
+        "sentence_id": "ad87747e1f2f6498",
+        "source_id": "tatoeba",
+        "text": "No eres yo.",
+        "token_count": 3,
+        "translation": "You're not me."
+      },
+      "requiredTargets": []
+    },
+    {
+      "slot": [1, 4, 1],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": false,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": [],
+        "provenance": "corpus",
+        "schema_version": 1,
+        "sentence_id": "c5dd83c2965073fe",
+        "slot_index": 1,
+        "unit_index": 1
+      },
+      "selectedSha256": "c024d58c8cead6ca03eca0c5d2807726dee2436b21e27c37246f9b645aaf7466",
+      "canonicalCorpus": {
+        "attribution_owner": "Shishir",
+        "attribution_required": true,
+        "corpus": "Tatoeba",
+        "corpus_version": "2026-09-12",
+        "dedup_hash": "6ea85f8575af2025e3e749c0b76ba305",
+        "l1": "en",
+        "lang": "es",
+        "licence": "CC-BY-2.0-FR",
+        "licence_verdict": "shippable",
+        "schema_version": 1,
+        "sentence_id": "c5dd83c2965073fe",
+        "source_id": "tatoeba",
+        "text": "Él se fue.",
+        "token_count": 3,
+        "translation": "He walked away."
+      },
+      "requiredTargets": []
+    },
+    {
+      "slot": [1, 4, 2],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": false,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": [],
+        "provenance": "corpus",
+        "schema_version": 1,
+        "sentence_id": "fa17691615d9ffb1",
+        "slot_index": 2,
+        "unit_index": 1
+      },
+      "selectedSha256": "aacd5fccc60b7074f640c5fbb4a221dddde3aa03000dee339ce0ffc94a0ad7c0",
+      "canonicalCorpus": {
+        "attribution_owner": "Barra",
+        "attribution_required": true,
+        "corpus": "Tatoeba",
+        "corpus_version": "2026-09-12",
+        "dedup_hash": "9bb430cc6b614da181efd8ed365ad8bc",
+        "l1": "en",
+        "lang": "es",
+        "licence": "CC-BY-2.0-FR",
+        "licence_verdict": "shippable",
+        "schema_version": 1,
+        "sentence_id": "fa17691615d9ffb1",
+        "source_id": "tatoeba",
+        "text": "No lo eres.",
+        "token_count": 3,
+        "translation": "You are not."
+      },
+      "requiredTargets": []
+    },
+    {
+      "slot": [1, 4, 3],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": false,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": [],
+        "provenance": "corpus",
+        "schema_version": 1,
+        "sentence_id": "28fee402f8d7e8bd",
+        "slot_index": 3,
+        "unit_index": 1
+      },
+      "selectedSha256": "0320638f00a7cfd54f3a0b03ba58652f0b6038713ffa343f5feae9e3520b9f12",
+      "canonicalCorpus": {
+        "attribution_owner": "DarkHollow",
+        "attribution_required": true,
+        "corpus": "Tatoeba",
+        "corpus_version": "2026-09-12",
+        "dedup_hash": "fbe0222d93912b9d0c7ed250e23fd8fe",
+        "l1": "en",
+        "lang": "es",
+        "licence": "CC-BY-2.0-FR",
+        "licence_verdict": "shippable",
+        "schema_version": 1,
+        "sentence_id": "28fee402f8d7e8bd",
+        "source_id": "tatoeba",
+        "text": "No, no era ella.",
+        "token_count": 4,
+        "translation": "No, it wasn't her."
+      },
+      "requiredTargets": []
+    },
+    {
+      "slot": [1, 4, 4],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": true,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": ["nombre"],
+        "provenance": "llm",
+        "schema_version": 1,
+        "sentence_id": null,
+        "slot_index": 4,
+        "unit_index": 1
+      },
+      "selectedSha256": "1fe6e027db0d9230e1a30db77b71ff49f04990c4ad122d5957581805f7ff6029",
+      "canonicalCorpus": null,
+      "requiredTargets": [
+        {
+          "lexemeId": "lx:nombre:NOUN",
+          "g2": {
+            "band": "A1",
+            "band_source": "frequency_decile",
+            "band_source_licence": null,
+            "decile": 1,
+            "frequency": 247112,
+            "lang": "es",
+            "lemma": "nombre",
+            "pos": "NOUN",
+            "rank": 169,
+            "schema_version": 1
+          },
+          "reviewedGlossary": {
+            "schema_version": 1,
+            "lang": "es",
+            "lemma": "nombre",
+            "pos": "NOUN",
+            "citation_gloss": "name",
+            "valid_alternates": [],
+            "sense_evidence": "A person's or thing's name.",
+            "author": "Codex glossary author B",
+            "licence": "CC-BY-NC-SA-4.0",
+            "review": {
+              "reviewer": "Codex root glossary reviewer",
+              "verdict": "accepted",
+              "note": "Independently checked nombre (NOUN) and its citation 'name' against Spanish meaning, part of speech and the stated supported senses.",
+              "content_hash": "3be28d9ed4d608409a0eadb1219da7a55aa8585f7d8fd633d577574ccd5ec9a9"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slot": [1, 4, 5],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": true,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": ["apellido"],
+        "provenance": "llm",
+        "schema_version": 1,
+        "sentence_id": null,
+        "slot_index": 5,
+        "unit_index": 1
+      },
+      "selectedSha256": "3eccb8abc690968c06c99a3a02bf2a26fa9d10f72465f9488b6c0dafa0713121",
+      "canonicalCorpus": null,
+      "requiredTargets": [
+        {
+          "lexemeId": "lx:apellido:NOUN",
+          "g2": {
+            "band": "A1",
+            "band_source": "frequency_decile",
+            "band_source_licence": null,
+            "decile": 1,
+            "frequency": 9566,
+            "lang": "es",
+            "lemma": "apellido",
+            "pos": "NOUN",
+            "rank": 2642,
+            "schema_version": 1
+          },
+          "reviewedGlossary": {
+            "schema_version": 1,
+            "lang": "es",
+            "lemma": "apellido",
+            "pos": "NOUN",
+            "citation_gloss": "surname",
+            "valid_alternates": ["last name"],
+            "sense_evidence": "Supported Spanish NOUN citation sense: surname. Other ordinary supported renderings: last name.",
+            "author": "Codex glossary author A",
+            "licence": "CC-BY-NC-SA-4.0",
+            "review": {
+              "reviewer": "Codex glossary reviewer B",
+              "verdict": "accepted",
+              "note": "Independently checked apellido (NOUN): surname; last name. These are supported citation/sense meanings within the author evidence; alternate senses exclude ambiguous decoys and do not license arbitrary sentence substitutions.",
+              "content_hash": "ef568f4a5f65d32e22f3fd5ab7f251099ca0019ca12d2b8e019f3cea84569991"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slot": [1, 4, 6],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": true,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": ["señor"],
+        "provenance": "llm",
+        "schema_version": 1,
+        "sentence_id": null,
+        "slot_index": 6,
+        "unit_index": 1
+      },
+      "selectedSha256": "62835b1e904bc09fc7ee0cf6fa760126d8e94f59a9293f2a475a1ecf5297c674",
+      "canonicalCorpus": null,
+      "requiredTargets": [
+        {
+          "lexemeId": "lx:señor:NOUN",
+          "g2": {
+            "band": "A1",
+            "band_source": "frequency_decile",
+            "band_source_licence": null,
+            "decile": 1,
+            "frequency": 532915,
+            "lang": "es",
+            "lemma": "señor",
+            "pos": "NOUN",
+            "rank": 89,
+            "schema_version": 1
+          },
+          "reviewedGlossary": {
+            "schema_version": 1,
+            "lang": "es",
+            "lemma": "señor",
+            "pos": "NOUN",
+            "citation_gloss": "gentleman",
+            "valid_alternates": ["sir", "Mr.", "man", "Lord"],
+            "sense_evidence": "Common noun or address for an adult man; Señor can be the religious title Lord.",
+            "author": "Codex glossary author B",
+            "licence": "CC-BY-NC-SA-4.0",
+            "review": {
+              "reviewer": "Codex root glossary reviewer",
+              "verdict": "accepted",
+              "note": "Independently checked señor (NOUN) and its citation 'gentleman' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers. The explicit intended curriculum POS corrects the documented corpus-majority label; it does not reclassify every homograph token.",
+              "content_hash": "4cb6a58298850808d5d10f68a85e332c6777fd9b97284eba32f09f97211fd865"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slot": [1, 4, 7],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": true,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "mucho",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": ["señora"],
+        "provenance": "llm",
+        "schema_version": 1,
+        "sentence_id": null,
+        "slot_index": 7,
+        "unit_index": 1
+      },
+      "selectedSha256": "12b16dba9c0998ce00eab9c5630402d93292b213ccf39d9c556b0f2f18e5b52f",
+      "canonicalCorpus": null,
+      "requiredTargets": [
+        {
+          "lexemeId": "lx:señora:NOUN",
+          "g2": {
+            "band": "A1",
+            "band_source": "frequency_decile",
+            "band_source_licence": null,
+            "decile": 1,
+            "frequency": 156725,
+            "lang": "es",
+            "lemma": "señora",
+            "pos": "NOUN",
+            "rank": 230,
+            "schema_version": 1
+          },
+          "reviewedGlossary": {
+            "schema_version": 1,
+            "lang": "es",
+            "lemma": "señora",
+            "pos": "NOUN",
+            "citation_gloss": "lady",
+            "valid_alternates": ["woman", "madam", "Mrs."],
+            "sense_evidence": "Adult woman or a respectful form of address.",
+            "author": "Codex glossary author B",
+            "licence": "CC-BY-NC-SA-4.0",
+            "review": {
+              "reviewer": "Codex root glossary reviewer",
+              "verdict": "accepted",
+              "note": "Independently checked señora (NOUN) and its citation 'lady' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+              "content_hash": "81764dceaf6f56aeedff32b82d73551589e640ded50d24f672cb418c7ec2111c"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slot": [1, 4, 8],
+      "selected": {
+        "accepted_alternates": [],
+        "gap": true,
+        "grammar_concept": "subject_pronouns",
+        "known_lemmas": [
+          "adiós",
+          "apellido",
+          "bueno",
+          "día",
+          "favor",
+          "gracia",
+          "hola",
+          "no",
+          "noche",
+          "nombre",
+          "por",
+          "ser",
+          "señor",
+          "señora",
+          "sí",
+          "tarde",
+          "tú",
+          "yo",
+          "él"
+        ],
+        "lang": "es",
+        "lesson_index": 4,
+        "new_lemmas": ["mucho"],
+        "provenance": "llm",
+        "schema_version": 1,
+        "sentence_id": null,
+        "slot_index": 8,
+        "unit_index": 1
+      },
+      "selectedSha256": "2255f3e8857d9950500857dd4d226a1a4cea0c241db324afc40177de2fdb028b",
+      "canonicalCorpus": null,
+      "requiredTargets": [
+        {
+          "lexemeId": "lx:mucho:ADV",
+          "g2": {
+            "band": "A1",
+            "band_source": "frequency_decile",
+            "band_source_licence": null,
+            "decile": 1,
+            "frequency": 1907292,
+            "lang": "es",
+            "lemma": "mucho",
+            "pos": "ADV",
+            "rank": 35,
+            "schema_version": 1
+          },
+          "reviewedGlossary": {
+            "schema_version": 1,
+            "lang": "es",
+            "lemma": "mucho",
+            "pos": "ADV",
+            "citation_gloss": "a lot",
+            "valid_alternates": ["much", "very"],
+            "sense_evidence": "Adverb of a large amount or high degree.",
+            "author": "Codex glossary author B",
+            "licence": "CC-BY-NC-SA-4.0",
+            "review": {
+              "reviewer": "Codex root glossary reviewer",
+              "verdict": "accepted",
+              "note": "Independently checked mucho (ADV) and its citation 'a lot' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+              "content_hash": "8dda02a2b59c6cc4214781da2f46c44dd7140856d152af8278d0703a9b8e45a6"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "lexemes": {
+    "lx:adiós:NOUN": {
+      "lexemeId": "lx:adiós:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 143677,
+        "lang": "es",
+        "lemma": "adiós",
+        "pos": "NOUN",
+        "rank": 250,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "adiós",
+        "pos": "NOUN",
+        "citation_gloss": "goodbye",
+        "valid_alternates": ["farewell"],
+        "sense_evidence": "Supported Spanish NOUN citation sense: goodbye. Other ordinary supported renderings: farewell.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Goodbye/farewell is valid for the stated noun sense (a goodbye); the source greeting may instead be an interjection. Acceptance does not assert the source token has this POS.",
+          "content_hash": "bd97f7175cbbdfdbdb25d45997dab28387e4183a1583da04a7fb77d768af21a8"
+        }
+      }
+    },
+    "lx:apellido:NOUN": {
+      "lexemeId": "lx:apellido:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 9566,
+        "lang": "es",
+        "lemma": "apellido",
+        "pos": "NOUN",
+        "rank": 2642,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "apellido",
+        "pos": "NOUN",
+        "citation_gloss": "surname",
+        "valid_alternates": ["last name"],
+        "sense_evidence": "Supported Spanish NOUN citation sense: surname. Other ordinary supported renderings: last name.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Independently checked apellido (NOUN): surname; last name. These are supported citation/sense meanings within the author evidence; alternate senses exclude ambiguous decoys and do not license arbitrary sentence substitutions.",
+          "content_hash": "ef568f4a5f65d32e22f3fd5ab7f251099ca0019ca12d2b8e019f3cea84569991"
+        }
+      }
+    },
+    "lx:bueno:ADJ": {
+      "lexemeId": "lx:bueno:ADJ",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 1742467,
+        "lang": "es",
+        "lemma": "bueno",
+        "pos": "ADJ",
+        "rank": 38,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "bueno",
+        "pos": "ADJ",
+        "citation_gloss": "good",
+        "valid_alternates": [],
+        "sense_evidence": "Supported Spanish ADJ citation sense: good.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Independently checked bueno (ADJ): good. These are supported citation/sense meanings within the author evidence; alternate senses exclude ambiguous decoys and do not license arbitrary sentence substitutions.",
+          "content_hash": "90c6bd1e04cae31074c19772b58a510f84132eeccd309b15053af9420c88367b"
+        }
+      }
+    },
+    "lx:día:NOUN": {
+      "lexemeId": "lx:día:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 638134,
+        "lang": "es",
+        "lemma": "día",
+        "pos": "NOUN",
+        "rank": 72,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "día",
+        "pos": "NOUN",
+        "citation_gloss": "day",
+        "valid_alternates": [],
+        "sense_evidence": "Supported Spanish NOUN citation sense: day.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Independently checked día (NOUN): day. These are supported citation/sense meanings within the author evidence; alternate senses exclude ambiguous decoys and do not license arbitrary sentence substitutions.",
+          "content_hash": "51a2713a8be6bdcae15d265d1ce7a57b23e249d0047d324f04a414d22762f265"
+        }
+      }
+    },
+    "lx:favor:NOUN": {
+      "lexemeId": "lx:favor:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 530966,
+        "lang": "es",
+        "lemma": "favor",
+        "pos": "NOUN",
+        "rank": 91,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "favor",
+        "pos": "NOUN",
+        "citation_gloss": "favour",
+        "valid_alternates": ["favor"],
+        "sense_evidence": "Supported Spanish NOUN citation sense: favour. Other ordinary supported renderings: favor.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Independently checked favor (NOUN): favour; favor. These are supported citation/sense meanings within the author evidence; alternate senses exclude ambiguous decoys and do not license arbitrary sentence substitutions.",
+          "content_hash": "65e17caa84c071b555b5253d8cba2341bd7d9a13cafc8c857fd4a8ab955aaa82"
+        }
+      }
+    },
+    "lx:gracia:NOUN": {
+      "lexemeId": "lx:gracia:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 795585,
+        "lang": "es",
+        "lemma": "gracia",
+        "pos": "NOUN",
+        "rank": 59,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "gracia",
+        "pos": "NOUN",
+        "citation_gloss": "grace",
+        "valid_alternates": ["charm", "joke", "humour"],
+        "sense_evidence": "Supported Spanish NOUN citation sense: grace. Other ordinary supported renderings: charm, joke, humour.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Grace, charm, joke and humour are valid bounded singular-noun senses. The plural greeting gracias is not mechanically represented by these singular citations.",
+          "content_hash": "3b1171db3ba0865f65d51a82a8a4fe8fff571f4368fdc8510bc086562eb77418"
+        }
+      }
+    },
+    "lx:hola:INTJ": {
+      "lexemeId": "lx:hola:INTJ",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 601523,
+        "lang": "es",
+        "lemma": "hola",
+        "pos": "INTJ",
+        "rank": 78,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "hola",
+        "pos": "INTJ",
+        "citation_gloss": "hello",
+        "valid_alternates": ["hi"],
+        "sense_evidence": "Supported Spanish INTJ citation sense: hello. Other ordinary supported renderings: hi. Greeting interjection; the corpus majority PROPN tag is an analyzer error, not the intended curriculum sense.",
+        "author": "Codex glossary author A",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex glossary reviewer B",
+          "verdict": "accepted",
+          "note": "Hello is the ordinary greeting interjection; the intended INTJ correction is appropriate.",
+          "content_hash": "224a1135c4c2522c41bf299f607d1cb0a6f21cbad1b93f072fc35e292c039686"
+        }
+      }
+    },
+    "lx:mucho:ADV": {
+      "lexemeId": "lx:mucho:ADV",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 1907292,
+        "lang": "es",
+        "lemma": "mucho",
+        "pos": "ADV",
+        "rank": 35,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "mucho",
+        "pos": "ADV",
+        "citation_gloss": "a lot",
+        "valid_alternates": ["much", "very"],
+        "sense_evidence": "Adverb of a large amount or high degree.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked mucho (ADV) and its citation 'a lot' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+          "content_hash": "8dda02a2b59c6cc4214781da2f46c44dd7140856d152af8278d0703a9b8e45a6"
+        }
+      }
+    },
+    "lx:no:ADV": {
+      "lexemeId": "lx:no:ADV",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 12379505,
+        "lang": "es",
+        "lemma": "no",
+        "pos": "ADV",
+        "rank": 6,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "no",
+        "pos": "ADV",
+        "citation_gloss": "no",
+        "valid_alternates": ["not"],
+        "sense_evidence": "Negation or a negative response.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked no (ADV) and its citation 'no' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+          "content_hash": "c426113f907ebb9441b0194729548ed7db0690bbc8a4c13b59064a4f4da55e68"
+        }
+      }
+    },
+    "lx:noche:NOUN": {
+      "lexemeId": "lx:noche:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 500670,
+        "lang": "es",
+        "lemma": "noche",
+        "pos": "NOUN",
+        "rank": 94,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "noche",
+        "pos": "NOUN",
+        "citation_gloss": "night",
+        "valid_alternates": ["evening"],
+        "sense_evidence": "Night; evening when Spanish uses noche for the later part of the day.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked noche (NOUN) and its citation 'night' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+          "content_hash": "2e4d409b68d25f3e3cbbf32b48ceecbfe43ca15af653a4a963b06a78f797b8af"
+        }
+      }
+    },
+    "lx:nombre:NOUN": {
+      "lexemeId": "lx:nombre:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 247112,
+        "lang": "es",
+        "lemma": "nombre",
+        "pos": "NOUN",
+        "rank": 169,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "nombre",
+        "pos": "NOUN",
+        "citation_gloss": "name",
+        "valid_alternates": [],
+        "sense_evidence": "A person's or thing's name.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked nombre (NOUN) and its citation 'name' against Spanish meaning, part of speech and the stated supported senses.",
+          "content_hash": "3be28d9ed4d608409a0eadb1219da7a55aa8585f7d8fd633d577574ccd5ec9a9"
+        }
+      }
+    },
+    "lx:por:ADP": {
+      "lexemeId": "lx:por:ADP",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 4454673,
+        "lang": "es",
+        "lemma": "por",
+        "pos": "ADP",
+        "rank": 15,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "por",
+        "pos": "ADP",
+        "citation_gloss": "for",
+        "valid_alternates": ["by", "through", "because of", "per"],
+        "sense_evidence": "Preposition with reason, agency, route, exchange or rate senses.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked por (ADP) and its citation 'for' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+          "content_hash": "b2972a89c7743e055b0f77b851aaf52ab293bc5964bd3da5891c70c4226bd7aa"
+        }
+      }
+    },
+    "lx:ser:AUX": {
+      "lexemeId": "lx:ser:AUX",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 13303540,
+        "lang": "es",
+        "lemma": "ser",
+        "pos": "AUX",
+        "rank": 4,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "ser",
+        "pos": "AUX",
+        "citation_gloss": "be",
+        "valid_alternates": [],
+        "sense_evidence": "Copular auxiliary connecting a subject to identity or a characteristic.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked ser (AUX) and its citation 'be' against Spanish meaning, part of speech and the stated supported senses.",
+          "content_hash": "ff8ec8eea02dde28db2122be4bbc6790898770a33b8834c72b2f271f00e833ab"
+        }
+      }
+    },
+    "lx:señor:NOUN": {
+      "lexemeId": "lx:señor:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 532915,
+        "lang": "es",
+        "lemma": "señor",
+        "pos": "NOUN",
+        "rank": 89,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "señor",
+        "pos": "NOUN",
+        "citation_gloss": "gentleman",
+        "valid_alternates": ["sir", "Mr.", "man", "Lord"],
+        "sense_evidence": "Common noun or address for an adult man; Señor can be the religious title Lord.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked señor (NOUN) and its citation 'gentleman' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers. The explicit intended curriculum POS corrects the documented corpus-majority label; it does not reclassify every homograph token.",
+          "content_hash": "4cb6a58298850808d5d10f68a85e332c6777fd9b97284eba32f09f97211fd865"
+        }
+      }
+    },
+    "lx:señora:NOUN": {
+      "lexemeId": "lx:señora:NOUN",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 156725,
+        "lang": "es",
+        "lemma": "señora",
+        "pos": "NOUN",
+        "rank": 230,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "señora",
+        "pos": "NOUN",
+        "citation_gloss": "lady",
+        "valid_alternates": ["woman", "madam", "Mrs."],
+        "sense_evidence": "Adult woman or a respectful form of address.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked señora (NOUN) and its citation 'lady' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+          "content_hash": "81764dceaf6f56aeedff32b82d73551589e640ded50d24f672cb418c7ec2111c"
+        }
+      }
+    },
+    "lx:sí:INTJ": {
+      "lexemeId": "lx:sí:INTJ",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 2350514,
+        "lang": "es",
+        "lemma": "sí",
+        "pos": "INTJ",
+        "rank": 30,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "sí",
+        "pos": "INTJ",
+        "citation_gloss": "yes",
+        "valid_alternates": [],
+        "sense_evidence": "Affirmative response; not the conditional conjunction si.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked sí (INTJ) and its citation 'yes' against Spanish meaning, part of speech and the stated supported senses.",
+          "content_hash": "f5b9e3768eaae9eca24f9a2d22220e23c6457005fc9df4f903e9bde225a2f879"
+        }
+      }
+    },
+    "lx:tarde:ADV": {
+      "lexemeId": "lx:tarde:ADV",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 211102,
+        "lang": "es",
+        "lemma": "tarde",
+        "pos": "ADV",
+        "rank": 193,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "tarde",
+        "pos": "ADV",
+        "citation_gloss": "late",
+        "valid_alternates": [],
+        "sense_evidence": "Adverb after the expected time; afternoon is the separate noun use.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked tarde (ADV) and its citation 'late' against Spanish meaning, part of speech and the stated supported senses.",
+          "content_hash": "fdf94b24e6f955e783a5a85abd8beab019378420c9b3638fad74343b17276c26"
+        }
+      }
+    },
+    "lx:tú:PRON": {
+      "lexemeId": "lx:tú:PRON",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 4707781,
+        "lang": "es",
+        "lemma": "tú",
+        "pos": "PRON",
+        "rank": 14,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "tú",
+        "pos": "PRON",
+        "citation_gloss": "you",
+        "valid_alternates": [],
+        "sense_evidence": "Informal singular second-person subject pronoun.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked tú (PRON) and its citation 'you' against Spanish meaning, part of speech and the stated supported senses.",
+          "content_hash": "6100e21d9f17cd844a6854763e357df4f53a9fb0dfa126abb33742474b273576"
+        }
+      }
+    },
+    "lx:yo:PRON": {
+      "lexemeId": "lx:yo:PRON",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 7808632,
+        "lang": "es",
+        "lemma": "yo",
+        "pos": "PRON",
+        "rank": 9,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "yo",
+        "pos": "PRON",
+        "citation_gloss": "I",
+        "valid_alternates": [],
+        "sense_evidence": "First-person singular subject pronoun.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked yo (PRON) and its citation 'I' against Spanish meaning, part of speech and the stated supported senses.",
+          "content_hash": "7bb8506859501e3fc27a371aedd3450929b9731a3763e14b41e7efab4b03f11c"
+        }
+      }
+    },
+    "lx:él:PRON": {
+      "lexemeId": "lx:él:PRON",
+      "g2": {
+        "band": "A1",
+        "band_source": "frequency_decile",
+        "band_source_licence": null,
+        "decile": 1,
+        "frequency": 13031627,
+        "lang": "es",
+        "lemma": "él",
+        "pos": "PRON",
+        "rank": 5,
+        "schema_version": 1
+      },
+      "reviewedGlossary": {
+        "schema_version": 1,
+        "lang": "es",
+        "lemma": "él",
+        "pos": "PRON",
+        "citation_gloss": "he",
+        "valid_alternates": ["him"],
+        "sense_evidence": "Masculine third-person pronoun; him after a preposition.",
+        "author": "Codex glossary author B",
+        "licence": "CC-BY-NC-SA-4.0",
+        "review": {
+          "reviewer": "Codex root glossary reviewer",
+          "verdict": "accepted",
+          "note": "Independently checked él (PRON) and its citation 'he' against Spanish meaning, part of speech and the stated supported senses. Reviewed listed alternatives as conservative exclusions for potentially valid decoys; contextual forms must not be blindly emitted as bare-word answers.",
+          "content_hash": "401c77fef3361946a0c518083f22337a5f17c060c48a3cc649126504348a130e"
+        }
+      }
+    }
+  },
+  "gapBriefs": {
+    "4": {
+      "slot": "u1/l4/s4",
+      "unit_index": 1,
+      "lesson_index": 4,
+      "slot_index": 4,
+      "unit_title": "Say hello and give your name",
+      "function": "greetings and self-introduction",
+      "grammar_concept": "subject_pronouns",
+      "section_index": 1,
+      "section_cefr": "A1",
+      "register_slot": "binary_t_v",
+      "new_lemmas": ["nombre"],
+      "known_lemmas": [
+        "adiós",
+        "apellido",
+        "bueno",
+        "día",
+        "favor",
+        "gracia",
+        "hola",
+        "mucho",
+        "no",
+        "noche",
+        "por",
+        "ser",
+        "señor",
+        "señora",
+        "sí",
+        "tarde",
+        "tú",
+        "yo",
+        "él"
+      ],
+      "ledger_digest": "249093ad25ac3b7a",
+      "candidates_required": 20,
+      "token_window": [3, 12],
+      "verbless_window": false
+    },
+    "5": {
+      "slot": "u1/l4/s5",
+      "unit_index": 1,
+      "lesson_index": 4,
+      "slot_index": 5,
+      "unit_title": "Say hello and give your name",
+      "function": "greetings and self-introduction",
+      "grammar_concept": "subject_pronouns",
+      "section_index": 1,
+      "section_cefr": "A1",
+      "register_slot": "binary_t_v",
+      "new_lemmas": ["apellido"],
+      "known_lemmas": [
+        "adiós",
+        "bueno",
+        "día",
+        "favor",
+        "gracia",
+        "hola",
+        "mucho",
+        "no",
+        "noche",
+        "nombre",
+        "por",
+        "ser",
+        "señor",
+        "señora",
+        "sí",
+        "tarde",
+        "tú",
+        "yo",
+        "él"
+      ],
+      "ledger_digest": "249093ad25ac3b7a",
+      "candidates_required": 20,
+      "token_window": [3, 12],
+      "verbless_window": false
+    },
+    "6": {
+      "slot": "u1/l4/s6",
+      "unit_index": 1,
+      "lesson_index": 4,
+      "slot_index": 6,
+      "unit_title": "Say hello and give your name",
+      "function": "greetings and self-introduction",
+      "grammar_concept": "subject_pronouns",
+      "section_index": 1,
+      "section_cefr": "A1",
+      "register_slot": "binary_t_v",
+      "new_lemmas": ["señor"],
+      "known_lemmas": [
+        "adiós",
+        "apellido",
+        "bueno",
+        "día",
+        "favor",
+        "gracia",
+        "hola",
+        "mucho",
+        "no",
+        "noche",
+        "nombre",
+        "por",
+        "ser",
+        "señora",
+        "sí",
+        "tarde",
+        "tú",
+        "yo",
+        "él"
+      ],
+      "ledger_digest": "249093ad25ac3b7a",
+      "candidates_required": 20,
+      "token_window": [3, 12],
+      "verbless_window": false
+    },
+    "7": {
+      "slot": "u1/l4/s7",
+      "unit_index": 1,
+      "lesson_index": 4,
+      "slot_index": 7,
+      "unit_title": "Say hello and give your name",
+      "function": "greetings and self-introduction",
+      "grammar_concept": "subject_pronouns",
+      "section_index": 1,
+      "section_cefr": "A1",
+      "register_slot": "binary_t_v",
+      "new_lemmas": ["señora"],
+      "known_lemmas": [
+        "adiós",
+        "apellido",
+        "bueno",
+        "día",
+        "favor",
+        "gracia",
+        "hola",
+        "mucho",
+        "no",
+        "noche",
+        "nombre",
+        "por",
+        "ser",
+        "señor",
+        "sí",
+        "tarde",
+        "tú",
+        "yo",
+        "él"
+      ],
+      "ledger_digest": "249093ad25ac3b7a",
+      "candidates_required": 20,
+      "token_window": [3, 12],
+      "verbless_window": false
+    },
+    "8": {
+      "slot": "u1/l4/s8",
+      "unit_index": 1,
+      "lesson_index": 4,
+      "slot_index": 8,
+      "unit_title": "Say hello and give your name",
+      "function": "greetings and self-introduction",
+      "grammar_concept": "subject_pronouns",
+      "section_index": 1,
+      "section_cefr": "A1",
+      "register_slot": "binary_t_v",
+      "new_lemmas": ["mucho"],
+      "known_lemmas": [
+        "adiós",
+        "apellido",
+        "bueno",
+        "día",
+        "favor",
+        "gracia",
+        "hola",
+        "no",
+        "noche",
+        "nombre",
+        "por",
+        "ser",
+        "señor",
+        "señora",
+        "sí",
+        "tarde",
+        "tú",
+        "yo",
+        "él"
+      ],
+      "ledger_digest": "249093ad25ac3b7a",
+      "candidates_required": 20,
+      "token_window": [3, 12],
+      "verbless_window": false
+    }
+  }
+}

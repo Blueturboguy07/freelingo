@@ -1,0 +1,727 @@
+{
+  "scope": "exact source text comparison against current main content/es/candidates/*.jsonl; held proposals are not auto-loaded",
+  "existingBankFilesSha256": {
+    "content/es/candidates/p2fix-integrate.jsonl": "ac738160cee7706673236967976abc4e643185df001e8af0743ded5e27002652",
+    "content/es/candidates/p2r4-census-fix.jsonl": "ec4778e45029d063ec4429532ae4f8517da50ebdd8f382344261e7c360551213",
+    "content/es/candidates/p2r4-g6-census-fix.jsonl": "fc4443d525d78af0748848bcb33b67900914e2b1596fd1bde6c35fc56539adeb",
+    "content/es/candidates/p2r5-quarantine-resample.jsonl": "4975644f3d85f6775fb1bd0502ee4ef2cda7aac6e430612b1e32dabec7f0b44e",
+    "content/es/candidates/u01-l01.jsonl": "e6be492ef9799de590c53a20f17cfc84244bb84e7b974f19941989f6f39033b0",
+    "content/es/candidates/u01-u06-r4.jsonl": "49a5752b5fefb370b01c34ed2ba54ca4732de3f5f098897bbb57b00ddc587f26",
+    "content/es/candidates/u01-u06.jsonl": "13f0032bb7937d9b489b29f970f4ca83969122500102bfa42d5d5c79ce635f47",
+    "content/es/candidates/u07-u14.jsonl": "9cdca30d5d314fd48c54c1a2f1768994d78b1c2c9ffe401fa355cc76dc32f59b",
+    "content/es/candidates/u07-u23-r4.jsonl": "864d4de73b1af1773e693ddd5c1135df58e537bc5e64db965f8c093947884ee4",
+    "content/es/candidates/u15-u23.jsonl": "66d3e8e863718c4c8079f9c496286ff0de9bfacaf0695a270f96d2406a090d34",
+    "content/es/candidates/u24-u30-r4.jsonl": "f9362504701a7781ea276c8518bbccb9bdf9de3ec1b0c400c599614ad5587fe7",
+    "content/es/candidates/u24-u30.jsonl": "eb4e6c4d499518cde6856db9db56bb82344ab1ba6878a947d67337acf2a03868"
+  },
+  "overlappingProposalTexts": 8,
+  "newExactTextsAgainstThisBank": 92,
+  "overlaps": [
+    {
+      "slotIndex": 4,
+      "rawCandidateIndex": 0,
+      "text": "Nombre, por favor.",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u01-u06-r4.jsonl",
+          "line": 101,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 4,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 204,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 5,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 230,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 6,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 256,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 7,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 703,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 2,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 978,
+          "slot": {
+            "lesson_index": 12,
+            "slot_index": 8,
+            "unit_index": 2
+          },
+          "ledgerDigest": "9ee56885a46d211f"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1186,
+          "slot": {
+            "lesson_index": 16,
+            "slot_index": 7,
+            "unit_index": 3
+          },
+          "ledgerDigest": "c1a997615561d340"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 2255,
+          "slot": {
+            "lesson_index": 34,
+            "slot_index": 3,
+            "unit_index": 6
+          },
+          "ledgerDigest": "50415ad8360ba6f0"
+        }
+      ]
+    },
+    {
+      "slotIndex": 4,
+      "rawCandidateIndex": 3,
+      "text": "¿Cuál es tu nombre?",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u07-u14.jsonl",
+          "line": 41,
+          "slot": {
+            "lesson_index": 37,
+            "slot_index": 2,
+            "unit_index": 7
+          },
+          "ledgerDigest": "0f2e9e5c457446fc"
+        }
+      ]
+    },
+    {
+      "slotIndex": 4,
+      "rawCandidateIndex": 16,
+      "text": "Nombre y apellido, por favor.",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 370,
+          "slot": {
+            "lesson_index": 6,
+            "slot_index": 8,
+            "unit_index": 1
+          },
+          "ledgerDigest": "ecc0de3bfb919ab8"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 562,
+          "slot": {
+            "lesson_index": 8,
+            "slot_index": 7,
+            "unit_index": 2
+          },
+          "ledgerDigest": "119ee9e7697c7cbe"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 593,
+          "slot": {
+            "lesson_index": 8,
+            "slot_index": 8,
+            "unit_index": 2
+          },
+          "ledgerDigest": "119ee9e7697c7cbe"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 611,
+          "slot": {
+            "lesson_index": 9,
+            "slot_index": 5,
+            "unit_index": 2
+          },
+          "ledgerDigest": "3ee35d2576e8686d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 629,
+          "slot": {
+            "lesson_index": 9,
+            "slot_index": 6,
+            "unit_index": 2
+          },
+          "ledgerDigest": "3ee35d2576e8686d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 647,
+          "slot": {
+            "lesson_index": 9,
+            "slot_index": 7,
+            "unit_index": 2
+          },
+          "ledgerDigest": "3ee35d2576e8686d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 686,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 1,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 708,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 2,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 731,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 3,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 754,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 4,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 778,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 5,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 797,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 6,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 816,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 7,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 835,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 8,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 855,
+          "slot": {
+            "lesson_index": 11,
+            "slot_index": 5,
+            "unit_index": 2
+          },
+          "ledgerDigest": "695fd50a46852b8d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 876,
+          "slot": {
+            "lesson_index": 11,
+            "slot_index": 6,
+            "unit_index": 2
+          },
+          "ledgerDigest": "695fd50a46852b8d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 897,
+          "slot": {
+            "lesson_index": 11,
+            "slot_index": 7,
+            "unit_index": 2
+          },
+          "ledgerDigest": "695fd50a46852b8d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 918,
+          "slot": {
+            "lesson_index": 11,
+            "slot_index": 8,
+            "unit_index": 2
+          },
+          "ledgerDigest": "695fd50a46852b8d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1027,
+          "slot": {
+            "lesson_index": 13,
+            "slot_index": 8,
+            "unit_index": 3
+          },
+          "ledgerDigest": "15f6bf0bb11f9ced"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1059,
+          "slot": {
+            "lesson_index": 14,
+            "slot_index": 5,
+            "unit_index": 3
+          },
+          "ledgerDigest": "ede0e412b4f060c8"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1073,
+          "slot": {
+            "lesson_index": 14,
+            "slot_index": 6,
+            "unit_index": 3
+          },
+          "ledgerDigest": "ede0e412b4f060c8"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1404,
+          "slot": {
+            "lesson_index": 19,
+            "slot_index": 7,
+            "unit_index": 4
+          },
+          "ledgerDigest": "559227139eae970d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1429,
+          "slot": {
+            "lesson_index": 19,
+            "slot_index": 8,
+            "unit_index": 4
+          },
+          "ledgerDigest": "559227139eae970d"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1946,
+          "slot": {
+            "lesson_index": 27,
+            "slot_index": 8,
+            "unit_index": 5
+          },
+          "ledgerDigest": "9e4ccf3c9648d8c6"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 2052,
+          "slot": {
+            "lesson_index": 31,
+            "slot_index": 8,
+            "unit_index": 6
+          },
+          "ledgerDigest": "6f22404cf0bcd176"
+        }
+      ]
+    },
+    {
+      "slotIndex": 5,
+      "rawCandidateIndex": 0,
+      "text": "Apellido, por favor.",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 205,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 5,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 231,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 6,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 257,
+          "slot": {
+            "lesson_index": 4,
+            "slot_index": 7,
+            "unit_index": 1
+          },
+          "ledgerDigest": "249093ad25ac3b7a"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 351,
+          "slot": {
+            "lesson_index": 6,
+            "slot_index": 7,
+            "unit_index": 1
+          },
+          "ledgerDigest": "ecc0de3bfb919ab8"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 704,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 2,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 979,
+          "slot": {
+            "lesson_index": 12,
+            "slot_index": 8,
+            "unit_index": 2
+          },
+          "ledgerDigest": "9ee56885a46d211f"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1187,
+          "slot": {
+            "lesson_index": 16,
+            "slot_index": 7,
+            "unit_index": 3
+          },
+          "ledgerDigest": "c1a997615561d340"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 2256,
+          "slot": {
+            "lesson_index": 34,
+            "slot_index": 3,
+            "unit_index": 6
+          },
+          "ledgerDigest": "50415ad8360ba6f0"
+        }
+      ]
+    },
+    {
+      "slotIndex": 5,
+      "rawCandidateIndex": 3,
+      "text": "¿Cuál es tu apellido?",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u07-u14.jsonl",
+          "line": 42,
+          "slot": {
+            "lesson_index": 37,
+            "slot_index": 2,
+            "unit_index": 7
+          },
+          "ledgerDigest": "0f2e9e5c457446fc"
+        }
+      ]
+    },
+    {
+      "slotIndex": 6,
+      "rawCandidateIndex": 18,
+      "text": "Mucho gusto, señor.",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 357,
+          "slot": {
+            "lesson_index": 6,
+            "slot_index": 7,
+            "unit_index": 1
+          },
+          "ledgerDigest": "ecc0de3bfb919ab8"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 723,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 3,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 958,
+          "slot": {
+            "lesson_index": 12,
+            "slot_index": 7,
+            "unit_index": 2
+          },
+          "ledgerDigest": "9ee56885a46d211f"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1191,
+          "slot": {
+            "lesson_index": 16,
+            "slot_index": 7,
+            "unit_index": 3
+          },
+          "ledgerDigest": "c1a997615561d340"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1663,
+          "slot": {
+            "lesson_index": 22,
+            "slot_index": 4,
+            "unit_index": 4
+          },
+          "ledgerDigest": "562c975ca5ad7a3b"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 2262,
+          "slot": {
+            "lesson_index": 34,
+            "slot_index": 4,
+            "unit_index": 6
+          },
+          "ledgerDigest": "50415ad8360ba6f0"
+        }
+      ]
+    },
+    {
+      "slotIndex": 7,
+      "rawCandidateIndex": 0,
+      "text": "Buenos días, señora.",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 4,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 0,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 24,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 1,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 44,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 2,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 64,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 3,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 84,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 4,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 104,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 5,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 124,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 6,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 144,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 7,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        },
+        {
+          "path": "content/es/candidates/u01-l01.jsonl",
+          "line": 164,
+          "slot": {
+            "lesson_index": 1,
+            "slot_index": 8,
+            "unit_index": 1
+          },
+          "ledgerDigest": "606cd3f645af7b27"
+        }
+      ]
+    },
+    {
+      "slotIndex": 7,
+      "rawCandidateIndex": 18,
+      "text": "Mucho gusto, señora.",
+      "existingRows": [
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 358,
+          "slot": {
+            "lesson_index": 6,
+            "slot_index": 7,
+            "unit_index": 1
+          },
+          "ledgerDigest": "ecc0de3bfb919ab8"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 724,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 3,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 747,
+          "slot": {
+            "lesson_index": 10,
+            "slot_index": 4,
+            "unit_index": 2
+          },
+          "ledgerDigest": "36e3997223ed82e2"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 959,
+          "slot": {
+            "lesson_index": 12,
+            "slot_index": 7,
+            "unit_index": 2
+          },
+          "ledgerDigest": "9ee56885a46d211f"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1192,
+          "slot": {
+            "lesson_index": 16,
+            "slot_index": 7,
+            "unit_index": 3
+          },
+          "ledgerDigest": "c1a997615561d340"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 1664,
+          "slot": {
+            "lesson_index": 22,
+            "slot_index": 4,
+            "unit_index": 4
+          },
+          "ledgerDigest": "562c975ca5ad7a3b"
+        },
+        {
+          "path": "content/es/candidates/u01-u06.jsonl",
+          "line": 2263,
+          "slot": {
+            "lesson_index": 34,
+            "slot_index": 4,
+            "unit_index": 6
+          },
+          "ledgerDigest": "50415ad8360ba6f0"
+        }
+      ]
+    }
+  ]
+}
