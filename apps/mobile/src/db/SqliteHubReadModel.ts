@@ -26,8 +26,8 @@ import { SqlitePoolStore } from './SqlitePoolStore';
 import { SqliteMistakeStore } from './SqliteMistakeStore';
 import { SqliteHubStateStore } from './SqliteHubStateStore';
 import { readLearningBoosts, persistLearningBoosts } from './learningBoosts';
-import { declaredNodeSources, type RuntimeSource } from './learningSources';
-import { readHubPracticeSources } from './learningHubSources';
+import { registerSources, type RuntimeSource } from './learningSources';
+import { allHubSources, readHubPracticeSources } from './learningHubSources';
 function fail(message: string): never {
   throw new LearningDataError('Practice Hub: ' + message);
 }
@@ -38,20 +38,6 @@ function text(value: unknown, field: string): string {
 function integer(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) return fail(field);
   return value;
-}
-const indices = new WeakMap<VerifiedInstalledPack, readonly RuntimeSource[]>();
-function sources(pack: VerifiedInstalledPack): readonly RuntimeSource[] {
-  let existing = indices.get(pack);
-  if (existing) return existing;
-  existing = pack.pack
-    .path()
-    .sections.flatMap((section) =>
-      section.units.flatMap((unit) =>
-        unit.nodes.flatMap((node) => declaredNodeSources(pack, node.nodeId)),
-      ),
-    );
-  indices.set(pack, existing);
-  return existing;
 }
 function scoped(db: Db): Db {
   return { ...db, withExclusiveTransaction: <T>(fn: () => T) => fn() };
@@ -292,7 +278,7 @@ export class SqliteHubReadModel {
       localDay = localDayOfStamp(new Date(clock.utcMs), clock.zone),
       path = readPathModel(this.db, pack),
       scheduler = new SqliteSchedulerStore(this.db).load(courseId, clock.zone.tzId),
-      all = sources(pack);
+      all = allHubSources(pack);
     const items = this.words(courseId, pack, scheduler, clock, all),
       practiceItems = this.practices(courseId, pack, path, scheduler, clock, all, items),
       pool = new SqlitePoolStore(this.db).load(courseId, localDay),
@@ -392,18 +378,44 @@ export class SqliteHubReadModel {
   save(requested: HubDailyState): void {
     this.db.withExclusiveTransaction(() => {
       const db = scoped(this.db),
-        model = new SqliteHubReadModel(db, this.ports),
+        clock = this.clock(),
+        model = new SqliteHubReadModel(db, { ...this.ports, clock: () => clock }),
         input = model.read(requested.courseId);
       if (input.localDay !== requested.localDay) return fail('stale day');
+      const pack = model.active(requested.courseId),
+        scheduler = new SqliteSchedulerStore(db),
+        before = scheduler.load(requested.courseId, clock.zone.tzId),
+        available = readHubPracticeSources(
+          db,
+          this.ports,
+          clock,
+          pack,
+          readPathModel(db, pack),
+          before,
+          allHubSources(pack),
+        );
+      // A known five-target MATCH may have no aggregate parent row until it is first
+      // offered. Register only source-verified metadata before the pool's actual FK;
+      // the resolver already requires every canonical target to have been introduced.
+      scheduler.save(
+        requested.courseId,
+        registerSources(
+          db,
+          requested.courseId,
+          before,
+          available.map((s) => s.source),
+          clock,
+        ),
+      );
       new SqlitePoolStore(db).open(
         requested.courseId,
         input.localDay,
         input.seed,
         input.sharedReview.itemIds.map(asItemId),
-        this.clock().utcMs,
+        clock.utcMs,
       );
       new SqliteHubStateStore(db).save(() => model.read(requested.courseId), requested);
-      persistLearningBoosts(db, readLearningBoosts(db, this.clock()));
+      persistLearningBoosts(db, readLearningBoosts(db, clock));
     });
   }
 }

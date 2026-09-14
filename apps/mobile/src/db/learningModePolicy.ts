@@ -51,7 +51,7 @@ const HUB_CONFIGS: Readonly<Record<HubSessionFlavour, SessionFlavourConfig>> = O
   hubTargetPractice: hubConfig('hubTargetPractice', 'S099', 'production'),
   hubUnitRewind: hubConfig('hubUnitRewind', 'S099', 'production'),
 });
-function isHub(value: string): value is HubSessionFlavour {
+export function isHubLearningFlavour(value: string): value is HubSessionFlavour {
   return (HUB_SESSION_FLAVOURS as readonly string[]).includes(value);
 }
 function isPath(value: string): value is SessionFlavour {
@@ -64,7 +64,7 @@ function fail(message: string): never {
  * source receipts; this function admits only the supported engine/economy combinations. */
 export function learningSessionPolicy(launch: PolicyLaunch): LearningSessionPolicy {
   const flavour = launch.economyFlavour;
-  if (isHub(flavour)) {
+  if (isHubLearningFlavour(flavour)) {
     if (launch.origin.kind !== 'hub') return fail('Hub origin is required.');
     if (launch.targetNodeId !== null) return fail('Hub practice cannot carry a path target.');
     return { engineFlavour: 'nodePractice', config: HUB_CONFIGS[flavour] };

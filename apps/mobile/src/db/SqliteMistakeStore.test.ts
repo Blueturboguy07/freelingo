@@ -382,3 +382,19 @@ it('[INV-MIS-01][INV-ECO-09] mode boundary rejects an engine and economy mismatc
   expect(() => f.store.apply({ ...input, launch })).toThrow(/engine.*economy/);
   expect(f.db.all('SELECT * FROM course_mistake_encounter')).toEqual([]);
 });
+
+it('[INV-HUB-09][INV-MIS-07] later retirement and a new lifecycle cannot rewrite the exact mistake form available at launch', () => {
+  const f = setup();
+  f.store.apply(f.persist(f.grade(f.start('historical-origin'), true)));
+  f.store.apply(f.persist(f.grade(f.start('historical-review1'), false, true)));
+  f.store.apply(f.persist(f.grade(f.start('historical-review2'), false, true)));
+  expect(readPracticeMistakeOrigins(f.db, 'en-es').size).toBe(0);
+  const before = f.db.get('SELECT total_changes() AS n');
+  expect(readPracticeMistakeOrigins(f.db, 'en-es', at).get('item')).toBe('typedTranslate');
+  expect(readPracticeMistakeOrigins(f.db, 'en-es', at - 1).size).toBe(0);
+  expect(readPracticeMistakeOrigins(f.db, 'en-es', at + 2 * 86400000).size).toBe(0);
+  expect(f.db.get('SELECT total_changes() AS n')).toEqual(before);
+  f.store.apply(f.persist(f.grade(f.start('new-origin'), true)));
+  expect(readPracticeMistakeOrigins(f.db, 'en-es').get('item')).toBe('typedTranslate');
+  expect(readPracticeMistakeOrigins(f.db, 'en-es', at + 2 * 86400000).size).toBe(0);
+});

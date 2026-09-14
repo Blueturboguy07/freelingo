@@ -205,6 +205,34 @@ export class SqliteMistakeStore {
       }),
     );
   }
+  /** Reuse the exact retention reducer for a saved launch; later misses or retirement
+   * cannot retroactively change which form that launch was reviewing. Full current
+   * provenance/cache validation still runs before projecting the historical prefix. */
+  loadAt(courseId: string, throughUtcMs: number): readonly SavedMistake[] {
+    const through = stamp(throughUtcMs);
+    this.histories(courseId);
+    const found = new Map<string, Derived>();
+    for (const r of this.db.all(
+      'SELECT * FROM course_mistake_encounter WHERE course_id=? ORDER BY item_id,sequence',
+      [courseId],
+    )) {
+      const e = eventFromRow(r);
+      if (e.at > through) continue;
+      const prior = found.get(e.itemId);
+      if (e.sequence !== (prior ? prior.lastSequence + 1 : 0))
+        return fail('historical clock order is unavailable');
+      found.set(e.itemId, advance(prior, e));
+    }
+    return [...found.values()].map(
+      ({ row, misses, lastMissedAtUtcMs, lastMissedLocalDay, retiredAtUtcMs }) => ({
+        row,
+        misses,
+        lastMissedAtUtcMs,
+        lastMissedLocalDay,
+        retiredAtUtcMs,
+      }),
+    );
+  }
   apply(input: MistakeCommitInput): void {
     this.db.withExclusiveTransaction(() => {
       const { state, launch } = input;

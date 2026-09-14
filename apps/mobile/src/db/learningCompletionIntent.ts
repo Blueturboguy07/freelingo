@@ -1,8 +1,4 @@
-import {
-  DEFAULT_FLAVOUR_MATRIX,
-  isGradedAttempt,
-  type SessionState,
-} from '@freelingo/core/session';
+import { isGradedAttempt, type SessionState } from '@freelingo/core/session';
 import type { LearningClock } from './learningRuntimePorts';
 import type {
   AnswerReceipt,
@@ -10,6 +6,7 @@ import type {
   LearningContext,
 } from './SqliteLearningContextStore';
 import { LearningDataError } from './SqliteSchedulerStore';
+import { validateLearningSessionPolicy } from './learningModePolicy';
 
 /** The failed clock is the actual allowance-exhausting grade, not a later button tap.
  * Subsequent UI navigation may change the shell but can never change this receipt.
@@ -21,16 +18,16 @@ export function completionIntentFor(
   receipts: readonly AnswerReceipt[],
   clock: LearningClock,
 ): CompletionIntent | null {
+  const config = validateLearningSessionPolicy(state, context.launch);
   if (
     context.launch.start.sessionId !== state.sessionId ||
-    context.launch.courseId !== state.courseId ||
-    context.launch.economyFlavour !== state.flavour
+    context.launch.courseId !== state.courseId
   )
     throw new LearningDataError('Completion context changed.');
   const exhausted = state.core.hearts.kind === 'pips' && state.core.hearts.remaining === 0;
   const failed = context.completion?.outcome === 'failed' || state.shellState === 'outOfHearts';
   if (failed) {
-    const allowance = DEFAULT_FLAVOUR_MATRIX[state.flavour].mistakeAllowance,
+    const allowance = config.mistakeAllowance,
       last = state.core.answers.at(-1);
     if (
       !exhausted ||

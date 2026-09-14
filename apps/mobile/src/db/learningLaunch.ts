@@ -17,6 +17,7 @@ import { SqliteSchedulerStore, LearningDataError } from './SqliteSchedulerStore'
 import type { LearningLaunch, LessonSlotBinding } from './SqliteLearningContextStore';
 import { LearningUnavailableError, sourceBinding, registerSources } from './learningSources';
 import { previewPathLaunch, generatePathQueue } from './learningLaunchPreview';
+import { previewHubLaunch } from './learningHubLaunch';
 import { readLearningBoosts, persistLearningBoosts } from './learningBoosts';
 export interface PreparedLearningLaunch {
   readonly state: SessionState;
@@ -33,11 +34,23 @@ export function prepareLearningLaunch(
   request: LessonLaunch,
   startOver?: StartOverPlan,
 ): PreparedLearningLaunch {
-  if (request.kind !== 'path')
+  if (request.kind === 'placement')
     throw new LearningUnavailableError('This entry needs its declared learning source plan.');
-  const preview = previewPathLaunch(db, ports, clock, courseId, request, startOver);
-  const { pack, node, flavour, sourceByExercise } = preview;
-  const config = DEFAULT_FLAVOUR_MATRIX[flavour];
+  const path =
+    request.kind === 'path'
+      ? previewPathLaunch(db, ports, clock, courseId, request, startOver)
+      : null;
+  const hub =
+    request.kind === 'hub'
+      ? previewHubLaunch(db, ports, clock, courseId, request.offer, startOver)
+      : null;
+  const preview = path ?? hub!;
+  const { pack, sourceByExercise } = preview;
+  const flavour = path?.flavour ?? hub!.policy.engineFlavour;
+  const config = hub?.policy.config ?? DEFAULT_FLAVOUR_MATRIX[flavour];
+  const nodeRef = path?.node.id ?? hub!.offer.id;
+  const day = path?.day ?? hub!.input.localDay;
+  const seed = path ? String(path.selectionSeed) : hub!.input.seed;
   const scheduler = registerSources(
     db,
     courseId,
@@ -48,9 +61,9 @@ export function prepareLearningLaunch(
   new SqliteSchedulerStore(db).save(courseId, scheduler);
   new SqlitePoolStore(db).open(
     courseId,
-    preview.day,
-    String(preview.selectionSeed),
-    preview.dueSources.map((s) => asItemId(s.item.itemId)),
+    day,
+    seed,
+    path ? path.dueSources.map((s) => asItemId(s.item.itemId)) : hub!.poolItemIds,
     clock.utcMs,
   );
   const sessionId = ports.newSessionId();
@@ -61,11 +74,21 @@ export function prepareLearningLaunch(
     db.get('SELECT session_id FROM course_session_context WHERE session_id=?', [sessionId])
   )
     throw new LearningDataError('A fresh session identity is required.');
-  const generated = generatePathQueue(preview, sessionId);
+  const generated = path ? generatePathQueue(path, sessionId) : hub!.generate(sessionId);
   if (!generated.offered)
     throw new LearningUnavailableError(
       'There are not enough eligible authored exercises available right now.',
     );
+  if (hub?.offer.reserveSharedReview) {
+    const reserved = new SqlitePoolStore(db).reserve(
+      courseId,
+      day,
+      'todaysReview',
+      hub.offer.itemIds.map(asItemId),
+    );
+    if (reserved.served.length !== generated.queue.length)
+      throw new LearningUnavailableError('The shared review pool changed.');
+  }
   const boosts = readLearningBoosts(db, clock);
   persistLearningBoosts(db, boosts);
   const preferences = new SqlitePreferences(db, ports.modalityClock).readCourse(
@@ -75,7 +98,7 @@ export function prepareLearningLaunch(
     sessionId,
     courseId,
     sessionKind: 'graded',
-    nodeRef: node.id,
+    nodeRef,
     flavour,
     core: {
       queue: generated.queue,
@@ -114,21 +137,24 @@ export function prepareLearningLaunch(
   const launch: LearningLaunch = {
     courseId,
     sessionKind: 'graded',
-    nodeRef: node.id,
+    nodeRef,
     start: {
       sessionId,
       startedAtUtcMs: clock.utcMs,
       startedAtMonotonicMs: clock.monotonicMs,
       startZone: clock.zone,
     },
-    economyFlavour: flavour,
+    economyFlavour: hub?.offer.flavour ?? flavour,
     practiceItemRatio:
-      flavour === 'nodePractice' ? Math.min(1, generated.queue.length / config.targetLength) : 1,
+      hub?.offer.practiceItemRatio ??
+      (flavour === 'nodePractice' ? Math.min(1, generated.queue.length / config.targetLength) : 1),
     longFormEntry: null,
     boostAtStart: boosts.active,
     packContentHash: pack.contentHash,
-    origin: { kind: 'path' },
-    targetNodeId: node.id,
+    origin: hub
+      ? { kind: 'hub', offerId: hub.offer.id, localDay: hub.offer.localDay }
+      : { kind: 'path' },
+    targetNodeId: path?.node.id ?? null,
   };
   const slots = generated.queue.map((q) => {
     const source = [...sourceByExercise.values()].find(
