@@ -1,0 +1,131 @@
+{
+  "artifacts": [
+    {
+      "path": "collection-red.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-adapter-red.xml",
+      "originalSha256": "9b7c886daccee468409654d9a9815f61835de13053b4ffe6179bde55528e2f75",
+      "counts": {
+        "tests": "1",
+        "failures": "0",
+        "errors": "1",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "context-red.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-context-red.xml",
+      "originalSha256": "5652073142b61d085a4609a8473b2244fadcbae944fb997368fbb50e4080d56f",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "drift-red.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-drift-red.xml",
+      "originalSha256": "8a0043bc753753cd30ef09b5c387c1f8510fee452a8e1a9dc06202dc8f301d75",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "verified.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-verified.xml",
+      "originalSha256": "845dc9573ef7eaf25e2be832c0798da0e96acbc3526ff9d93c1618a91f1b310f",
+      "counts": {
+        "tests": "35",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "mutant-answer-set.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-mutants/answer-set.xml",
+      "originalSha256": "8aff4342ce9059953fe536a96827c7b98ddac847b993c78d938b95b91ba71a7f",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "mutant-current-stage.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-mutants/current-stage.xml",
+      "originalSha256": "b3d466c3359e8a21841863654455ef86655375cac2f95cdc92bf65d90cf2293f",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "mutant-contextual-exclusion.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-mutants/contextual-exclusion.xml",
+      "originalSha256": "d34f13f1c525a906b686315106ecea3e7044a8bed511675c34cafeb3c8f030e9",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "mutant-whole-grid.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-mutants/whole-grid.xml",
+      "originalSha256": "d3cd9119829e0c20eca057a8960cacd92ccc273fc4ba566a6dd001943e52d839",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "mutant-validation-drift.xml.gz",
+      "originalPath": "/private/tmp/p3-grading-approval-mutants/validation-drift.xml",
+      "originalSha256": "5cd1b19916677846cf22b8b26473990bf856ecf02d3a14f651601cfdac36af5a",
+      "counts": {
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    },
+    {
+      "path": "actual-lexical-replay.json",
+      "sha256": "8e4be50c7c8c9db5cdcbd76ca2a80c85a1cd09f4700e89be9113cdfde88ecb64"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "f44e5ae9032600aba02229605607b32852db9e059e5acdcfd36f962c17bcec26"
+    },
+    {
+      "path": "actual-lexical-replay.py",
+      "sha256": "bcd3c0c0ec0b0cf5b1c3426f337aef743ce88bfcc96b2fe1fe4451f678eed921"
+    },
+    {
+      "path": "mutants.json",
+      "sha256": "cf0a0a52ea1236eff037f660baf62e738d855111352c82a16ce628f2e814b945"
+    },
+    {
+      "path": "verify.log",
+      "sha256": "1cb154e7f7ee4e456490172d5a2de03958ef77f40a551294e754be68d6df3106"
+    },
+    {
+      "path": "verify.exit",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  ],
+  "sourceFiles": {
+    "tools/coursekit/src/coursekit_grading_approvals.py": "9449faf68870ea209d6470bfab2bafbfb0ae07f74a7cca4de9ae5cfdab286908",
+    "tools/coursekit/tests/test_grading_approvals_adapter.py": "d449f46f4546d0b6be73eae93aaf6c31b343eacd5cef534d6fd681fd4a38902c"
+  }
+}

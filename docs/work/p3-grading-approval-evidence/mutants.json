@@ -1,0 +1,35 @@
+{
+  "productionSha256": "9449faf68870ea209d6470bfab2bafbfb0ae07f74a7cca4de9ae5cfdab286908",
+  "mutants": [
+    {
+      "name": "current-stage",
+      "selection": "old_projection and g4_failed",
+      "exitCode": 1,
+      "moduleSha256": "4a11fd18c61d8fd2787870dd878bdd108afd16f15a94295ab7fe697841e6697d"
+    },
+    {
+      "name": "whole-grid",
+      "selection": "old_projection and partial_grid",
+      "exitCode": 1,
+      "moduleSha256": "10c28f0065d91216c962f0f42e0dc4e4e6f92e985c82773ac8d435c149c0601b"
+    },
+    {
+      "name": "answer-set",
+      "selection": "old_projection and extra_english",
+      "exitCode": 1,
+      "moduleSha256": "84147a8d7e0d11f8faa9bc7439edc206191869db32af5818ff50b94ea9f1d1ec"
+    },
+    {
+      "name": "contextual-exclusion",
+      "selection": "contextual_decoy",
+      "exitCode": 1,
+      "moduleSha256": "da389032557f74613cc63d813aa2b2a3037654d51b844162eae59e97e41edbfc"
+    },
+    {
+      "name": "validation-drift",
+      "selection": "change_during",
+      "exitCode": 1,
+      "moduleSha256": "f3106086a1a991f2c07a8bdd6c19314d3dada0c72c7e7de5eff85de9ce59d27b"
+    }
+  ]
+}

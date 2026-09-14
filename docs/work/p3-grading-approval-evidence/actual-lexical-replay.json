@@ -1,0 +1,265 @@
+{
+  "moduleSha256": "9449faf68870ea209d6470bfab2bafbfb0ae07f74a7cca4de9ae5cfdab286908",
+  "sourceRoot": "/private/tmp/p2r5-source-freeze-20260913",
+  "lexical": [
+    {
+      "sourceId": "1ffb1837095f5854",
+      "text": "tarde",
+      "sourceSha256": "c5fafaf922d046b0358104301a548a335e205cd239241634b799a593ab51a8e8",
+      "valid": true,
+      "projection": {
+        "schemaVersion": 1,
+        "kind": "reviewed-glossary",
+        "sourceId": "1ffb1837095f5854",
+        "sourceSha256": "c5fafaf922d046b0358104301a548a335e205cd239241634b799a593ab51a8e8",
+        "runId": "8e98e1518e734275a2fcce813f7b8504",
+        "upstream": [
+          {
+            "stage": "g0",
+            "runId": "4fd8e46b88674f9f83b74ff0965c9775"
+          },
+          {
+            "stage": "g1",
+            "runId": "fc0632340b02472db6b44484b2c4f826"
+          },
+          {
+            "stage": "g2",
+            "runId": "cc07124880aa4956bc2a2fcd05c3bd35"
+          },
+          {
+            "stage": "g3",
+            "runId": "82d5981747864f128c3dba1a29b21f2c"
+          },
+          {
+            "stage": "g4",
+            "runId": "8e98e1518e734275a2fcce813f7b8504"
+          }
+        ],
+        "slot": [
+          1,
+          1,
+          3
+        ],
+        "register": "tu",
+        "g2Sha256": "64c4cacee4ca3aae43b854083aa882a1cfbe4fd6043be9a7bfbd0c97f024c1b5",
+        "unitSha256": "d29f0f6cbcbf468ca23f7cf4266608729e4b6452130ad44411fa26b967514845",
+        "selectedSha256": "7af4554b6c1fb1660dd6f98b9838d5acff07d045578931138a8199dbc55b088c",
+        "glossarySha256": "9a1863dd7238c0ff12ff722a65d54039a00b05dfb84ec1b87f5b5308f6b96444",
+        "spanish": [
+          "tarde"
+        ],
+        "english": [
+          "late"
+        ]
+      }
+    },
+    {
+      "sourceId": "3b526ef2dcd5d2ca",
+      "text": "noche",
+      "sourceSha256": "90e9d487902340e67e5cf7370428a99830212e9d4b42aab94a14f024d58ba4e5",
+      "valid": true,
+      "projection": {
+        "schemaVersion": 1,
+        "kind": "reviewed-glossary",
+        "sourceId": "3b526ef2dcd5d2ca",
+        "sourceSha256": "90e9d487902340e67e5cf7370428a99830212e9d4b42aab94a14f024d58ba4e5",
+        "runId": "8e98e1518e734275a2fcce813f7b8504",
+        "upstream": [
+          {
+            "stage": "g0",
+            "runId": "4fd8e46b88674f9f83b74ff0965c9775"
+          },
+          {
+            "stage": "g1",
+            "runId": "fc0632340b02472db6b44484b2c4f826"
+          },
+          {
+            "stage": "g2",
+            "runId": "cc07124880aa4956bc2a2fcd05c3bd35"
+          },
+          {
+            "stage": "g3",
+            "runId": "82d5981747864f128c3dba1a29b21f2c"
+          },
+          {
+            "stage": "g4",
+            "runId": "8e98e1518e734275a2fcce813f7b8504"
+          }
+        ],
+        "slot": [
+          1,
+          1,
+          4
+        ],
+        "register": "tu",
+        "g2Sha256": "fb47947403c8c8b3fe5fcc8fee783377832eb08de1ccbca209e6991cc10a90c2",
+        "unitSha256": "d29f0f6cbcbf468ca23f7cf4266608729e4b6452130ad44411fa26b967514845",
+        "selectedSha256": "27b9289bdd37678a1bcdad67e938f2bd2d63483b1e0d861c6c1cfe4adf74ff0d",
+        "glossarySha256": "31f40cb87d0709ae3066afe16674fc30e1ddbb2a6b7e32587c8325b7231cfcba",
+        "spanish": [
+          "noche"
+        ],
+        "english": [
+          "night"
+        ]
+      }
+    },
+    {
+      "sourceId": "905cc6d27f72496c",
+      "text": "hola",
+      "sourceSha256": "db93e231f109d84e1894a9c13f32f70c95dea1d627467d3764d6eb2a7baa73c6",
+      "valid": true,
+      "projection": {
+        "schemaVersion": 1,
+        "kind": "reviewed-glossary",
+        "sourceId": "905cc6d27f72496c",
+        "sourceSha256": "db93e231f109d84e1894a9c13f32f70c95dea1d627467d3764d6eb2a7baa73c6",
+        "runId": "8e98e1518e734275a2fcce813f7b8504",
+        "upstream": [
+          {
+            "stage": "g0",
+            "runId": "4fd8e46b88674f9f83b74ff0965c9775"
+          },
+          {
+            "stage": "g1",
+            "runId": "fc0632340b02472db6b44484b2c4f826"
+          },
+          {
+            "stage": "g2",
+            "runId": "cc07124880aa4956bc2a2fcd05c3bd35"
+          },
+          {
+            "stage": "g3",
+            "runId": "82d5981747864f128c3dba1a29b21f2c"
+          },
+          {
+            "stage": "g4",
+            "runId": "8e98e1518e734275a2fcce813f7b8504"
+          }
+        ],
+        "slot": [
+          1,
+          1,
+          0
+        ],
+        "register": "tu",
+        "g2Sha256": "f3f32c68265039fd179555abc4abaed028e07ae4ead71ce77290612bf073c3f8",
+        "unitSha256": "d29f0f6cbcbf468ca23f7cf4266608729e4b6452130ad44411fa26b967514845",
+        "selectedSha256": "bf55698e00915e96afd74b6d1e3854b5fd25b85ab5e846a91690813d6d4aa15a",
+        "glossarySha256": "14ad57197245d2f1e602f6457f167ab4bfad473115b1b2027983c6e27b94d6d6",
+        "spanish": [
+          "hola"
+        ],
+        "english": [
+          "hello"
+        ]
+      }
+    },
+    {
+      "sourceId": "a9d5732aaaddb58c",
+      "text": "bueno",
+      "sourceSha256": "0ac0e90033b5ec0ed3db3400aeee84ae6a636ba60902fe4528363f81d6c3f650",
+      "valid": true,
+      "projection": {
+        "schemaVersion": 1,
+        "kind": "reviewed-glossary",
+        "sourceId": "a9d5732aaaddb58c",
+        "sourceSha256": "0ac0e90033b5ec0ed3db3400aeee84ae6a636ba60902fe4528363f81d6c3f650",
+        "runId": "8e98e1518e734275a2fcce813f7b8504",
+        "upstream": [
+          {
+            "stage": "g0",
+            "runId": "4fd8e46b88674f9f83b74ff0965c9775"
+          },
+          {
+            "stage": "g1",
+            "runId": "fc0632340b02472db6b44484b2c4f826"
+          },
+          {
+            "stage": "g2",
+            "runId": "cc07124880aa4956bc2a2fcd05c3bd35"
+          },
+          {
+            "stage": "g3",
+            "runId": "82d5981747864f128c3dba1a29b21f2c"
+          },
+          {
+            "stage": "g4",
+            "runId": "8e98e1518e734275a2fcce813f7b8504"
+          }
+        ],
+        "slot": [
+          1,
+          1,
+          1
+        ],
+        "register": "tu",
+        "g2Sha256": "ab57cd5d66f4382b0ae8e4b9646693b8088e8976b0d2500d5b4586509b89ec23",
+        "unitSha256": "d29f0f6cbcbf468ca23f7cf4266608729e4b6452130ad44411fa26b967514845",
+        "selectedSha256": "af76066cdd40516e8a6fac8bfcd85ab9bcbf0629b1d6d6784e894875e767e79d",
+        "glossarySha256": "b28865d2afa77d73dab5e9e13c58a4f421519aef5ee563ca65b1b62cbe7700cf",
+        "spanish": [
+          "bueno"
+        ],
+        "english": [
+          "good"
+        ]
+      }
+    },
+    {
+      "sourceId": "b0911c912f560ac1",
+      "text": "día",
+      "sourceSha256": "39a34b565407e13a1a647dec8ee117e1788927cb97c335089765b7b71294b981",
+      "valid": true,
+      "projection": {
+        "schemaVersion": 1,
+        "kind": "reviewed-glossary",
+        "sourceId": "b0911c912f560ac1",
+        "sourceSha256": "39a34b565407e13a1a647dec8ee117e1788927cb97c335089765b7b71294b981",
+        "runId": "8e98e1518e734275a2fcce813f7b8504",
+        "upstream": [
+          {
+            "stage": "g0",
+            "runId": "4fd8e46b88674f9f83b74ff0965c9775"
+          },
+          {
+            "stage": "g1",
+            "runId": "fc0632340b02472db6b44484b2c4f826"
+          },
+          {
+            "stage": "g2",
+            "runId": "cc07124880aa4956bc2a2fcd05c3bd35"
+          },
+          {
+            "stage": "g3",
+            "runId": "82d5981747864f128c3dba1a29b21f2c"
+          },
+          {
+            "stage": "g4",
+            "runId": "8e98e1518e734275a2fcce813f7b8504"
+          }
+        ],
+        "slot": [
+          1,
+          1,
+          2
+        ],
+        "register": "tu",
+        "g2Sha256": "d69726c143f8bb3e289f52674186dca78edc655c8782bd44f9f4b442ea952de9",
+        "unitSha256": "d29f0f6cbcbf468ca23f7cf4266608729e4b6452130ad44411fa26b967514845",
+        "selectedSha256": "2642cb89953f76e19aef3481a065bbcfbe2b81dc9d98beb45cb79d475e5d5ba7",
+        "glossarySha256": "f45cb2d817e88a10ef5dcc35fc50e65ae6a02d282b1acd6a2153988356b8edaf",
+        "spanish": [
+          "día"
+        ],
+        "english": [
+          "day"
+        ]
+      }
+    }
+  ],
+  "whole": {
+    "approved": false,
+    "reason": "current selected source approval unavailable: missing current g5"
+  }
+}

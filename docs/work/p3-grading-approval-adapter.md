@@ -1,0 +1,23 @@
+# Current Spanish grading source adapter — 2026-09-14
+
+This leaf implements the required `GradingBuildInputs.approval_check` boundary by composing existing authoritative loaders. It does not write source artifacts, run a stage, publish an approval sidecar, add a dependency, issue a native review or change the frozen G0–G9 schemas. The 14 accepted author candidates remain held content proposals.
+
+`coursekit_grading_approvals.GradingApprovalAdapter('es')` exposes:
+
+- `project_lexical(source)` for the exact existing lexical-authoring source shape. It checks successful ordered G0–G4 attempts, the complete G3/G4 grid, exact destination slot/window, current G2 identity/POS and whole glossary review snapshot, actual pinned local analysis, target budget, register and attribution. The returned English set contains the reviewed citation only. Contextual `valid_alternates` remain decoy exclusions; hola→hi needs the separate exact component-answer projection. Its `kind:'reviewed-glossary'` and explicit upstream stage list prevent interpreting its G4 run ID as G6 success.
+- `selected_sources()` returns every actual selected occurrence keyed by exact slot, with canonical source and ephemeral approval projection. It reads the complete current G0/G1/G2/G3/G4/post-G6 candidate population and calls `load_validated_answer_evidence`, including its current successful G6/output hash/review/surface checks. It checks the actual G3 slot grid independently. Proposal IDs, reserves and partial first-unit populations cannot replace selected canonical sources. Sources preserve their original selected snapshot, analysis and provenance.
+- `adapter(source, approval)` recomputes the appropriate current projection and accepts exact equality only. Added Spanish/English forms, pairs, source/run changes and unsupported source kinds fail. There are no injected production validators, success booleans or cached approvals. Pre/post exact file hashes and runlog comparisons reject edits during validation.
+
+The standalone module location is deliberate: the older p6 authoring branch predates the shared upstream evidence implementation and the P7 grading compiler. Tests and replays use the installed interpreter with `-P` and explicit `PYTHONPATH=/Users/mannbellani/freelingo-wt/p2r5-upstream/tools/coursekit/src`; no stale local import fallback is permitted. Parent integration must bring the existing evidence prerequisites before importing this module from the assembled compiler.
+
+## Evidence and limits
+
+Thirty-five focused assertions pass, zero skips/failures/errors. Five private guard mutations each produce exactly one assertion failure: current stage status/order, complete slot grid, exact answer set, contextual exclusion, and validation-time source drift. Ruff check and format pass. The initial new-module collection failure is setup evidence only. The contextual-evening projection and source-mutation-during-analysis regressions each have preserved assertion REDs before their fixes.
+
+A separate actual replay reads the full frozen source root, the current independently reviewed glossary and real pinned `spacy_es` model. All five exact lexical proposals (hola, día, noche, bueno, tarde) validate; the whole-source loader refuses `missing current g5`. The transport tests' successful G6 fixture uses real isolated artifact/runlog/approval files and the real shared loader but explicitly synthetic grammar/pair checks; it is not language-engine execution or a production G6 result. No current whole-source G6 approval exists for this author revision.
+
+The current implementation favors exact revalidation over caching. Repeating `selected_sources()` per whole-source callback rereads and hashes the complete G0/G1 population (hundreds of MB). Before full-pack compilation, an explicitly scoped build snapshot with final revalidation should amortize this work while preserving the same authoritative loader and post-read checks. Do not replace this with a cached success flag or a filesystem-stat-only proof. This leaf has not performed a full-pack benchmark or gate.
+
+`p3-grading-approval-evidence/manifest.json` binds source and raw evidence hashes. XML is losslessly compressed; no failed output is rewritten as green. See the separately committed source census/plan in `docs/content/es-first-path-source-plan-20260914` for the remaining six-session authoring work. Source submission, component answer projection, full path/producer integration, native launch, validators/sample, real CI artifacts and paid native review remain outstanding.
+
+**PROVISIONAL (unreviewed by a paid native speaker)**.
