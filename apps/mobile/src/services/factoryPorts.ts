@@ -3,7 +3,11 @@ import type { NotificationSettingsSnapshot } from '@freelingo/core/notifications
 import type { AppRuntime } from '../app/ports';
 import type { OpenedProgressDb } from '../db/ExpoDb';
 import type { PersistenceStatus } from '../db/startPersistence';
-import type { LearningRuntimeConstructor, LearningRuntimePorts } from '../db/learningRuntimePorts';
+import type {
+  LearningRuntimeConstructor,
+  LearningRuntimePorts,
+  LearningSessionView,
+} from '../db/learningRuntimePorts';
 import type { InstalledPackRepository } from '../packs/installedPackPorts';
 import type { OnboardingFlowPorts } from './onboarding';
 
@@ -28,6 +32,10 @@ export interface FactoryResources {
   /** Prepare native facts without prompting. Publication reconciles widget/reminders
    * only after the durable day/session chain has finished. Neither writes rewards. */
   prepareForeground(): Promise<void>;
+  /** Reconcile the exact saved session/slot/pack variant before its next snapshot.
+   * Native owner deduplicates identical media bindings; null disarms hidden/background
+   * lessons without starting playback, recording or a permission request. */
+  activateLessonMedia(view: LearningSessionView | null): Promise<void>;
   publishAndRearm(): Promise<void>;
   background(): Promise<void>;
   subscribe(invalidate: () => void): () => void;

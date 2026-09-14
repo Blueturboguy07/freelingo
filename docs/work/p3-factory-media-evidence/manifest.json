@@ -1,0 +1,75 @@
+{
+  "baseCommit": "e72213159c688bacf2646ab9f2560c55b459cd61",
+  "sourceSha256": {
+    "apps/mobile/src/services/factoryPorts.ts": "3aae214bdafef5f5339443a3eb1802258f7ecb652f985e24c0e9f4a47bed5b15",
+    "apps/mobile/src/services/freelingo.ts": "7d31d056aa755354205172a3afe18c5da8d430aad4d9d5cf07a225570585bf7f",
+    "apps/mobile/src/services/freelingo.test.ts": "64783fd0b639723809bc41e4c0c1addff5706a5f9e7b58e3078e319d18219467",
+    "apps/mobile/src/services/lessonMediaBinding.ts": "0aa04cfa5b1f46d6136fa6f1feca8e3e2fc38e76311de2e67c36ea115a96f7a9",
+    "apps/mobile/src/services/lessonMediaBinding.test.ts": "645fa0db1f74b5b185bfffcf69da252c8ecdfec9df026ccf915e66fc6c104a49",
+    "apps/mobile/src/services/lessonMediaBinding.source.test.ts": "73a849ca31cb2ea1af5749fe702bda606b62c59d18045292d9de753f12ca1cd3",
+    "apps/mobile/src/services/lessonMediaComposition.test.ts": "8b60a59661f9242f45f5ce98205f90b63bc847fd7a4318e54b16c8f561564252"
+  },
+  "evidence": {
+    "binding-initial-red": {
+      "source": "/private/tmp/p3-media-binding-red.xml",
+      "xmlSha256": "802ffa01743fbde49aa53436d321fc22a496423fb70b49f0327ac98f50c22803",
+      "summary": {
+        "name": "vitest tests",
+        "tests": "1",
+        "failures": "1",
+        "errors": "0",
+        "time": "0"
+      }
+    },
+    "factory-red": {
+      "source": "/private/tmp/p3-factory-media-red.xml",
+      "xmlSha256": "42aeb5ff6ebb19fda3dba018e8c660136595c52a5fe14abc9bdd67d80aa072ae",
+      "summary": {
+        "name": "vitest tests",
+        "tests": "31",
+        "failures": "5",
+        "errors": "0",
+        "time": "1.883212292"
+      }
+    },
+    "independent-ja-red": {
+      "source": "/private/tmp/p3-media-independent/red2.xml",
+      "xmlSha256": "1dca01f26089d5eedc0a934013adf0cb42b523aa3d4f7627a8b4802fa2e4ed77",
+      "summary": {
+        "name": "vitest tests",
+        "tests": "6",
+        "failures": "2",
+        "errors": "0",
+        "time": "0.006924209"
+      }
+    },
+    "independent-green": {
+      "source": "/private/tmp/p3-media-independent/green.xml",
+      "xmlSha256": "47366fdf2246165a6ead7d80b59fe2500f22e3484e00bfc6dbaaa880c5bed712",
+      "summary": {
+        "name": "vitest tests",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "time": "0.003703959"
+      }
+    },
+    "integrated-green": {
+      "source": "/private/tmp/p3-factory-media-integrated.xml",
+      "xmlSha256": "8eb91698364daae080d811d7bfc264d44fc8940f6b9eb823c0a6dc677576e160",
+      "summary": {
+        "name": "vitest tests",
+        "tests": "67",
+        "failures": "0",
+        "errors": "0",
+        "time": "1.020598001"
+      }
+    }
+  },
+  "staticChecks": {
+    "typecheck": 0,
+    "lint": 0,
+    "coverageMap": 0
+  },
+  "nativeDeviceGate": false
+}

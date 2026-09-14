@@ -128,7 +128,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         if (closing) return;
         for (const listener of listeners) listener();
       }
-      function perform<T>(operation: () => T | Promise<T>): Promise<T> {
+      function enqueue<T>(operation: () => T | Promise<T>): Promise<T> {
         if (closing) return Promise.reject(new AppDataError('The application runtime is closed.'));
         const run = queue.then(operation);
         queue = run.then(
@@ -137,10 +137,61 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         );
         return run;
       }
+      let mediaForeground = false;
+      async function synchronizeMedia(): Promise<void> {
+        let view;
+        try {
+          view =
+            mediaForeground && !learning.readOffer() && !learning.readCeremony()
+              ? learning.readSession()
+              : null;
+        } catch (error) {
+          try {
+            await native.activateLessonMedia(null);
+          } catch (cleanup) {
+            throw new AggregateError(
+              [error, cleanup],
+              'Saved lesson read and media cleanup failed.',
+            );
+          }
+          throw error;
+        }
+        await native.activateLessonMedia(view);
+      }
+      function perform<T>(operation: () => T | Promise<T>): Promise<T> {
+        return enqueue(async () => {
+          let result: T | undefined;
+          let failed = false;
+          let failure: unknown;
+          try {
+            result = await operation();
+          } catch (error) {
+            failed = true;
+            failure = error;
+          }
+          // An operation can fail after committing. Reconcile its actual saved state
+          // before a later snapshot; never keep an earlier audio lease by assumption.
+          try {
+            await synchronizeMedia();
+          } catch (cleanup) {
+            if (failed)
+              throw new AggregateError(
+                [failure, cleanup],
+                'Application operation and media reconciliation failed.',
+              );
+            throw cleanup;
+          }
+          if (failed) throw failure;
+          return result as T;
+        });
+      }
       async function foreground() {
+        mediaForeground = false;
         await native.prepareForeground();
         await refresh();
         await learning.foreground();
+        mediaForeground = true;
+        await synchronizeMedia();
         await native.publishAndRearm();
       }
       function snapshot(): AppSnapshot {
@@ -219,11 +270,11 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         opened,
         persistence: status,
         media: native.media,
-        readSnapshot: async () => {
-          await queue;
-          if (closing) throw new AppDataError('The application runtime is closed.');
-          return snapshot();
-        },
+        readSnapshot: () =>
+          enqueue(async () => {
+            await synchronizeMedia();
+            return snapshot();
+          }),
         handleOnboarding: (event) => perform(() => onboarding.dispatch(event)),
         launchLesson: (request) =>
           perform(async () => {
@@ -304,6 +355,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         foreground: () => perform(foreground),
         background: () =>
           perform(async () => {
+            mediaForeground = false;
             const failures: unknown[] = [];
             try {
               await learning.background();

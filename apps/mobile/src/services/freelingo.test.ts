@@ -6,7 +6,12 @@ import { createNodeDb } from '../../../../packages/testkit/src/nodeDb';
 import { toLocalDay } from '@freelingo/core/day';
 import { openPack, type PackReader } from '@freelingo/core/packs';
 import type { HubInput } from '@freelingo/core/hub';
-import type { LearningRuntime, LearningRuntimePorts } from '../db/learningRuntimePorts';
+import { freshSession, item } from '@freelingo/core/session';
+import type {
+  LearningSessionView,
+  LearningRuntime,
+  LearningRuntimePorts,
+} from '../db/learningRuntimePorts';
 import type { OpenedProgressDb } from '../db/ExpoDb';
 import type { FactoryBindings, FactoryResources } from './factoryPorts';
 import { SqliteAppState } from './SqliteAppState';
@@ -105,9 +110,9 @@ function fixture(active = false) {
     dispatch: vi.fn(async () => {}),
     complete: vi.fn(async () => {}),
     recordExposure: vi.fn(async () => {}),
-    readSession: () => null,
+    readSession: vi.fn<() => LearningSessionView | null>(() => null),
     readCeremony: () => null,
-    readOffer: () => null,
+    readOffer: vi.fn<LearningRuntime['readOffer']>(() => null),
     readScheduler: () => {
       throw Error('Unused in factory');
     },
@@ -246,6 +251,7 @@ function fixture(active = false) {
     },
     readUi: () => ({ theme: 'dark', boldText: true, highContrast: true }),
     audioBytesPresent: () => 0,
+    activateLessonMedia: vi.fn(async (_view: LearningSessionView | null) => {}),
     prepareForeground: vi.fn(async () => {
       events.push('prepare');
     }),
@@ -567,5 +573,110 @@ it('[INV-ECO-21] publication failure preserves a committed goal and retry publis
   await runtime.loop.setGoal('serious');
   expect(f.resources.publishAndRearm).toHaveBeenCalledOnce();
   expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
+  await runtime.close();
+});
+
+function mediaFrame(): LearningSessionView {
+  const queued = item(1, { type: 'listenTypeWhatYouHear' });
+  return {
+    exerciseId: 'media-exercise',
+    state: { ...freshSession({ queue: [queued] }), shellState: 'challenge.idle' },
+    challenge: {
+      itemId: queued.itemId,
+      type: queued.type,
+      instruction: 'Listen',
+      prompt: 'hola',
+      language: 'es',
+      acceptedAnswers: ['hola'],
+      audioRef: 'verified-ref',
+    },
+  };
+}
+it('[INV-SESS-27][INV-AUD-06] launch and snapshot await exact saved exercise media activation', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open(),
+    frame = mediaFrame(),
+    gate = deferred();
+  vi.mocked(f.resources.activateLessonMedia).mockClear();
+  f.engine.start.mockImplementationOnce(async () => {
+    f.engine.readSession.mockReturnValue(frame);
+  });
+  vi.mocked(f.resources.activateLessonMedia).mockImplementationOnce(async () => gate.promise);
+  let launched = false,
+    read = false;
+  const launch = runtime
+    .launchLesson({
+      kind: 'path',
+      request: { nodeId: 'u001:learn', unitIndex: 0, flavour: 'lesson' },
+    })
+    .then(() => {
+      launched = true;
+    });
+  const snapshot = runtime.readSnapshot().then((value) => {
+    read = true;
+    return value;
+  });
+  await vi.waitFor(() => expect(f.resources.activateLessonMedia).toHaveBeenCalledWith(frame));
+  expect(launched).toBe(false);
+  expect(read).toBe(false);
+  gate.resolve();
+  await launch;
+  expect((await snapshot).lesson).toEqual(frame);
+  await runtime.close();
+});
+it('[INV-SESS-27] a durable transition that rejects after changing its saved source still disarms old media', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open(),
+    frame = mediaFrame();
+  f.engine.readSession.mockReturnValue(frame);
+  await runtime.readSnapshot();
+  f.engine.dispatch.mockImplementationOnce(async () => {
+    f.engine.readSession.mockReturnValue(null);
+    throw Error('saved then publication failed');
+  });
+  await expect(runtime.dispatchLesson({ type: 'rendered' })).rejects.toThrow(
+    'saved then publication failed',
+  );
+  expect(f.resources.activateLessonMedia).toHaveBeenLastCalledWith(null);
+  await runtime.close();
+});
+it('[INV-SESS-27] background disarms the lesson and foreground rebinds its preserved saved source', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open(),
+    frame = mediaFrame();
+  f.engine.readSession.mockReturnValue(frame);
+  await runtime.readSnapshot();
+  await runtime.background();
+  expect(f.resources.activateLessonMedia).toHaveBeenLastCalledWith(null);
+  await runtime.foreground();
+  expect(f.resources.activateLessonMedia).toHaveBeenLastCalledWith(frame);
+  await runtime.close();
+});
+it('[INV-SESS-27] resume choice hides active lesson media without activating or rewriting the parked session', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open(),
+    frame = mediaFrame();
+  f.engine.readSession.mockReturnValue(frame);
+  await runtime.readSnapshot();
+  f.engine.readOffer.mockReturnValue({
+    kind: 'resume',
+    sessionId: frame.state.sessionId,
+    lessonLabel: frame.state.nodeRef,
+  });
+  await runtime.readSnapshot();
+  expect(f.resources.activateLessonMedia).toHaveBeenLastCalledWith(null);
+  expect(f.engine.resolveOffer).not.toHaveBeenCalled();
+  expect(f.engine.dispatch).not.toHaveBeenCalled();
+  await runtime.close();
+});
+it('[INV-SESS-27] failed native activation prevents snapshots until that exact saved binding can be prepared', async () => {
+  const f = fixture(true),
+    runtime = await f.services.open(),
+    frame = mediaFrame();
+  f.engine.readSession.mockReturnValue(frame);
+  vi.mocked(f.resources.activateLessonMedia).mockRejectedValueOnce(Error('activation unavailable'));
+  await expect(runtime.readSnapshot()).rejects.toThrow('activation unavailable');
+  expect((await runtime.readSnapshot()).lesson).toEqual(frame);
+  expect(f.resources.activateLessonMedia).toHaveBeenLastCalledWith(frame);
   await runtime.close();
 });
