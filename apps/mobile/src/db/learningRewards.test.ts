@@ -27,6 +27,7 @@ import {
   type StepDeps,
 } from '@freelingo/core/session';
 import { toLocalDay } from '@freelingo/core/day';
+import { HUB_CONFIG } from '@freelingo/core/hub';
 import { DAILY_GOAL_CHEST_GEMS } from '@freelingo/core/economy';
 import { createNodeDb } from '../../../../packages/testkit/src/nodeDb';
 import { readPathModel } from '../services/readPathModel';
@@ -46,12 +47,15 @@ afterEach(() => {
 });
 const epoch = Date.parse('2026-09-13T12:00:00Z');
 const zone = { tzId: 'UTC', utcOffsetMinutes: 0, tzSource: 'fixed_offset' } as const;
-function completed(sessionId = 'session-1', itemId = 'item-1'): SessionState {
+function completed(sessionId = 'session-1', itemId = 'item-1', physicalItems = 1): SessionState {
   let state = freshSession({
     sessionId,
     flavour: 'nodePractice',
     nodeRef: 'u001:learn',
-    queue: [{ ...item(1, { nodeRef: 'u001:learn' }), itemId }],
+    queue: Array.from({ length: physicalItems }, (_, n) => ({
+      ...item(n + 1, { nodeRef: 'u001:learn' }),
+      itemId: n === 0 ? itemId : `${itemId}:${n}`,
+    })),
     motivationalMessages: false,
     monotonicMs: 1000,
   });
@@ -63,7 +67,7 @@ function completed(sessionId = 'session-1', itemId = 'item-1'): SessionState {
     isTypeEligible: () => true,
     stepUpTripped: () => false,
   };
-  for (let n = 0; n < 20 && state.exited === null; n++) {
+  for (let n = 0; n < 100 && state.exited === null; n++) {
     const event =
       state.shellState === 'loading'
         ? { type: 'rendered' as const }
@@ -79,7 +83,7 @@ function completed(sessionId = 'session-1', itemId = 'item-1'): SessionState {
   expect(state.exited).toBe('complete');
   return state;
 }
-function setup(sessionId = 'session-1') {
+function setup(sessionId = 'session-1', hubItems?: number) {
   const db = createNodeDb();
   migrate(db);
   new SqliteWordStore(db).initializeFreshHistory(epoch, { databaseWasCreated: true });
@@ -127,19 +131,22 @@ function setup(sessionId = 'session-1') {
       throw Error('No grading is performed by rewards');
     },
   };
-  const state = completed(sessionId);
+  const state = completed(sessionId, 'item-1', hubItems ?? 1);
   const context: LearningContext = {
     launch: {
       courseId: 'en-es',
       sessionKind: 'graded',
       nodeRef: 'u001:learn',
       start: { sessionId, startedAtUtcMs: epoch, startedAtMonotonicMs: 1000, startZone: zone },
-      economyFlavour: 'hubWords',
-      practiceItemRatio: 1,
+      economyFlavour: hubItems === undefined ? 'nodePractice' : 'hubTargetPractice',
+      practiceItemRatio: hubItems === undefined ? 1 : hubItems / HUB_CONFIG.target,
       longFormEntry: null,
       boostAtStart: null,
       packContentHash: verified.contentHash,
-      origin: { kind: 'hub', offerId: 'words', localDay: toLocalDay('2026-09-13') },
+      origin:
+        hubItems === undefined
+          ? { kind: 'path' }
+          : { kind: 'hub', offerId: 'target', localDay: toLocalDay('2026-09-13') },
       targetNodeId: null,
     },
     startedLocalDay: toLocalDay('2026-09-13'),
@@ -1476,3 +1483,23 @@ it('[INV-ECO-09][INV-CER-01] mode boundary refuses a reward when the serialized 
   expect(() => planLearningRewards(db, { ...input, state })).toThrow(/engine.*economy/);
   expect(db.get('SELECT total_changes() AS n')).toEqual(before);
 });
+
+it.each([
+  [1, 0],
+  [3, 2],
+  [10, 8],
+])(
+  '[INV-HUB-06][INV-ECO-15] a real %i-item Hub completion persists capped %i XP without changing its physical ratio',
+  (served, expectedXp) => {
+    const { db, input } = setup('hub-rate', served);
+    expect(input.state.core.queue).toHaveLength(served);
+    expect(input.state.core.answers).toHaveLength(served);
+    const receipt = apply(db, input);
+    expect(receipt.state.session.xp).toBe(expectedXp);
+    expect(db.get('SELECT xp_awarded FROM committed_session')?.xp_awarded).toBe(expectedXp);
+    expect(
+      db.get('SELECT practice_item_ratio FROM course_session_context')?.practice_item_ratio,
+    ).toBe(served / HUB_CONFIG.target);
+    expect(db.get('SELECT lifetime_xp FROM account')?.lifetime_xp).toBe(expectedXp);
+  },
+);

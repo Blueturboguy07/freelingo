@@ -8,17 +8,8 @@ import { serveItemsFromPool, type ReviewPoolDay } from '../scheduler/pool.js';
 import type { ItemId } from '../scheduler/types.js';
 import type { ActiveBoost, SessionFlavour, XpLadderMode } from '../types/index.js';
 
-/** Freelingo choices, 2026-09-13; deep07, EC-HUB02/03/08 and EC-MIS05/06. */
-export const HUB_CONFIG = {
-  target: 10,
-  maxChoices: 4,
-  mistakeCap: 60,
-  mistakeAgeDays: 30,
-  recentDays: 14,
-  rewindCooldownDays: 7,
-  pathPromotionDays: 3,
-  fallbackOrder: ['rewind', 'words'],
-} as const;
+import { HUB_CONFIG } from './config.js';
+export { HUB_CONFIG } from './config.js';
 export type HubKind =
   'today' | 'mistakes' | 'words' | 'listen' | 'speak' | 'target' | 'rewind' | 'path';
 export type HubPracticeMode = Exclude<HubKind, 'path'>;

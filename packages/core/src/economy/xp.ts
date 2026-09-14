@@ -10,6 +10,7 @@
  *
  * Every number comes from `config.ts`. Nothing here spells one.
  */
+import { HUB_SESSION_FLAVOURS } from '../types/index.js';
 import type {
   ActiveBoost,
   SessionFlavour,
@@ -20,6 +21,7 @@ import {
   BOOST_GRACE_SECONDS,
   FLAVOUR_XP,
   GOAL_TIERS,
+  HUB_XP_RATE,
   RADIO_XP,
   REPLAY_PRACTICE_XP,
   STORY_XP,
@@ -155,6 +157,8 @@ export function dailyRefreshOutcomeFor(alreadyCompletedToday: boolean): SessionO
 
 /* -------------------------------------------------------------------- the award */
 
+const hubFlavours: ReadonlySet<SessionFlavour> = new Set(HUB_SESSION_FLAVOURS);
+
 export interface AwardInput {
   readonly flavour: SessionFlavour;
   readonly outcome: SessionOutcomeKind;
@@ -247,8 +251,9 @@ export function baseXpFor(input: AwardInput): number {
  * The ONE place a session's XP is decided.
  *
  * Ordered and explicit, so a term that is switched off contributes zero rather than
- * being silently dropped (EC-ECO-26): `base (+ combo) x ladder x boost`, then clamped to
- * what is left of the mode's daily cap.
+ * being silently dropped (EC-ECO-26). Hub bounds its prorated base at the lesson's
+ * per-exercise rate; all modes apply ladder/boost, floor once, then the daily cap.
+ * The returned baseXp remains the nominal config award for existing receipt metadata.
  */
 export function awardForSession(input: AwardInput): SessionAward {
   const practiceItemRatio = input.practiceItemRatio ?? 1;
@@ -263,7 +268,19 @@ export function awardForSession(input: AwardInput): SessionAward {
     committedAtUtc: input.committedAtUtc,
   });
   const reduced = ladderMultiplier(ladderMode, input.ladderStateToday.sessionsCompleted);
-  const gross = Math.floor(baseXp * reduced * boost.appliedMultiplier * practiceItemRatio);
+  const proratedBase = baseXp * practiceItemRatio;
+  const boundedBase = hubFlavours.has(input.flavour)
+    ? Math.min(
+        proratedBase,
+        (HUB_XP_RATE.lessonBaseXp / HUB_XP_RATE.lessonTarget) *
+          (HUB_XP_RATE.hubTarget * practiceItemRatio),
+      )
+    : proratedBase;
+  const gross = Math.floor(
+    hubFlavours.has(input.flavour)
+      ? boundedBase * reduced * boost.appliedMultiplier
+      : baseXp * reduced * boost.appliedMultiplier * practiceItemRatio,
+  );
   const remaining = Math.max(0, ladderDailyCap(ladderMode) - input.ladderStateToday.xpAwarded);
   const awardedXp = Math.max(0, Math.min(gross, remaining));
   return {
@@ -309,14 +326,15 @@ export function advertisedXpFor(
 ): AdvertisedXp {
   const row = flavourRow(flavour, outcome);
   const shape = FLAVOUR_XP[flavour];
-  const xp = baseXpFor({
+  const input: AwardInput = {
     flavour,
     outcome,
     ...(longFormEntry === undefined ? {} : { longFormEntry }),
     boostAtSessionStart: null,
     committedAtUtc: new Date(0).toISOString(),
     ladderStateToday: EMPTY_LADDER_STATE,
-  });
+  };
+  const xp = hubFlavours.has(flavour) ? awardForSession(input).awardedXp : baseXpFor(input);
   return {
     xp,
     isFloor: row.awardsXp && shape.comboApplies && shape.longForm === null,
