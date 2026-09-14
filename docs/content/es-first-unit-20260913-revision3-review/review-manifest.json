@@ -63,7 +63,7 @@
     "G7-G9 integration, full validators and new 300-item scoring",
     "Paid native reviewer before release"
   ],
-  "generationWitnessSha256": "4e2ee58611de6fc513a6e70941d007a182394836c2e36a84334b89f50bcf5409",
+  "generationWitnessSha256": "7c1d5a08a207ecd00944c5db8f83684eaf3554e5b112abbcd426482cb44892cf",
   "generationResultSha256": "5935c6e0376fb940219edab5f8f8d5aa250b40f5efc83e9d9e5973f415a3b229",
   "independentGeneratorTest": {
     "passed": 1,
@@ -75,5 +75,13 @@
     "packages/core/src/session/generate.ts": "9fc5c5a3a471c7ec8a871b6d49da162af2a8c00dae30995924eb4b8d3b939645",
     "packages/core/src/session/flavours.ts": "021063a7a7ab1ca65a0792bce700b918740996883d2316376f06b0bbd38e0009",
     "packages/core/src/session/registry.ts": "81593b4525e67497c747911edba255ebb39726ef9c22f65c3c0c2873192b257c"
+  },
+  "formattedWitnessReplay": {
+    "date": "2026-09-14",
+    "exitCode": 0,
+    "sourceSha256": "7c1d5a08a207ecd00944c5db8f83684eaf3554e5b112abbcd426482cb44892cf",
+    "junitSha256": "b0c9b6b4e90415f37bb77853c70c8cee1299a9678dccdd8fd6106072401ad7a0",
+    "logSha256": "15f8ebe28ddfc66b569579bdabe153f8ca962d6a909a9d34dfced4cfa2080fa7",
+    "scope": "Re-executed exact checked-in formatted witness; original execution evidence retained."
   }
 }

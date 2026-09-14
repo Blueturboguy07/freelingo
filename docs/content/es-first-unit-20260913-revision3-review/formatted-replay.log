@@ -1,0 +1,11 @@
+
+ RUN  v3.2.7 /private/tmp/p3-spanish-revision3-review
+
+ ✓ first-session.test.ts (1 test) 23ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  03:20:31
+   Duration  1.76s (transform 408ms, setup 0ms, collect 141ms, tests 23ms, environment 0ms, prepare 716ms)
+
+JUNIT report written to /private/tmp/p3-spanish-revision3-review/formatted-replay.xml
