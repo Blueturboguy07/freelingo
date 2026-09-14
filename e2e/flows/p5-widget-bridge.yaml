@@ -1,0 +1,28 @@
+# [INV-WID-01][INV-WID-04] Native bridge proof only, never account or target parity.
+# Harness must preserve publication-v1.json, seed a baseline only when absent,
+# then restore original bytes/file absence after this flow. Do not clear app data.
+# EXPO_PUBLIC_FREELINGO_E2E=1 is required at bundle time.
+appId: org.freelingo.app
+name: p5-widget-bridge
+tags: [p5, widget, native-bridge]
+---
+- extendedWaitUntil:
+    visible:
+      id: app-title
+    timeout: 60000
+- longPressOn:
+    id: app-title
+- assertVisible:
+    id: dev-diagnostics
+- scrollUntilVisible:
+    element:
+      id: native-widget-probe
+    direction: DOWN
+- tapOn:
+    id: native-widget-probe
+- extendedWaitUntil:
+    visible:
+      id: native-widget-result
+      text: bridge-passed
+    timeout: 15000
+- takeScreenshot: p5-widget-bridge
