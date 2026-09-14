@@ -1,0 +1,100 @@
+Name, please.
+Your name, please.
+My name is Ana.
+What is your name?
+Is your name Ana?
+Hello, my name is Luis.
+My name is not Ana.
+Yes, that is my name.
+That is not my name.
+Is this your name?
+My name is Pedro.
+Can you say your name?
+Write your name, please.
+How is your name spelled?
+Your name is very nice.
+I have a short name.
+Given name and surname, please.
+Is it a Spanish name?
+This is my name.
+Thank you, now I know your name.
+Surname, please.
+Your surname, please.
+My surname is García.
+What is your surname?
+Is your surname López?
+Hello, my surname is Pérez.
+My surname is not Ruiz.
+Yes, that is my surname.
+That is not my surname.
+Is this your surname?
+My surname is Moreno.
+Can you say your surname?
+Write your surname, please.
+How is your surname spelled?
+Your surname is very long.
+I have a short surname.
+That surname is Spanish.
+Is it a common surname?
+This is my surname.
+Thank you, now I know your surname.
+Good morning, sir.
+Good evening, sir.
+Hello, good morning, sir.
+Yes, sir, thank you very much.
+No, sir, thank you.
+Goodbye, sir, see you later.
+Good morning, Mr. García.
+The gentleman is called Luis.
+The gentleman is Spanish.
+That man is my father.
+The gentleman has a long surname.
+Hello, sir, good afternoon.
+The gentleman does not speak English.
+The gentleman is well.
+That gentleman is a teacher.
+The gentleman lives here.
+Please wait, sir.
+Excuse me, sir.
+Nice to meet you, sir.
+Thank you, sir, see you tomorrow.
+Good morning, ma’am.
+Good evening, ma’am.
+Hello, good morning, ma’am.
+Yes, ma’am, thank you very much.
+No, ma’am, thank you.
+Goodbye, ma’am, see you later.
+Good morning, Ms. García.
+The lady is called Ana.
+The lady is Spanish.
+That woman is my mother.
+The lady has a short surname.
+Hello, ma’am, good afternoon.
+The lady does not speak English.
+The lady is well.
+That lady is a teacher.
+The lady lives here.
+Please wait, ma’am.
+Excuse me, ma’am.
+Nice to meet you, ma’am.
+Thank you, ma’am, see you tomorrow.
+No, not much.
+Not much, thank you.
+Yes, a lot, thank you.
+I work a lot.
+He works a lot.
+I study a lot.
+He studies a lot.
+I talk a lot.
+He talks a lot.
+I do not talk much.
+He does not work much.
+I like your name a lot.
+I like your surname a lot.
+I am very glad to see you.
+I love you a lot.
+I learn a lot with you.
+I read a lot in Spanish.
+Thank you, you help me a lot.
+I really enjoy the conversation.
+I make a great effort to learn.

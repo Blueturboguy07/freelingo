@@ -1,0 +1,35 @@
+{
+  "authorCommit": "f66c53b79357f9f5e1ecadde00604dcd0fad5307",
+  "reviewer": "Codex independent Spanish lesson4 reviewer /root/review_g7_integration",
+  "authorFiles": {
+    "existing-text-overlaps.json": "916bd633e0e6e24a9cb9eacf180e3ed438f06dbe039ad4343fc745ab8474e954",
+    "authoring.json": "7bf5a0f822f92c39909978d114aa229b16328d83e1b7b76cb5a19ea79ce5b3e0",
+    "README.md": "724fb7d92a54ac306dce61205501727ec63cc2f07af8d2f7091298a6657b303d",
+    "raw-g5-proposals.jsonl": "41df3e71d93faa5935ce9f9015c8f7505388c0f7ffa86e96f392fcc5fd4957df",
+    "source-inputs.json": "6e7f2619935e6b9520cf68ce3d6625a80f62fdfad3f166e6302869cd3397f886",
+    "structural-checks.json": "f44454dc4d4efaa78a6e1a9f7ae7052dcb6bfb795accedf89365c093eb853f92"
+  },
+  "rawSourceChecksOriginalSha256": "2d1e90dbe504db7fd82720dd091e539f66cee6381957d4adf4a6f0fca3fcbee5",
+  "decisions": 224,
+  "files": {
+    "source-check.log": "f138cb9ecf21d0c528869a9265085653f3b1a3f90497dd24a1527a64ac64468c",
+    "independent-readings.txt": "20af11ec16a0c05826390f8c3818d3d1a4a86ef9d55c51df73888ec02c26023e",
+    "source-check.py": "5f0ba3b60d2a2c7c6549122de523745cab2b4c9a3d3e461989fdaf68409d4834",
+    "checks.json": "88ce2575e5d928f4d3968b58d3fe5a7beee52a879680eb588e6115f09540f3c8",
+    "README.md": "b61694ea33d07053f4764a9b20bc0be90dcfc29bc363dce86f40ff7eaa83b6a8",
+    "decisions.jsonl": "8b9bf7fb37355b6df73bfef38d961a81ca0a9330fc38a833be9c378e41d8df93",
+    "source-check.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "actual-source-checks.json.gz": "5779221b0e78480d24e00294b1d0e2e6adccb93b9d2216527c7623d2d5e45e2a",
+    "rubric.jsonl": "ce40b783f33032659d6a682b86c07bbe885c7ec65e0c279f234164dd9652f929"
+  },
+  "rubric": {
+    "path": "/Users/mannbellani/freelingo-wt/p2r5-upstream/content/es/gapfill-rubric.md",
+    "sha256": "aa1bbf2395edb40765f4de4410e0228603c87b9a5f5cbec37fb4491e826e0221",
+    "scoredPairs": 100,
+    "scoreCounts": {
+      "3": 6,
+      "4": 94
+    },
+    "method": "independent agent judgement, not a model round-trip"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "recognitionProposalsReviewed": 6,
+  "canonicalRawPairsReviewed": 100,
+  "recognitionLemmaPOSMatches": 6,
+  "rawPerGap": 20,
+  "rawGapCounts": {
+    "4": 20,
+    "5": 20,
+    "6": 20,
+    "7": 20,
+    "8": 20
+  },
+  "actualG5Compatible": 17,
+  "actualG5Rejected": 83,
+  "actualG5CompatibleBySlot": {
+    "4": 1,
+    "5": 1,
+    "6": 6,
+    "7": 6,
+    "8": 3
+  },
+  "formalRegisterRejectedRows": [
+    57,
+    77
+  ],
+  "passingButTargetPOSMismatchRows": [
+    21
+  ],
+  "currentSourceApprovalIssued": false,
+  "G5StageRan": false,
+  "G6Ran": false,
+  "paidNativeReview": false
+}
