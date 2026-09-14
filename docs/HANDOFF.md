@@ -1,35 +1,21 @@
-> **Current scheduling instruction (2026-09-13):** the founder authorized P3–P8 implementation in parallel with the Spanish audit. Read [PARALLEL-IMPLEMENTATION.md](PARALLEL-IMPLEMENTATION.md) first. P2 remains red; later phase gates are pending. The sequential-only instructions and “not started” statements below are historical.
+# Handoff — parallel desktop implementation, 2026-09-14
 
-# Handoff — desktop takeover, 2026-09-13 UTC
+Read **`docs/PARALLEL-STATUS.md`** and **`docs/PARALLEL-IMPLEMENTATION.md`** for the current candidate status and founder-authorized scheduling. The original CLI was stopped and all work continues in this desktop task. The founder explicitly authorized P3–P8 implementation alongside Spanish; the old P2-before-P3 sequencing below is historical.
 
-The original Claude handoff was superseded by a Codex CLI run and then this desktop
-task. The founder requested that the CLI be stopped and all work continue here. The CLI
-was stopped; existing edits and worktrees were preserved. Read `AGENTS.md`, then
-**`docs/P2-TAKEOVER.md`** for the current checkpoint and authorized round-5 plan.
+P0/P1 are GREEN. P2 remains RED. P3–P8 are in implementation, with phase gates pending. Main remains the P0 smoke app; the integrated candidate is the separate `codex/p3-app` worktree. Native composition, full content packs, source validation, measured parity and device/CI evidence still govern completion. Candidate review fixes do not count as additional full phase gates.
 
-P2 is still red. P0/P1 are green; the mobile entry point is still the P0 database smoke
-test. P3–P8 have not started. The round-4 branch table and environment history below are
-retained for recovery and must not be mistaken for current branch/integration status.
-
-## Where the build stands
-
-| Phase | State | Evidence |
-|---|---|---|
-| P0 Foundation | **GREEN** | `docs/P0-REPORT.md`. Monorepo, CI on the public repo, testkit, six invariants at 10k+ cases, pack-signing key custody, persistence gate proven on the Android emulator and the iOS simulator (Maestro flow `e2e/flows/p0-db-path.yaml`; iOS needed the pnpm patch for `expo-modules-jsi` and the CI pin to Xcode 26.2). |
-| P1 Engine | **GREEN** | `docs/P1-REPORT.md`. `packages/core` complete for §1–§10, §13, §14 engine parts and SEC-01/02; 1,258 tests, 230 fast-check properties; 13 ids deferred to P3–P5 by design (listed in `docs/owned/journey.json`). Mutation job produces no score yet (non-gating, see B7). |
-| P2 Spanish pack | **RED; authorized round 5 in progress** | `docs/P2-TAKEOVER.md`. G0–G9 produced a local pack; the latest completed CI build reached signing and failed on the key format. The historical draw measured 51/300 wrong, PROVISIONAL (unreviewed by a paid native speaker). Current repairs cover content quality, review/source identity and signed CI artifacts. |
-| P3–P8 | not started | briefs in `docs/phases/P3.md … P8.md` |
+The original round-4 branch table, recovery order and environment history below are preserved for recovery, not current instructions. In particular, use the current status note for the original 300 sample result and native build evidence. Continue to preserve existing work, follow test-first and independent review, and integrate commits sequentially. The red-twice phase stop and paid native release review remain in force.
 
 ## Historical round-4 branch table (original handoff)
 
-| Branch | Purpose | State when stopped |
-|---|---|---|
-| `p2r4/author-u01-u06` | author the 7 empty slots in units 1–6 (140 candidate rows), settle `usted` in u1/l3/s3 | started, no commits beyond main |
-| `p2r4/author-u07-u23` | author the 6 empty slots in units 7–23 (120 rows) and fix the B3 defect patterns in those files | started, no commits beyond main |
-| `p2r4/author-u24-u30` | author the 9 empty slots in units 24–30 (180 rows) | started, no commits beyond main |
-| `p2r4/pipeline-g6-to-g9` | take the completed candidate bank through G6–G9, produce the first real pack, prove the NOT PROVEN gate items | **2 commits ahead incl. a WIP snapshot** — read `git log origin/main..p2r4/pipeline-g6-to-g9` and the diff before continuing |
-| `p2r4/sample-accent-rate` | B18: give `SampleItem` a clip ref and voice role so accent consistency is scoreable; redraw and score the 300-item sample once a pack exists | **1 WIP snapshot commit** — read it first |
-| `p2r4/ci-reporter-timeout` | B20: the `vitest-worker Timeout calling onTaskUpdate` reporter flake on slow runners | started, no commits beyond main |
+| Branch                     | Purpose                                                                                                                                      | State when stopped                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `p2r4/author-u01-u06`      | author the 7 empty slots in units 1–6 (140 candidate rows), settle `usted` in u1/l3/s3                                                       | started, no commits beyond main                                                                                              |
+| `p2r4/author-u07-u23`      | author the 6 empty slots in units 7–23 (120 rows) and fix the B3 defect patterns in those files                                              | started, no commits beyond main                                                                                              |
+| `p2r4/author-u24-u30`      | author the 9 empty slots in units 24–30 (180 rows)                                                                                           | started, no commits beyond main                                                                                              |
+| `p2r4/pipeline-g6-to-g9`   | take the completed candidate bank through G6–G9, produce the first real pack, prove the NOT PROVEN gate items                                | **2 commits ahead incl. a WIP snapshot** — read `git log origin/main..p2r4/pipeline-g6-to-g9` and the diff before continuing |
+| `p2r4/sample-accent-rate`  | B18: give `SampleItem` a clip ref and voice role so accent consistency is scoreable; redraw and score the 300-item sample once a pack exists | **1 WIP snapshot commit** — read it first                                                                                    |
+| `p2r4/ci-reporter-timeout` | B20: the `vitest-worker Timeout calling onTaskUpdate` reporter flake on slow runners                                                         | started, no commits beyond main                                                                                              |
 
 Each task's full brief, lane and invariant ids are in `docs/phases/P2.md` ("Round-4 tasks"). The planner's raw output for every round is in `docs/handoff/claude-run-journal-extract.json`.
 
