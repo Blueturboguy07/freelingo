@@ -7,12 +7,16 @@ name: p5-widget-bridge
 tags: [p5, widget, native-bridge]
 ---
 # iOS asks before opening the explicit development-client URL on first use.
-- runFlow:
-    when:
-      visible: 'Open in .*Freelingo.*'
+- repeat:
+    times: 3
     commands:
-      - tapOn:
-          text: Open
+      - runFlow:
+          when:
+            visible: 'Open in .*Freelingo.*'
+          commands:
+            - tapOn:
+                text: Open
+            - waitForAnimationToEnd
 - runFlow:
     when:
       visible: 'This is the developer menu.*'
