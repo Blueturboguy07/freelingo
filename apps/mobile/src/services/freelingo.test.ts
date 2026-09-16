@@ -16,6 +16,9 @@ import type { OpenedProgressDb } from '../db/ExpoDb';
 import type { FactoryBindings, FactoryResources } from './factoryPorts';
 import { SqliteAppState } from './SqliteAppState';
 import { createFreelingoServices } from './freelingo';
+import { SqliteWordStore } from '../db/SqliteWordStore';
+import { createNativeWidgetPorts } from '../widget/nativeWidgetPorts';
+import type { WidgetPublication } from '@freelingo/core/widget';
 const now = Date.parse('2026-09-13T10:00:00Z');
 const closers: (() => void)[] = [];
 afterEach(() => {
@@ -26,9 +29,11 @@ function deferred() {
   const promise = new Promise<void>((yes) => (resolve = yes));
   return { promise, resolve };
 }
-function fixture(active = false) {
+function fixture(active = false, freshHistory = false) {
   const db = createNodeDb();
   migrate(db);
+  if (freshHistory)
+    new SqliteWordStore(db).initializeFreshHistory(now - 86400000, { databaseWasCreated: true });
   const closeDb = vi.spyOn(db, 'close');
   closers.push(() => {
     if (!closeDb.mock.calls.length) db.close();
@@ -113,6 +118,8 @@ function fixture(active = false) {
     readSession: vi.fn<() => LearningSessionView | null>(() => null),
     readCeremony: () => null,
     readOffer: vi.fn<LearningRuntime['readOffer']>(() => null),
+    readResumableCourse: vi.fn<LearningRuntime['readResumableCourse']>(() => ({ status: 'none' })),
+    prepareResumeOffer: vi.fn(async () => {}),
     readScheduler: () => {
       throw Error('Unused in factory');
     },
@@ -142,6 +149,8 @@ function fixture(active = false) {
     readSession = engine.readSession;
     readCeremony = engine.readCeremony;
     readOffer = engine.readOffer;
+    readResumableCourse = engine.readResumableCourse;
+    prepareResumeOffer = engine.prepareResumeOffer;
     readScheduler = engine.readScheduler;
     readDay = engine.readDay;
     readHub = engine.readHub;
@@ -150,7 +159,18 @@ function fixture(active = false) {
     foreground = engine.foreground;
     background = engine.background;
   }
+  let widgetBytes: string | null = null;
+  const widgetNative = {
+    acquire: vi.fn(async () => 'widget-test-lease'),
+    read: vi.fn(async (_token: string) => widgetBytes),
+    write: vi.fn(async (_token: string, value: string) => {
+      widgetBytes = value;
+    }),
+    reload: vi.fn(async (_token: string) => {}),
+    release: vi.fn(async (_token: string) => {}),
+  };
   const resources: FactoryResources = {
+    widget: createNativeWidgetPorts(widgetNative),
     packs: {
       get: () => verified,
       state: () => 'installed',
@@ -255,8 +275,8 @@ function fixture(active = false) {
     prepareForeground: vi.fn(async () => {
       events.push('prepare');
     }),
-    publishAndRearm: vi.fn(async () => {
-      events.push('publish');
+    rearmNotifications: vi.fn(async () => {
+      events.push('rearm');
     }),
     background: vi.fn(async () => {
       events.push('native background');
@@ -310,6 +330,9 @@ function fixture(active = false) {
     constructed,
     opened,
     services: createFreelingoServices(bindings),
+    widgetNative,
+    widgetRecord: () =>
+      widgetBytes === null ? null : (JSON.parse(widgetBytes) as WidgetPublication),
   };
 }
 it('[INV-PER-06] opens and retains one real database and orders prepare, verification, day processing, publication', async () => {
@@ -319,7 +342,7 @@ it('[INV-PER-06] opens and retains one real database and orders prepare, verific
   expect(first.opened).toBe(f.opened);
   expect(f.bindings.openPersistence).toHaveBeenCalledOnce();
   expect(f.constructed.mock.calls[0]![0]).toBe(f.db);
-  expect(f.events).toEqual(['prepare', 'refresh', 'learning foreground', 'publish']);
+  expect(f.events).toEqual(['prepare', 'refresh', 'learning foreground', 'rearm']);
   expect((await first.readSnapshot()).onboarding?.screen).toBe('courses');
   expect(f.db.all('SELECT * FROM course_progress')).toEqual([]);
   await first.close();
@@ -413,10 +436,10 @@ it('[INV-SESS-27] refresh precedes launch and foreground; background checkpoints
     kind: 'path',
     request: { nodeId: 'u001:learn', unitIndex: 0, flavour: 'lesson' },
   });
-  expect(f.events).toEqual(['refresh', 'start']);
+  expect(f.events).toEqual(['refresh', 'start', 'rearm']);
   f.events.length = 0;
   await runtime.foreground();
-  expect(f.events).toEqual(['prepare', 'refresh', 'learning foreground', 'publish']);
+  expect(f.events).toEqual(['prepare', 'refresh', 'learning foreground', 'rearm']);
   f.events.length = 0;
   await runtime.background();
   expect(f.events).toEqual(['learning background', 'native background']);
@@ -434,7 +457,7 @@ it('[INV-CER-01] completion delegates to the durable owner and publishes only af
   gate.resolve();
   await completed;
   expect(f.engine.complete).toHaveBeenCalledOnce();
-  expect(f.events).toEqual(['publish']);
+  expect(f.events).toEqual(['rearm']);
   expect(f.db.get('SELECT lifetime_xp FROM account')?.lifetime_xp).toBe(0);
   await runtime.close();
 });
@@ -512,7 +535,7 @@ it('[INV-ECO-01][INV-ECO-21] Settings saves the goal in the retained database be
   const f = fixture(true),
     runtime = await f.services.open();
   const observed: unknown[] = [];
-  vi.mocked(f.resources.publishAndRearm).mockImplementation(async () => {
+  vi.mocked(f.resources.rearmNotifications).mockImplementation(async () => {
     observed.push(f.db.get('SELECT daily_goal_xp FROM account WHERE id=1')?.daily_goal_xp);
   });
   await runtime.loop.setGoal('intense');
@@ -533,7 +556,7 @@ it('S004/S006 onboarding persists its selected goal without creating quests or r
   await runtime.handleOnboarding({ type: 'continue' });
   await runtime.handleOnboarding({ type: 'choosePlacement', choice: 'scratch' });
   await runtime.handleOnboarding({ type: 'continue' });
-  vi.mocked(f.resources.publishAndRearm).mockClear();
+  vi.mocked(f.resources.rearmNotifications).mockClear();
   await runtime.handleOnboarding({ type: 'chooseGoal', goal: 'casual' });
   expect(f.db.get('SELECT daily_goal_tier,daily_goal_xp FROM account WHERE id=1')).toMatchObject({
     daily_goal_tier: 'casual',
@@ -543,7 +566,7 @@ it('S004/S006 onboarding persists its selected goal without creating quests or r
     screen: 'goal',
     selected: 'casual',
   });
-  expect(f.resources.publishAndRearm).toHaveBeenCalledOnce();
+  expect(f.resources.rearmNotifications).toHaveBeenCalledOnce();
   expect(f.db.all('SELECT * FROM account_quest')).toEqual([]);
   expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
   await runtime.close();
@@ -554,24 +577,26 @@ it('[INV-ECO-21] a rejected durable goal write cannot publish a new preference',
   f.db.run(
     "CREATE TRIGGER reject_goal BEFORE UPDATE OF daily_goal_xp ON account BEGIN SELECT RAISE(ABORT,'goal write rejected'); END",
   );
-  vi.mocked(f.resources.publishAndRearm).mockClear();
+  vi.mocked(f.resources.rearmNotifications).mockClear();
   await expect(runtime.loop.setGoal('intense')).rejects.toThrow('goal write rejected');
   expect((await runtime.readSnapshot()).settings?.goalTier).toBe('regular');
-  expect(f.resources.publishAndRearm).not.toHaveBeenCalled();
+  expect(f.resources.rearmNotifications).not.toHaveBeenCalled();
   await runtime.close();
 });
-it('[INV-ECO-21] publication failure preserves a committed goal and retry publishes without replaying its write', async () => {
+it('[INV-ECO-21] notification rearm failure preserves a committed goal and retry does not replay its write', async () => {
   const f = fixture(true),
     runtime = await f.services.open();
-  vi.mocked(f.resources.publishAndRearm).mockRejectedValueOnce(Error('publication failed'));
-  await expect(runtime.loop.setGoal('serious')).rejects.toThrow('publication failed');
+  vi.mocked(f.resources.rearmNotifications).mockRejectedValueOnce(
+    Error('notification rearm failed'),
+  );
+  await expect(runtime.loop.setGoal('serious')).rejects.toThrow('notification rearm failed');
   expect((await runtime.readSnapshot()).settings?.goalTier).toBe('serious');
   f.db.run(
     "CREATE TRIGGER reject_repeated_goal BEFORE UPDATE OF daily_goal_xp ON account BEGIN SELECT RAISE(ABORT,'duplicate write'); END",
   );
-  vi.mocked(f.resources.publishAndRearm).mockClear();
+  vi.mocked(f.resources.rearmNotifications).mockClear();
   await runtime.loop.setGoal('serious');
-  expect(f.resources.publishAndRearm).toHaveBeenCalledOnce();
+  expect(f.resources.rearmNotifications).toHaveBeenCalledOnce();
   expect(f.db.all('SELECT * FROM committed_session')).toEqual([]);
   await runtime.close();
 });
@@ -678,5 +703,116 @@ it('[INV-SESS-27] failed native activation prevents snapshots until that exact s
   await expect(runtime.readSnapshot()).rejects.toThrow('activation unavailable');
   expect((await runtime.readSnapshot()).lesson).toEqual(frame);
   expect(f.resources.activateLessonMedia).toHaveBeenLastCalledWith(frame);
+  await runtime.close();
+});
+
+function settleWidgetDay(f: ReturnType<typeof fixture>) {
+  f.engine.foreground.mockImplementation(async () => {
+    f.events.push('learning foreground');
+    f.db.run("UPDATE account SET last_processed_day='2026-09-12'");
+    f.db.run("INSERT OR IGNORE INTO account_day(local_day,goal_xp) VALUES('2026-09-13',20)");
+  });
+}
+it('[INV-WID-01][INV-WID-10] factory publishes actual current SQLite/path facts through the native lease after the foreground chain', async () => {
+  const f = fixture(true, true);
+  settleWidgetDay(f);
+  const runtime = await f.services.open();
+  expect(runtime.readWidgetPublication()).toMatchObject({ status: 'reloaded', state: 'COLD' });
+  const record = f.widgetRecord()!;
+  expect(JSON.parse(record.snapshotJson!)).toMatchObject({
+    initialized: true,
+    local_day: '2026-09-13',
+    active_course_id: 'en-es',
+    active_node_id: 'u001:learn',
+    has_resumable_session: false,
+    lifetime_sessions: 0,
+    goal_xp: 20,
+  });
+  expect(f.widgetNative.acquire).toHaveBeenCalledOnce();
+  expect(f.widgetNative.release).toHaveBeenCalledExactlyOnceWith('widget-test-lease');
+  await runtime.loop.setGoal('intense');
+  expect(JSON.parse(f.widgetRecord()!.snapshotJson!).goal_xp).toBe(50);
+  await runtime.close();
+});
+it('[INV-WID-10] optional widget lock failure is observable without preventing startup or losing the next foreground retry', async () => {
+  const f = fixture(true, true);
+  settleWidgetDay(f);
+  f.widgetNative.acquire.mockRejectedValueOnce(Error('widget transport unavailable'));
+  const runtime = await f.services.open();
+  expect(runtime.readWidgetPublication()).toEqual({ status: 'unavailable' });
+  expect((await runtime.readSnapshot()).path.status).toBe('ready');
+  await runtime.foreground();
+  expect(runtime.readWidgetPublication()).toMatchObject({ status: 'reloaded' });
+  expect(f.widgetNative.acquire).toHaveBeenCalledTimes(2);
+  await runtime.close();
+});
+it('[INV-WID-04][INV-WID-10] failed native reload retains spent budget and pending receipt, while the app remains usable', async () => {
+  const f = fixture(true, true);
+  settleWidgetDay(f);
+  f.widgetNative.reload.mockRejectedValueOnce(Error('reload uncertain'));
+  const runtime = await f.services.open();
+  expect(runtime.readWidgetPublication()).toMatchObject({ status: 'reload-failed' });
+  const before = f.widgetRecord()!;
+  expect(before.attemptsMs).toEqual([now]);
+  expect(before.pendingKey).not.toBeNull();
+  await runtime.foreground();
+  expect(f.widgetNative.reload).toHaveBeenCalledOnce();
+  expect(f.widgetRecord()!.attemptsMs).toEqual(before.attemptsMs);
+  expect(f.widgetRecord()!.pendingKey).toBe(before.pendingKey);
+  await runtime.close();
+});
+it('[INV-WID-09] launch publishes a saved-session flag and committed exit clears it, without widget writes for unchanged typing', async () => {
+  const f = fixture(true, true);
+  settleWidgetDay(f);
+  const runtime = await f.services.open();
+  const frame = mediaFrame();
+  f.engine.start.mockImplementationOnce(async () => {
+    f.engine.readSession.mockReturnValue(frame);
+    f.engine.readResumableCourse.mockReturnValue({
+      status: 'ready',
+      candidate: {
+        courseId: 'en-es',
+        sessionId: frame.state.sessionId,
+        nodeRef: frame.state.nodeRef,
+        packContentHash: 'a'.repeat(64),
+      },
+    });
+  });
+  await runtime.launchLesson({
+    kind: 'path',
+    request: { nodeId: 'u001:learn', unitIndex: 0, flavour: 'lesson' },
+  });
+  expect(JSON.parse(f.widgetRecord()!.snapshotJson!).has_resumable_session).toBe(true);
+  f.widgetNative.write.mockClear();
+  await runtime.dispatchLesson({
+    type: 'input',
+    text: 'h',
+    caret: 1,
+    selectionStart: 1,
+    selectionEnd: 1,
+  });
+  expect(f.widgetNative.write).not.toHaveBeenCalled();
+  f.engine.dispatch.mockImplementationOnce(async () => {
+    f.engine.readSession.mockReturnValue(null);
+    f.engine.readResumableCourse.mockReturnValue({ status: 'none' });
+  });
+  await runtime.dispatchLesson({ type: 'exit', route: 'closeButton' });
+  expect(JSON.parse(f.widgetRecord()!.snapshotJson!).has_resumable_session).toBe(false);
+  await runtime.close();
+});
+it('[INV-ECO-21][INV-WID-10] widget write failure keeps a committed goal and exposes the failure for later retry', async () => {
+  const f = fixture(true, true);
+  settleWidgetDay(f);
+  const runtime = await f.services.open();
+  f.widgetNative.write.mockRejectedValueOnce(Error('widget disk full'));
+  await runtime.loop.setGoal('serious');
+  expect(runtime.readWidgetPublication()).toMatchObject({ status: 'write-failed' });
+  expect((await runtime.readSnapshot()).settings?.goalTier).toBe('serious');
+  f.db.run(
+    "CREATE TRIGGER no_goal_replay BEFORE UPDATE OF daily_goal_xp ON account BEGIN SELECT RAISE(ABORT,'duplicate goal'); END",
+  );
+  await runtime.foreground();
+  expect(runtime.readWidgetPublication()?.status).toBe('stored');
+  expect(JSON.parse(f.widgetRecord()!.snapshotJson!).goal_xp).toBe(30);
   await runtime.close();
 });

@@ -1,3 +1,5 @@
+import { WidgetPublisher, type WidgetPublishResult } from '../widget/WidgetPublisher';
+import { SqliteWidgetAccountSource } from '../widget/SqliteWidgetAccountSource';
 import type { GoalTierKey } from '@freelingo/core/economy';
 import { localDayOfStamp } from '@freelingo/core/day';
 import { SqliteGoalSettings } from './SqliteGoalSettings';
@@ -73,6 +75,26 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         ...native.learning,
         packs: native.packs,
       });
+      const widget = new WidgetPublisher(
+        new SqliteWidgetAccountSource(db, native.packs, learning),
+        native.widget.store,
+        native.widget.reload,
+        () => {
+          const clock = native.learning.clock();
+          return { nowMs: clock.utcMs, zone: clock.zone.tzId };
+        },
+      );
+      let lastWidgetPublication: WidgetPublishResult | null = null;
+      async function publishAndRearm(): Promise<void> {
+        try {
+          lastWidgetPublication = Object.freeze({ ...(await widget.publish()) });
+        } catch {
+          // Native acquire/release can reject outside the publisher's status catches.
+          // This optional transport must not roll back or conceal a committed lesson.
+          lastWidgetPublication = Object.freeze({ status: 'unavailable' });
+        }
+        await native.rearmNotifications();
+      }
       const nowUtc = () => new Date(native.learning.clock().utcMs).toISOString();
       const goalSettings = new SqliteGoalSettings(db, () => {
         const clock = native.learning.clock();
@@ -81,7 +103,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
       const goal = () => goalSettings.read();
       async function chooseGoal(key: GoalTierKey): Promise<void> {
         goalSettings.setGoal(key);
-        await native.publishAndRearm();
+        await publishAndRearm();
       }
       function activeCourse(): string {
         const id = state.read().activeCourseId;
@@ -192,7 +214,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         await learning.foreground();
         mediaForeground = true;
         await synchronizeMedia();
-        await native.publishAndRearm();
+        await publishAndRearm();
       }
       function snapshot(): AppSnapshot {
         const saved = state.read(),
@@ -270,6 +292,7 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
         opened,
         persistence: status,
         media: native.media,
+        readWidgetPublication: () => lastWidgetPublication,
         readSnapshot: () =>
           enqueue(async () => {
             await synchronizeMedia();
@@ -282,14 +305,27 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
             await refresh();
             requirePlayable(id);
             await learning.start(id, request);
+            await publishAndRearm();
           }),
-        resolveSessionOffer: (decision) => perform(() => learning.resolveOffer(decision)),
-        dispatchLesson: (event) => perform(() => learning.dispatch(event)),
+        resolveSessionOffer: (decision) =>
+          perform(async () => {
+            await learning.resolveOffer(decision);
+            await publishAndRearm();
+          }),
+        dispatchLesson: (event) =>
+          perform(async () => {
+            const before = learning.readSession()?.state.sessionId ?? null;
+            await learning.dispatch(event);
+            // The engine can commit an exit itself. Pure in-lesson edits retain the
+            // same active identity and do not cause a native widget write per key.
+            const after = learning.readSession()?.state.sessionId ?? null;
+            if (before !== after) await publishAndRearm();
+          }),
         recordExposure: (exposure) => perform(() => learning.recordExposure(exposure)),
         completeLesson: () =>
           perform(async () => {
             await learning.complete();
-            await native.publishAndRearm();
+            await publishAndRearm();
           }),
         reportItem: (id, reason) => perform(() => native.actions.reportItem(id, reason)),
         snoozeItem: (id) => perform(() => native.actions.snoozeItem(id)),
@@ -323,17 +359,26 @@ export function createFreelingoServices(bindings: FactoryBindings): FreelingoSer
             perform(async () => {
               state.switchCourse(id);
               await native.packs.refresh([id]);
+              await publishAndRearm();
             }),
           setPreference: (id, change) =>
             perform(() => preferences.setCoursePreference(id, change.key, change.value)),
           setAppearance: (value) => perform(() => preferences.setAppearance(value)),
           setGoal: (key) => perform(() => chooseGoal(key)),
-          applyCourseAction: (plan) => perform(() => native.actions.applyCourseAction(plan)),
-          advanceCeremony: (request) => perform(() => learning.advanceCeremony(request)),
+          applyCourseAction: (plan) =>
+            perform(async () => {
+              await native.actions.applyCourseAction(plan);
+              await publishAndRearm();
+            }),
+          advanceCeremony: (request) =>
+            perform(async () => {
+              await learning.advanceCeremony(request);
+              await publishAndRearm();
+            }),
           retryCommit: () =>
             perform(async () => {
               await learning.complete();
-              await native.publishAndRearm();
+              await publishAndRearm();
             }),
           launchLegendary: (id) => perform(() => native.actions.launchLegendary(id)),
           shareCard: (id) => perform(() => native.actions.shareCard(id)),

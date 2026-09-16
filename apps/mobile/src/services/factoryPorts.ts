@@ -1,3 +1,4 @@
+import type { WidgetPublicationStore, WidgetReloadPort } from '../widget/WidgetPublisher';
 import type { UiPreferences } from '@freelingo/ui';
 import type { NotificationSettingsSnapshot } from '@freelingo/core/notifications';
 import type { AppRuntime } from '../app/ports';
@@ -16,6 +17,7 @@ import type { OnboardingFlowPorts } from './onboarding';
  * and cleans any partially-created resources if construction rejects. */
 export interface FactoryResources {
   readonly packs: InstalledPackRepository;
+  readonly widget: { readonly store: WidgetPublicationStore; readonly reload: WidgetReloadPort };
   readonly media: AppRuntime['media'];
   readonly learning: Omit<LearningRuntimePorts, 'packs'>;
   readonly catalogue: OnboardingFlowPorts['catalogue'];
@@ -36,7 +38,8 @@ export interface FactoryResources {
    * Native owner deduplicates identical media bindings; null disarms hidden/background
    * lessons without starting playback, recording or a permission request. */
   activateLessonMedia(view: LearningSessionView | null): Promise<void>;
-  publishAndRearm(): Promise<void>;
+  /** Rearm local reminders from committed account facts. Widget publication is factory-owned. */
+  rearmNotifications(): Promise<void>;
   background(): Promise<void>;
   subscribe(invalidate: () => void): () => void;
   /** Releases media/native subscriptions. Repository and database remain factory-owned. */

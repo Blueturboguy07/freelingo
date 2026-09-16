@@ -74,6 +74,7 @@ function fixture() {
       openExactAlarmSettings: vi.fn(async () => {}),
     },
     readSnapshot: vi.fn(async () => snapshot),
+    readWidgetPublication: () => null,
     handleOnboarding: vi.fn(async () => {}),
     launchLesson: vi.fn(async () => {}),
     resolveSessionOffer: vi.fn(async () => {}),

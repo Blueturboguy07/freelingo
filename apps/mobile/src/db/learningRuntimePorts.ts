@@ -1,3 +1,4 @@
+import type { ExpectedResumeCandidate, ResumeInspection } from './learningResume';
 import type { Db } from '@freelingo/schema';
 import type { ZoneStamp } from '@freelingo/core/day';
 import type { HubInput, HubDailyState } from '@freelingo/core/hub';
@@ -49,6 +50,8 @@ export interface LearningRuntime {
   readSession(): LearningSessionView | null;
   readCeremony(): CeremonyPresentation | null;
   readOffer(): SessionOffer | null;
+  readResumableCourse(courseId: string): ResumeInspection;
+  prepareResumeOffer(courseId: string, expected: ExpectedResumeCandidate): Promise<void>;
   readScheduler(courseId: string): SchedulerState;
   readDay(): PersistedDayState;
   readHub(courseId: string): HubInput;

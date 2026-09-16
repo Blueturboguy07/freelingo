@@ -1,3 +1,4 @@
+import type { WidgetPublishResult } from '../widget/WidgetPublisher';
 import type { HubInput, HubOffer } from '@freelingo/core/hub';
 import type { NotificationSettingsSnapshot } from '@freelingo/core/notifications';
 import type { SessionEvent, SessionState } from '@freelingo/core/session';
@@ -71,6 +72,8 @@ export interface AppRuntime {
   readonly loop: Omit<LoopPorts, 'navigate' | 'launchHub'>;
   readonly notifications: Omit<NotificationSettingsPorts, 'continueOnboarding' | 'done'>;
   readSnapshot(): Promise<AppSnapshot>;
+  /** Last optional widget publication attempt; cached diagnostics, no DB or native work. */
+  readWidgetPublication(): WidgetPublishResult | null;
   handleOnboarding(event: OnboardingEvent): Promise<void>;
   launchLesson(request: LessonLaunch): Promise<void>;
   resolveSessionOffer(decision: SessionOfferDecision): Promise<void>;
