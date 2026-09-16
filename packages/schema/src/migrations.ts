@@ -16,7 +16,41 @@
  * without a fixture and that test is red.
  */
 import type { Db } from './db.js';
+import {
+  DISPLAY_SOURCE_COURSE_TABLES,
+  DISPLAY_SOURCE_SCHEMA_V13_DDL,
+} from './display-source-schema.js';
 import { PROGRESS_SCHEMA_V2_DDL } from './progress-schema.js';
+import { SCHEDULER_SCHEMA_V5_DDL, SCHEDULER_TABLES } from './scheduler-schema.js';
+import {
+  LEARNING_CONTEXT_SCHEMA_V6_DDL,
+  LEARNING_CONTEXT_COURSE_TABLES,
+  LEARNING_CONTEXT_ACCOUNT_TABLES,
+} from './learning-context-schema.js';
+
+import {
+  DAY_REWARD_SCHEMA_V7_DDL,
+  DAY_REWARD_ACCOUNT_TABLES,
+  DAY_REWARD_COURSE_TABLES,
+} from './day-reward-schema.js';
+
+import {
+  LEARNING_EVIDENCE_SCHEMA_V8_DDL,
+  LEARNING_EVIDENCE_COURSE_TABLES,
+} from './learning-evidence-schema.js';
+
+import { PATH_STATE_SCHEMA_V9_DDL, PATH_STATE_COURSE_TABLES } from './path-state-schema.js';
+
+import {
+  WORD_EVIDENCE_ACCOUNT_TABLES,
+  WORD_EVIDENCE_SCHEMA_V10_DDL,
+} from './word-evidence-schema.js';
+
+import { WORD_REVIEW_ACCOUNT_TABLES, WORD_REVIEW_SCHEMA_V11_DDL } from './word-review-schema.js';
+import {
+  MISTAKE_STATE_COURSE_TABLES,
+  MISTAKE_STATE_SCHEMA_V12_DDL,
+} from './mistake-state-schema.js';
 
 export interface Migration {
   readonly userVersion: number;
@@ -60,9 +94,135 @@ const PROGRESS_SCHEMA: Migration = {
   },
 };
 
+/** P3 runtime bridge, 2026-09-13. Graded describes the kind; active describes the
+ * global lease. A parked graded lesson retains its complete checkpoint. Legacy v2
+ * rows are preserved with a null runtime payload so the app can offer start-over
+ * explicitly instead of inventing the missing banner, replay and unfinished input. */
+const SESSION_RUNTIME: Migration = {
+  userVersion: 3,
+  name: 'complete-session-runtime-and-parked-lessons',
+  up(db) {
+    db.run(
+      'ALTER TABLE course_session_state ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))',
+    );
+    db.run(
+      'ALTER TABLE course_session_state ADD COLUMN runtime_json TEXT CHECK (runtime_json IS NULL OR json_valid(runtime_json))',
+    );
+    db.run('DROP INDEX one_graded_session_in_flight');
+    db.run(
+      'CREATE UNIQUE INDEX one_graded_session_in_flight ON course_session_state(is_active) WHERE is_graded = 1 AND is_active = 1',
+    );
+  },
+};
+
+/** P4 settings, 2026-09-13. General lesson switches are account-scoped (deep07 §global split).
+ * Existing per-course modality choices and the global suspension record stay intact. */
+const DURABLE_SETTINGS: Migration = {
+  userVersion: 4,
+  name: 'durable-account-preferences',
+  up(db) {
+    db.run(
+      "ALTER TABLE account ADD COLUMN appearance TEXT NOT NULL DEFAULT 'system' CHECK (appearance IN ('light', 'dark', 'system'))",
+    );
+    db.run('ALTER TABLE account ADD COLUMN imported_at_utc TEXT');
+    db.run(
+      'ALTER TABLE account ADD COLUMN sound_effects_enabled INTEGER NOT NULL DEFAULT 1 CHECK (sound_effects_enabled IN (0, 1))',
+    );
+    db.run(
+      'ALTER TABLE account ADD COLUMN animations_enabled INTEGER NOT NULL DEFAULT 1 CHECK (animations_enabled IN (0, 1))',
+    );
+    db.run(
+      'ALTER TABLE account ADD COLUMN motivational_messages_enabled INTEGER NOT NULL DEFAULT 1 CHECK (motivational_messages_enabled IN (0, 1))',
+    );
+  },
+};
+
+const DURABLE_SCHEDULER: Migration = {
+  userVersion: 5,
+  name: 'durable-surface-scheduler-and-answer-receipts',
+  up(db) {
+    for (const statement of SCHEDULER_SCHEMA_V5_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_LEARNING_CONTEXT: Migration = {
+  userVersion: 6,
+  name: 'frozen-session-bindings-pools-and-onboarding',
+  up(db) {
+    for (const statement of LEARNING_CONTEXT_SCHEMA_V6_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_DAY_REWARD: Migration = {
+  userVersion: 7,
+  name: 'normalized-day-reward-and-frozen-ceremony',
+  up(db) {
+    for (const statement of DAY_REWARD_SCHEMA_V7_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_LEARNING_EVIDENCE: Migration = {
+  userVersion: 8,
+  name: 'observed-surfaces-and-per-answer-targets',
+  up(db) {
+    for (const statement of LEARNING_EVIDENCE_SCHEMA_V8_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_PATH_STATE: Migration = {
+  userVersion: 9,
+  name: 'known-path-viewport-and-proven-unlocks',
+  up(db) {
+    for (const statement of PATH_STATE_SCHEMA_V9_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_WORD_EVIDENCE: Migration = {
+  userVersion: 10,
+  name: 'permanent-source-declared-lexical-evidence',
+  up(db) {
+    for (const statement of WORD_EVIDENCE_SCHEMA_V10_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_WORD_REVIEWS: Migration = {
+  userVersion: 11,
+  name: 'permanent-ordered-lexical-review-evidence',
+  up(db) {
+    for (const statement of WORD_REVIEW_SCHEMA_V11_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_MISTAKE_STATE: Migration = {
+  userVersion: 12,
+  name: 'source-bound-mistake-retention',
+  up(db) {
+    for (const statement of MISTAKE_STATE_SCHEMA_V12_DDL) db.run(statement);
+  },
+};
+
+const DURABLE_DISPLAY_SOURCE: Migration = {
+  userVersion: 13,
+  name: 'exact-source-display-receipts',
+  up(db) {
+    for (const statement of DISPLAY_SOURCE_SCHEMA_V13_DDL) db.run(statement);
+  },
+};
+
 export const MIGRATIONS: readonly Migration[] = [
   LEDGER_AND_COMMITTED_SESSIONS,
   PROGRESS_SCHEMA,
+  SESSION_RUNTIME,
+  DURABLE_SETTINGS,
+  DURABLE_SCHEDULER,
+  DURABLE_LEARNING_CONTEXT,
+  DURABLE_DAY_REWARD,
+  DURABLE_LEARNING_EVIDENCE,
+  DURABLE_PATH_STATE,
+  DURABLE_WORD_EVIDENCE,
+  DURABLE_WORD_REVIEWS,
+  DURABLE_MISTAKE_STATE,
+  DURABLE_DISPLAY_SOURCE,
 ] as const;
 
 export const LATEST_USER_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.userVersion), 0);
@@ -109,6 +269,292 @@ export const SCHEMA_TABLES_BY_VERSION: Readonly<Record<number, readonly string[]
     'course_node',
     'course_progress',
     'course_session_state',
+  ],
+
+  3: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+  ],
+  4: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+  ],
+
+  5: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+  ],
+
+  6: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+  ],
+
+  7: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+  ],
+  8: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+  ],
+
+  9: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+  ],
+  10: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+    ...WORD_EVIDENCE_ACCOUNT_TABLES,
+  ],
+  11: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+    ...WORD_EVIDENCE_ACCOUNT_TABLES,
+    ...WORD_REVIEW_ACCOUNT_TABLES,
+  ],
+  12: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+    ...WORD_EVIDENCE_ACCOUNT_TABLES,
+    ...WORD_REVIEW_ACCOUNT_TABLES,
+    ...MISTAKE_STATE_COURSE_TABLES,
+  ],
+
+  13: [
+    'account',
+    'account_boost',
+    'account_cosmetic',
+    'account_day',
+    'account_daily_xp',
+    'account_freeze',
+    'account_monthly_badge',
+    'account_personal_record',
+    'account_quest',
+    'account_streak_repair',
+    'committed_session',
+    'course_attempt',
+    'course_display',
+    'course_item',
+    'course_mistake',
+    'course_node',
+    'course_progress',
+    'course_session_state',
+    ...SCHEDULER_TABLES,
+    ...LEARNING_CONTEXT_COURSE_TABLES,
+    ...LEARNING_CONTEXT_ACCOUNT_TABLES,
+    ...DAY_REWARD_COURSE_TABLES,
+    ...DAY_REWARD_ACCOUNT_TABLES,
+    ...LEARNING_EVIDENCE_COURSE_TABLES,
+    ...PATH_STATE_COURSE_TABLES,
+    ...WORD_EVIDENCE_ACCOUNT_TABLES,
+    ...WORD_REVIEW_ACCOUNT_TABLES,
+    ...MISTAKE_STATE_COURSE_TABLES,
+    ...DISPLAY_SOURCE_COURSE_TABLES,
   ],
 };
 

@@ -1,0 +1,13 @@
+# Local system speech binding
+
+Implementation checkpoint, 2026-09-13. Not a P5 gate.
+
+The Expo Speech 57.0.3 native patch requires an explicit currently installed voice. Android filters network-required and not-installed voices before capability reporting, rechecks at invocation, checks setVoice and the actual selected voice, and reports synchronous speak failures. It never calls setLanguage, which can select a fallback voice. Cancelling before native initialization clears pending utterances. Initialization handoff, speech calls, stop and destruction share one native lock, so stop cannot return before an in-flight handoff reaches the engine and is stopped; a destroyed module cannot revive queued speech. iOS requires the chosen identifier to remain in speechVoices and rejects a missing voice.
+
+The app binds the native module directly so rejected native promises can be observed. A native revision marker prevents a new JavaScript bundle from using an old unpatched binary. Expo autolinking is configured to build patched speech modules from source, including SDK 57's normally prebuilt speech module.
+
+The Android voice contract comes from [Voice](<https://developer.android.com/reference/android/speech/tts/Voice#isNetworkConnectionRequired()>), [voice installation status](https://developer.android.com/reference/android/speech/tts/TextToSpeech.Engine#KEY_FEATURE_NOT_INSTALLED), and [TextToSpeech](<https://developer.android.com/reference/android/speech/tts/TextToSpeech#setVoice(android.speech.tts.Voice)>). iOS availability uses [speechVoices](<https://developer.apple.com/documentation/avfaudio/avspeechsynthesisvoice/speechvoices()>). This depends on the operating system's voice declarations; it does not infer offline support from voice names.
+
+The native unit harness compiles the actual patched Kotlin module unchanged against small observable Android/Expo test doubles. Its original-module control exposed nine failures and one working installed-voice path; the patch passes all ten. Independent review then exposed an initialization/stop race; that unchanged counterexample passes after serialized native ownership. The committed harness includes that race and destruction-after-pending-initialization, for twelve checks total. These are native policy unit checks, not device synthesis evidence. Run `python3 tools/native-tests/speech/run.py <installed-expo-speech-directory> <temporary-output-directory>` after a native build has populated the Kotlin 2.1.20 cache. Original failures and follow-up results are under /private/tmp/freelingo-speech-native-review/.
+
+A rebuilt Android/iOS binary and real device speech flows remain necessary.

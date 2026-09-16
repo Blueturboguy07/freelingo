@@ -54,3 +54,9 @@ export * from './tier2.js';
 export * from './types.js';
 export * from './typo-guards.js';
 export * from './wordbank.js';
+export * from './trace.js';
+export * from './trace-config.js';
+
+export * from './speech.js';
+export * from './speech-config.js';
+export type * from './speech-types.js';

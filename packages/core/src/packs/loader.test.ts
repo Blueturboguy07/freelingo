@@ -565,7 +565,7 @@ function packFromCase(testCase: CreditsCase): PackReader {
     run(
       `INSERT INTO meta (key, value) VALUES (
          ${quote(`${CREDITS_META_PREFIX}${credit.source_id}`)},
-         ${quote(JSON.stringify(credit))})`,
+         '${JSON.stringify(credit).replaceAll("'", "''")}')`,
     );
   }
   for (const sentence of testCase.sentences) {
@@ -663,5 +663,46 @@ describe('path joining', () => {
       '/var/cache/packs/es/audio/a.opus',
     );
     expect(joinPackPath('', 'audio/a.opus')).toBe('audio/a.opus');
+  });
+});
+
+describe('production grading capability on a legacy installed pack', () => {
+  it('[INV-GRD-02][INV-PACK-25] preserves browsing but rejects grading when authored policy is absent', () => {
+    const reader = openFixture();
+    try {
+      const pack = openPack(reader, { packRoot: PACK_ROOT });
+      const units = pack.units();
+      expect(units.length).toBeGreaterThan(0);
+      const exercises = pack.lesson(units[0]!.unitId, 1);
+      expect(exercises.length).toBeGreaterThan(0);
+      expect(pack.exercise(exercises[0]!.exerciseId)).toEqual(exercises[0]);
+      expect(pack.exercise('unknown-exercise')).toBeNull();
+      expect(() => pack.gradingForExercise(exercises[0]!.exerciseId)).toThrow(PackFormatError);
+      expect(() => pack.credits()).not.toThrow();
+    } finally {
+      reader.close();
+    }
+  });
+});
+
+describe('source dictionary notices', () => {
+  it('[INV-PACK-17] preserves the complete notice separately from the credited owner', () => {
+    const { reader, run } = relaxedPack();
+    const notice = 'Original dictionary notice.\nKeep this complete line and source attribution.';
+    const credit = {
+      kind: 'derived-list',
+      source_id: 'dictionary-original',
+      owner: 'Original author',
+      licence: 'CC0-1.0',
+      url: 'https://example.test/source',
+      items: 3,
+      notice,
+    };
+    run(
+      `INSERT INTO meta VALUES ('attribution:dictionary-original', '${JSON.stringify(credit).replaceAll("'", "''")}')`,
+    );
+    expect(openPack(reader, { packRoot: '/tmp' }).credits()).toMatchObject([
+      { owner: 'Original author', notice },
+    ]);
   });
 });

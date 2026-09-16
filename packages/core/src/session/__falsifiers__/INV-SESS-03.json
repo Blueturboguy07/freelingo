@@ -1,6 +1,6 @@
 {
   "id": "INV-SESS-03",
-  "case": "EC-SES-03/EC-SCH-03: START OVER on a stale row with five answered items, one of them due",
+  "case": "EC-SES-03/EC-SCH-03: START OVER excludes all twelve abandoned slots except the actual due item",
   "kind": "startOver",
   "input": {
     "queueLength": 12,
@@ -9,7 +9,19 @@
     "mistakes": ["item-2"]
   },
   "expect": {
-    "excluded": ["item-1", "item-2", "item-4", "item-5"],
+    "excluded": [
+      "item-1",
+      "item-10",
+      "item-11",
+      "item-12",
+      "item-2",
+      "item-4",
+      "item-5",
+      "item-6",
+      "item-7",
+      "item-8",
+      "item-9"
+    ],
     "dueExceptions": ["item-3"],
     "handedOver": ["item-2"],
     "newAttemptRows": 0

@@ -1,0 +1,75 @@
+{
+  "minimum": 6,
+  "authoredCount": 6,
+  "generated": {
+    "offered": true,
+    "reason": "ok",
+    "queue": [
+      {
+        "id": "exercise:8180f214fcc79b40",
+        "itemId": "i_abbf91ff3005a514",
+        "type": "meaningSelect",
+        "family": "recognition",
+        "conceptId": "lx:hola:INTJ",
+        "nodeRef": "u001-candidate-level-1",
+        "requiresAudio": false
+      },
+      {
+        "id": "exercise:05fb73a8c2f6c12d",
+        "itemId": "i_3d966c297bf24cc8",
+        "type": "meaningSelect",
+        "family": "recognition",
+        "conceptId": "lx:día:NOUN",
+        "nodeRef": "u001-candidate-level-1",
+        "requiresAudio": false
+      },
+      {
+        "id": "exercise:04e7339237305ab0",
+        "itemId": "i_d86589dba9eabf07",
+        "type": "meaningSelect",
+        "family": "recognition",
+        "conceptId": "lx:noche:NOUN",
+        "nodeRef": "u001-candidate-level-1",
+        "requiresAudio": false
+      },
+      {
+        "id": "exercise:52c7ff4ef8bd56a1",
+        "itemId": "i_3a787ed762648ebe",
+        "type": "meaningSelect",
+        "family": "recognition",
+        "conceptId": "lx:bueno:ADJ",
+        "nodeRef": "u001-candidate-level-1",
+        "requiresAudio": false
+      },
+      {
+        "id": "exercise:7177c43944de33ad",
+        "itemId": "i_7255a6436c338e9c",
+        "type": "meaningSelect",
+        "family": "recognition",
+        "conceptId": "lx:tarde:ADV",
+        "nodeRef": "u001-candidate-level-1",
+        "requiresAudio": false
+      },
+      {
+        "id": "exercise:cca2f5032a5f0a54",
+        "itemId": "i_cea7fedf932cdeba",
+        "type": "meaningSelect",
+        "family": "recognition",
+        "conceptId": "lx:noche:NOUN",
+        "nodeRef": "u001-candidate-level-1",
+        "requiresAudio": false
+      }
+    ],
+    "optionSeeds": {
+      "exercise:8180f214fcc79b40": 4115968515,
+      "exercise:05fb73a8c2f6c12d": 4111407884,
+      "exercise:04e7339237305ab0": 3827556021,
+      "exercise:52c7ff4ef8bd56a1": 708738252,
+      "exercise:7177c43944de33ad": 3224298490,
+      "exercise:cca2f5032a5f0a54": 2405059190
+    },
+    "droppedForGate": [],
+    "droppedForAudio": [],
+    "degraded": []
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "minimum": 6,
+  "authoredCount": 3,
+  "generated": {
+    "offered": false,
+    "reason": "nothingDue",
+    "queue": [],
+    "optionSeeds": {},
+    "droppedForGate": [],
+    "droppedForAudio": [],
+    "degraded": []
+  }
+}

@@ -15,6 +15,8 @@
  *   [DERIVED]            Freelingo's own decision; no Duolingo source exists
  */
 import type { SessionFlavour, SessionOutcomeKind, XpLadderMode } from '../types/index.js';
+import { HUB_CONFIG } from '../hub/config.js';
+import { LESSON_TARGET_LENGTH } from '../session/flavours.js';
 
 /* ============================================================== 1. the daily goal */
 
@@ -163,6 +165,18 @@ export const ROLEPLAY_FLOOR_XP = 10;
  * the hub is not a shortcut round the path.
  */
 export const HUB_SESSION_XP = LESSON_BASE_XP;
+
+/**
+ * [DERIVED 2026-09-13, INV-HUB-06 / EC-ECO-28] Implementation of the approved
+ * per-exercise bound. A Hub ratio still means actual physical items / Hub target.
+ * Cap its prorated base at the ordinary lesson's base rate before ladder/boost;
+ * keep fractions until the award's final floor. No measured Duolingo threshold.
+ */
+export const HUB_XP_RATE = {
+  lessonBaseXp: LESSON_BASE_XP,
+  lessonTarget: LESSON_TARGET_LENGTH,
+  hubTarget: HUB_CONFIG.target,
+} as const;
 
 /**
  * [ruling EC-ECO-31] The timed-challenge surface does NOT ship in v1: the only surface

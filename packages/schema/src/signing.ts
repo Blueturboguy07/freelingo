@@ -78,3 +78,8 @@ export function parseEd25519PublicKeyPem(pem: string): Ed25519PublicKey {
 
   return { spki, raw: spki.slice(ED25519_SPKI_PREFIX.length) };
 }
+
+/** Bundled public trust anchor, synchronized with the committed PEM by signing.test. */
+export const PACK_SIGNING_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEA0BLFocliEriNpjoiENwvw8CIeDpON14KNVj0kblrNog=
+-----END PUBLIC KEY-----`;

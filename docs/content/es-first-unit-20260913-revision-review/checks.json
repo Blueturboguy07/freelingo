@@ -1,0 +1,14 @@
+{
+  "candidates": 11,
+  "sources": 11,
+  "surfaces": 48,
+  "lexicalDeclarations": 7,
+  "lexicalBindings": 13,
+  "exactSourceHashes": "passed",
+  "sourcePlacementAndResponseJoin": "passed",
+  "surfaceRanksAndVisibleIntroductions": "passed",
+  "wordSemanticIds": "passed",
+  "recognitionOptionDisjointness": "passed",
+  "sourceApprovalIssued": false,
+  "assemblyReady": false
+}

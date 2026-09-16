@@ -11,7 +11,7 @@
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {
-    "node": ">=24.0.0",
+    "node": "^24.15.0 || >=26.0.0",
     "pnpm": ">=11.0.0"
   },
   "scripts": {
@@ -35,13 +35,18 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.63.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.5.2",
+    "@types/react": "~19.2.18",
+    "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.3.0",
+    "jsdom": "^30.0.1",
     "prettier": "^3.6.2",
     "simple-git-hooks": "^2.13.1",
     "typescript": "~6.0.3",

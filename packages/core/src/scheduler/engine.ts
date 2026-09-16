@@ -15,7 +15,7 @@
  */
 import { localDayOf, type LocalDay } from '../day/civil.js';
 import type { AttemptLedger, AttemptRow } from './attempts.js';
-import { appendAttempt, attemptKeyOf, EMPTY_ATTEMPT_LEDGER } from './attempts.js';
+import { appendAttempt, hasEncounter, EMPTY_ATTEMPT_LEDGER } from './attempts.js';
 import { DEFAULT_SCHEDULER_ECONOMY, type SchedulerEconomy } from './config.js';
 import type { FsrsRow, NewRowSpec, ReviewResult } from './fsrs.js';
 import { introduceRow, isIntroduced, newRow, reviewRow } from './fsrs.js';
@@ -121,20 +121,21 @@ export interface EncounterResult {
   readonly state: SchedulerState;
   /** `null` when the attempt was already on file: a replayed commit does nothing. */
   readonly review: ReviewResult | null;
+  /** Whether a new scheduling receipt was written; several may share one parent. */
   readonly wroteAttempt: boolean;
 }
 
 /**
  * Apply one answered exercise.
  *
- * Idempotent on `(session_id, exercise_index)` (INV-SCH-03): a replayed commit returns the
+ * Legacy calls are idempotent on `(session_id, exercise_index)` (INV-SCH-03). Explicit
+ * targets add `(itemId, targetSurfaceId)` inside that parent. A replay returns the
  * state it was given, by identity, and writes nothing — not an attempt row, not an
  * anomaly, not an FSRS update. That is the whole of "replay of any commit is idempotent",
  * and it is checked before anything else can have a side effect.
  */
 export function applyEncounter(state: SchedulerState, encounter: Encounter): EncounterResult {
-  const key = attemptKeyOf(encounter.sessionId, encounter.exerciseIndex);
-  if (state.attempts.rows.has(key)) {
+  if (hasEncounter(state.attempts, encounter)) {
     return { state, review: null, wroteAttempt: false };
   }
 
@@ -220,6 +221,9 @@ function attemptRowFor(encounter: Encounter, reviewKind: AttemptRow['reviewKind'
     exerciseIndex: encounter.exerciseIndex,
     itemId: encounter.itemId,
     surface: encounter.surface,
+    ...(encounter.targetSurfaceId === undefined
+      ? {}
+      : { targetSurfaceId: encounter.targetSurfaceId }),
     grade: encounter.grade,
     at: encounter.at,
     reviewKind,

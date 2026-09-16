@@ -13,4 +13,7 @@ allowBuilds:
   simple-git-hooks: true
 
 patchedDependencies:
+  expo-modules-core@57.0.18: patches/expo-modules-core@57.0.18.patch
   expo-modules-jsi@57.1.0: patches/expo-modules-jsi@57.1.0.patch
+  expo-speech-recognition@57.0.0: patches/expo-speech-recognition@57.0.0.patch
+  expo-speech@57.0.3: patches/expo-speech@57.0.3.patch

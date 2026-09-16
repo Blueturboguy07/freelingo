@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="0" errors="0" time="0.003607708">
+    <testsuite name="first-session.test.ts" timestamp="2026-09-13T20:54:20.258Z" hostname="MacBook-Pro-447.local" tests="1" failures="0" errors="0" skipped="0" time="0.003607708">
+        <testcase classname="first-session.test.ts" name="independent exact six-item population meets the real lesson floor without due or audio padding" time="0.003266667">
+        </testcase>
+    </testsuite>
+</testsuites>

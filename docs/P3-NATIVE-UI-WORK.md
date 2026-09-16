@@ -1,0 +1,11 @@
+Native UI observations — implementation work, 2026-09-13
+
+The new nativeUiFacts owner and openExpoUiFacts binding provide current OS appearance, screen-reader state, Reduce Motion, contrast and iOS Bold Text to the application factory. Initialization waits for real native observations. Android uses highTextContrastChanged/isHighTextContrastEnabled; iOS uses darkerSystemColorsChanged/isDarkerSystemColorsEnabled and its Bold Text API. An explicitly unspecified system appearance uses the named light-theme fallback. No permission is requested and no saved preference is rewritten.
+
+Listeners are attached before initial queries. Per-field revisions prevent a late query from overwriting a newer native event. Failed or malformed accessibility observations become unavailable, never false. A foreground failure invalidates that field immediately, even if another native query stalls. Closing removes every native subscription once and prevents pending work from publishing; cleanup attempts continue after an individual removal fails.
+
+Synchronous read() is unavailable until every required accessibility fact is known. The factory must await refresh() before lesson source generation and wire screenReaderActive/reduceMotion into the real learning ports. UI appearance still permits the existing saved-theme override. The owner does not claim Android announcement completion, request speech permission, or generate synthetic accessibility observations.
+
+Validation: 14 adapter and native-binding tests pass; root/mobile typecheck, lint and owned-invariant coverage pass in /private/tmp/p3-native-ui-final.*. The original tests-first missing-module RED is preserved at /private/tmp/p3-native-ui-red.*. Independent review reproduced two stale-false failures while another probe was pending, then the unchanged six-witness suite passed after the per-field repair: /private/tmp/p3-native-ui-independent/{red.xml,green.xml,report.md}. The two demonstrated regressions are permanent tests.
+
+These checks mock the native APIs. On-device accessibility toggles, screen-reader exercise completion, typography snapshots and full application factory integration remain device/phase evidence requirements. This document marks no phase gate green.

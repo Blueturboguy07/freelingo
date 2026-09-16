@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="1" failures="0" errors="0" time="0.00256575">
+    <testsuite name="first-session.test.ts" timestamp="2026-09-13T19:03:28.062Z" hostname="MacBook-Pro-447.local" tests="1" failures="0" errors="0" skipped="0" time="0.00256575">
+        <testcase classname="first-session.test.ts" name="actual frozen first-session population is rejected by the unchanged production lesson floor" time="0.002132125">
+        </testcase>
+    </testsuite>
+</testsuites>

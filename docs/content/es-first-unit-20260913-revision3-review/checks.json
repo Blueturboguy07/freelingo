@@ -1,0 +1,36 @@
+{
+  "candidates": 14,
+  "sources": 13,
+  "surfaces": 66,
+  "lexicalDeclarations": 8,
+  "lexicalBindings": 16,
+  "exactSourceHashes": "passed",
+  "sourcePlacementAndResponseJoin": "passed",
+  "surfaceRanksAndVisibleIntroductions": "passed",
+  "wordSemanticIds": "passed",
+  "recognitionOptionDisjointness": "passed",
+  "sourceApprovalIssued": false,
+  "assemblyReady": false,
+  "preservedCandidates": [
+    "8180f214fcc79b40",
+    "05fb73a8c2f6c12d",
+    "04e7339237305ab0",
+    "9a30d30e1bb4ee3d",
+    "01cd5796ef18f32f",
+    "1d0af828c2e5b3c8",
+    "706b80e5880d9544",
+    "5d854a0b7d22b08f",
+    "bc9eab0f2756fe63"
+  ],
+  "amendedEnglishCandidates": [
+    "b03de7ed176e07a1",
+    "16f59b19698b62a0"
+  ],
+  "preservedSourceObjects": 11,
+  "newSourceObjects": 2,
+  "firstSessionExerciseItems": 6,
+  "firstSessionLexicalIdentities": 5,
+  "firstSessionDisplayedSpanishSurfaces": 6,
+  "originalIntroDeclarations": "unchanged",
+  "concretePriorEnglishOmissions": "resolved"
+}

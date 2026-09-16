@@ -10,6 +10,7 @@ import fc from 'fast-check';
 import { PROPERTY_RUNS } from '@freelingo/testkit';
 import type { ActiveBoost, SessionFlavour, XpLadderMode } from '../types/index.js';
 import {
+  HUB_SESSION_FLAVOURS,
   NARRATIVE_SESSION_FLAVOURS,
   PATH_SESSION_FLAVOURS,
   SESSION_FLAVOURS,
@@ -150,7 +151,13 @@ describe('the boost multiplier', () => {
             committedAtUtc: iso(commitOffset),
             ladderStateToday: EMPTY_LADDER_STATE,
           });
-          const expected = Math.floor(award.baseXp * award.multiplierApplied);
+          // Full Hub pools now pay the bounded 8 XP (16 under the existing 2x boost).
+          // Short-pool fractional ordering and all six rates are checked separately.
+          const expected = (HUB_SESSION_FLAVOURS as readonly string[]).includes(flavour)
+            ? award.multiplierApplied === 1
+              ? 8
+              : 16
+            : Math.floor(award.baseXp * award.multiplierApplied);
           expect(award.awardedXp).toBe(Math.min(expected, ladderDailyCap(award.ladderMode)));
         },
       ),

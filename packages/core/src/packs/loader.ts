@@ -42,6 +42,12 @@
  * product map still owes a row). Purity: no React, no React Native, no `node:` imports.
  */
 import { contentHashItemId } from './items.js';
+import { readPathMetadata, type LoadedPathMetadata } from './path.js';
+import {
+  readGradingMetadata,
+  type ExerciseGradingContext,
+  type LoadedGradingMetadata,
+} from './grading.js';
 
 /* ================================================= item identity (INV-PACK-41) */
 
@@ -403,6 +409,8 @@ export interface PackCredit {
   readonly kind: PackCreditKind;
   readonly sourceId: string;
   readonly owner: string;
+  /** Full source-supplied notice, separate from the owner's name. Preserve in S152. */
+  readonly notice?: string;
   readonly licence: string;
   /** True where the licence is share-alike (CC BY-SA), which the surface must state. */
   readonly shareAlike: boolean;
@@ -414,6 +422,7 @@ export interface PackCredit {
 interface DerivedListCredit {
   readonly source_id?: unknown;
   readonly owner?: unknown;
+  readonly notice?: unknown;
   readonly licence?: unknown;
   readonly share_alike?: unknown;
   readonly url?: unknown;
@@ -447,12 +456,19 @@ export interface OpenPackOptions {
 
 export interface LoadedPack {
   readonly meta: PackMeta;
+  /** Optional signed node/source capability; missing metadata never invents a path. */
+  path(): LoadedPathMetadata;
   units(): readonly PackUnit[];
   unit(unitId: string): PackUnit | null;
   /** Every exercise of one lesson, in slot order. The session queue's input. */
   lesson(unitId: string, lessonIndex: number): readonly PackExercise[];
   /** Every exercise carrying an item id — how an FSRS row finds something to show. */
   exercisesForItem(itemId: string): readonly PackExercise[];
+  /** Exact frozen slot binding; semantic item IDs may identify several variants. */
+  exercise(exerciseId: string): PackExercise | null;
+  /** Required only when launching/grading. Old packs remain inspectable; absent authored
+   * grading evidence throws explicitly rather than consulting a fixture or inferred policy. */
+  gradingForExercise(exerciseId: string): ExerciseGradingContext;
   /** Every item id the pack declares, sorted. The manifest's `itemIds`, read back. */
   itemIds(): readonly string[];
   resolveAudio(audioId: string): PackAudio | null;
@@ -466,13 +482,15 @@ export interface LoadedPack {
 /**
  * Open an installed pack. Throws `PackFormatError` if it is not one.
  *
- * Nothing is cached across calls except the meta row, which is read once and is what a
- * caller checks before doing anything else. The rest is queried on demand: a pack is
+ * Meta is read once. Optional grading/path metadata is cached only after successful
+ * validation against this reader and meta identity. Content is queried on demand: a pack is
  * tens of thousands of rows, a device has a session's worth of memory, and SQLite is
  * already the index.
  */
 export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPack {
   const meta = readPackMeta(reader);
+  let grading: LoadedGradingMetadata | undefined;
+  let path: LoadedPathMetadata | undefined;
 
   const toExercise = (row: ExerciseRow, tags: readonly PackItemTag[]): PackExercise => ({
     exerciseId: row.exercise_id,
@@ -545,6 +563,24 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
 
   return {
     meta,
+    path() {
+      path ??= readPathMetadata(reader, meta);
+      return path;
+    },
+    exercise(exerciseId) {
+      const rows = reader.all<ExerciseRow>(
+        `SELECT exercise_id, item_id, unit_id, lesson_index, slot_index, type, prompt,
+                preferred_surface, register, accepted_answers_json, distractors_json,
+                ruby_json, illustration_ref, audio_id, source_sentence_id
+           FROM exercise WHERE exercise_id = ?`,
+        [exerciseId],
+      );
+      return hydrate(rows)[0] ?? null;
+    },
+    gradingForExercise(exerciseId) {
+      grading ??= readGradingMetadata(reader, meta);
+      return grading.forExercise(exerciseId);
+    },
 
     units() {
       return reader
@@ -661,6 +697,7 @@ export function openPack(reader: PackReader, options: OpenPackOptions): LoadedPa
                 ? parsed.source_id
                 : row.key.slice(CREDITS_META_PREFIX.length),
             owner: typeof parsed.owner === 'string' ? parsed.owner : '',
+            ...(typeof parsed.notice === 'string' ? { notice: parsed.notice } : {}),
             licence,
             shareAlike:
               typeof parsed.share_alike === 'boolean' ? parsed.share_alike : isShareAlike(licence),

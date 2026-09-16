@@ -23,6 +23,20 @@
  * Screens: S118-S126 (economy surfaces), S132 (goal), S149 (data).
  */
 import type { Db } from './db.js';
+import { DISPLAY_SOURCE_COURSE_TABLES } from './display-source-schema.js';
+import { SCHEDULER_TABLES } from './scheduler-schema.js';
+import {
+  LEARNING_CONTEXT_COURSE_TABLES,
+  LEARNING_CONTEXT_ACCOUNT_TABLES,
+} from './learning-context-schema.js';
+
+import { DAY_REWARD_ACCOUNT_TABLES, DAY_REWARD_COURSE_TABLES } from './day-reward-schema.js';
+import { LEARNING_EVIDENCE_COURSE_TABLES } from './learning-evidence-schema.js';
+
+import { PATH_STATE_COURSE_TABLES } from './path-state-schema.js';
+import { WORD_REVIEW_ACCOUNT_TABLES } from './word-review-schema.js';
+import { MISTAKE_STATE_COURSE_TABLES } from './mistake-state-schema.js';
+import { WORD_EVIDENCE_ACCOUNT_TABLES } from './word-evidence-schema.js';
 
 export type SchemaRegion = 'account' | 'course_progress';
 
@@ -40,6 +54,18 @@ export interface TableSpec {
  * without a migration that creates it fails the same test from the other side.
  */
 export const PROGRESS_TABLES: readonly TableSpec[] = [
+  ...MISTAKE_STATE_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Source-bound mistake cache and ordered actual graded encounters (INV-MIS-04, INV-PER-03).',
+  })),
+  ...PATH_STATE_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Known path viewport and permanent source-proven jump/script facts (INV-PATH-06/15/21).',
+  })),
   /* ------------------------------------------------------------ account region */
   {
     name: 'account',
@@ -96,6 +122,13 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     purpose: 'One row per repaired month: idempotent on (year, month) by primary key (EC-FRZ-08).',
   },
 
+  ...[...WORD_EVIDENCE_ACCOUNT_TABLES, ...WORD_REVIEW_ACCOUNT_TABLES].map((name): TableSpec => ({
+    name,
+    region: 'account',
+    purpose:
+      'Permanent introduced/learned lexical union with explicit known-history evidence (INV-ECO-13, INV-ECO-27).',
+  })),
+
   /* ---------------------------------------------------- course_progress region */
   {
     name: 'course_progress',
@@ -134,8 +167,45 @@ export const PROGRESS_TABLES: readonly TableSpec[] = [
     name: 'course_session_state',
     region: 'course_progress',
     purpose:
-      'The resume row: all nine fields of the resume guarantee, keyed (course_id, session_kind, node_ref).',
+      'The resume row: nine indexed resume fields plus complete runtime JSON; graded kind and active lease are distinct, keyed (course_id, session_kind, node_ref).',
   },
+  ...SCHEDULER_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Complete surface cards, ordered learning evidence and staged answer receipts (INV-SCH-11, INV-SESS-07).',
+  })),
+  ...LEARNING_CONTEXT_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Frozen session source, daily choices and current course selection (INV-SESS-07, INV-SCH-05, INV-CRS-03).',
+  })),
+  ...LEARNING_CONTEXT_ACCOUNT_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'account',
+    purpose: 'Global onboarding step, independent of removed courses (INV-ECO-04).',
+  })),
+  ...DAY_REWARD_ACCOUNT_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'account',
+    purpose:
+      'Normalized day, freeze and recovery facts; monotone global reward claims (INV-DAY-06, INV-FRZ-03, INV-CER-01).',
+  })),
+  ...[...LEARNING_EVIDENCE_COURSE_TABLES, ...DISPLAY_SOURCE_COURSE_TABLES].map(
+    (name): TableSpec => ({
+      name,
+      region: 'course_progress',
+      purpose:
+        'Immutable observed teaching and semantic FSRS target receipts (INV-GRD-11, INV-SCH-11).',
+    }),
+  ),
+  ...DAY_REWARD_COURSE_TABLES.map((name): TableSpec => ({
+    name,
+    region: 'course_progress',
+    purpose:
+      'Per-course completion references and frozen ceremony presentation (INV-CER-01, INV-CER-02).',
+  })),
 ] as const;
 
 export const ACCOUNT_TABLES: readonly string[] = PROGRESS_TABLES.filter(

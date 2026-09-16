@@ -15,7 +15,7 @@
  * Everything here is deterministic: fixed ids, fixed timestamps, no clock, no randomness.
  * A rebuild that changes a byte for no reason would make every future diff unreadable.
  */
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -265,31 +265,267 @@ function seedV2(db: Db): void {
   );
 }
 
+/** v5 records two surfaces, an exact answer variant, and historical hold/anomaly evidence. */
+function seedV5(db: Db): void {
+  seedV2(db);
+  db.run("UPDATE course_progress SET mastery_high_water_points=17 WHERE course_id='en-es'");
+  for (const [surface, stability, sequence] of [
+    ['hablo', 8.5, 0],
+    ['hablamos', 2.5, 1],
+  ] as const) {
+    db.run(
+      `INSERT INTO course_item_surface(course_id,item_id,surface,kind,due_utc_ms,last_review_utc_ms,stability,difficulty,elapsed_days,scheduled_days,learning_steps,reps,lapses,state,retrievability,introduced_at_utc_ms,last_review_kind)
+      VALUES ('en-es','it_es_00',?,'lexeme',1789300800000,1789214400000,?,5.4,1.25,2.5,1,4,2,2,0.82,1789041600000,'scheduled')`,
+      [surface, stability],
+    );
+    db.run(
+      "INSERT INTO course_introduction VALUES ('en-es','it_es_00',?,1789041600000,'2026-09-10',?)",
+      [surface, sequence],
+    );
+  }
+  db.run(
+    "INSERT INTO course_item_surface_modality VALUES ('en-es','it_es_00','hablo','listening')",
+  );
+  db.run("INSERT INTO course_scheduler_mastery VALUES ('en-es','it_es_00')");
+  db.run(`INSERT INTO course_attempt(session_id,exercise_index,course_id,item_id,exercise_type,verdict,first_try,answered_at,active_ms,surface,scheduler_grade,encounter_role,scheduler_review_kind,ruby_shown,slot_id,queue,soft_corrected,cost_paid,skipped,scorable,note,attempt_sequence)
+    VALUES ('s_surface',-2,'en-es','it_es_00','typedTranslate','correct',0,'2026-09-13T12:00:00Z',2500,'hablo',3,'production','scheduled',0,'slot-a','mistakes',0,0,0,1,'replayed',0)`);
+  db.run(
+    `INSERT INTO course_session_answer_receipt VALUES ('s_pending',-2,'en-es',0,'slot-b','it_es_00','exercise-variant-b','hablamos','recognition',0,1789214400000,'2026-09-12',1200)`,
+  );
+  db.run(
+    "INSERT INTO course_scheduler_hold VALUES ('en-es','closed-listening','modality',NULL,'listening','modalityDisabled',1000,2000)",
+  );
+  db.run(
+    "INSERT INTO course_scheduler_anomaly VALUES ('en-es',0,'negativeElapsed',NULL,NULL,1000,-500,0,'wall clock rewound')",
+  );
+}
+
+function seedV6(db: Db): void {
+  seedV5(db);
+  db.run('UPDATE account SET selection_seed=123456');
+  db.run("INSERT INTO account_onboarding VALUES (1,'complete','2026-08-01T09:05:00Z')");
+  db.run("INSERT INTO course_selection VALUES ('en-es',1,1,'test','basic',0)");
+  db.run(`INSERT INTO course_session_context(session_id,course_id,session_kind,node_ref,started_at_utc_ms,started_at_monotonic_ms,start_tz_id,start_utc_offset_minutes,start_tz_source,started_local_day,economy_flavour,practice_item_ratio,pack_content_hash,origin,origin_offer_id,origin_local_day)
+    VALUES ('s_pending','en-es','nodePractice','hub-a',1789214400000,5000.25,'America/Chicago',-300,'iana','2026-09-12','hubWords',0.5,'hash_en-es_v1','hub','hub-offer-a','2026-09-12')`);
+  db.run(
+    "INSERT INTO course_session_slot VALUES ('s_pending','slot-b','en-es','exercise-variant-b','it_es_00','hablamos','recognition',0)",
+  );
+  db.run("INSERT INTO course_review_pool_day VALUES ('en-es','2026-09-12',1789214400000)");
+  db.run(
+    "INSERT INTO course_review_pool_item VALUES ('en-es','2026-09-12','it_es_00',0,'todaysReview')",
+  );
+  db.run("INSERT INTO course_review_pool_day VALUES ('en-es','2026-09-13',1789300800000)");
+  db.run("INSERT INTO course_hub_day VALUES ('en-es','2026-09-12',1)");
+  db.run("INSERT INTO course_hub_choice VALUES ('en-es','2026-09-12','words',0)");
+  db.run(
+    "INSERT INTO course_hub_completion VALUES ('en-es','2026-09-12','fallback-rewind','s_golden_1')",
+  );
+  db.run("INSERT INTO course_daily_refresh_item VALUES ('en-es','2026-09-12','it_es_01',0)");
+}
+
+function seedV7(db: Db): void {
+  seedV6(db);
+  db.run(
+    "UPDATE account SET last_processed_day='2026-09-10',last_processed_month='2026-09',freeze_cap=3,streak_goal_declined=1,streak_goal_presentations=2",
+  );
+  db.run(
+    "UPDATE account_day SET disposition='completed',grace_credited=1,streak_satisfied=1,goal_xp_at_grant=20 WHERE local_day='2026-09-10'",
+  );
+  db.run("INSERT INTO account_streak_break VALUES (1,'2026-09-11',37)");
+  db.run("INSERT INTO account_streak_break_day VALUES ('2026-09-11',1)");
+  db.run("INSERT INTO account_streak_break_day VALUES ('2026-09-12',1)");
+  db.run("INSERT INTO account_recovery_challenge VALUES (1,'2026-09-11',37,'2026-09-13',3,2,NULL)");
+  db.run("INSERT INTO account_month_settlement VALUES ('2026-09','2026-08','2026-09-01')");
+  db.run("INSERT INTO account_long_absence VALUES ('2025-06-01','2025-08-01',61,2)");
+  db.run("INSERT INTO account_streak_repair VALUES ('2026-08','2026-08-20',22)");
+  db.run("INSERT INTO account_streak_repair_day VALUES ('2026-08','2026-08-19')");
+  db.run(
+    "INSERT INTO account_freeze_grant VALUES ('capped-fixture','reward_chest',NULL,'2026-09-10',1,0)",
+  );
+  db.run(
+    "INSERT INTO account_achievement_award VALUES ('sage',0,'2026-09-10T20:06:00Z','s_golden_1')",
+  );
+  db.run(
+    "INSERT INTO course_session_commit_link VALUES ('s_golden_1','en-es','n_000','lesson',NULL,NULL)",
+  );
+  db.run("INSERT INTO course_checkpoint_claim VALUES ('en-es','n_000','2026-09-10','s_golden_1')");
+}
+
+function seedV8(db: Db): void {
+  seedV7(db);
+  db.run('INSERT INTO course_surface_exposure VALUES (?,?,?,?,?,?,?,?,?,?)', [
+    'en-es',
+    'sf-fixture-hablo',
+    'hablo',
+    'es',
+    's_pending',
+    'slot-b',
+    'exercise-variant-b',
+    'a'.repeat(64),
+    'prompt',
+    1789214400000,
+  ]);
+  db.run(
+    "INSERT INTO course_session_answer_target VALUES ('en-es','s_pending',-2,'it_es_00','sf-fixture-hablamos','hablamos','recognition',0,3,0)",
+  );
+  db.run(
+    "INSERT INTO course_attempt_target VALUES ('en-es','s_surface',-2,'it_es_00','sf-fixture-hablo','hablo','production',0,3,0,'scheduled',1789300800000)",
+  );
+}
+
+function seedV9(db: Db): void {
+  seedV8(db);
+  db.run("INSERT INTO course_path_state VALUES ('en-es',1789214400000,1,1)");
+  db.run(
+    "INSERT INTO committed_session(session_id,committed_at,outcome) VALUES ('s_path_jump','2026-09-13T10:00:00Z','completed')",
+  );
+  db.run(
+    "INSERT INTO course_session_commit_link VALUES ('s_path_jump','en-es','n_008','jumpHere',NULL,NULL)",
+  );
+  db.run("INSERT INTO course_path_jump VALUES ('en-es','u_01','s_path_jump')");
+  // New v9 witness only: explicit observed script receipt, never a backfill of old data.
+  db.run("INSERT INTO course_progress(course_id,added_at) VALUES ('en-ja','2026-09-13')");
+  db.run("INSERT INTO course_path_state VALUES ('en-ja',1789214400000,0,0)");
+  db.run('INSERT INTO course_surface_exposure VALUES (?,?,?,?,?,?,?,?,?,?)', [
+    'en-ja',
+    'sf:golden-a',
+    'あ',
+    'ja',
+    's_script',
+    'slot-a',
+    'ex-a',
+    'a'.repeat(64),
+    'prompt',
+    1789214400000,
+  ]);
+  db.run("INSERT INTO course_script_introduction VALUES ('en-ja','kana-a','sf:golden-a')");
+}
+
+function seedV10(db: Db): void {
+  seedV9(db);
+  db.run('INSERT INTO account_word_state VALUES(1,1789214400000)');
+  db.run('INSERT INTO account_word VALUES(?,?,?,?,?,1)', [
+    'i_1722fc00ca0afa93',
+    '{"grammarConcepts":[],"graphemes":[],"lexemes":["gato"],"preferredSurface":"gato","prompt":"cat","register":"neutral"}',
+    1,
+    1789214400000,
+    JSON.stringify({
+      language: 'es',
+      lexemeId: 'lx:gato:NOUN',
+      exerciseId: 'ex-cat',
+      surfaceId: 'sf-cat',
+      packContentHash: 'a'.repeat(64),
+    }),
+  ]);
+  db.run('INSERT INTO account_word_learning VALUES(?,?,?,?)', [
+    'i_1722fc00ca0afa93',
+    1789300800000,
+    's_path_jump',
+    JSON.stringify({
+      reviews: [
+        { sessionId: 's_golden_1', strength: 0.96 },
+        { sessionId: 's_path_jump', strength: 0.97 },
+      ],
+    }),
+  ]);
+}
+
+function seedV11(db: Db): void {
+  seedV10(db);
+  const word = db.get('SELECT word_item_id FROM account_word WHERE countable=1')!;
+  const learned = db.get(
+    'SELECT source_session_id FROM account_word_learning WHERE word_item_id=?',
+    [word.word_item_id],
+  )!;
+  db.run('INSERT INTO account_word_review VALUES(?,0,?,0,0,?,?)', [
+    word.word_item_id,
+    learned.source_session_id,
+    1799668800000,
+    JSON.stringify({
+      fixture: 'shape-only; runtime verifies real FSRS evidence',
+      exerciseIndex: -2,
+    }),
+  ]);
+}
+
+function seedV12(db: Db): void {
+  seedV11(db);
+  db.run(
+    "INSERT INTO course_attempt(course_id,session_id,exercise_index,item_id,exercise_type,verdict,first_try,answered_at,active_ms,slot_id,queue,soft_corrected,cost_paid,skipped,scorable,note,attempt_sequence,exercise_id,pack_content_hash) VALUES('en-es','s_mistake',0,'it_es_mistake','typedTranslate','wrong',1,'2026-09-13T12:00:00.000Z',2000,'mistake-slot','main',0,1,0,1,NULL,99,'mistake-exercise',?)",
+    ['f'.repeat(64)],
+  );
+  db.run(
+    "INSERT INTO course_attempt_target VALUES('en-es','s_mistake',0,'it_es_mistake','sf-mistake','gato','production',0,1,0,'scheduled',1789300800000)",
+  );
+  db.run(
+    "INSERT INTO course_mistake_encounter VALUES('en-es','it_es_mistake',0,'s_mistake',0,'sf-mistake','mistake-exercise',?,'lx:gato',0,1,1789300800000,'2026-09-13')",
+    ['f'.repeat(64)],
+  );
+  db.run(
+    "INSERT INTO course_mistake_state VALUES('en-es','it_es_mistake','lx:gato','s_mistake',0,'mistake-exercise',?,0,1,1789300800000,'2026-09-13',NULL,0)",
+    ['f'.repeat(64)],
+  );
+}
+
+function seedV13(db: Db): void {
+  seedV12(db);
+  const first = db.get(
+    'SELECT * FROM course_surface_exposure ORDER BY course_id,surface_id LIMIT 1',
+  )!;
+  db.run('INSERT INTO course_source_exposure VALUES(?,?,?,?,?,?,?,?,?,?)', [
+    first.course_id,
+    first.surface_id,
+    first.surface,
+    first.language,
+    's-source-display',
+    'slot-source-display',
+    'ex-source-display',
+    first.pack_content_hash,
+    'prompt',
+    1789300800000,
+  ]);
+}
+
 const SEEDS: Readonly<Record<number, (db: Db) => void>> = {
   1: seedV1,
   2: seedV2,
+  3: seedV2,
+  4: seedV2,
+  5: seedV5,
+  6: seedV6,
+  7: seedV7,
+  8: seedV8,
+  9: seedV9,
+  10: seedV10,
+  11: seedV11,
+  12: seedV12,
+  13: seedV13,
 };
 
 /* ------------------------------------------------------------------------ build */
 
 export function buildFixtures(): string[] {
-  rmSync(FIXTURE_DIR, { recursive: true, force: true });
   mkdirSync(FIXTURE_DIR, { recursive: true });
   const written: string[] = [];
 
   // v0: a file that exists and has never been migrated.
-  const fresh = createNodeDb({ location: join(FIXTURE_DIR, V0_FIXTURE) });
-  fresh.run('CREATE TABLE IF NOT EXISTS placeholder (id INTEGER PRIMARY KEY)');
-  fresh.run('DROP TABLE placeholder');
-  fresh.close();
+  if (!existsSync(join(FIXTURE_DIR, V0_FIXTURE))) {
+    const fresh = createNodeDb({ location: join(FIXTURE_DIR, V0_FIXTURE) });
+    fresh.run('CREATE TABLE IF NOT EXISTS placeholder (id INTEGER PRIMARY KEY)');
+    fresh.run('DROP TABLE placeholder');
+    fresh.close();
+  }
   written.push(V0_FIXTURE);
 
   for (const migration of MIGRATIONS) {
     const name = fixtureName(migration.userVersion);
-    const db = createNodeDb({ location: join(FIXTURE_DIR, name) });
-    migrateTo(db, migration.userVersion);
-    SEEDS[migration.userVersion]?.(db);
-    db.close();
+    // A committed old DB is evidence, never regenerated from today's migration code.
+    if (!existsSync(join(FIXTURE_DIR, name))) {
+      const db = createNodeDb({ location: join(FIXTURE_DIR, name) });
+      migrateTo(db, migration.userVersion);
+      SEEDS[migration.userVersion]?.(db);
+      db.close();
+    }
     written.push(name);
   }
 

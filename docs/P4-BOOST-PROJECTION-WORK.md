@@ -1,0 +1,7 @@
+# Current boost projection — 2026-09-13
+
+Implemented and independently reviewed in the parallel app worktree; no phase/native/release gate claim.
+
+The reward planner previously extended an already shortened stored boost deadline from 12:00:30 to 12:15:00. The exact production regression is `/private/tmp/p4-boost-deadline-red.xml`. `learningBoosts.ts` now shares a read-only current projection using the existing dual-clock core clamp and the earlier persisted deadline. Mutation owners persist its returned expiry/high-water updates in their existing transaction. Reads do not write. Multiple running grants and malformed activated records require recovery. The launch owner still has its equivalent older private projection and will consume this helper during launch factoring.
+
+Validation: actual reward32 tests passed in `/private/tmp/p4-hub-boost-green.xml` (that combined run correctly failed one separate malformed test fixture at its schema NOT NULL guard; the fixture was fixed, no production guard removed). Eight direct boost checks and the corrected Hub/state integration are green in `/private/tmp/p4-hub-current-green.xml`; full root/mobile types, lint, invariant ownership exit0 in its `.log`/`.exit`. Independent exact source-hashed replay of53 existing tests plus4 source-binding witnesses is `/private/tmp/p4-hub-boost-independent`: reward and boost checks clear; the two failures concerned the separate Hub completed-offer binding, repaired independently. No native timer measurement or pending modality-clock policy change is claimed.

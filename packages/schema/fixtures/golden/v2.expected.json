@@ -24,9 +24,28 @@
       "weekend_pairs": 4,
       "stories_completed": 7,
       "night_lessons": 12,
-      "items_retired": 88
+      "items_retired": 88,
+      "appearance": "system",
+      "imported_at_utc": null,
+      "sound_effects_enabled": 1,
+      "animations_enabled": 1,
+      "motivational_messages_enabled": 1,
+      "selection_seed": null,
+      "last_processed_day": null,
+      "last_processed_month": null,
+      "clock_unreliable": 0,
+      "freeze_cap": 2,
+      "last_completed_at_utc_ms": null,
+      "last_tz_id": null,
+      "last_utc_offset_minutes": null,
+      "last_tz_source": null,
+      "streak_goal_value": null,
+      "streak_goal_declined": 0,
+      "streak_goal_presentations": 0,
+      "streak_goal_last_picked": null
     }
   ],
+  "account_achievement_award": [],
   "account_boost": [
     {
       "grant_id": "bg_1",
@@ -76,7 +95,11 @@
       "goal_met": 1,
       "chest_granted_at": "2026-09-10T21:04:00Z",
       "freeze_consumed": 0,
-      "day_source": "lived"
+      "day_source": "lived",
+      "disposition": null,
+      "grace_credited": 0,
+      "streak_satisfied": 0,
+      "goal_xp_at_grant": null
     }
   ],
   "account_freeze": [
@@ -85,23 +108,32 @@
       "acquired_on_day": "2026-09-01",
       "acquired_via": "streak_freeze_refill",
       "subtype": "standard",
-      "consumed_for_day": null
+      "consumed_for_day": null,
+      "grant_key": null,
+      "consumed_on_day": null
     },
     {
       "freeze_id": "fz_2",
       "acquired_on_day": "2026-08-20",
       "acquired_via": "milestone_grant",
       "subtype": "standard",
-      "consumed_for_day": "2026-08-29"
+      "consumed_for_day": "2026-08-29",
+      "grant_key": null,
+      "consumed_on_day": null
     },
     {
       "freeze_id": "fz_3",
       "acquired_on_day": "2026-08-10",
       "acquired_via": "reward_chest",
       "subtype": "one_time",
-      "consumed_for_day": null
+      "consumed_for_day": null,
+      "grant_key": null,
+      "consumed_on_day": null
     }
   ],
+  "account_freeze_grant": [],
+  "account_long_absence": [],
+  "account_month_settlement": [],
   "account_monthly_badge": [
     {
       "month_key": "2026-09",
@@ -111,6 +143,7 @@
       "archived_at": null
     }
   ],
+  "account_onboarding": [],
   "account_personal_record": [
     {
       "record_kind": "most_xp_in_a_day",
@@ -129,7 +162,15 @@
       "completed_at": "2026-09-10T21:04:00Z"
     }
   ],
+  "account_recovery_challenge": [],
+  "account_streak_break": [],
+  "account_streak_break_day": [],
   "account_streak_repair": [],
+  "account_streak_repair_day": [],
+  "account_word": [],
+  "account_word_learning": [],
+  "account_word_review": [],
+  "account_word_state": [],
   "committed_session": [
     {
       "session_id": "s_golden_1",
@@ -137,7 +178,30 @@
       "active_ms": 214000,
       "xp_awarded": 14,
       "local_day": "2026-09-10",
-      "flavour": "lesson"
+      "flavour": "lesson",
+      "started_at_utc_ms": null,
+      "start_tz_id": null,
+      "start_utc_offset_minutes": null,
+      "start_tz_source": null,
+      "started_local_day": null,
+      "completed_at_utc_ms": null,
+      "completion_tz_id": null,
+      "completion_utc_offset_minutes": null,
+      "completion_tz_source": null,
+      "completed_local_day": null,
+      "derived_completion_utc_ms": null,
+      "credited_local_day": null,
+      "reward_local_day": null,
+      "credited_by_grace": null,
+      "day_keying_deferred": null,
+      "gems_awarded": null,
+      "base_xp": null,
+      "multiplier_recorded": null,
+      "multiplier_applied": null,
+      "ladder_mode": null,
+      "award_explanation": null,
+      "outcome": null,
+      "graded_attempts": null
     }
   ],
   "course_attempt": [
@@ -150,7 +214,22 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:00:00Z",
-      "active_ms": 4000
+      "active_ms": 4000,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -161,7 +240,22 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:01:00Z",
-      "active_ms": 4250
+      "active_ms": 4250,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -172,7 +266,22 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:02:00Z",
-      "active_ms": 4500
+      "active_ms": 4500,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -183,7 +292,22 @@
       "verdict": "incorrect",
       "first_try": 1,
       "answered_at": "2026-09-10T20:03:00Z",
-      "active_ms": 4750
+      "active_ms": 4750,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -194,7 +318,22 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:04:00Z",
-      "active_ms": 5000
+      "active_ms": 5000,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     },
     {
       "session_id": "s_golden_1",
@@ -205,9 +344,28 @@
       "verdict": "correct",
       "first_try": 1,
       "answered_at": "2026-09-10T20:05:00Z",
-      "active_ms": 5250
+      "active_ms": 5250,
+      "surface": null,
+      "scheduler_grade": null,
+      "encounter_role": null,
+      "scheduler_review_kind": null,
+      "ruby_shown": null,
+      "slot_id": null,
+      "queue": null,
+      "soft_corrected": null,
+      "cost_paid": null,
+      "skipped": null,
+      "scorable": null,
+      "note": null,
+      "attempt_sequence": null,
+      "exercise_id": null,
+      "pack_content_hash": null
     }
   ],
+  "course_attempt_target": [],
+  "course_ceremony": [],
+  "course_checkpoint_claim": [],
+  "course_daily_refresh_item": [],
   "course_display": [
     {
       "course_id": "en-es",
@@ -226,6 +384,10 @@
       "speaking_enabled": 1
     }
   ],
+  "course_hub_choice": [],
+  "course_hub_completion": [],
+  "course_hub_day": [],
+  "course_introduction": [],
   "course_item": [
     {
       "course_id": "en-es",
@@ -564,6 +726,8 @@
       "quarantined": 0
     }
   ],
+  "course_item_surface": [],
+  "course_item_surface_modality": [],
   "course_mistake": [
     {
       "course_id": "en-es",
@@ -575,6 +739,8 @@
       "retired_at": null
     }
   ],
+  "course_mistake_encounter": [],
+  "course_mistake_state": [],
   "course_node": [
     {
       "course_id": "en-es",
@@ -1069,6 +1235,8 @@
       "legendary_awarded_at": null
     }
   ],
+  "course_path_jump": [],
+  "course_path_state": [],
   "course_progress": [
     {
       "course_id": "en-es",
@@ -1077,7 +1245,12 @@
       "score_floor": 70,
       "pack_content_hash": "hash_en-es_v1",
       "pack_state": "installed",
-      "added_at": "2026-08-01T09:00:00Z"
+      "added_at": "2026-08-01T09:00:00Z",
+      "mastery_high_water_points": 0,
+      "legendary_takeover_declines": 0,
+      "exposure_fraction": 0,
+      "score_unlocked": null,
+      "score_ceiling_beat_shown": null
     },
     {
       "course_id": "en-fr",
@@ -1086,9 +1259,26 @@
       "score_floor": 7,
       "pack_content_hash": "hash_en-fr_v1",
       "pack_state": "installed",
-      "added_at": "2026-08-01T09:00:00Z"
+      "added_at": "2026-08-01T09:00:00Z",
+      "mastery_high_water_points": 0,
+      "legendary_takeover_declines": 0,
+      "exposure_fraction": 0,
+      "score_unlocked": null,
+      "score_ceiling_beat_shown": null
     }
   ],
+  "course_review_pool_day": [],
+  "course_review_pool_item": [],
+  "course_scheduler_anomaly": [],
+  "course_scheduler_hold": [],
+  "course_scheduler_mastery": [],
+  "course_script_introduction": [],
+  "course_selection": [],
+  "course_session_answer_receipt": [],
+  "course_session_answer_target": [],
+  "course_session_commit_link": [],
+  "course_session_context": [],
+  "course_session_slot": [],
   "course_session_state": [
     {
       "course_id": "en-fr",
@@ -1109,7 +1299,11 @@
       "used_interstitial_keys_json": "[\"combo_2\"]",
       "input_mode": "tap",
       "hard_mode": 0,
-      "option_seeds_json": "{\"it_fr_02\":[2,0,1,3]}"
+      "option_seeds_json": "{\"it_fr_02\":[2,0,1,3]}",
+      "is_active": 1,
+      "runtime_json": null
     }
-  ]
+  ],
+  "course_source_exposure": [],
+  "course_surface_exposure": []
 }

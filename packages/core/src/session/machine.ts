@@ -16,6 +16,11 @@
  * attempt ledger stays injective on `exerciseIndex` and that the index only ever advances
  * out of a state that was showing a challenge or its banner.
  */
+import { applyModalityEvent, requiresModality, retrySpeechVerdict } from './modality-runtime.js';
+import type { SessionModalityEvent, ModalityReplacementContext } from './modality-runtime.js';
+import type { ModalityFamily } from '../modality/index.js';
+import { TRACE_RUNTIME_KEY, preserveTraceRuntime, traceRuntime } from '../grading/trace.js';
+import type { TraceDefinition, TracePoint } from '../grading/trace.js';
 import type { SessionFlavourConfig } from './flavours.js';
 import type {
   Allowance,
@@ -34,6 +39,8 @@ import type { SessionState } from './resume.js';
 import { checkpoint } from './resume.js';
 import { exerciseSpec } from './registry.js';
 import { comboAfter } from './combo.js';
+import { MATCH_RUNTIME_KEY, matchRuntime, preserveMatchRuntime } from './match-runtime.js';
+import type { RuntimeMatchPair } from './match-runtime.js';
 import { advanceProgress, consumeFinalSegment } from './progress.js';
 import type { RecyclePhase } from './mistakes.js';
 import {
@@ -71,11 +78,19 @@ export interface StepDeps {
   readonly isTypeEligible: (type: ExerciseType) => boolean;
   /** The step-up heuristic. Called once per graded answer. */
   readonly stepUpTripped: (state: RuntimeState) => boolean;
+  /** Exact pairs supplied by the current pack row; absent evidence cannot complete a grid. */
+  readonly matchPairs?: (item: QueuedItem) => readonly RuntimeMatchPair[];
+  readonly modalityReplacement?: (
+    item: QueuedItem,
+    context: ModalityReplacementContext,
+  ) => QueuedItem | null;
+  readonly traceDefinition?: (item: QueuedItem) => TraceDefinition | null;
 }
 
 /* ==================================================================== 2. events */
 
 export type SessionEvent =
+  | SessionModalityEvent
   | { readonly type: 'showTips' }
   | { readonly type: 'tipsContinue' }
   | { readonly type: 'rendered' }
@@ -89,6 +104,17 @@ export type SessionEvent =
   | { readonly type: 'audioInterrupted' }
   | { readonly type: 'audioCompleted' }
   | { readonly type: 'setInputMode'; readonly mode: InputMode }
+  | {
+      readonly type: 'matchPair';
+      readonly attemptId: string;
+      readonly leftId: string;
+      readonly rightId: string;
+    }
+  | {
+      readonly type: 'traceStroke';
+      readonly attemptId: string;
+      readonly points: readonly TracePoint[];
+    }
   | { readonly type: 'check' }
   | { readonly type: 'graded' }
   | { readonly type: 'skip' }
@@ -99,6 +125,8 @@ export type SessionEvent =
   | { readonly type: 'endSession'; readonly route: ExitRoute };
 
 export interface StepResult {
+  /** Host writes this account suspension atomically with the returned session checkpoint. */
+  readonly suspendFamily?: ModalityFamily;
   readonly state: RuntimeState;
   readonly writes: readonly ProgressWrite[];
   /** Non-null when the player must pop back to the path. */
@@ -201,6 +229,10 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
   if (state.exited !== null) return none;
 
   switch (event.type) {
+    case 'modalitySkip':
+    case 'speechResult':
+    case 'speechError':
+      return applyModalityEvent(state, event, deps);
     case 'showTips':
       if (state.shellState !== 'loading' && !isChallengeState(state.shellState)) return none;
       return { state: { ...state, shellState: 'tips' }, writes: [], exit: null };
@@ -223,7 +255,10 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
         ...state.inFlight,
         text: event.text,
         caret: event.caret,
-        partialState: event.partialState,
+        partialState: preserveTraceRuntime(
+          state.inFlight.partialState,
+          preserveMatchRuntime(state.inFlight.partialState, event.partialState),
+        ),
       };
       const item = currentItem(state);
       // INV-SESS-24: CHECK stays disabled until the clip completes again.
@@ -259,8 +294,18 @@ export function step(state: RuntimeState, event: SessionEvent, deps: StepDeps): 
         exit: null,
       };
 
+    case 'traceStroke':
+      return answerStroke(state, event, deps);
+
+    case 'matchPair':
+      return answerPair(state, event, deps);
+
     case 'check': {
-      if (state.shellState !== 'challenge.armed') return none;
+      if (
+        state.shellState !== 'challenge.armed' ||
+        ['matchPairs', 'characterTrace'].includes(currentItem(state)?.type ?? '')
+      )
+        return none;
       return { state: mark(state, 'grading', deps), writes: [], exit: null };
     }
 
@@ -377,17 +422,59 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
     return { state, writes: [], exit: null };
   }
 
-  const verdict = deps.grading.grade({
-    item,
-    raw: state.inFlight.text,
-    partialState: state.inFlight.partialState,
-    hardMode: state.core.hardMode,
-  });
+  const pairRows = item.type === 'matchPairs' ? (deps.matchPairs?.(item) ?? []) : [];
+  const pairState =
+    item.type === 'matchPairs' ? matchRuntime(state.inFlight.partialState, pairRows) : null;
+  if (
+    item.type === 'matchPairs' &&
+    (pairRows.length === 0 ||
+      pairState === null ||
+      (pairState.matchedLeftIds.length !== pairRows.length &&
+        allowanceRemaining(state.core.hearts) > 0))
+  ) {
+    return { state, writes: [], exit: null };
+  }
+  const traceDefinition = item.type === 'characterTrace' ? deps.traceDefinition?.(item) : null;
+  const strokeState =
+    traceDefinition == null ? null : traceRuntime(traceDefinition, state.inFlight.partialState);
+  if (item.type === 'characterTrace' && strokeState?.complete !== true)
+    return { state, writes: [], exit: null };
+  const verdict: Verdict =
+    strokeState?.complete === true
+      ? { kind: 'correct' }
+      : pairState !== null
+        ? { kind: pairState.paid > 0 ? 'wrong' : 'correct' }
+        : deps.grading.grade({
+            item,
+            raw: state.inFlight.text,
+            partialState: state.inFlight.partialState,
+            hardMode: state.core.hardMode,
+          });
+
+  if (
+    requiresModality(item, 'speaking') &&
+    (verdict.kind === 'wrong' || verdict.kind === 'noVerdict')
+  )
+    return retrySpeechVerdict(state, deps, verdict.kind === 'wrong');
+
+  // INV-GRD-10/14: a re-prompt is not a completed answer. Keep the exact draft
+  // and all progress/allowance state; only a later corrected submission may grade.
+  if (verdict.kind === 'noVerdict') {
+    return {
+      state: mark(
+        { ...state, lastVerdict: { kind: 'noVerdict', note: verdict.note ?? null } },
+        'challenge.idle',
+        deps,
+      ),
+      writes: [],
+      exit: null,
+    };
+  }
 
   const spec = exerciseSpec(item.type);
   const wrong = verdict.kind === 'wrong';
   const cost =
-    wrong && spec.punitive ? (spec.heartCost === 'perWrongPair' ? 1 : spec.heartCost) : 0;
+    wrong && spec.punitive ? (spec.heartCost === 'perWrongPair' ? 0 : spec.heartCost) : 0;
   const hearts: Allowance = spendAllowance(state.core.hearts, cost);
 
   // INV-COM-09 / EC-COM-12: the tier-2 note is CORRECTIVE information and wins the banner
@@ -403,7 +490,7 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
     verdict: verdict.kind,
     softCorrected: verdict.kind === 'softCorrect',
     wrong,
-    costPaid: cost,
+    costPaid: pairState?.paid ?? cost,
     skipped: false,
     scorable: spec.scorable,
     queue: state.currentReplay !== null ? 'mistakes' : 'main',
@@ -424,9 +511,14 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
     }
   } else if (wrong) {
     // INV-GRD-04: a soft-correct never creates a mistake row — `wrong` is the only gate.
+    const firstWrongItemId = pairState?.firstWrongItemId;
+    const missedItem =
+      firstWrongItemId == null
+        ? item
+        : { ...item, itemId: firstWrongItemId, conceptId: firstWrongItemId };
     mistakes = queueMistake({
       config: deps.config,
-      item,
+      item: missedItem,
       queue: state.mistakes,
       mainAnswersAtMiss: mainAnswerCount(state) + 1,
     });
@@ -434,9 +526,9 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
       mistakeRows = [
         ...mistakeRows,
         {
-          itemId: item.itemId,
+          itemId: missedItem.itemId,
           courseId: state.courseId,
-          conceptId: item.conceptId,
+          conceptId: missedItem.conceptId,
           createdInSessionId: state.sessionId,
           reviewStreak: 0,
         },
@@ -460,6 +552,117 @@ function grade(state: RuntimeState, deps: StepDeps): StepResult {
 
   const shell = allowanceRemaining(hearts) <= 0 && wrong ? 'outOfHearts' : bannerFor(verdict);
   return { state: mark(next, shell, deps), writes: [], exit: null };
+}
+
+/** A pair is charged at its tap, before the grid verdict, with an idempotent attempt id. */
+function answerPair(
+  state: RuntimeState,
+  event: Extract<SessionEvent, { type: 'matchPair' }>,
+  deps: StepDeps,
+): StepResult {
+  const none: StepResult = { state, writes: [], exit: null };
+  const item = currentItem(state);
+  if (!isChallengeState(state.shellState) || item?.type !== 'matchPairs' || event.attemptId === '')
+    return none;
+  const pairs = deps.matchPairs?.(item) ?? [];
+  const pair = pairs.find((p) => p.leftId === event.leftId);
+  if (
+    pair === undefined ||
+    !pairs.some((p) => p.rightId === event.rightId) ||
+    new Set(pairs.map((p) => p.leftId)).size !== pairs.length ||
+    new Set(pairs.map((p) => p.rightId)).size !== pairs.length
+  )
+    return none;
+  const current = matchRuntime(state.inFlight.partialState, pairs);
+  if (
+    current === null ||
+    current.taps.some((t) => t.attemptId === event.attemptId) ||
+    current.matchedLeftIds.includes(event.leftId) ||
+    pairs.some((p) => p.rightId === event.rightId && current.matchedLeftIds.includes(p.leftId))
+  )
+    return none;
+  const wrong = pair.rightId !== event.rightId;
+  const record = {
+    taps: [
+      ...current.taps,
+      {
+        attemptId: event.attemptId,
+        leftId: event.leftId,
+        rightId: event.rightId,
+        leftItemId: pair.leftItemId,
+        wrong,
+      },
+    ],
+    matchedLeftIds: wrong ? current.matchedLeftIds : [...current.matchedLeftIds, event.leftId],
+    paid: current.paid + (wrong ? 1 : 0),
+    firstWrongItemId: current.firstWrongItemId ?? (wrong ? pair.leftItemId : null),
+  };
+  const partialState = {
+    ...state.inFlight.partialState,
+    [MATCH_RUNTIME_KEY]: record,
+    selectedPairLeft: null,
+  };
+  const next: RuntimeState = {
+    ...withCore(state, {
+      hearts: spendAllowance(state.core.hearts, wrong ? 1 : 0),
+      combo: wrong ? 0 : state.core.combo,
+    }),
+    inFlight: { ...state.inFlight, partialState },
+  };
+  const finished =
+    record.matchedLeftIds.length === pairs.length || allowanceRemaining(next.core.hearts) === 0;
+  return finished
+    ? grade(mark(next, 'grading', deps), deps)
+    : { state: mark(next, 'challenge.idle', deps), writes: [], exit: null };
+}
+
+/** S042 completion is established by the active pack's ordered geometry, never raw text. */
+function answerStroke(
+  state: RuntimeState,
+  event: Extract<SessionEvent, { type: 'traceStroke' }>,
+  deps: StepDeps,
+): StepResult {
+  const none = { state, writes: [], exit: null };
+  if (!isChallengeState(state.shellState)) return none;
+  const item = currentItem(state);
+  if (item?.type !== 'characterTrace') return none;
+  const definition = deps.traceDefinition?.(item);
+  if (definition == null) return none;
+  const prior = traceRuntime(definition, state.inFlight.partialState);
+  if (
+    prior === null ||
+    prior.complete ||
+    prior.attempts.some((attempt) => attempt.id === event.attemptId)
+  )
+    return none;
+  const partial = {
+    ...state.inFlight.partialState,
+    [TRACE_RUNTIME_KEY]: {
+      attempts: [...prior.attempts, { id: event.attemptId, points: event.points }],
+    },
+  };
+  const record = traceRuntime(definition, partial);
+  if (record === null) return none;
+  const row = weakItemFor(item, state.courseId, record.rejections);
+  const next: RuntimeState = {
+    ...state,
+    inFlight: {
+      ...state.inFlight,
+      partialState: { ...partial, [TRACE_RUNTIME_KEY]: record, traceDraft: [] },
+    },
+    weakItemRows:
+      row === null
+        ? state.weakItemRows
+        : [
+            ...state.weakItemRows.filter(
+              (existing) => existing.itemId !== item.itemId || existing.courseId !== state.courseId,
+            ),
+            row,
+          ],
+  };
+  return record.complete
+    ? grade(mark(next, 'grading', deps), deps)
+    : { state: mark(next, 'challenge.idle', deps), writes: [], exit: null };
 }
 
 function skip(state: RuntimeState, deps: StepDeps): StepResult {
@@ -582,7 +785,17 @@ function serveReplay(state: RuntimeState, deps: StepDeps): StepResult {
     if (mainDrained(state)) return complete(state, deps);
     return { state: mark(freshChallenge(state), 'challenge.idle', deps), writes: [], exit: null };
   }
-  const target = recycleTarget(served.served, phase, deps.isTypeEligible);
+  // EC-GRD-13: a failed grid queues its first wrong LEFT lexeme. Both recycles are
+  // recognition of that item; replaying the whole original grid would teach five targets.
+  const offered = recycleTarget(
+    served.served,
+    served.served.originalType === 'matchPairs' ? 'midLesson' : phase,
+    deps.isTypeEligible,
+  );
+  const target =
+    served.served.originalType === 'matchPairs' && offered.type === 'matchPairs'
+      ? { type: 'meaningSelect' as const, degraded: true }
+      : offered;
   const original = state.core.queue.find((q) => q.itemId === served.served.itemId);
   const item: QueuedItem = {
     id: `${served.served.slotId}#replay${served.served.recyclesServed}`,
