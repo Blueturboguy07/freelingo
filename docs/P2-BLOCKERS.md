@@ -1121,6 +1121,17 @@ and what has been built; **only** the sections above say anything about build st
 
 ---
 
+## Founder ruling — 2026-09-16 — B21: corpus-first cannot reach the 2 % gate → authored-first for v1
+
+Recorded by Claude from the founder's acceptance ("log the ruling"); the full text with grounding is in `~/duolingo-research/DECISIONS-LOG.md` (2026-09-16 section).
+
+- **Evidence that triggered it:** five red attempts. Round-5 attempt 1 on `fca9a57`: pack CI run 34734954606 built G0–G9, then `validate es` failed with 11/17 checks green, 6,517 blocking findings, 316 warnings; the 300-item review scored 101 wrong / 17 awkward / 182 OK (33.67 %, PROVISIONAL). Round 4 measured 4.00 %. No repair round moved the rate toward 2 %.
+- **Ruling:** every shipped Spanish item is **authored** by agents against the unit brief, in the existing `content/es/authoring/` candidate format, at the unchanged 20-per-slot floor. The corpus becomes **attestation only** (naturalness score, optional witness); it is never required to fill a slot. Corpus sentences may still ship where they pass every validator unchanged.
+- **Unchanged:** all validators, the 300-item sample, the 2 % gate, the PROVISIONAL label, the paid-review release prerequisite, per-item provenance (authored items show `source: authored` with method and rubric hash), S152 credits, stable ids, every invariant.
+- **Consequences:** supersedes the 2026-09-10 "corpus-first with LLM gap-fill" scope answer for v1; fr/de/ja follow the same route unless ruled otherwise; P2 round 6 is the first authored-first round and the red-twice stop condition restarts at zero for it.
+
+---
+
 ## B19 — the B9 ruling's own other clauses moved the gap list — OPEN, the phase blocker
 
 **Found by running the pipeline after the round-3 merge queue, 2026-09-12.** Not a
